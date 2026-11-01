@@ -8,13 +8,12 @@ use super::executor::ModifierState;
 pub const NULL_KEY: &str = "\u{E000}";
 
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
-/// tables and a US keyboard, so none is ever typed as text.
+/// tables and a US keyboard, so none is ever typed as text. A newline and a backspace character are
+/// the Enter and Backspace keys, as chromedriver sends them.
 pub fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
-  let mut chars = key.chars();
-  let (Some(ch), None) = (chars.next(), chars.next()) else {
-    return None;
-  };
-  let mapped = match ch {
+  let mapped = match single_char(key)? {
+    '\n' => ("Enter", "Enter", 13),
+    '\u{8}' => ("Backspace", "Backspace", 8),
     '\u{E000}' => ("Unidentified", "", 0),
     '\u{E001}' => ("Cancel", "", 3),
     '\u{E002}' => ("Help", "Help", 47),
@@ -98,7 +97,7 @@ pub fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
 /// Whether a normalized key value types a character: Space, `;`, `=` and the numpad digits and
 /// operators.
 pub fn is_printable_key(js_key: &str) -> bool {
-  js_key.chars().count() == 1
+  single_char(js_key).is_some()
 }
 
 /// Whether a WebDriver key value is a left- or right-hand Shift/Control/Alt/Meta.
@@ -106,17 +105,74 @@ pub fn is_modifier_key(key: &str) -> bool {
   matches!(map_special_key(key), Some(("Shift" | "Control" | "Alt" | "Meta", _, _)))
 }
 
-/// The `KeyboardEvent.code` for a printable character.
-pub fn regular_key_code_for(key: &str) -> String {
-  let ch = key.chars().next().unwrap_or(' ');
-  let upper = ch.to_ascii_uppercase();
-  if ch.is_ascii_alphabetic() {
-    format!("Key{upper}")
-  } else if ch.is_ascii_digit() {
-    format!("Digit{ch}")
-  } else {
-    key.to_string()
+/// A printable character's US-keyboard key: its `code`, its legacy `keyCode` (65 for `a` and `A`)
+/// and whether it takes Shift, or `("", 0, false)` for a character the keyboard has no key for.
+pub fn regular_key(key: &str) -> (String, u32, bool) {
+  single_char(key).and_then(us_keyboard_key).unwrap_or_default()
+}
+
+/// Whether a key value presses no key: chromedriver skips a carriage return, so a `\r\n` line
+/// ending presses Enter once.
+pub fn is_skipped_key(key: &str) -> bool {
+  key == "\r"
+}
+
+fn single_char(key: &str) -> Option<char> {
+  let mut chars = key.chars();
+  match (chars.next(), chars.next()) {
+    (Some(ch), None) => Some(ch),
+    _ => None,
   }
+}
+
+/// The `(code, keyCode, shifted)` of the US-keyboard key that types `ch`.
+fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
+  if ch.is_ascii_alphabetic() {
+    let upper = ch.to_ascii_uppercase();
+    return Some((format!("Key{upper}"), upper as u32, ch.is_ascii_uppercase()));
+  }
+  if ch.is_ascii_digit() {
+    return Some((format!("Digit{ch}"), ch as u32, false));
+  }
+  let (code, key_code, shifted) = match ch {
+    // Workaround for #889; drop once Tab moves focus
+    '\t' => ("Tab", 9, false),
+    ' ' => ("Space", 32, false),
+    ')' => ("Digit0", 48, true),
+    '!' => ("Digit1", 49, true),
+    '@' => ("Digit2", 50, true),
+    '#' => ("Digit3", 51, true),
+    '$' => ("Digit4", 52, true),
+    '%' => ("Digit5", 53, true),
+    '^' => ("Digit6", 54, true),
+    '&' => ("Digit7", 55, true),
+    '*' => ("Digit8", 56, true),
+    '(' => ("Digit9", 57, true),
+    ';' => ("Semicolon", 186, false),
+    ':' => ("Semicolon", 186, true),
+    '=' => ("Equal", 187, false),
+    '+' => ("Equal", 187, true),
+    ',' => ("Comma", 188, false),
+    '<' => ("Comma", 188, true),
+    '-' => ("Minus", 189, false),
+    '_' => ("Minus", 189, true),
+    '.' => ("Period", 190, false),
+    '>' => ("Period", 190, true),
+    '/' => ("Slash", 191, false),
+    '?' => ("Slash", 191, true),
+    '`' => ("Backquote", 192, false),
+    '~' => ("Backquote", 192, true),
+    '[' => ("BracketLeft", 219, false),
+    '{' => ("BracketLeft", 219, true),
+    '\\' => ("Backslash", 220, false),
+    '|' => ("Backslash", 220, true),
+    ']' => ("BracketRight", 221, false),
+    '}' => ("BracketRight", 221, true),
+    '\'' => ("Quote", 222, false),
+    '"' => ("Quote", 222, true),
+    _ => return None,
+  };
+  Some((code.to_string(), key_code, shifted))
 }
 
 /// A JS string literal for `text` that is safe to splice into a script.
@@ -134,12 +190,22 @@ pub fn deep_active_element_js(var: &str) -> String {
   )
 }
 
+/// `element-events.js`'s text field types, for scripts that don't paste that file.
+fn text_field_types_js() -> &'static str {
+  const DECLARATION: &str = "const WDIO_TEXT_FIELD_TYPES = ";
+  let start =
+    ELEMENT_EVENTS_JS.find(DECLARATION).expect("element-events.js declares WDIO_TEXT_FIELD_TYPES")
+      + DECLARATION.len();
+  let end = start + ELEMENT_EVENTS_JS[start..].find(';').expect("the declaration ends with a ;");
+  &ELEMENT_EVENTS_JS[start..end]
+}
+
 /// JS expression that is true when `el` takes typed text: a textarea or a text-like input.
 pub fn is_text_field_js(el: &str) -> String {
+  let types = text_field_types_js();
   format!(
-        "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && \
-         ['text', 'search', 'url', 'tel', 'email', 'password', 'number'].indexOf({el}.type) !== -1))"
-    )
+    "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && {types}.indexOf({el}.type) !== -1))"
+  )
 }
 
 /// JS expression that is true when typing may change `el`'s value: a text field that is neither
@@ -149,17 +215,8 @@ pub fn is_editable_text_field_js(el: &str) -> String {
   format!("({text_field} && !{el}.readOnly && !{el}.disabled)")
 }
 
-/// JS expression that is true when `el` is a non-typeable form control whose value Send Keys sets
-/// directly (W3C), such as a date or colour input.
-pub fn is_value_control_js(el: &str) -> String {
-  format!(
-        "({el}.tagName === 'INPUT' && \
-         ['color', 'date', 'datetime-local', 'month', 'range', 'time', 'week'].indexOf({el}.type) !== -1)"
-    )
-}
-
-/// JS dispatching a synthetic special-key `KeyboardEvent` plus the editing, radio and line-break
-/// side-effects an untrusted event can't drive itself, skipped when a handler cancels the keydown.
+/// JS dispatching a special-key `KeyboardEvent`. Synthetic events have no default action, so
+/// unless a handler cancels the keydown, the script performs the key's action itself.
 pub fn build_special_key_script(
   js_key: &str,
   js_code: &str,
@@ -172,28 +229,28 @@ pub fn build_special_key_script(
     "Backspace" | "Delete" => delete_js(js_key == "Backspace"),
     "ArrowDown" | "ArrowRight" => radio_step_js(true),
     "ArrowUp" | "ArrowLeft" => radio_step_js(false),
-    "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => {
-      line_break_js(modifiers.shift)
-    }
     _ => String::new(),
   };
-  key_event_script(js_key, js_code, key_code, is_down, modifiers, &default_action)
+  let after_dispatch =
+    if js_key == "Enter" && is_down && !(modifiers.ctrl || modifiers.meta || modifiers.alt) {
+      enter_js(modifiers.shift)
+    } else {
+      String::new()
+    };
+  key_event_script(js_key, js_code, key_code, is_down, modifiers, &after_dispatch, &default_action)
 }
 
 /// JS dispatching a synthetic printable-character `KeyboardEvent` plus the insertion or Ctrl/Meta+A
 /// select-all an untrusted event can't drive itself, skipped when a handler cancels the keydown.
-pub fn build_regular_key_script(
-  key: &str,
-  code: &str,
-  is_down: bool,
-  modifiers: &ModifierState,
-) -> String {
-  let ch = key.chars().next().unwrap_or(' ');
-  build_printable_key_script(key, code, ch as u32, is_down, modifiers)
+/// The event carries the character's US-keyboard key, with Shift held if that key needs it.
+pub fn build_regular_key_script(key: &str, is_down: bool, modifiers: &ModifierState) -> String {
+  let (code, key_code, shifted) = regular_key(key);
+  let modifiers = ModifierState { shift: modifiers.shift || shifted, ..*modifiers };
+  build_printable_key_script(key, &code, key_code, is_down, &modifiers)
 }
 
-/// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys whose
-/// legacy code differs from the character's (e.g. Numpad5 is 101, not 53).
+/// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys that don't
+/// share the main key's (Numpad5 is 101, not 53).
 pub fn build_printable_key_script(
   key: &str,
   code: &str,
@@ -211,17 +268,26 @@ pub fn build_printable_key_script(
   } else {
     insert_text_js("activeEl", &js_string(key))
   };
-  key_event_script(key, code, key_code, is_down, modifiers, &default_action)
+  let after_dispatch = if key == " " { space_js(is_down, modifiers) } else { String::new() };
+  key_event_script(key, code, key_code, is_down, modifiers, &after_dispatch, &default_action)
 }
 
-/// JS dispatching one keydown or keyup to the deep focused element, then running `default_action`
-/// unless a handler canceled the event.
+/// JS for Space's keydown or keyup, which runs even when canceled, as a cancel stops the click.
+fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
+  let call = if is_down { "wdioSpaceDown" } else { "wdioSpaceUp" };
+  let held = modifiers.ctrl || modifiers.meta || modifiers.alt;
+  format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(activeEl, canceled || {held});\n}}")
+}
+
+/// JS dispatching one keydown or keyup to the deep focused element, then running `after_dispatch`,
+/// which can read `canceled`, and `default_action` unless a handler canceled the event.
 fn key_event_script(
   key: &str,
   code: &str,
   key_code: u32,
   is_down: bool,
   modifiers: &ModifierState,
+  after_dispatch: &str,
   default_action: &str,
 ) -> String {
   let active_element = deep_active_element_js("activeEl");
@@ -245,7 +311,9 @@ fn key_event_script(
                     composed: true,
                     cancelable: true
                 }});
-                if (!activeEl.dispatchEvent(keyEvent)) {{
+                var canceled = !activeEl.dispatchEvent(keyEvent);
+                {after_dispatch}
+                if (canceled) {{
                     return true;
                 }}
                 {default_action}
@@ -330,16 +398,25 @@ fn radio_step_js(forward: bool) -> String {
   )
 }
 
-/// JS for Enter: a line break in a textarea or contenteditable (Shift+Enter inserts a `<br>`
-/// rather than a new paragraph). Inputs get none.
-fn line_break_js(shift: bool) -> String {
+/// JS for Enter's keydown. It fires an owed `change` even if a handler canceled the key, as the
+/// handler can still have moved focus, then acts where focus is after that `change`.
+fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
   format!(
-    r"if (activeEl.tagName === 'TEXTAREA') {{
-                    {insert_newline}
-                }} else if (activeEl.isContentEditable) {{
-                    document.execCommand('{command}', false, null);
+    r"{{
+                {ELEMENT_EVENTS_JS}
+                wdioFlushPendingChange();
+                if (!canceled) {{
+                    activeEl = wdioDeepActiveElement();
+                    if (activeEl.tagName === 'TEXTAREA') {{
+                        {insert_newline}
+                    }} else if (activeEl.isContentEditable) {{
+                        document.execCommand('{command}', false, null);
+                    }} else {{
+                        wdioEnterKey();
+                    }}
+                }}
                 }}"
   )
 }
@@ -413,11 +490,15 @@ pub fn segment_send_keys(text: &str) -> Vec<KeySegment> {
   let mut segments = Vec::new();
   let mut run = String::new();
   for ch in text.chars() {
-    if map_special_key(&ch.to_string()).is_some() {
+    let key = ch.to_string();
+    if is_skipped_key(&key) {
+      continue;
+    }
+    if map_special_key(&key).is_some() {
       if !run.is_empty() {
         segments.push(KeySegment::Text(std::mem::take(&mut run)));
       }
-      segments.push(KeySegment::Special(ch.to_string()));
+      segments.push(KeySegment::Special(key));
     } else {
       run.push(ch);
     }
@@ -560,33 +641,36 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
   }
 }
 
-/// JS starting send keys: sets a value control's value to `typed`, or focuses the element once and,
-/// for a `plain` request, types it too. Returns `{ status, value }` and never throws.
+/// Page-side helpers for focus moves and form events.
+pub const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
+
+/// The script after the shared helpers, so a test can't match their definitions.
+#[cfg(test)]
+pub(crate) fn after_helpers(script: &str) -> &str {
+  &script[script.find(ELEMENT_EVENTS_JS).unwrap() + ELEMENT_EVENTS_JS.len()..]
+}
+
+/// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
+/// records that a text field owes a `change`, and types `plain` if given. Returns `{ status }` and
+/// never throws.
 pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
   let active_element = deep_active_element_js("activeEl");
-  let text_field = is_text_field_js("el");
-  let receiver_text_field = is_text_field_js("receiver");
-  let value_control = is_value_control_js("el");
+  let receiver_editable = is_editable_text_field_js("receiver");
   let typed = js_string(typed);
   let finish = match plain {
-    None => format!(
-      r"window.{js_var}__receiver = receiver;
-                return {{ status: 'focused', value: initialValue }};"
-    ),
+    None => "return { status: 'focused' };".to_string(),
     Some(text) => {
       let insert_text =
         if text.is_empty() { String::new() } else { insert_text_js("receiver", &js_string(text)) };
       format!(
         r"{insert_text}
-                if (initialValue !== null && receiver.value !== initialValue) {{
-                    receiver.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
                 return {{ status: 'done' }};"
       )
     }
   };
   format!(
     r"(function() {{
+                {ELEMENT_EVENTS_JS}
                 var el = window.{js_var};
                 if (!el || !el.isConnected) {{
                     return {{ status: 'stale' }};
@@ -594,24 +678,9 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                 if (el.tagName === 'INPUT' && el.type === 'file') {{
                     return {{ status: 'file' }};
                 }}
-                var typed = {typed};
-                if ({value_control} && typed !== '') {{
-                    if (el.readOnly || el.disabled) {{
-                        return {{ status: 'immutable' }};
-                    }}
-                    el.focus();
-                    var setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    var previousValue = el.value;
-                    setValue.call(el, typed);
-                    if (el.value === '') {{
-                        setValue.call(el, previousValue);
-                        return {{ status: 'invalid' }};
-                    }}
-                    if (el.value !== previousValue) {{
-                        el.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
-                        el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    }}
-                    return {{ status: 'set' }};
+                var valueControlStatus = wdioSetValueControl(el, {typed});
+                if (valueControlStatus) {{
+                    return {{ status: valueControlStatus }};
                 }}
                 {active_element}
                 var wasFocused = activeEl === el;
@@ -621,14 +690,8 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                     && focusTarget.parentElement.isContentEditable) {{
                     focusTarget = focusTarget.parentElement;
                 }}
-                // Text fields get the caret at the end before focus: typing appends, yet a select-on-focus
-                // handler still wins.
-                if ({text_field}) {{
-                    try {{
-                        el.setSelectionRange(el.value.length, el.value.length);
-                    }} catch (e) {{}}
-                }}
-                focusTarget.focus();
+                wdioCaretToEnd(el);
+                wdioFocus(focusTarget);
                 if (!wasFocused && el.isContentEditable) {{
                     try {{
                         var range = document.createRange();
@@ -641,21 +704,19 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                 }}
                 {active_element}
                 // The body, focus-delegating hosts and an editing host holding the element count as focus.
-                var focused = el === document.body || el === document.documentElement || activeEl === focusTarget;
-                for (var node = activeEl; node && !focused; node = node.parentNode || node.host) {{
-                    focused = node === el;
-                }}
+                var focused = el === document.body || el === document.documentElement || activeEl === focusTarget
+                    || wdioContains(el, activeEl);
                 if (!focused) {{
                     return {{ status: 'unfocused' }};
                 }}
                 var receiver = activeEl;
-                // A field that focus was delegated to is only known now, so its caret moves after focus.
-                if (receiver !== el && {receiver_text_field}) {{
-                    try {{
-                        receiver.setSelectionRange(receiver.value.length, receiver.value.length);
-                    }} catch (e) {{}}
+                if ({receiver_editable}) {{
+                    // A field that focus was delegated to is only known now, so its caret moves after focus.
+                    if (receiver !== el) {{
+                        wdioCaretToEnd(receiver);
+                    }}
+                    wdioRecordPendingChange(receiver, receiver.value);
                 }}
-                var initialValue = {receiver_text_field} ? receiver.value : null;
                 {finish}
             }})()"
   )
@@ -670,22 +731,6 @@ pub fn build_insert_run_script(run: &str) -> String {
     r"(function() {{
                 {active_element}
                 {insert_text}
-                return true;
-            }})()"
-  )
-}
-
-/// JS firing one `change` if the field that received the text no longer holds `initial_value`; it
-/// skips a detached field so a retry can't duplicate keystrokes that already committed.
-pub fn build_send_keys_change_script(js_var: &str, initial_value: &str) -> String {
-  let initial_value = js_string(initial_value);
-  format!(
-    r"(function() {{
-                var el = window.{js_var}__receiver;
-                delete window.{js_var}__receiver;
-                if (el && el.isConnected && el.value !== {initial_value}) {{
-                    el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
                 return true;
             }})()"
   )
@@ -746,26 +791,9 @@ pub fn cdp_modifiers(modifiers: &ModifierState) -> u32 {
   bits
 }
 
-/// Virtual key code for a printable character; non-alphanumerics carry 0 and rely on `text`.
-#[cfg(any(target_os = "windows", test))]
-fn printable_virtual_key_code(ch: char) -> u32 {
-  if ch.is_ascii_alphabetic() {
-    ch.to_ascii_uppercase() as u32
-  } else if ch.is_ascii_digit() {
-    ch as u32
-  } else {
-    0
-  }
-}
-
 /// Resolve a WebDriver key value and modifier state into `Input.dispatchKeyEvent` parameters.
 #[cfg(any(target_os = "windows", test))]
 pub fn to_cdp_key_event(key: &str, is_down: bool, modifiers: &ModifierState) -> CdpKeyEvent {
-  // A typed line break is the Enter key, as msedgedriver sends it.
-  let key = match key {
-    "\n" | "\r" => "\u{E007}",
-    _ => key,
-  };
   let event_type = if is_down { "keyDown" } else { "keyUp" };
   // Under a Ctrl, Alt or Meta chord a key is a shortcut, not typing; Shift still types.
   let types_text = is_down && !modifiers.ctrl && !modifiers.alt && !modifiers.meta;
@@ -785,13 +813,14 @@ pub fn to_cdp_key_event(key: &str, is_down: bool, modifiers: &ModifierState) -> 
       text,
     }
   } else {
-    let ch = key.chars().next().unwrap_or(' ');
+    let (code, key_code, shifted) = regular_key(key);
+    let modifiers = ModifierState { shift: modifiers.shift || shifted, ..*modifiers };
     CdpKeyEvent {
       event_type,
       key: key.to_string(),
-      code: regular_key_code_for(key),
-      windows_virtual_key_code: printable_virtual_key_code(ch),
-      modifiers: cdp_modifiers(modifiers),
+      code,
+      windows_virtual_key_code: key_code,
+      modifiers: cdp_modifiers(&modifiers),
       text: types_text.then(|| key.to_string()),
     }
   }
@@ -928,11 +957,77 @@ mod tests {
   }
 
   #[test]
-  fn regular_key_code_for_derives_code() {
-    assert_eq!(regular_key_code_for("a"), "KeyA");
-    assert_eq!(regular_key_code_for("A"), "KeyA");
-    assert_eq!(regular_key_code_for("5"), "Digit5");
-    assert_eq!(regular_key_code_for("!"), "!");
+  fn regular_keys_send_their_us_keyboard_key() {
+    for (key, (code, key_code, shifted)) in [
+      ("a", ("KeyA", 65, false)),
+      ("A", ("KeyA", 65, true)),
+      ("p", ("KeyP", 80, false)),
+      ("z", ("KeyZ", 90, false)),
+      ("0", ("Digit0", 48, false)),
+      ("5", ("Digit5", 53, false)),
+      ("%", ("Digit5", 53, true)),
+      ("!", ("Digit1", 49, true)),
+      (")", ("Digit0", 48, true)),
+      (" ", ("Space", 32, false)),
+      (";", ("Semicolon", 186, false)),
+      (":", ("Semicolon", 186, true)),
+      ("=", ("Equal", 187, false)),
+      ("+", ("Equal", 187, true)),
+      (",", ("Comma", 188, false)),
+      ("-", ("Minus", 189, false)),
+      (".", ("Period", 190, false)),
+      ("/", ("Slash", 191, false)),
+      ("?", ("Slash", 191, true)),
+      ("`", ("Backquote", 192, false)),
+      ("~", ("Backquote", 192, true)),
+      ("[", ("BracketLeft", 219, false)),
+      ("\\", ("Backslash", 220, false)),
+      ("\t", ("Tab", 9, false)),
+      ("]", ("BracketRight", 221, false)),
+      ("'", ("Quote", 222, false)),
+      ("\"", ("Quote", 222, true)),
+      ("é", ("", 0, false)),
+      ("ab", ("", 0, false)),
+    ] {
+      assert_eq!(regular_key(key), (code.to_string(), key_code, shifted), "{key:?}");
+    }
+  }
+
+  #[test]
+  fn control_characters_press_the_keys_chromedriver_sends() {
+    assert_eq!(map_special_key("\n"), map_special_key(ENTER));
+    assert_eq!(map_special_key("\u{8}"), map_special_key(BACKSPACE));
+    assert!(is_skipped_key("\r") && map_special_key("\r").is_none());
+    // Typed as text until Tab moves focus.
+    assert_eq!(map_special_key("\t"), None);
+    let none = mods(false, false, false, false);
+    assert_eq!(
+      plan_send_keys("a\r\nb\u{8}\tc"),
+      vec![
+        text("a"),
+        key("\n", true, none),
+        key("\n", false, none),
+        text("b"),
+        key("\u{8}", true, none),
+        key("\u{8}", false, none),
+        text("\tc"),
+      ]
+    );
+  }
+
+  #[test]
+  fn letters_dont_share_numpad_or_function_key_codes() {
+    let special_codes: Vec<u32> = special_key_range()
+      .filter_map(|ch| map_special_key(&ch.to_string()))
+      .map(|(_, _, key_code)| key_code)
+      .collect();
+    for ch in ('a'..='z').chain('A'..='Z') {
+      let (_, key_code, _) = regular_key(&ch.to_string());
+      assert!(
+        !special_codes.contains(&key_code),
+        "{ch} shares keyCode {key_code} with a special key"
+      );
+    }
   }
 
   #[test]
@@ -971,12 +1066,16 @@ mod tests {
 
   #[test]
   fn build_regular_key_script_carries_modifiers_and_value_mutation() {
-    let script = build_regular_key_script("a", "KeyA", true, &mods(false, false, false, false));
+    let script = build_regular_key_script("a", true, &mods(false, false, false, false));
     assert!(script.contains("key: \"a\""));
-    assert!(script.contains("keyCode: 97"));
+    assert!(script.contains("code: \"KeyA\""));
+    assert!(script.contains("keyCode: 65"));
+    assert!(script.contains("shiftKey: false"));
+    let capital = build_regular_key_script("A", true, &mods(false, false, false, false));
+    assert!(capital.contains("keyCode: 65") && capital.contains("shiftKey: true"));
     assert!(script.contains("inputType: 'insertText'"));
 
-    let select_all = build_regular_key_script("a", "KeyA", true, &mods(true, false, false, false));
+    let select_all = build_regular_key_script("a", true, &mods(true, false, false, false));
     assert!(select_all.contains("activeEl.select()"));
     assert!(!select_all.contains("insertedText"));
   }
@@ -1037,9 +1136,11 @@ mod tests {
   #[test]
   fn key_text_is_spliced_as_escaped_literals() {
     let none = mods(false, false, false, false);
-    let newline = build_regular_key_script("\n", "\n", true, &none);
-    assert!(newline.contains(&format!("key: {}", js_string("\n"))));
-    assert!(newline.contains(&format!("var insertedText = {}", js_string("\n"))));
+    for key in ["\"", "\\"] {
+      let script = build_regular_key_script(key, true, &none);
+      assert!(script.contains(&format!("key: {}", js_string(key))), "{key}");
+      assert!(script.contains(&format!("var insertedText = {}", js_string(key))), "{key}");
+    }
     let run = build_insert_run_script("a`$\\b\n'");
     assert!(run.contains(&format!("var insertedText = {}", js_string("a`$\\b\n'"))));
   }
@@ -1061,23 +1162,25 @@ mod tests {
   fn default_actions_wait_for_an_uncanceled_keydown() {
     let none = mods(false, false, false, false);
     let ctrl = mods(true, false, false, false);
-    let guard = "if (!activeEl.dispatchEvent(keyEvent)) {";
+    let dispatch = "var canceled = !activeEl.dispatchEvent(keyEvent);";
+    let guard = "if (canceled) {";
     for (script, side_effect) in [
       (build_printable_key_script(" ", "Space", 32, true, &none), "var insertedText"),
-      (build_regular_key_script("x", "KeyX", true, &none), "var insertedText"),
-      (build_regular_key_script("a", "KeyA", true, &ctrl), "activeEl.select()"),
+      (build_regular_key_script("x", true, &none), "var insertedText"),
+      (build_regular_key_script("a", true, &ctrl), "activeEl.select()"),
       (
         build_special_key_script("Backspace", "Backspace", 8, true, &none),
         "nativeInputValueSetter",
       ),
       (build_special_key_script("Delete", "Delete", 46, true, &none), "nativeInputValueSetter"),
       (build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none), "nextRadio.checked"),
-      (build_special_key_script("Enter", "Enter", 13, true, &none), "insertParagraph"),
     ] {
+      let dispatch_at = script.find(dispatch).unwrap_or_else(|| panic!("no dispatch in {script}"));
       let guard_at = script.find(guard).unwrap_or_else(|| panic!("no guard in {script}"));
       let effect_at = script.find(side_effect).unwrap();
+      assert!(dispatch_at < guard_at, "the guard comes before the dispatch in {script}");
       assert!(guard_at < effect_at, "{side_effect} runs before the guard in {script}");
-      assert!(!script.contains("activeEl.dispatchEvent(keyEvent);"));
+      assert_eq!(script.matches("dispatchEvent(keyEvent)").count(), 1, "{script}");
     }
   }
 
@@ -1309,33 +1412,27 @@ mod tests {
   #[test]
   fn build_send_keys_start_script_appends_to_the_field_that_receives_the_text() {
     let script = build_send_keys_start_script("__wd_el_abc", "", None);
-    let field_caret =
-      script.find("el.setSelectionRange(el.value.length, el.value.length)").unwrap();
-    let focus = script.find("focusTarget.focus()").unwrap();
-    let editor_caret = script.find("range.collapse(false)").unwrap();
-    let delegated_caret = script
-      .find("receiver.setSelectionRange(receiver.value.length, receiver.value.length)")
-      .unwrap();
+    let body = after_helpers(&script);
+    let field_caret = body.find("wdioCaretToEnd(el);").unwrap();
+    let focus = body.find("wdioFocus(focusTarget)").unwrap();
+    let editor_caret = body.find("range.collapse(false)").unwrap();
+    let delegated_caret = body.find("wdioCaretToEnd(receiver);").unwrap();
     assert!(field_caret < focus && focus < editor_caret && editor_caret < delegated_caret);
-    assert!(script.contains("if (!wasFocused && el.isContentEditable)"));
-    assert!(script.contains(&format!(
-      "var initialValue = {} ? receiver.value : null;",
-      is_text_field_js("receiver")
-    )));
-    assert!(script.contains("window.__wd_el_abc__receiver = receiver;"));
-    let plain = build_send_keys_start_script("__wd_el_abc", "x", Some("x"));
-    assert!(plain.contains("receiver.value !== initialValue"));
-    assert!(plain.contains("receiver.dispatchEvent(new Event('change'"));
+    assert!(body.contains("if (!wasFocused && el.isContentEditable)"));
+    assert!(body.contains(&format!("if ({}) {{", is_editable_text_field_js("receiver"))));
+    let record = body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap();
+    assert!(delegated_caret < record);
+    assert!(record < body.find("return { status: 'focused' };").unwrap());
   }
 
   #[test]
   fn build_send_keys_start_script_accepts_the_body_editing_hosts_and_focus_inside() {
     let script = build_send_keys_start_script("__wd_el_abc", "", None);
     assert!(script.contains(
-      "el === document.body || el === document.documentElement || activeEl === focusTarget;"
+      "el === document.body || el === document.documentElement || activeEl === focusTarget"
     ));
     assert!(script.contains("focusTarget = focusTarget.parentElement;"));
-    assert!(script.contains("node = node.parentNode || node.host"));
+    assert!(script.contains("|| wdioContains(el, activeEl);"));
     assert!(script.contains("return { status: 'unfocused' };"));
   }
 
@@ -1349,10 +1446,10 @@ mod tests {
   #[test]
   fn build_send_keys_start_script_types_plain_text_in_the_same_script() {
     let plain = build_send_keys_start_script("__wd_el_abc", "hi", Some("hi"));
-    let focus = plain.find("focusTarget.focus()").unwrap();
+    let focus = plain.find("wdioFocus(focusTarget)").unwrap();
+    let record = plain.find("wdioRecordPendingChange(receiver").unwrap();
     let insert = plain.find("var insertedText = \"hi\"").unwrap();
-    let change = plain.rfind("new Event('change'").unwrap();
-    assert!(focus < insert && insert < change);
+    assert!(focus < record && record < insert);
     assert!(plain.contains("return { status: 'done' };"));
     let empty = build_send_keys_start_script("__wd_el_abc", "", Some(""));
     assert!(!empty.contains("insertedText") && empty.contains("return { status: 'done' };"));
@@ -1369,12 +1466,68 @@ mod tests {
   }
 
   #[test]
-  fn build_send_keys_change_script_fires_change_only_for_a_changed_value() {
-    let script = build_send_keys_change_script("__wd_el_abc", "it's\n");
-    assert!(script.contains("var el = window.__wd_el_abc__receiver;"));
-    assert!(script.contains(&format!("el.value !== {}", js_string("it's\n"))));
-    assert!(script.contains("new Event('change'"));
-    assert!(!script.contains("throw"));
+  fn enter_fires_an_owed_change_then_acts_on_the_element_focused_after_it() {
+    let none = mods(false, false, false, false);
+    let shift = mods(false, true, false, false);
+    for modifiers in [none, shift] {
+      let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
+      let dispatch = enter.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
+      let helpers = enter.find(&format!("{{\n                {ELEMENT_EVENTS_JS}")).unwrap();
+      let action = &enter[helpers + ELEMENT_EVENTS_JS.len()..];
+      let flush = action.find("wdioFlushPendingChange();").unwrap();
+      let uncanceled = action.find("if (!canceled) {").unwrap();
+      let refocus = action.find("activeEl = wdioDeepActiveElement();").unwrap();
+      let textarea = action.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
+      let editor = action.find("} else if (activeEl.isContentEditable) {").unwrap();
+      let enter_key = action.find("wdioEnterKey();").unwrap();
+      let guard = action.find("if (canceled) {").unwrap();
+      assert!(dispatch < helpers, "{enter}");
+      assert!(flush < uncanceled && uncanceled < refocus && refocus < textarea, "{enter}");
+      assert!(textarea < editor && editor < enter_key && enter_key < guard, "{enter}");
+    }
+    for held in [
+      mods(true, false, false, false),
+      mods(false, false, true, false),
+      mods(false, false, false, true),
+    ] {
+      let enter = build_special_key_script("Enter", "Enter", 13, true, &held);
+      assert!(!enter.contains("wdio"), "{enter}");
+    }
+    let enter_up = build_special_key_script("Enter", "Enter", 13, false, &none);
+    assert!(!enter_up.contains("wdio"), "{enter_up}");
+  }
+
+  #[test]
+  fn space_presses_and_releases_a_button_whether_or_not_the_event_was_canceled() {
+    let none = mods(false, false, false, false);
+    let shift = mods(false, true, false, false);
+    for (is_down, call) in [(true, "wdioSpaceDown"), (false, "wdioSpaceUp")] {
+      let script = build_printable_key_script(" ", "Space", 32, is_down, &shift);
+      let dispatch = script.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
+      let space = script.find(&format!("{call}(activeEl, canceled || false);")).unwrap();
+      let guard = script.find("if (canceled) {").unwrap();
+      assert!(dispatch < space && space < guard && script.contains(ELEMENT_EVENTS_JS), "{script}");
+    }
+    for held in [
+      mods(true, false, false, false),
+      mods(false, false, true, false),
+      mods(false, false, false, true),
+    ] {
+      let up = build_printable_key_script(" ", "Space", 32, false, &held);
+      assert!(up.contains("wdioSpaceUp(activeEl, canceled || true);"), "{up}");
+    }
+    assert!(!build_regular_key_script("x", true, &none).contains("wdioSpace"));
+  }
+
+  #[test]
+  fn send_keys_start_records_the_change_after_focusing() {
+    for plain in [None, Some("x")] {
+      let script = build_send_keys_start_script("__wd_el_abc", "x", plain);
+      let body = after_helpers(&script);
+      let focus = body.find("wdioFocus(focusTarget);").unwrap();
+      assert!(focus < body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap());
+      assert!(!body.contains("new Event('change'"));
+    }
   }
 
   #[test]
@@ -1382,8 +1535,10 @@ mod tests {
     let none = mods(false, false, false, false);
     for script in [
       build_special_key_script("Backspace", "Backspace", 8, true, &none),
+      build_printable_key_script("x", "KeyX", 88, true, &none),
       build_printable_key_script(" ", "Space", 32, true, &none),
     ] {
+      let script = script.replacen(ELEMENT_EVENTS_JS, "", 1);
       let keyboard = script.find("new KeyboardEvent(").unwrap();
       let input = script.find("new InputEvent('input'").unwrap();
       assert!(script[keyboard..].contains("composed: true"));
@@ -1399,7 +1554,7 @@ mod tests {
     let editable = is_editable_text_field_js("activeEl");
     assert!(editable.contains("!activeEl.readOnly && !activeEl.disabled"));
     for script in [
-      build_printable_key_script("x", "KeyX", 120, true, &none),
+      build_printable_key_script("x", "KeyX", 88, true, &none),
       build_special_key_script("Enter", "Enter", 13, true, &none),
       build_special_key_script("Backspace", "Backspace", 8, true, &none),
       build_special_key_script("Delete", "Delete", 46, true, &none),
@@ -1411,31 +1566,19 @@ mod tests {
   }
 
   #[test]
-  fn value_controls_get_their_value_set_directly() {
-    let control = is_value_control_js("el");
-    for kind in ["color", "date", "datetime-local", "month", "range", "time", "week"] {
-      assert!(control.contains(&format!("'{kind}'")));
-    }
-    for typeable in ["text", "checkbox", "radio", "file", "button"] {
-      assert!(!control.contains(&format!("'{typeable}'")));
-    }
+  fn send_keys_start_sets_a_value_controls_value_before_focusing_a_text_field() {
     let script = build_send_keys_start_script("__wd_el_abc", "2026-10-21", Some("2026-10-21"));
-    assert!(script.contains(&format!("var typed = {};", js_string("2026-10-21"))));
-    assert!(script.contains(&format!("if ({control} && typed !== '')")));
-    assert!(script.contains("return { status: 'immutable' };"));
-    let input = script.find("new Event('input'").unwrap();
-    let change = script.find("new Event('change'").unwrap();
-    assert!(script.contains("if (el.value !== previousValue)") && input < change);
-  }
-
-  #[test]
-  fn send_keys_start_refuses_file_inputs_and_invalid_values() {
-    let script = build_send_keys_start_script("__wd_el_abc", "not-a-date", Some("not-a-date"));
     let file = script.find("el.type === 'file'").unwrap();
-    assert!(file < script.find("var typed").unwrap());
-    let invalid = script.find("if (el.value === '') {").unwrap();
-    let restore = script.find("setValue.call(el, previousValue);").unwrap();
-    assert!(invalid < restore && restore < script.find("status: 'invalid'").unwrap());
+    let set = script
+      .find(&format!(
+        "var valueControlStatus = wdioSetValueControl(el, {});",
+        js_string("2026-10-21")
+      ))
+      .unwrap();
+    let returned = script.find("return { status: valueControlStatus };").unwrap();
+    assert!(
+      file < set && set < returned && returned < script.find("wdioFocus(focusTarget);").unwrap()
+    );
   }
 
   #[test]
@@ -1494,6 +1637,22 @@ mod tests {
   }
 
   #[test]
+  fn cdp_printable_char_carries_its_us_keyboard_key_and_shift() {
+    let none = mods(false, false, false, false);
+    let capital = to_cdp_key_event("A", true, &none);
+    assert_eq!((capital.code.as_str(), capital.windows_virtual_key_code), ("KeyA", 65));
+    assert_eq!(capital.modifiers, 8);
+    let semicolon = to_cdp_key_event(";", true, &none);
+    assert_eq!((semicolon.code.as_str(), semicolon.windows_virtual_key_code), ("Semicolon", 186));
+    assert_eq!(semicolon.modifiers, 0);
+    let bang = to_cdp_key_event("!", true, &none);
+    assert_eq!(
+      (bang.code.as_str(), bang.windows_virtual_key_code, bang.modifiers),
+      ("Digit1", 49, 8)
+    );
+  }
+
+  #[test]
   fn cdp_enter_space_and_numpad_keys_carry_their_text() {
     let no_mods = mods(false, false, false, false);
     assert_eq!(to_cdp_key_event(ENTER, true, &no_mods).text.as_deref(), Some("\r"));
@@ -1511,14 +1670,12 @@ mod tests {
   }
 
   #[test]
-  fn cdp_line_break_is_the_enter_key() {
-    for line_break in ["\n", "\r"] {
-      let ev = to_cdp_key_event(line_break, true, &mods(false, false, false, false));
-      assert_eq!(ev.key, "Enter");
-      assert_eq!(ev.code, "Enter");
-      assert_eq!(ev.windows_virtual_key_code, 13);
-      assert_eq!(ev.text.as_deref(), Some("\r"));
-    }
+  fn cdp_newline_is_the_enter_key() {
+    let ev = to_cdp_key_event("\n", true, &mods(false, false, false, false));
+    assert_eq!(ev.key, "Enter");
+    assert_eq!(ev.code, "Enter");
+    assert_eq!(ev.windows_virtual_key_code, 13);
+    assert_eq!(ev.text.as_deref(), Some("\r"));
   }
 
   #[test]

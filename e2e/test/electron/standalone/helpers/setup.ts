@@ -9,6 +9,7 @@ import {
   startWdioSession,
 } from '@wdio/electron-service';
 import type { ElectronStandaloneCapability } from '@wdio/native-types';
+import { startDisplay } from '../../../../lib/display.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
@@ -69,6 +70,8 @@ export async function setupStandaloneTest(options: StandaloneTestOptions = {}): 
     });
   }
 
+  const display = await startDisplay();
+
   // Start the session
   const browser = await startWdioSession([sessionOptions]);
 
@@ -82,6 +85,7 @@ export async function setupStandaloneTest(options: StandaloneTestOptions = {}): 
     cleanup: async () => {
       await browser.deleteSession();
       await cleanupWdioSession(browser);
+      await display?.stop();
     },
   };
 }

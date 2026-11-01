@@ -5,7 +5,7 @@
 
 import type { InvokeArgs } from '@tauri-apps/api/core';
 import * as nativeSpy from '@wdio/native-spy';
-import { hasSemicolonOutsideQuotes, hasTopLevelArrow } from '@wdio/native-utils/script-detect';
+import { hasSemicolonOutsideQuotes, isFunctionSource } from '@wdio/native-utils/script-detect';
 
 // Lazy-load invoke function to support both global Tauri API and dynamic imports
 // This allows the plugin to work both with bundlers (Vite) and without (plain ES modules)
@@ -135,9 +135,9 @@ interface ExecuteOptions {
 }
 
 /**
- * Execute JavaScript code in the frontend context with access to Tauri APIs
- * The script will receive the Tauri APIs object as the first argument
- * @param script - JavaScript code to execute (function string without first parameter)
+ * Execute JavaScript code in the frontend context. A function's source is called with
+ * `{ core: { invoke } }` and then the user arguments
+ * @param script - A function's source, or code to run as a function body
  * @param options - Execute options (optional)
  * @param argsJson - Serialized user arguments as JSON string (optional)
  * @returns Result of the script execution
@@ -148,15 +148,10 @@ export async function execute(script: string, options?: ExecuteOptions, argsJson
   }
 
   const trimmed = script.trim();
-  const isFunctionLike =
-    (trimmed.startsWith('(') && hasTopLevelArrow(trimmed)) ||
-    /^function[\s(]/.test(trimmed) ||
-    (/^async[\s(]/.test(trimmed) && (/^async\s+function\b/.test(trimmed) || hasTopLevelArrow(trimmed))) ||
-    /^(\w+)\s*=>/.test(trimmed);
 
   let scriptToSend: string;
 
-  if (isFunctionLike) {
+  if (isFunctionSource(trimmed)) {
     // Build a minimal tauri object with a mock-routing invoke. We deliberately avoid
     // spreading/Object.assign on window.__TAURI__ or window.__TAURI__.core because on
     // macOS/WKWebView those objects (or their Proxy wrappers installed by

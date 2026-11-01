@@ -21,12 +21,16 @@ describe('embedded process and HTTP lifecycle', () => {
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const address = server.address();
-    if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected a TCP address');
+    }
     port = address.port;
   });
 
   afterEach(async () => {
-    if (child) await stopEmbeddedDriver({ proc: child, logHandlers: [] });
+    if (child) {
+      await stopEmbeddedDriver({ proc: child, logHandlers: [] });
+    }
     child = undefined;
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
@@ -45,7 +49,9 @@ describe('embedded process and HTTP lifecycle', () => {
     server.on('request', (_request, response) => {
       response.setHeader('Content-Type', 'application/json');
       response.end(JSON.stringify({ value: { ready } }));
-      if (!ready) notReady.resolve();
+      if (!ready) {
+        notReady.resolve();
+      }
     });
     const result = start().then((info) => {
       settled = true;
@@ -82,7 +88,9 @@ describe('embedded process and HTTP lifecycle', () => {
       response.end(JSON.stringify({ value: { ready: true } }));
     });
     const result = start("process.on('SIGTERM', () => {}); console.log('started'); setInterval(() => {}, 1000)");
-    if (!child?.stdout) throw new Error('Expected child stdout');
+    if (!child?.stdout) {
+      throw new Error('Expected child stdout');
+    }
     await once(child.stdout, 'data');
     booted.resolve();
     const info = await result;

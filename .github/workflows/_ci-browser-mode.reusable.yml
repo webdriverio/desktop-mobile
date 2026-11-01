@@ -11,25 +11,25 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Operating system to run tests on'
+        description: "Operating system to run tests on"
         type: string
         required: false
-        default: 'ubuntu-latest'
+        default: "ubuntu-latest"
       node-version:
-        description: 'Node.js version to use for testing'
+        description: "Node.js version to use for testing"
         type: string
         required: false
-        default: '24'
+        default: "24"
       build_id:
-        description: 'Build ID from the build job'
+        description: "Build ID from the build job"
         type: string
         required: false
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         type: string
         required: false
       cache_key:
-        description: 'Cache key to use for downloading artifacts'
+        description: "Cache key to use for downloading artifacts"
         type: string
         required: false
 
@@ -82,11 +82,8 @@ jobs:
         run: |
           echo "::notice::Build artifact: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
 
-      - name: 🖥️ Start Xvfb (Linux)
-        uses: ./.github/workflows/actions/start-xvfb
-
       # The wdio configs force browserName=chrome, so WDIO drives the real Chrome preinstalled
-      # on ubuntu-latest under the display started above. Each step runs even if an earlier one
+      # on ubuntu-latest under the display server it starts. Each step runs even if an earlier one
       # failed (!cancelled) so one red tier never masks the others; any failure still fails the
       # job. The browser-mode E2E confs self-host their dev servers
       # (electron-browser :5174, tauri-browser :1421, dioxus-browser :8088); test-package.ts

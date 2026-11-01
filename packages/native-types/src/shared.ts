@@ -1,4 +1,5 @@
 import type { MockResult } from '@wdio/native-spy';
+import type { Capabilities } from '@wdio/types';
 import type { ChainablePromiseArray, ChainablePromiseElement } from 'webdriverio';
 
 // ============================================================================
@@ -20,22 +21,18 @@ type SelectorsBase = {
 type BaseWithExecute = {
   execute<T>(script: string | ((...args: unknown[]) => T), ...args: unknown[]): Promise<T>;
   execute<T>(script: string | ((...args: unknown[]) => T), ...args: unknown[]): T;
-  executeAsync(script: string | ((...args: unknown[]) => void), ...args: unknown[]): unknown;
 };
 
 type ElementBase = SelectorsBase & {
   parent: ElementBase | BaseWithExecute;
 };
 
-type BrowserBase = SelectorsBase & {
-  addCommand<T extends boolean>(
-    queryName: string,
-    commandFn: (this: T extends true ? ElementBase : BrowserBase, ...args: unknown[]) => void,
-    isElementCommand?: T,
-  ): unknown;
-};
+type BrowserBase = SelectorsBase;
 
-export type { BaseWithExecute, BrowserBase, ElementBase, SelectorsBase };
+/** Named multiremote instances. v10 renamed WebdriverIO's type, so this derives it from a name both majors share. */
+type RequestedMultiremoteCapabilities = Exclude<Capabilities.TestrunnerCapabilities, unknown[]>;
+
+export type { BaseWithExecute, BrowserBase, ElementBase, RequestedMultiremoteCapabilities, SelectorsBase };
 
 // ============================================================================
 // Shared Mock Infrastructure
@@ -110,13 +107,11 @@ export interface DriverProviderConfig {
    * Driver provider to use for WebDriver communication
    * - 'external': Use an external driver process (cargo-installed tauri-driver,
    *   electron-chromedriver, or wdio-dioxus-driver)
-   * - 'official': Deprecated synonym for 'external'. Accepted with a warning
-   *   for one release cycle, removed in v2.
    * - 'crabnebula': Use @crabnebula/tauri-driver from npm (Tauri only, enables macOS support)
    * - 'embedded': Use embedded WebDriver server via plugin (no external driver needed)
    * @default 'external'
    */
-  driverProvider?: 'external' | 'official' | 'crabnebula' | 'embedded';
+  driverProvider?: 'external' | 'crabnebula' | 'embedded';
   /**
    * Port for embedded WebDriver server (when driverProvider is 'embedded')
    * Can be overridden via environment variable (TAURI_WEBDRIVER_PORT or WDIO_EMBEDDED_PORT)
@@ -241,11 +236,6 @@ export interface BaseServiceOptions extends LogCaptureConfig, MockLifecycleConfi
    */
   appArgs?: string[];
   /**
-   * Timeout for command execution (in milliseconds)
-   * @default 30000
-   */
-  commandTimeout?: number;
-  /**
    * Timeout for app startup (in milliseconds)
    * @default 60000
    */
@@ -265,6 +255,17 @@ export interface BaseServiceGlobalOptions extends LogCaptureConfig, MockLifecycl
    * tear down on completion). Ignored outside browser mode.
    */
   devServer?: DevServer;
+}
+
+/**
+ * Options that standalone `startWdioSession()` takes alongside the service's global options. The
+ * testrunner reads these from its own config instead.
+ */
+export interface StandaloneSessionOptions {
+  /**
+   * Timeout in milliseconds for each WebDriver request. Defaults to WebdriverIO's own.
+   */
+  connectionRetryTimeout?: number;
 }
 
 // ============================================================================

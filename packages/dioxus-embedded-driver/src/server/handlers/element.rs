@@ -327,7 +327,8 @@ pub async fn click(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  eval_for_element(&var, format!("window.{var}.click(); null"), timeout).await?;
+  eval_for_element(&var, format!("return {}", click_press_script(&var)), timeout).await?;
+  eval_for_element(&var, format!("return {}", click_release_script(&var)), timeout).await?;
   Ok(WebDriverResponse::null())
 }
 
@@ -337,7 +338,13 @@ pub async fn clear(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  eval_for_element(&var, format!("window.{var}.value=''; null"), timeout).await?;
+  let result =
+    eval_for_element(&var, format!("return {}", clear_element_script(&var)), timeout).await?;
+  if result.as_str() == Some("not editable") {
+    return Err(WebDriverErrorResponse::invalid_element_state(
+      "element is disabled, read-only, or not a text field or contenteditable, so it cannot be cleared",
+    ));
+  }
   Ok(WebDriverResponse::null())
 }
 
@@ -348,15 +355,21 @@ pub async fn send_keys(
   Json(req): Json<SendKeysRequest>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let text = req.text.replace('\\', "\\\\").replace('`', "\\`").replace("${", "\\${");
-  eval_for_element(
-    &var,
-    format!(
-      "(function(){{ var el=window.{var}; el.focus(); el.value+=`{text}`; el.dispatchEvent(new Event('input',{{bubbles:true}})); el.dispatchEvent(new Event('change',{{bubbles:true}})); }})()"
-    ),
-    timeout,
-  ).await?;
-  Ok(WebDriverResponse::null())
+  let result =
+    eval_for_element(&var, format!("return {}", send_keys_script(&var, &req.text)), timeout)
+      .await?;
+  match result.as_str() {
+    Some("immutable") => Err(WebDriverErrorResponse::element_not_interactable(
+      "form control is read-only or disabled, so its value cannot be set",
+    )),
+    Some("invalid") => Err(WebDriverErrorResponse::invalid_argument(
+      "text is not a valid value for this form control",
+    )),
+    Some("unfocused") => Err(WebDriverErrorResponse::element_not_interactable(
+      "element did not take keyboard focus, so keys cannot be sent to it",
+    )),
+    _ => Ok(WebDriverResponse::null()),
+  }
 }
 
 /// GET `/session/{session_id}/element/{element_id}/text`
@@ -484,15 +497,119 @@ pub async fn take_screenshot(
   State(state): State<Arc<AppState>>,
   Path((session_id, _element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
-  let sessions = state.sessions.read().await;
-  let _ = sessions.get(&session_id)?;
-  // Placeholder — same as the full-page screenshot.
-  Ok(WebDriverResponse::success(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-  ))
+  state.sessions.read().await.get(&session_id)?;
+  Err(WebDriverErrorResponse::unsupported_operation(super::screenshot::UNSUPPORTED))
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+/// Page-side helpers for focus moves and form events.
+pub(crate) const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
+
+/// A JS string literal for `text` that is safe to splice into a script.
+fn js_string(text: &str) -> String {
+  Value::from(text).to_string()
+}
+
+fn click_press_script(js_var: &str) -> String {
+  format!(
+    r"(function() {{
+              {ELEMENT_EVENTS_JS}
+              var el = window.{js_var};
+              if (!el || !el.isConnected) {{
+                  throw '__wdio_stale__';
+              }}
+              el.scrollIntoView({{ behavior: 'instant', block: 'center', inline: 'center' }});
+              wdioPress(el);
+              return true;
+          }})()"
+  )
+}
+
+/// JS releasing the press, in its own script so that the page reacts to the press first.
+fn click_release_script(js_var: &str) -> String {
+  format!(
+    r"(function() {{
+              {ELEMENT_EVENTS_JS}
+              wdioRelease(window.{js_var});
+              return true;
+          }})()"
+  )
+}
+
+/// JS for Element Clear: returns 'not editable' for an element W3C can't clear.
+fn clear_element_script(js_var: &str) -> String {
+  format!(
+    r"(function() {{
+              {ELEMENT_EVENTS_JS}
+              var el = window.{js_var};
+              if (!el || !el.isConnected) {{
+                  throw '__wdio_stale__';
+              }}
+              return wdioClearElement(el);
+          }})()"
+  )
+}
+
+/// JS for Element Send Keys. A date, colour or similar input gets `text` as its value at once;
+/// otherwise the element takes focus, and whatever receives it takes the text. A text field owes
+/// a `change` until focus leaves it. Returns 'immutable', 'invalid' or 'unfocused' on error.
+fn send_keys_script(js_var: &str, text: &str) -> String {
+  let text = js_string(text);
+  format!(
+    r"(function() {{
+              {ELEMENT_EVENTS_JS}
+              var el = window.{js_var};
+              if (!el || !el.isConnected) {{
+                  throw '__wdio_stale__';
+              }}
+              var text = {text};
+              var valueControlStatus = wdioSetValueControl(el, text);
+              if (valueControlStatus) {{
+                  return valueControlStatus;
+              }}
+              var wasFocused = wdioDeepActiveElement() === el;
+              // Text inside a contenteditable is focused through its editing host.
+              var focusTarget = el;
+              while (focusTarget.isContentEditable && focusTarget.parentElement
+                  && focusTarget.parentElement.isContentEditable) {{
+                  focusTarget = focusTarget.parentElement;
+              }}
+              wdioFocus(focusTarget);
+              var receiver = wdioDeepActiveElement();
+              // The body, focus-delegating hosts and an editing host holding the element count as focus.
+              var focused = el === document.body || el === document.documentElement || receiver === focusTarget
+                  || wdioContains(el, receiver);
+              if (!focused) {{
+                  return 'unfocused';
+              }}
+              var textField = receiver.tagName === 'TEXTAREA' || (receiver.tagName === 'INPUT' &&
+                  WDIO_TEXT_FIELD_TYPES.includes(receiver.type));
+              if (receiver.isContentEditable) {{
+                  if (!wasFocused) {{
+                      var range = document.createRange();
+                      range.selectNodeContents(el);
+                      range.collapse(false);
+                      var selection = window.getSelection();
+                      selection.removeAllRanges();
+                      selection.addRange(range);
+                  }}
+                  if (text !== '') {{
+                      document.execCommand('insertText', false, text);
+                  }}
+              }} else if (!textField) {{
+                  receiver.value += text;
+                  receiver.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                  receiver.dispatchEvent(new Event('change', {{ bubbles: true }}));
+              }} else if (!receiver.readOnly && text !== '') {{
+                  wdioRecordPendingChange(receiver, receiver.value);
+                  receiver.value += text;
+                  receiver.dispatchEvent(new Event('input', {{ bubbles: true }}));
+              }}
+              return 'done';
+          }})()"
+  )
+}
 
 async fn element_var(
   state: &Arc<AppState>,
@@ -507,4 +624,61 @@ async fn element_var(
     .ok_or_else(WebDriverErrorResponse::stale_element_reference)?
     .to_string();
   Ok((session.timeouts.script_ms, var))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  /// The script after the shared helpers, so a test can't match their definitions.
+  fn body(script: &str) -> &str {
+    let helpers = script.find(ELEMENT_EVENTS_JS).unwrap();
+    &script[helpers + ELEMENT_EVENTS_JS.len()..]
+  }
+
+  #[test]
+  fn click_scrolls_and_presses_then_releases_in_a_later_script() {
+    let press = click_press_script("__wdio_elem_abc");
+    let pressing = body(&press);
+    let scroll = pressing.find("el.scrollIntoView({ behavior: 'instant',").unwrap();
+    assert!(scroll < pressing.find("wdioPress(el);").unwrap());
+    assert!(!pressing.contains("wdioRelease("));
+    let release = click_release_script("__wdio_elem_abc");
+    assert!(body(&release).contains("wdioRelease(window.__wdio_elem_abc);"));
+  }
+
+  #[test]
+  fn clear_returns_the_shared_helpers_status() {
+    let script = clear_element_script("__wdio_elem_abc");
+    let body = body(&script);
+    let stale = body.find("throw '__wdio_stale__';").unwrap();
+    assert!(stale < body.find("return wdioClearElement(el);").unwrap());
+  }
+
+  #[test]
+  fn send_keys_sets_value_controls_and_records_a_text_fields_change_before_typing() {
+    let script = send_keys_script("__wdio_elem_abc", "it's\n");
+    let body = body(&script);
+    assert!(body.contains(&format!("var text = {};", js_string("it's\n"))));
+    let set = body.find("wdioSetValueControl(el, text);").unwrap();
+    let focus = body.find("wdioFocus(focusTarget);").unwrap();
+    let unfocused = body.find("return 'unfocused';").unwrap();
+    let text_field = body.find("} else if (!receiver.readOnly && text !== '') {").unwrap();
+    let record = body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap();
+    let typed = text_field + body[text_field..].find("receiver.value += text;").unwrap();
+    assert!(set < focus && focus < unfocused && unfocused < text_field);
+    assert!(text_field < record && record < typed);
+    assert!(!body[text_field..].contains("new Event('change'"));
+  }
+
+  #[test]
+  fn send_keys_types_into_the_field_or_editor_that_takes_focus() {
+    let script = send_keys_script("__wdio_elem_abc", "x");
+    let body = body(&script);
+    assert!(body.contains("focusTarget = focusTarget.parentElement;"));
+    assert!(body.contains("|| wdioContains(el, receiver);"));
+    let editor = body.find("if (receiver.isContentEditable) {").unwrap();
+    let insert = body.find("document.execCommand('insertText', false, text);").unwrap();
+    assert!(body.find("return 'unfocused';").unwrap() < editor && editor < insert);
+  }
 }

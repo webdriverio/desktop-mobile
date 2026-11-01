@@ -11,7 +11,6 @@ The WDIO Electron Package Bundler provides a set of utilities and plugins for co
 #### `readPackageJson()`
 
 Returns configuration based on your package.json:
-
 - Input paths for Rollup
 - Package name
 - Output directories for ESM/CJS builds
@@ -46,17 +45,16 @@ Elevates build warnings to errors to ensure clean production builds.
 Injects library dependencies into specific code locations during ESM builds.
 
 Configuration options:
-| Option | Description |
-|--------|-------------|
-| `packageName` | Name of the library to inject |
-| `targetFile` | Target bundle file for injection |
-| `importName` | Variable name for the imported library |
-| `bundleRegExp` | RegExp pattern to identify injection points |
-| `bundleReplace` | Function to generate replacement code |
+| Option          | Description                                 |
+| --------------- | ------------------------------------------- |
+| `packageName`   | Name of the library to inject               |
+| `targetFile`    | Target bundle file for injection            |
+| `importName`    | Variable name for the imported library      |
+| `bundleRegExp`  | RegExp pattern to identify injection points |
+| `bundleReplace` | Function to generate replacement code       |
 
 ### External Plugins
 
 The package also exports:
-
 - `nodeExternals` from 'rollup-plugin-node-externals'
 - `nodeResolve` from '@rollup/plugin-node-resolve'

@@ -23,6 +23,7 @@ export type { ... } from './types.js';
 ```
 
 ## Rules
+
 - `default` export = worker service class
 - Named `launcher` export = launcher service class
 - Always export session helpers (`startWdioSession`, `cleanupWdioSession`, `create*Capabilities`)

@@ -90,7 +90,9 @@ function dryPack(a: Artefact): Result {
     return { artefact: a, outcome: 'fail', detail: `directory missing: ${dir}` };
   }
   const r = run(`pnpm pack --pack-destination "${PACK_DIR}"`, dir);
-  if (r.code === 0) return { artefact: a, outcome: 'pass' };
+  if (r.code === 0) {
+    return { artefact: a, outcome: 'pass' };
+  }
   return { artefact: a, outcome: 'fail', detail: r.stderr || r.stdout };
 }
 
@@ -100,7 +102,9 @@ function dryPublishCrate(a: Artefact): Result {
     return { artefact: a, outcome: 'fail', detail: `Cargo.toml missing: ${dir}` };
   }
   const r = run('cargo publish --dry-run --allow-dirty', dir);
-  if (r.code === 0) return { artefact: a, outcome: 'pass' };
+  if (r.code === 0) {
+    return { artefact: a, outcome: 'pass' };
+  }
   const haystack = `${r.stdout}\n${r.stderr}`;
   if (a.tolerate && haystack.includes(a.tolerate)) {
     return { artefact: a, outcome: 'expected-fail', detail: a.tolerate };

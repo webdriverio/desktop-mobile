@@ -43,10 +43,7 @@ const greeting = await browser.dioxus.execute(async (dx) => {
 });
 
 // Execute with arguments
-const result = await browser.dioxus.execute(
-  (dx, name) => dx.invoke('greet', { name }),
-  'World'
-);
+const result = await browser.dioxus.execute((dx, name) => dx.invoke('greet', { name }), 'World');
 
 // Execute string of code
 const href = await browser.dioxus.execute('window.location.href');
@@ -376,7 +373,7 @@ await mock.withImplementation(
   async () => {
     const result = await browser.dioxus.execute(({ invoke }) => invoke('my_command'));
     console.log(result); // 'temporary'
-  }
+  },
 );
 
 const result = await browser.dioxus.execute(({ invoke }) => invoke('my_command'));
@@ -401,7 +398,7 @@ Initialize the Dioxus service in standalone mode. Use this when you want to mana
 
 **Parameters:**
 - `capabilities` (Capabilities) - WebdriverIO capabilities with Dioxus options
-- `globalOptions?` (DioxusServiceGlobalOptions) - Global service options
+- `globalOptions?` (DioxusServiceGlobalOptions & StandaloneSessionOptions) - Global service and standalone session options
 
 **Returns:** `Promise<Browser>`
 
@@ -412,8 +409,8 @@ import { startWdioSession } from '@wdio/dioxus-service';
 const browser = await startWdioSession({
   browserName: 'dioxus',
   'dioxus:options': {
-    application: './target/debug/my_app'
-  }
+    application: './target/debug/my_app',
+  },
 });
 
 // Use browser...

@@ -74,7 +74,6 @@ Browser-side TS bundled to a single ESM file and embedded into the crate at buil
 ## Cargo conventions
 
 - Edition `"2021"`, `rust-version = "1.77.2"`, license `Apache-2.0 OR MIT`, initial version `1.0.0-rc.0`.
-- Bridge crate: `with-bridge` feature flag (default off) so release builds compile the bridge to a no-op. Test/CI builds opt in explicitly.
 - Lib crate name uses underscores (`wdio_<framework>_bridge`); package/binary use hyphens.
 - Root `.gitignore`: `packages/*/target/` and `packages/*/Cargo.lock` (Cargo.lock for these crates is not committed).
 

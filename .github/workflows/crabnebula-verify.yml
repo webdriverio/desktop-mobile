@@ -6,7 +6,7 @@ name: CrabNebula macOS Gate
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [ opened, reopened, synchronize, labeled, unlabeled ]
 
 permissions:
   contents: read
@@ -39,7 +39,7 @@ jobs:
         if: github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: Clear stale attestation labels
         # A new push voids attestation — clear both labels (a GITHUB_TOKEN edit fires no workflow, so no loop).

@@ -1,4 +1,5 @@
 import { createLogger } from './log.js';
+import { isMultiremote } from './multiremote.js';
 
 const log = createLogger('native-utils', 'mock');
 
@@ -22,7 +23,7 @@ type ElementOverrideFn = (
  * command.
  *
  * WebdriverIO keys element-scoped overrides by command name and they do not
- * stack — the last `overwriteCommand(name, fn, true)` wins. A service's
+ * stack — the last element `overwriteCommand(name, fn)` wins. A service's
  * `before()` runs after the user's, so naively registering here discards the
  * user's own `overwriteCommand('click', ...)`.
  *
@@ -62,11 +63,7 @@ export function installMockSyncOverride(
   // would silently send us back to clobbering user overrides. Surface it once
   // rather than degrade in silence. Multiremote roots don't carry the map,
   // so don't false-alarm on them.
-  if (
-    !elementOverrides &&
-    !(browser as unknown as { isMultiremote?: boolean }).isMultiremote &&
-    !warnedMissingInternals
-  ) {
+  if (!elementOverrides && !isMultiremote(browser) && !warnedMissingInternals) {
     warnedMissingInternals = true;
     log.warn(
       `Could not read WebdriverIO's element-override map while installing the '${commandName}' override; ` +
@@ -90,5 +87,12 @@ export function installMockSyncOverride(
     return existing ? existing.apply(this, [serviceCommand, ...args]) : serviceCommand(...args);
   } as Parameters<typeof browser.overwriteCommand>[1];
 
-  browser.overwriteCommand(commandName as Parameters<typeof browser.overwriteCommand>[0], override, true);
+  // The third argument is `true` in v9 and `{ attachToElement: true }` in v10, which throws on a boolean.
+  // v9 only checks that it's truthy, so the object works on both; the cast gets it past v9's boolean type.
+  const overwriteCommand = browser.overwriteCommand as unknown as (
+    name: string,
+    fn: typeof override,
+    options: { attachToElement: true },
+  ) => void;
+  overwriteCommand.call(browser, commandName, override, { attachToElement: true });
 }

@@ -86,4 +86,102 @@ describe('Tauri API', () => {
       expect(result.hasTauri).toBe(true);
     });
   });
+
+  describe('emitEvent', () => {
+    type EventTestGlobals = {
+      __wdioEvents?: unknown[];
+      __wdioUnlisten?: () => Promise<void>;
+      __TAURI__: {
+        event: {
+          listen: (
+            event: string,
+            handler: (event: { payload: unknown }) => void,
+            options?: { target: { kind: string; label: string } },
+          ) => Promise<() => Promise<void>>;
+        };
+      };
+    };
+
+    // execute() can rerun a script, so drop any earlier listener first or two could be left behind
+    const listen = (event: string, target?: { kind: string; label: string }) =>
+      browser.tauri.execute(
+        async (_tauri, ev: string, t?: { kind: string; label: string }) => {
+          const g = globalThis as unknown as EventTestGlobals;
+          await g.__wdioUnlisten?.();
+          g.__wdioEvents = [];
+          g.__wdioUnlisten = await g.__TAURI__.event.listen(
+            ev,
+            (e) => {
+              g.__wdioEvents?.push(e.payload);
+            },
+            t ? { target: t } : undefined,
+          );
+        },
+        event,
+        target,
+      );
+
+    const receivedEvents = () =>
+      browser.tauri.execute(() => (globalThis as unknown as EventTestGlobals).__wdioEvents ?? []);
+
+    afterEach(async () => {
+      try {
+        await browser.tauri.execute(async () => {
+          const g = globalThis as unknown as EventTestGlobals;
+          const unlisten = g.__wdioUnlisten;
+          g.__wdioUnlisten = undefined;
+          await unlisten?.();
+        });
+      } finally {
+        await browser.tauri.restoreAllMocks('plugin:event|');
+      }
+    });
+
+    it("should reach listeners while plugin:event|emit is mocked, without the mock seeing the test's emit", async () => {
+      const emitMock = await browser.tauri.mock('plugin:event|emit');
+      await listen('wdio:test-emit-mocked');
+      await browser.tauri.emitEvent('wdio:test-emit-mocked', { mocked: true });
+
+      await browser.waitUntil(async () => (await receivedEvents()).length > 0, {
+        timeout: 5000,
+        timeoutMsg: 'expected the listener to receive the event while plugin:event|emit is mocked',
+      });
+      expect(await receivedEvents()).toEqual([{ mocked: true }]);
+      expect(emitMock).toHaveBeenCalledTimes(0);
+
+      // The mock records an emit made through the mock-aware invoke, so the zero above means emitEvent skipped it
+      await browser.tauri.execute((tauri) =>
+        tauri.core.invoke('plugin:event|emit', { event: 'wdio:test-emit-mocked', payload: { viaMock: true } }),
+      );
+      expect(emitMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should emit an event to listeners when target is omitted', async () => {
+      await listen('wdio:test-emit');
+      await browser.tauri.emitEvent('wdio:test-emit', { message: 'hello from emitEvent' });
+
+      await browser.waitUntil(async () => (await receivedEvents()).length > 0, {
+        timeout: 5000,
+        timeoutMsg: 'expected wdio:test-emit listener to receive event',
+      });
+      expect(await receivedEvents()).toEqual([{ message: 'hello from emitEvent' }]);
+    });
+
+    it('should emit only to the target window when a target is provided', async () => {
+      // Listen as the main window, so an event sent to another label doesn't arrive.
+      await listen('wdio:test-emit-to', { kind: 'WebviewWindow', label: 'main' });
+
+      // Events arrive in order, so if an earlier one leaked, it would arrive before the last.
+      await browser.tauri.emitEvent('wdio:test-emit-to', { to: 'other' }, 'no-such-window');
+      // Same label but a different kind, which Tauri doesn't deliver
+      await browser.tauri.emitEvent('wdio:test-emit-to', { to: 'main as a Window' }, { kind: 'Window', label: 'main' });
+      await browser.tauri.emitEvent('wdio:test-emit-to', { to: 'main' }, 'main');
+
+      await browser.waitUntil(async () => (await receivedEvents()).length > 0, {
+        timeout: 5000,
+        timeoutMsg: 'expected wdio:test-emit-to listener on main to receive event',
+      });
+      expect(await receivedEvents()).toEqual([{ to: 'main' }]);
+    });
+  });
 });

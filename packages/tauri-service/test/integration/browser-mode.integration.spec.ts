@@ -1,6 +1,9 @@
+import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
+import type { TauriServiceAPI } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../../src/mockStore.js';
 import TauriWorkerService from '../../src/service.js';
+import type { TauriServiceOptions } from '../../src/types.js';
 import {
   createFakeBrowser,
   createFakeMock,
@@ -33,11 +36,9 @@ function isInjectionScript(arg: unknown): boolean {
   return typeof arg === 'string' && arg.includes('__TAURI_INTERNALS__') && arg.includes('__wdio_emit_tauri_event__');
 }
 
-// Tauri keys mocks globally (`tauri.<command>`), not per-browser like Electron, so
-// there's no store key to thread through — the scheduler reads the whole store.
-function seedMock(channel: string): FakeMock {
+function seedMock(owner: FakeBrowser, channel: string): FakeMock {
   const fake = createFakeMock(`tauri.${channel}`);
-  mockStore.setMock(fake.mock);
+  mockStore.setMock(owner as unknown as WebdriverIO.Browser, fake.mock);
   return fake;
 }
 
@@ -57,7 +58,7 @@ describe('browser mode — MockUpdateScheduler', () => {
   });
 
   it('should trigger two update batches when two concurrent clicks fire', async () => {
-    const fake = seedMock('greet');
+    const fake = seedMock(browser, 'greet');
 
     const c1 = browser.triggerCommand('click');
     const c2 = browser.triggerCommand('click');
@@ -67,7 +68,7 @@ describe('browser mode — MockUpdateScheduler', () => {
   });
 
   it('should coalesce three rapid clicks into exactly two batches', async () => {
-    const fake = seedMock('greet');
+    const fake = seedMock(browser, 'greet');
 
     const c1 = browser.triggerCommand('click');
     const c2 = browser.triggerCommand('click');
@@ -82,7 +83,7 @@ describe('browser mode — MockUpdateScheduler', () => {
   });
 
   it('should not run a parallel batch when a click arrives between running and queued', async () => {
-    const fake = seedMock('greet');
+    const fake = seedMock(browser, 'greet');
 
     // Block the first batch's update so the queued batch is set up.
     const firstHeld = defer<void>();
@@ -129,7 +130,7 @@ describe('browser mode — scheduler error handling', () => {
   });
 
   it('should retry a transient mock-update failure once and still settle the batch', async () => {
-    const fake = seedMock('greet');
+    const fake = seedMock(browser, 'greet');
     // One rejection is recoverable: the scheduler retries update() once after 50ms.
     fake.update.mockRejectedValueOnce(new Error('transient'));
 
@@ -140,7 +141,7 @@ describe('browser mode — scheduler error handling', () => {
   });
 
   it('should surface a persistently failing batch and recover on the next click', async () => {
-    const fake = seedMock('greet');
+    const fake = seedMock(browser, 'greet');
     // Both the initial attempt and its retry fail, so the batch rejects.
     fake.update.mockRejectedValueOnce(new Error('boom')).mockRejectedValueOnce(new Error('boom-retry'));
 
@@ -199,7 +200,7 @@ describe('browser mode — navigation lifecycle', () => {
   });
 
   it('should keep mock updates working after a navigation cycle', async () => {
-    const fake = seedMock('greet');
+    const fake = seedMock(browser, 'greet');
 
     await browser.triggerCommand('click');
     expect(fake.update).toHaveBeenCalledTimes(1);
@@ -328,5 +329,117 @@ describe('browser mode — BiDi preload interceptor (#259)', () => {
     await browser.url(`${DEV_SERVER}/page2`);
 
     expect(browser.execute.mock.calls.filter((c) => isInjectionScript(c[0]))).toHaveLength(0);
+  });
+});
+
+describe('browser mode — multiremote mocks', () => {
+  const interceptor = createIpcInterceptor('tauri');
+  const inApp = (script: string) => `return (${script})()`;
+  let root: FakeBrowser;
+  let instances: Map<string, FakeBrowser>;
+
+  async function setUp(options: Partial<TauriServiceOptions> = {}): Promise<TauriWorkerService> {
+    ({ root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB']));
+    const service = new TauriWorkerService({ mode: 'browser', devServerUrl: DEV_SERVER, ...options }, {
+      browserA: { capabilities: {} },
+      browserB: { capabilities: {} },
+    } as never);
+    await service.before({} as never, [], root as unknown as WebdriverIO.Browser);
+    globalThis.browser = root as unknown as WebdriverIO.Browser;
+    return service;
+  }
+
+  const instance = (name: string) => instances.get(name) as FakeBrowser;
+  const tauriOf = (name: string) => instance(name).tauri as unknown as TauriServiceAPI;
+  const clearExecuteCalls = () => {
+    for (const fake of instances.values()) {
+      fake.execute.mockClear();
+    }
+  };
+
+  beforeEach(() => mockStore.clear());
+  afterEach(() => {
+    mockStore.clear();
+    delete (globalThis as { browser?: unknown }).browser;
+  });
+
+  it('should give each instance its own mock of a command, registered in its own app', async () => {
+    await setUp();
+
+    const mockA = await tauriOf('browserA').mock('greet');
+    const mockB = await tauriOf('browserB').mock('greet');
+
+    expect(mockB).not.toBe(mockA);
+    for (const name of ['browserA', 'browserB']) {
+      expect(instance(name).execute).toHaveBeenCalledWith(inApp(interceptor.buildRegistrationScript('greet')));
+    }
+    expect(await tauriOf('browserA').mock('greet')).toBe(mockA);
+  });
+
+  it("should leave the other instance's mocks alone when one instance restores", async () => {
+    await setUp();
+    await tauriOf('browserA').mock('greet');
+    const mockB = await tauriOf('browserB').mock('greet');
+    clearExecuteCalls();
+
+    await tauriOf('browserA').restoreAllMocks();
+
+    expect(instance('browserB').execute).not.toHaveBeenCalled();
+    expect(mockStore.getAllMocks()).toEqual([['tauri.greet', mockB]]);
+    expect(tauriOf('browserA').isMockFunction('greet')).toBe(false);
+    expect(tauriOf('browserB').isMockFunction('greet')).toBe(true);
+  });
+
+  it("should restore every instance's mocks before each test with restoreMocks", async () => {
+    const service = await setUp({ restoreMocks: true });
+    const mockA = await tauriOf('browserA').mock('greet');
+    const mockB = await tauriOf('browserB').mock('greet');
+    clearExecuteCalls();
+
+    await expect(service.beforeTest({}, {})).resolves.toBeUndefined();
+
+    for (const name of ['browserA', 'browserB']) {
+      expect(instance(name).execute).toHaveBeenCalledWith(expect.any(Function), '');
+      expect(instance(name).execute).toHaveBeenCalledWith(inApp(interceptor.buildUnregistrationScript('greet')));
+    }
+    expect(mockStore.getAllMocks()).toEqual([]);
+    expect(await tauriOf('browserA').mock('greet')).not.toBe(mockA);
+    expect(await tauriOf('browserB').mock('greet')).not.toBe(mockB);
+  });
+
+  it("should reset every instance's mocks before each test with resetMocks", async () => {
+    const service = await setUp({ resetMocks: true });
+    const mockA = await tauriOf('browserA').mock('greet');
+    const mockB = await tauriOf('browserB').mock('greet');
+    clearExecuteCalls();
+
+    await expect(service.beforeTest({}, {})).resolves.toBeUndefined();
+
+    for (const name of ['browserA', 'browserB']) {
+      expect(instance(name).execute).toHaveBeenCalledWith(expect.any(Function), '');
+      expect(instance(name).execute).toHaveBeenCalledWith(
+        inApp(interceptor.buildInnerInvocationScript('greet', 'mockReset')),
+      );
+    }
+    expect(mockStore.getAllMocks()).toEqual([
+      ['tauri.greet', mockA],
+      ['tauri.greet', mockB],
+    ]);
+  });
+
+  it("should sync only an instance's mocks after it emits, and every instance's after a click", async () => {
+    await setUp();
+    const fakeA = seedMock(instance('browserA'), 'greet');
+    const fakeB = seedMock(instance('browserB'), 'greet');
+
+    await tauriOf('browserA').emitEvent('ping');
+
+    expect(fakeA.update).toHaveBeenCalledOnce();
+    expect(fakeB.update).not.toHaveBeenCalled();
+
+    await root.triggerCommand('click');
+
+    expect(fakeA.update).toHaveBeenCalledTimes(2);
+    expect(fakeB.update).toHaveBeenCalledOnce();
   });
 });

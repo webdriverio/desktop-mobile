@@ -14,25 +14,25 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Runner OS (ubuntu-latest)'
+        description: "Runner OS (ubuntu-latest)"
         required: true
         type: string
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       test-type:
-        description: 'Test scenario (standard)'
+        description: "Test scenario (standard)"
         type: string
-        default: 'standard'
+        default: "standard"
       api-level:
-        description: 'Android API level for the emulator'
+        description: "Android API level for the emulator"
         type: string
-        default: '35'
+        default: "35"
       flutter-version:
-        description: 'Flutter SDK version to build the fixture with'
+        description: "Flutter SDK version to build the fixture with"
         type: string
-        default: '3.35.6'
+        default: "3.35.6"
       build_id:
         type: string
         required: false
@@ -108,8 +108,8 @@ jobs:
       - name: ☕ Setup JDK 17
         uses: actions/setup-java@v6
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: "zulu"
+          java-version: "17"
 
       # Third-party action with secret access (secrets: inherit) → pinned to a full commit SHA,
       # not a floating tag (matches the android-emulator-runner pin). Bump deliberately.

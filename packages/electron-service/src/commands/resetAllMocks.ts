@@ -1,9 +1,5 @@
-import mockStore from '../mockStore.js';
+import { forEachMock } from './forEachMock.js';
 
 export async function resetAllMocks(apiName?: string) {
-  for (const [mockName, mock] of mockStore.getMocks()) {
-    if (!apiName || mockName.match(new RegExp(`^electron.${apiName}`))) {
-      await mock.mockReset();
-    }
-  }
+  await forEachMock(apiName, 'mockReset');
 }

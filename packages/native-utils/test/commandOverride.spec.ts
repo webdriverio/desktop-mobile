@@ -20,7 +20,7 @@ function createBrowser(elementOverrides?: Record<string, unknown>) {
 function captureClickOverride(overwriteCommand: ReturnType<typeof vi.fn>): OverrideFn {
   const call = overwriteCommand.mock.calls.find((c) => c[0] === 'click');
   expect(call).toBeDefined();
-  expect(call?.[2]).toBe(true); // attachToElement
+  expect(call?.[2]).toEqual({ attachToElement: true });
   return call?.[1] as OverrideFn;
 }
 
@@ -28,7 +28,7 @@ describe('installMockSyncOverride', () => {
   it('should register an element-scoped override for the command', () => {
     const { browser, overwriteCommand } = createBrowser();
     installMockSyncOverride(browser, 'click', async () => {});
-    expect(overwriteCommand).toHaveBeenCalledWith('click', expect.any(Function), true);
+    expect(overwriteCommand).toHaveBeenCalledWith('click', expect.any(Function), { attachToElement: true });
   });
 
   it('should run the original command then sync mocks when there is no user override', async () => {

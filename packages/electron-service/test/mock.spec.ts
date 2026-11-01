@@ -381,17 +381,61 @@ describe('Mock API', () => {
 
         expect(executeResults).toStrictEqual(['temporary name']);
       });
+
+      it('should keep the temporary implementation until an async callback settles', async () => {
+        const mock = await createMock('app', 'getName');
+        const electron = {
+          app: { getName: () => 'actual name' } as unknown as Omit<ElectronType['app'], 'on'>,
+        };
+        await processExecuteCalls(electron);
+        await mock.withImplementation(
+          () => 'temporary name',
+          async (electron) => {
+            await Promise.resolve();
+            return electron.app.getName();
+          },
+        );
+        const executeResults = await processExecuteCalls(electron);
+
+        expect(executeResults).toStrictEqual(['temporary name']);
+      });
+
+      it('should run as a user script, so callback errors reject and the mocks sync', async () => {
+        const mock = await createMock('app', 'getName');
+        mockExecute.mockClear();
+
+        await mock.withImplementation(
+          () => 'temporary name',
+          () => undefined,
+        );
+
+        expect(mockExecute.mock.calls[0]).not.toContainEqual({ internal: true });
+      });
+
+      it('should throw when the function is no longer mocked', async () => {
+        const mock = await createMock('app', 'getName');
+        const app = { getName: () => 'actual name' };
+        const electron = { app: app as unknown as Omit<ElectronType['app'], 'on'> };
+        await processExecuteCalls(electron);
+        app.getName = () => 'actual name';
+
+        await mock.withImplementation(
+          () => 'temporary name',
+          (electron) => electron.app.getName(),
+        );
+
+        await expect(processExecuteCalls(electron)).rejects.toMatchObject({ message: 'app.getName is not mocked' });
+      });
     });
   });
 });
 
 describe('createElectronBrowserModeMock()', () => {
-  let mockBrowser: { execute: Mock; executeAsync: Mock };
+  let mockBrowser: { execute: Mock };
 
   beforeEach(() => {
     mockBrowser = {
       execute: vi.fn().mockResolvedValue(undefined),
-      executeAsync: vi.fn().mockResolvedValue(undefined),
     };
   });
 
@@ -421,6 +465,23 @@ describe('createElectronBrowserModeMock()', () => {
     await createElectronBrowserModeMock('my-channel', mockBrowser as unknown as WebdriverIO.Browser);
     expect(mockBrowser.execute).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['mockClear', 'mockReset', 'mockRestore'] as const)(
+    'should keep the outer calls when %s fails in the page',
+    async (op) => {
+      const mock = await createElectronBrowserModeMock('get-user', mockBrowser as unknown as WebdriverIO.Browser);
+      mockBrowser.execute.mockResolvedValueOnce(makeCallData([['alice']], [{ type: 'return', value: 1 }], [1]));
+      await mock.update();
+      mockBrowser.execute.mockRejectedValueOnce(new Error('page closed'));
+
+      await expect(mock[op]()).rejects.toMatchObject({ message: 'page closed' });
+
+      expect(mock.mock.calls).toStrictEqual([['alice']]);
+      expect(mock.getMockName()).toBe('electron.get-user');
+      // Registration, update and the failed op: nothing else may call the page.
+      expect(mockBrowser.execute).toHaveBeenCalledTimes(3);
+    },
+  );
 
   describe('update()', () => {
     it('should populate mock.calls from browser-side call data', async () => {
@@ -634,10 +695,9 @@ describe('createElectronBrowserModeMock()', () => {
     it('should call mock.update() after the browser callback so call data is synced to the outer mock', async () => {
       const mock = await createElectronBrowserModeMock('my-channel', mockBrowser as unknown as WebdriverIO.Browser);
 
-      mockBrowser.executeAsync.mockResolvedValueOnce('callback-result');
-      mockBrowser.execute.mockResolvedValueOnce(
-        makeCallData([['arg']], [{ type: 'return', value: 'callback-result' }], [1]),
-      );
+      mockBrowser.execute
+        .mockResolvedValueOnce('callback-result')
+        .mockResolvedValueOnce(makeCallData([['arg']], [{ type: 'return', value: 'callback-result' }], [1]));
 
       await mock.withImplementation(
         () => 'impl',
@@ -650,7 +710,7 @@ describe('createElectronBrowserModeMock()', () => {
     it('throws when the browser-side callback fails', async () => {
       const mock = await createElectronBrowserModeMock('err-channel', mockBrowser as unknown as WebdriverIO.Browser);
 
-      mockBrowser.executeAsync.mockResolvedValueOnce({ __wdioAsyncErr__: 'boom' });
+      mockBrowser.execute.mockResolvedValueOnce({ __wdioAsyncErr__: 'boom' });
 
       await expect(
         mock.withImplementation(
@@ -658,6 +718,22 @@ describe('createElectronBrowserModeMock()', () => {
           () => undefined,
         ),
       ).rejects.toThrow('boom');
+    });
+
+    it('should sync the calls made before the browser-side callback failed', async () => {
+      const mock = await createElectronBrowserModeMock('err-channel', mockBrowser as unknown as WebdriverIO.Browser);
+
+      mockBrowser.execute
+        .mockResolvedValueOnce({ __wdioAsyncErr__: 'boom' })
+        .mockResolvedValueOnce(makeCallData([['arg']], [{ type: 'return', value: undefined }], [1]));
+
+      await expect(
+        mock.withImplementation(
+          () => undefined,
+          () => undefined,
+        ),
+      ).rejects.toMatchObject({ message: 'boom' });
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
     });
   });
 

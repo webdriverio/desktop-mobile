@@ -16,31 +16,31 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Runner OS (macos-latest)'
+        description: "Runner OS (macos-latest)"
         required: true
         type: string
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       test-type:
-        description: 'Test scenario (standard)'
+        description: "Test scenario (standard)"
         type: string
-        default: 'standard'
+        default: "standard"
       rn-version:
-        description: 'React Native version to scaffold the native project with'
+        description: "React Native version to scaffold the native project with"
         type: string
-        default: '0.76.5'
+        default: "0.76.5"
       rn-cli-version:
-        description: '@react-native-community/cli major to scaffold with (pinned to match rn-version)'
+        description: "@react-native-community/cli major to scaffold with (pinned to match rn-version)"
         type: string
-        default: '15'
+        default: "15"
       ios-device:
-        description: 'Simulator device name'
+        description: "Simulator device name"
         type: string
-        default: 'iPhone 17'
+        default: "iPhone 17"
       new-arch:
-        description: 'Build the fixture with the New Architecture (Fabric/bridgeless) enabled'
+        description: "Build the fixture with the New Architecture (Fabric/bridgeless) enabled"
         type: boolean
         default: false
       build_id:
@@ -192,7 +192,7 @@ jobs:
         # Idempotent: appium exits 1 if the driver is already registered.
         run: |
           set -euo pipefail
-          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi xcuitest; then
+          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -i xcuitest >/dev/null; then
             echo "xcuitest driver already installed"
           else
             pnpm --filter @repo/e2e exec appium driver install xcuitest

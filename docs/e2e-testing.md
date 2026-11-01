@@ -49,6 +49,7 @@ fixtures/e2e-apps/
 ### Prerequisites
 
 1. **Build the apps first:**
+
    ```bash
    # Build all E2E apps
    pnpm turbo build --filter electron-builder-e2e-app
@@ -60,6 +61,7 @@ fixtures/e2e-apps/
    ```
 
 2. **Build the services:**
+
    ```bash
    pnpm build
    ```
@@ -117,12 +119,14 @@ export const config: WebdriverIO.Config = {
 ```typescript
 export const config: WebdriverIO.Config = {
   services: ['tauri'],
-  capabilities: [{
-    browserName: 'tauri',
-    'tauri:options': {
-      application: '/path/to/app/binary',
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'tauri:options': {
+        application: '/path/to/app/binary',
+      },
     },
-  }],
+  ],
   // ...
 };
 ```
@@ -135,10 +139,7 @@ The `'embedded'` provider is the recommended default and works on all three plat
 import { join } from 'node:path';
 import type { Options } from '@wdio/types';
 
-const appBinaryPath = join(
-  __dirname,
-  '../fixtures/e2e-apps/dioxus/target/debug/dioxus-e2e-app',
-);
+const appBinaryPath = join(__dirname, '../fixtures/e2e-apps/dioxus/target/debug/dioxus-e2e-app');
 
 export const config: Options.Testrunner = {
   runner: 'local',
@@ -152,22 +153,24 @@ export const config: Options.Testrunner = {
       },
     ],
   ],
-  capabilities: [{
-    browserName: 'dioxus',
-    'dioxus:options': {
-      application: appBinaryPath,
+  capabilities: [
+    {
+      browserName: 'dioxus',
+      'dioxus:options': {
+        application: appBinaryPath,
+      },
     },
-  }],
+  ],
   specs: ['test/dioxus/**/*.spec.ts'],
 };
 ```
 
 #### Provider matrix
 
-| Provider | Windows | macOS | Linux | Notes |
-|---|---|---|---|---|
-| `'embedded'` (default) | ✅ | ✅ | ✅ | Recommended for all platforms |
-| `'external'` | ✅ | ❌ | ❌ (v1.1) | Windows-only in v1; Linux support deferred |
+| Provider               | Windows | macOS | Linux     | Notes                                      |
+| ---------------------- | ------- | ----- | --------- | ------------------------------------------ |
+| `'embedded'` (default) | ✅      | ✅    | ✅        | Recommended for all platforms              |
+| `'external'`           | ✅      | ❌    | ❌ (v1.1) | Windows-only in v1; Linux support deferred |
 
 ## Test Modes
 
@@ -268,15 +271,7 @@ The embedded driver only starts when the Dioxus app is built in **debug mode** �
 
 #### Linux: No Display
 
-Dioxus (like Tauri) requires a display server on Linux. For CI use Xvfb:
-
-```yaml
-- name: Run Dioxus E2E tests
-  run: |
-    export DISPLAY=:99
-    Xvfb :99 -screen 0 1280x800x24 &
-    pnpm --filter @repo/e2e test:e2e:dioxus-embedded
-```
+Dioxus (like Tauri) needs a display server on Linux. The E2E configs have WebdriverIO start Xvfb, so install it (`sudo apt-get install -y xvfb`) and run the tests as usual.
 
 #### Protocol Handler Not Registered
 
@@ -305,7 +300,7 @@ E2E tests run in CI with matrix configuration:
 ```yaml
 strategy:
   matrix:
-    os: [ubuntu-latest, windows-latest, macos-latest]
+    os: [ ubuntu-latest, windows-latest, macos-latest ]
     include:
       - os: macos-latest
         arch: x64
@@ -320,25 +315,17 @@ strategy:
   run: cargo build
   working-directory: fixtures/e2e-apps/dioxus
 
-- name: Run Dioxus E2E tests (Linux — Xvfb required)
-  if: runner.os == 'Linux'
-  run: |
-    export DISPLAY=:99
-    Xvfb :99 -screen 0 1280x800x24 &
-    pnpm --filter @repo/e2e test:e2e:dioxus-embedded
-
-- name: Run Dioxus E2E tests (Windows / macOS)
-  if: runner.os != 'Linux'
+- name: Run Dioxus E2E tests
   run: pnpm --filter @repo/e2e test:e2e:dioxus-embedded
 ```
 
 ### Platform-Specific Notes
 
-| Platform | Notes |
-|----------|-------|
-| Windows | Requires `.cmd` for scripts, Edge driver for WebView2 |
-| macOS | Universal builds tested separately, may need security overrides |
-| Linux | Requires WebKitWebDriver for Tauri; Xvfb for Dioxus |
+| Platform | Notes                                                           |
+| -------- | --------------------------------------------------------------- |
+| Windows  | Requires `.cmd` for scripts, Edge driver for WebView2           |
+| macOS    | Universal builds tested separately, may need security overrides |
+| Linux    | Requires WebKitWebDriver for Tauri; Xvfb for Dioxus             |
 
 ## Adding New E2E Tests
 

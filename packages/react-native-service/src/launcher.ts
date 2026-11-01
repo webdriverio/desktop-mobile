@@ -6,7 +6,8 @@
 // this subclass supplies the one per-framework seam — RN's automation names — via
 // `mutateCapability`.
 
-import { type DoctorCheck, flattenCaps, MobileBaseLauncher, SevereServiceError } from '@wdio/native-mobile-core';
+import { type DoctorCheck, flattenCaps, MobileBaseLauncher } from '@wdio/native-mobile-core';
+import { severeServiceError } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 
 import { adbReverse } from './adb.js';
@@ -89,7 +90,7 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
         // start() can throw *after* Metro spawned (e.g. readiness timeout) — the child is
         // live but unready, so stop it before aborting or it orphans port 8081.
         await this.#stopMetro();
-        throw new SevereServiceError(`Failed to start Metro: ${(error as Error).message}`);
+        throw severeServiceError('Failed to start Metro', error);
       }
     }
     try {

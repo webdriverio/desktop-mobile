@@ -35,7 +35,9 @@ export function hasSemicolonOutsideQuotes(s: string): boolean {
       inDouble = !inDouble;
       continue;
     }
-    if (inSingle || inDouble) continue;
+    if (inSingle || inDouble) {
+      continue;
+    }
 
     if (c === '`') {
       tmpl.push({ inStr: true, exprDepth: 0 });
@@ -91,7 +93,9 @@ export function hasTopLevelArrow(s: string): boolean {
       inDouble = !inDouble;
       continue;
     }
-    if (inSingle || inDouble) continue;
+    if (inSingle || inDouble) {
+      continue;
+    }
 
     if (c === '`') {
       tmpl.push({ inStr: true, exprDepth: 0 });
@@ -110,4 +114,15 @@ export function hasTopLevelArrow(s: string): boolean {
     }
   }
   return false;
+}
+
+/** Whether a script is a function's source, which execute calls, rather than code to run as is. */
+export function isFunctionSource(script: string): boolean {
+  const s = script.trim();
+  return (
+    (s.startsWith('(') && hasTopLevelArrow(s)) ||
+    /^function[\s(]/.test(s) ||
+    (/^async[\s(]/.test(s) && (/^async\s+function\b/.test(s) || hasTopLevelArrow(s))) ||
+    /^[A-Za-z_$][\w$]*\s*=>/.test(s)
+  );
 }

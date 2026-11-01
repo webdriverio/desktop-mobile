@@ -231,6 +231,17 @@ export async function createMock(
     return mock;
   };
 
+  const resetOuter = () => {
+    // native-spy's reset calls mock.mockClear(), which this file replaced with a call into the app.
+    // Put the local clear back while it runs, so only the outer mock is reset.
+    const asyncMockClear = mock.mockClear;
+    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+    try {
+      outerMockReset();
+    } finally {
+      mock.mockClear = asyncMockClear;
+    }
+  };
   mock.mockClear = async () => {
     await evaluateInActiveTarget<void>(bridge, buildClearScript(target), mockContext);
     outerMockClear();
@@ -240,17 +251,18 @@ export async function createMock(
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
     await evaluateInActiveTarget<void>(bridge, buildResetScript(target), mockContext);
-    outerMockReset();
+    resetOuter();
     outerMock.mockName(currentName);
     return mock;
   };
 
   mock.mockRestore = async () => {
-    await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target), mockContext);
-    // Match vitest semantics: restore fully resets the outer spy (history +
-    // implementation), not just clears its call history.
-    outerMockReset();
-    store.deleteMock(target);
+    try {
+      await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target), mockContext);
+    } finally {
+      resetOuter();
+      store.deleteMock(target);
+    }
     return mock;
   };
 

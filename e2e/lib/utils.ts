@@ -277,16 +277,16 @@ export function resolveTauriFixtureBinary(appPath: string): string {
  * Centralizes the naming convention across all config files and scripts
  *
  * Pattern:
- * - official: ${testType}-${appDirName}
+ * - external: ${testType}-${appDirName}
  * - embedded: embedded-${testType}-${appDirName}
  * - crabnebula: crabnebula-${testType}-${appDirName}
  */
 export function getLogDirName(
   testType: string,
   appDirName: string,
-  driverProvider?: 'official' | 'crabnebula' | 'embedded',
+  driverProvider?: 'external' | 'crabnebula' | 'embedded',
 ): string {
-  if (driverProvider && driverProvider !== 'official') {
+  if (driverProvider && driverProvider !== 'external') {
     return `${driverProvider}-${testType}-${appDirName}`;
   }
   return `${testType}-${appDirName}`;

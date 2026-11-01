@@ -13,31 +13,31 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Runner OS (ubuntu-latest)'
+        description: "Runner OS (ubuntu-latest)"
         required: true
         type: string
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       test-type:
-        description: 'Test scenario (standard)'
+        description: "Test scenario (standard)"
         type: string
-        default: 'standard'
+        default: "standard"
       api-level:
-        description: 'Android API level for the emulator'
+        description: "Android API level for the emulator"
         type: string
-        default: '35'
+        default: "35"
       rn-version:
-        description: 'React Native version to scaffold the native project with'
+        description: "React Native version to scaffold the native project with"
         type: string
-        default: '0.76.5'
+        default: "0.76.5"
       rn-cli-version:
-        description: '@react-native-community/cli major to scaffold with (pinned to match rn-version; bump together)'
+        description: "@react-native-community/cli major to scaffold with (pinned to match rn-version; bump together)"
         type: string
-        default: '15'
+        default: "15"
       new-arch:
-        description: 'Build the fixture with the New Architecture (Fabric/bridgeless) enabled'
+        description: "Build the fixture with the New Architecture (Fabric/bridgeless) enabled"
         type: boolean
         default: false
       build_id:
@@ -116,8 +116,8 @@ jobs:
       - name: ☕ Setup JDK 17
         uses: actions/setup-java@v6
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: "zulu"
+          java-version: "17"
 
       # Scaffold a complete RN project at the pinned version, then overlay the fixture's
       # App.tsx (the native android/ project is generated, not committed — see the fixture
@@ -154,7 +154,7 @@ jobs:
         # APPIUM_HOME, so only install when `driver list --installed` doesn't show it.
         run: |
           set -euo pipefail
-          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi uiautomator2; then
+          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -i uiautomator2 >/dev/null; then
             echo "uiautomator2 driver already installed"
           else
             pnpm --filter @repo/e2e exec appium driver install uiautomator2

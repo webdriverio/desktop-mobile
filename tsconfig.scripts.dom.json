@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.scripts.json",
+  "include": [
+    "test/scripts/element-events.spec.ts"
+  ],
+  "exclude": []
+}

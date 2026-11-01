@@ -13,7 +13,7 @@ vi.mock('../src/diagnostics.js', () => ({
 }));
 
 vi.mock('@wdio/native-utils', async (importOriginal) => ({
-  errorMessage: (await importOriginal<typeof import('@wdio/native-utils')>()).errorMessage,
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
   createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   formatDiagnosticResults: vi.fn(),
   isErr: vi.fn().mockReturnValue(false),
@@ -57,11 +57,6 @@ vi.mock('../src/driverManager.js', () => ({
 
 vi.mock('../src/edgeDriverManager.js', () => ({
   ensureMsEdgeDriver: vi.fn().mockResolvedValue({ ok: true, value: { method: 'found', driverVersion: '120' } }),
-}));
-
-vi.mock('../src/commands/triggerDeeplink.js', () => ({
-  setEmbeddedModeInfo: vi.fn(),
-  setCrabnebulaModeInfo: vi.fn(),
 }));
 
 vi.mock('../src/crabnebulaBackend.js', () => ({
@@ -336,5 +331,106 @@ describe('embedded launcher lifecycle', () => {
     vi.mocked(stopEmbeddedDriver).mockClear().mockResolvedValue(undefined);
     await launcher.onComplete(0, { capabilities: [] }, []);
     expect(stopEmbeddedDriver).toHaveBeenCalledOnce();
+  });
+
+  it('should still clear its state and report every failure when stopping the driver pool fails', async () => {
+    const caps = { 'tauri:options': { application: APP_BINARY } };
+    const launcher = new TauriLaunchService({}, caps, { capabilities: [] });
+    await launcher.onPrepare({ capabilities: [] }, { only: { capabilities: structuredClone(caps) } });
+    const embeddedError = new Error('embedded did not exit');
+    const poolError = new AggregateError([new Error('kill failed')], 'Failed to stop driver(s)');
+    vi.mocked(stopEmbeddedDriver).mockRejectedValueOnce(embeddedError);
+    const internals = launcher as unknown as {
+      driverPool: { stopAll: ReturnType<typeof vi.fn> };
+      portManager: { clear: ReturnType<typeof vi.fn> };
+      instanceOptions: Map<string, unknown>;
+    };
+    internals.driverPool.stopAll.mockRejectedValueOnce(poolError);
+
+    await expect(launcher.onComplete(0, { capabilities: [] }, [])).rejects.toMatchObject({
+      errors: [embeddedError, poolError],
+    });
+    expect(internals.portManager.clear).toHaveBeenCalled();
+    expect(internals.instanceOptions.size).toBe(0);
+  });
+});
+
+describe('driverProvider validation', () => {
+  const caps = { 'tauri:options': { application: APP_BINARY } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should reject an unknown provider set in the service options', async () => {
+    const { SevereServiceError } = await import('webdriverio');
+    const launcher = new TauriLaunchService({ driverProvider: 'webkit' } as any, caps, { capabilities: [] });
+    const result = launcher.onPrepare({ capabilities: [] }, [caps]);
+    await expect(result).rejects.toBeInstanceOf(SevereServiceError);
+    await expect(result).rejects.toMatchObject({
+      message: `driverProvider must be 'embedded', 'external' or 'crabnebula', not "webkit".`,
+    });
+    expect(startEmbeddedDriver).not.toHaveBeenCalled();
+  });
+
+  it('should reject an unknown provider set in the capability options', async () => {
+    const launcher = new TauriLaunchService({}, caps, { capabilities: [] });
+    const capability = { ...caps, 'wdio:tauriServiceOptions': { driverProvider: 'tauri-driver' } } as any;
+    await expect(launcher.onPrepare({ capabilities: [] }, [capability])).rejects.toMatchObject({
+      name: 'SevereServiceError',
+      message: `driverProvider must be 'embedded', 'external' or 'crabnebula', not "tauri-driver".`,
+    });
+  });
+});
+
+describe('embedded port allocation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(startEmbeddedDriver).mockResolvedValue(stubDriverInfo);
+  });
+
+  function stubAllocatedPorts(launcher: TauriLaunchService, ...ports: number[]) {
+    const { allocatePort } = (launcher as unknown as { portManager: { allocatePort: ReturnType<typeof vi.fn> } })
+      .portManager;
+    for (const port of ports) {
+      allocatePort.mockResolvedValueOnce(port);
+    }
+    return allocatePort;
+  }
+
+  it('should prefer sequential ports for multiple capabilities and use the free ones allocated', async () => {
+    const caps = [
+      { 'tauri:options': { application: APP_BINARY } },
+      { 'tauri:options': { application: APP_BINARY } },
+    ] as Array<{ port?: number }>;
+    const launcher = new TauriLaunchService({}, caps[0], { capabilities: [] });
+    const allocatePort = stubAllocatedPorts(launcher, 4445, 51234);
+
+    await launcher.onPrepare({ capabilities: [] }, caps as never);
+
+    expect(allocatePort.mock.calls).toEqual([[4445], [4446]]);
+    expect(vi.mocked(startEmbeddedDriver).mock.calls.map((call) => call[1])).toEqual([4445, 51234]);
+    expect(caps.map((cap) => cap.port)).toEqual([4445, 51234]);
+  });
+
+  it("should prefer a multiremote instance's own embeddedPort and connect each instance to its allocated port", async () => {
+    const caps = {
+      appA: {
+        capabilities: {
+          'tauri:options': { application: APP_BINARY },
+          'wdio:tauriServiceOptions': { embeddedPort: 5000 },
+        },
+      },
+      appB: { capabilities: { 'tauri:options': { application: APP_BINARY } } },
+    };
+    const launcher = new TauriLaunchService({}, caps.appA.capabilities, { capabilities: [] });
+    const allocatePort = stubAllocatedPorts(launcher, 5000, 51234);
+
+    await launcher.onPrepare({ capabilities: [] }, caps);
+
+    expect(allocatePort.mock.calls).toEqual([[5000], [4446]]);
+    expect(vi.mocked(startEmbeddedDriver).mock.calls.map((call) => call[1])).toEqual([5000, 51234]);
+    expect((caps.appA as { port?: number }).port).toBe(5000);
+    expect((caps.appB as { port?: number }).port).toBe(51234);
   });
 });

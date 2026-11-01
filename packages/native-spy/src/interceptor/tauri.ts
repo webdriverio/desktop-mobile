@@ -124,7 +124,8 @@ ${WDIO_MOCK_SETUP_SCRIPT}
     var e = __wdio_normalize_target__(emitTarget);
     if (s.kind === 'Any' || e.kind === 'Any') { return true; }
     if (s.kind === 'App' || e.kind === 'App') { return s.kind === e.kind; }
-    return s.label === e.label;
+    // As Tauri's emit_to: AnyLabel on either side matches any kind with that label; otherwise the kinds must match
+    return s.label === e.label && (s.kind === e.kind || s.kind === 'AnyLabel' || e.kind === 'AnyLabel');
   }
   window.__wdio_emit_tauri_event__ = function(eventName, payload, target) {
     var bucket = window.__wdio_tauri_listeners__[eventName];
@@ -137,7 +138,8 @@ ${WDIO_MOCK_SETUP_SCRIPT}
       window.__TAURI_INTERNALS__.runCallback(entry.handlerId, {
         event: eventName,
         id: Number(ids[i]),
-        payload: payload
+        // Tauri delivers a missing payload as null
+        payload: payload === undefined ? null : payload
       });
     }
   };
@@ -191,12 +193,17 @@ ${WDIO_MOCK_SETUP_SCRIPT}
 
   buildWithImplementationScript(mockName: string, implFnSource: string, callbackFnSource: string): string {
     const lookup = mockLookupExpr(mockName);
+    // Browser mode passes no argument, so build the same `{ core: { invoke } }` from the mocked IPC.
     return `async (_tauri) => {
   const impl = (${implFnSource});
   const callback = (${callbackFnSource});
-  let result;
+  const tauri = _tauri ?? { core: { invoke: (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args) } };
   const mockObj = ${lookup};
-  await mockObj?.withImplementation?.(impl, async () => { result = await (_tauri !== undefined ? callback(_tauri) : callback()); });
+  if (typeof mockObj?.withImplementation !== 'function') {
+    throw new Error(${JSON.stringify(`${mockName} is not mocked in this window`)});
+  }
+  let result;
+  await mockObj.withImplementation(impl, async () => { result = await callback(tauri); });
   return result;
 }`;
   }

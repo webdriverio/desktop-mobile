@@ -1,5 +1,5 @@
 import type { ElectronMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, isMultiremote } from '@wdio/native-utils';
 import { createClassMock } from '../classMock.js';
 import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
@@ -34,7 +34,7 @@ export async function mock(this: ElectronServiceContext, apiName: string, funcNa
   if (
     this &&
     this.browser &&
-    !('isMultiremote' in this.browser && this.browser.isMultiremote) &&
+    !isMultiremote(this.browser) &&
     this.browser.electron &&
     typeof this.browser.electron.execute === 'function'
   ) {
@@ -45,9 +45,9 @@ export async function mock(this: ElectronServiceContext, apiName: string, funcNa
     typeof (globalThis.browser as WebdriverIO.Browser).electron.execute === 'function'
   ) {
     browserContext = globalThis.browser as WebdriverIO.Browser;
-  } else if (globalThis.browser && !('isMultiremote' in globalThis.browser && globalThis.browser.isMultiremote)) {
+  } else if (globalThis.browser && !isMultiremote(globalThis.browser)) {
     browserContext = globalThis.browser as WebdriverIO.Browser;
-  } else if (this?.browser && !('isMultiremote' in this.browser && this.browser.isMultiremote)) {
+  } else if (this?.browser && !isMultiremote(this.browser)) {
     browserContext = this.browser as WebdriverIO.Browser;
   }
 

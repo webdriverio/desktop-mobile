@@ -1,19 +1,27 @@
 import type { TauriMock } from '@wdio/native-types';
 
+type MockOwner = WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
+
+// Keyed by browser, so each multiremote instance has its own mocks.
 export class TauriServiceMockStore {
-  #mockFns: Map<string, TauriMock>;
+  #mocksByOwner: Map<MockOwner, Map<string, TauriMock>>;
 
   constructor() {
-    this.#mockFns = new Map<string, TauriMock>();
+    this.#mocksByOwner = new Map<MockOwner, Map<string, TauriMock>>();
   }
 
-  setMock(mock: TauriMock): TauriMock {
-    this.#mockFns.set(mock.getMockName(), mock);
+  setMock(owner: MockOwner, mock: TauriMock): TauriMock {
+    let mocks = this.#mocksByOwner.get(owner);
+    if (!mocks) {
+      mocks = new Map<string, TauriMock>();
+      this.#mocksByOwner.set(owner, mocks);
+    }
+    mocks.set(mock.getMockName(), mock);
     return mock;
   }
 
-  getMock(mockId: string) {
-    const mock = this.#mockFns.get(mockId);
+  getMock(owner: MockOwner, mockId: string): TauriMock {
+    const mock = this.#mocksByOwner.get(owner)?.get(mockId);
     if (!mock) {
       throw new Error(`No mock registered for "${mockId}"`);
     }
@@ -21,15 +29,26 @@ export class TauriServiceMockStore {
     return mock;
   }
 
-  getMocks() {
-    return Array.from(this.#mockFns.entries());
+  getMocks(owner: MockOwner): [string, TauriMock][] {
+    return Array.from(this.#mocksByOwner.get(owner)?.entries() ?? []);
+  }
+
+  getAllMocks(): [string, TauriMock][] {
+    return Array.from(this.#mocksByOwner.values()).flatMap((mocks) => Array.from(mocks.entries()));
   }
 
   /**
    * Remove a specific mock from the store
    */
-  deleteMock(mockId: string): boolean {
-    return this.#mockFns.delete(mockId);
+  deleteMock(owner: MockOwner, mockId: string): boolean {
+    const mocks = this.#mocksByOwner.get(owner);
+    if (!mocks?.delete(mockId)) {
+      return false;
+    }
+    if (mocks.size === 0) {
+      this.#mocksByOwner.delete(owner);
+    }
+    return true;
   }
 
   /**
@@ -37,7 +56,7 @@ export class TauriServiceMockStore {
    * Called during session cleanup to prevent memory leaks
    */
   clear(): void {
-    this.#mockFns.clear();
+    this.#mocksByOwner.clear();
   }
 }
 

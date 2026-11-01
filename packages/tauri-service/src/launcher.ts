@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -7,15 +8,22 @@ import {
   getLogWriter,
   isLogWriterInitialized,
   nonChromeBrowserNameError,
+  normaliseInstanceCaps,
   PortManager,
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
-import { createLogger, errorMessage, formatDiagnosticResults, isErr } from '@wdio/native-utils';
+import {
+  createLogger,
+  describeDisplay,
+  errorMessage,
+  formatDiagnosticResults,
+  isErr,
+  severeServiceError,
+} from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { resolveAppBinaryPath } from './appBinaryResolver.js';
-import { setCrabnebulaModeInfo, setEmbeddedModeInfo } from './commands/triggerDeeplink.js';
 import { startTestRunnerBackend, stopTestRunnerBackend, waitTestRunnerBackendReady } from './crabnebulaBackend.js';
 import { diagnoseTauriEnvironment } from './diagnostics.js';
 import { ensureTauriDriver, findTestRunnerBackend } from './driverManager.js';
@@ -29,7 +37,6 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
-import { severeServiceError } from './errors.js';
 import { mergeServiceOptions } from './serviceConfig.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
@@ -42,30 +49,29 @@ function generateDataDirectory(instanceId: string): string {
   const baseTempDir = tmpdir();
   // Support both multiremote instances and worker IDs
   const prefix = instanceId.startsWith('worker-') ? 'tauri' : 'tauri-multiremote';
-  const dataDir = join(baseTempDir, `${prefix}-${instanceId}`);
+  // The pid keeps concurrent runs on one host from sharing, or removing, each other's directory.
+  const dataDir = join(baseTempDir, `${prefix}-${instanceId}-${process.pid}`);
 
   log.debug(`Generated data directory for ${instanceId}: ${dataDir}`);
   return dataDir;
 }
 
-let officialDeprecationWarned = false;
+const DRIVER_PROVIDERS: readonly DriverProvider[] = ['embedded', 'external', 'crabnebula'];
 
-// mergeServiceOptions maps 'official' to 'external'; this only adds the one-time warning.
-function warnIfOfficialDriverProvider(value: DriverProvider | undefined): void {
-  if (value === 'official' && !officialDeprecationWarned) {
-    log.warn(
-      "driverProvider: 'official' is deprecated; use 'external' instead. " +
-        "The 'official' value will be removed in @wdio/tauri-service v2.",
-    );
-    officialDeprecationWarned = true;
+function assertDriverProvider(value: unknown): void {
+  if (value === undefined || DRIVER_PROVIDERS.includes(value as DriverProvider)) {
+    return;
   }
+  throw new SevereServiceError(
+    `driverProvider must be 'embedded', 'external' or 'crabnebula', not ${JSON.stringify(value)}.`,
+  );
 }
 
 function mergeOptions(
   globalOptions: TauriServiceGlobalOptions,
   capabilityOptions?: TauriServiceOptions,
 ): TauriServiceOptions {
-  warnIfOfficialDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider);
+  assertDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider);
   return mergeServiceOptions(globalOptions, capabilityOptions);
 }
 
@@ -92,6 +98,7 @@ export default class TauriLaunchService {
     new Map();
   private isEmbeddedMode: boolean = false;
   private workerBackends: Map<string, { proc: ChildProcess; port: number }> = new Map();
+  private dataDirectories: Map<string, string> = new Map();
   private cnCycleConfigs?: Array<{
     instanceId: string;
     backendPort: number;
@@ -129,8 +136,11 @@ export default class TauriLaunchService {
   ): Promise<void> {
     log.debug('Preparing Tauri service...');
 
+    const instances = normaliseInstanceCaps(capabilities);
+    const capsList = instances.map(({ caps }) => caps);
+
     // Determine provider type
-    const firstCap = Array.isArray(capabilities) ? capabilities[0] : Object.values(capabilities)[0]?.capabilities;
+    const firstCap = capsList[0];
     const mergedOptions = mergeOptions(this.options, firstCap?.['wdio:tauriServiceOptions']);
     const isCrabNebula = mergedOptions.driverProvider === 'crabnebula';
     const isEmbedded = isEmbeddedProvider(mergedOptions);
@@ -142,16 +152,9 @@ export default class TauriLaunchService {
       );
     }
 
-    // For CrabNebula on macOS, validate prerequisites and set mode info
     if (process.platform === 'darwin' && isCrabNebula) {
       await this.validateCrabNebulaPrerequisites(mergedOptions);
-      setCrabnebulaModeInfo(true);
     }
-
-    // Handle both standard array and multiremote object capabilities
-    const capsList = Array.isArray(capabilities)
-      ? capabilities
-      : Object.values(capabilities).map((multiremoteOption) => multiremoteOption.capabilities);
 
     // Browser mode: skip all driver/binary setup — worker navigates to a Vite dev server
     if (mergedOptions.mode === 'browser') {
@@ -200,7 +203,7 @@ export default class TauriLaunchService {
           // Unmanaged: preflight the user-started server before workers navigate to it.
           const reachable = await probeDevServerReachable(devServerUrl);
           if (isErr(reachable)) {
-            throw new SevereServiceError(reachable.error.message);
+            throw severeServiceError(reachable.error);
           }
         }
         this.browserMode = true;
@@ -219,9 +222,7 @@ export default class TauriLaunchService {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});
         this.#stopDevServer = undefined;
-        throw error instanceof SevereServiceError
-          ? error
-          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
+        throw error instanceof SevereServiceError ? error : severeServiceError('Failed to start dev server', error);
       }
       log.info('Browser mode enabled — skipping driver/binary setup');
       return;
@@ -302,7 +303,7 @@ export default class TauriLaunchService {
     }
 
     // For embedded provider: skip tauri-driver installation
-    // For official/crabnebula: ensure tauri-driver is installed
+    // For external/crabnebula: ensure tauri-driver is installed
     if (!isEmbedded) {
       // Ensure tauri-driver is installed before any workers start.
       // This prevents a race condition where parallel workers all try to
@@ -314,8 +315,6 @@ export default class TauriLaunchService {
       log.info(`tauri-driver ready: ${driverResult.value.path} (${driverResult.value.method})`);
     } else {
       log.info('Using embedded WebDriver provider (tauri-plugin-wdio-webdriver) - no external driver needed');
-      // Store embedded mode info globally for triggerDeeplink
-      setEmbeddedModeInfo(true, undefined);
     }
 
     // Initialize file log writer if log capture is enabled
@@ -338,7 +337,7 @@ export default class TauriLaunchService {
     // When maxInstances > 1, enable per-worker spawning for parallelism
     // When maxInstances === 1, use single shared driver for optimal performance
     const maxInstances = _config.maxInstances || 100; // WDIO default is 100
-    const isMultiremote = !Array.isArray(capabilities);
+    const isMultiremote = instances.some(({ name }) => name !== undefined);
     this.perWorkerMode = maxInstances > 1 && !isMultiremote;
 
     log.debug(
@@ -367,37 +366,27 @@ export default class TauriLaunchService {
 
     // Multiremote: spawn a dedicated driver per instance on unique ports
     if (isMultiremote) {
-      const capEntries = Object.entries(capabilities);
-
       if (isEmbedded) {
         // Embedded provider: spawn each app with unique embedded ports
         this.isEmbeddedMode = true;
-        // Store embedded mode info globally for triggerDeeplink
-        setEmbeddedModeInfo(true, undefined);
-        log.info(`Starting ${capEntries.length} embedded WebDriver instance(s) for multiremote`);
+        log.info(`Starting ${instances.length} embedded WebDriver instance(s) for multiremote`);
 
         const hostname = '127.0.0.1';
-        const basePort = getEmbeddedPort(mergedOptions);
 
-        for (let i = 0; i < capEntries.length; i++) {
-          const [key, value] = capEntries[i];
-          const cap = value.capabilities;
-          const instanceId = String(key);
+        for (let i = 0; i < instances.length; i++) {
+          const { name, caps: cap, connectionTarget } = instances[i];
+          const instanceId = name ?? String(i);
           const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
           this.instanceOptions.set(instanceId, instanceOptions);
 
-          // Each instance gets a unique port (base + i)
-          const embeddedPort = basePort + i;
+          const embeddedPort = await this.allocateEmbeddedPort(cap, instanceOptions, i);
           const appBinaryPath = cap['tauri:options']?.application;
 
           if (!appBinaryPath) {
-            throw new Error(`Tauri application path not specified for multiremote instance: ${key}`);
+            throw new Error(`Tauri application path not specified for multiremote instance: ${instanceId}`);
           }
 
-          log.debug(`Starting embedded WebDriver for ${key} on port ${embeddedPort}`);
-
-          // Store embedded mode info and app binary path globally for triggerDeeplink
-          setEmbeddedModeInfo(true, appBinaryPath);
+          log.debug(`Starting embedded WebDriver for ${instanceId} on port ${embeddedPort}`);
 
           // Spawn the app with embedded WebDriver
           try {
@@ -405,19 +394,18 @@ export default class TauriLaunchService {
             this.embeddedProcesses.set(instanceId, driverInfo);
             this.embeddedConfigs.set(instanceId, { appBinaryPath, port: embeddedPort, options: instanceOptions });
           } catch (error) {
-            throw severeServiceError(`Failed to start embedded WebDriver for ${key}`, error);
+            throw severeServiceError(`Failed to start embedded WebDriver for ${instanceId}`, error);
           }
 
           // Update capabilities to connect to the embedded WebDriver server
-          (value as { port?: number; hostname?: string }).port = embeddedPort;
-          (value as { port?: number; hostname?: string }).hostname = hostname;
-          log.debug(`Set embedded WebDriver connection for ${key}: ${hostname}:${embeddedPort}`);
+          connectionTarget.port = embeddedPort;
+          connectionTarget.hostname = hostname;
+          log.debug(`Set embedded WebDriver connection for ${instanceId}: ${hostname}:${embeddedPort}`);
         }
       } else if (isCrabNebula) {
         // CrabNebula provider: spawn tauri-driver per multiremote instance
         // On macOS: also spawn test-runner-backend per instance (tauri-driver proxies via REMOTE_WEBDRIVER_URL)
-        // On other platforms: tauri-driver works directly without the backend (same as official provider)
-        setCrabnebulaModeInfo(true);
+        // On other platforms: tauri-driver works directly without the backend (same as the external provider)
 
         const hostname = '127.0.0.1';
         const isMacOS = process.platform === 'darwin';
@@ -425,9 +413,9 @@ export default class TauriLaunchService {
         // On macOS, spawn test-runner-backends
         const backendPorts: number[] = [];
         if (isMacOS) {
-          log.info(`Starting ${capEntries.length} CrabNebula test-runner-backend(s) for multiremote`);
+          log.info(`Starting ${instances.length} CrabNebula test-runner-backend(s) for multiremote`);
           const basePort = mergedOptions.crabnebulaBackendPort ?? 3000;
-          for (let i = 0; i < capEntries.length; i++) {
+          for (let i = 0; i < instances.length; i++) {
             const port = basePort + i * 2;
             await this.backendPortManager.allocatePortPair(port, port + 1);
             backendPorts.push(port);
@@ -435,25 +423,24 @@ export default class TauriLaunchService {
         }
 
         // Allocate tauri-driver ports for each instance
-        const driverPortPairs = await this.portManager.allocatePorts(capEntries.length);
+        const driverPortPairs = await this.portManager.allocatePorts(instances.length);
 
-        log.info(`Starting ${capEntries.length} CrabNebula tauri-driver instance(s) for multiremote`);
+        log.info(`Starting ${instances.length} CrabNebula tauri-driver instance(s) for multiremote`);
 
-        for (let i = 0; i < capEntries.length; i++) {
-          const [key, value] = capEntries[i];
-          const cap = value.capabilities;
-          const instanceId = String(key);
+        for (let i = 0; i < instances.length; i++) {
+          const { name, caps: cap, connectionTarget } = instances[i];
+          const instanceId = name ?? String(i);
           const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
           this.instanceOptions.set(instanceId, instanceOptions);
 
-          const dataDir = generateDataDirectory(instanceId);
+          const dataDir = this.allocateDataDirectory(instanceId);
           const envVarName = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
           const env: NodeJS.ProcessEnv = { ...process.env, [envVarName]: dataDir };
 
           // On macOS, start backend and set REMOTE_WEBDRIVER_URL for tauri-driver
           if (isMacOS) {
             const backendPort = backendPorts[i];
-            log.debug(`Starting CrabNebula test-runner-backend for ${key} on port ${backendPort}`);
+            log.debug(`Starting CrabNebula test-runner-backend for ${instanceId} on port ${backendPort}`);
 
             const { proc } = await startTestRunnerBackend({
               port: backendPort,
@@ -469,25 +456,24 @@ export default class TauriLaunchService {
           const { port: driverPort, nativePort: driverNativePort } = driverPortPairs[i];
 
           log.debug(
-            `Starting tauri-driver for ${key} on ${hostname}:${driverPort} ` +
+            `Starting tauri-driver for ${instanceId} on ${hostname}:${driverPort} ` +
               `(native port: ${driverNativePort}${isMacOS ? `, backend: ${hostname}:${backendPorts[i]}` : ''})`,
           );
 
           await this.startTauriDriverForInstance(instanceId, driverPort, driverNativePort, env, instanceOptions);
 
-          (value as { port?: number; hostname?: string }).port = driverPort;
-          (value as { port?: number; hostname?: string }).hostname = hostname;
+          connectionTarget.port = driverPort;
+          connectionTarget.hostname = hostname;
 
-          log.debug(`Set CrabNebula connection for ${key}: ${hostname}:${driverPort}`);
+          log.debug(`Set CrabNebula connection for ${instanceId}: ${hostname}:${driverPort}`);
         }
 
         // Store configs for cycling between workers (backend state degrades across sessions)
         if (isMacOS) {
-          this.cnCycleConfigs = capEntries.map(([key, value], i) => {
-            const cap = value.capabilities;
-            const instanceId = String(key);
+          this.cnCycleConfigs = instances.map(({ name, caps: cap }, i) => {
+            const instanceId = name ?? String(i);
             const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
-            const dataDir = generateDataDirectory(instanceId);
+            const dataDir = this.allocateDataDirectory(instanceId);
             const envVarName = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
             const env: NodeJS.ProcessEnv = {
               ...process.env,
@@ -505,35 +491,34 @@ export default class TauriLaunchService {
           });
         }
       } else {
-        log.info(`Starting ${capEntries.length} tauri-driver instance(s) for multiremote`);
+        log.info(`Starting ${instances.length} tauri-driver instance(s) for multiremote`);
 
         // Allocate ports using PortManager
-        const portPairs = await this.portManager.allocatePorts(capEntries.length);
+        const portPairs = await this.portManager.allocatePorts(instances.length);
 
-        for (let i = 0; i < capEntries.length; i++) {
+        for (let i = 0; i < instances.length; i++) {
           const { port, nativePort } = portPairs[i];
           log.debug(`Allocated ports for instance ${i}: main=${port}, native=${nativePort}`);
         }
 
         // Prepare all instance configs first
-        const instanceConfigs = capEntries.map(([key, value], i) => {
-          const cap = value.capabilities;
-          const instanceId = String(key);
+        const instanceConfigs = instances.map(({ name, caps: cap, connectionTarget }, i) => {
+          const instanceId = name ?? String(i);
           const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
           this.instanceOptions.set(instanceId, instanceOptions);
 
-          const dataDir = generateDataDirectory(instanceId);
+          const dataDir = this.allocateDataDirectory(instanceId);
           const envVarName = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
           const env = { ...process.env, [envVarName]: dataDir };
 
           const { port: instancePort, nativePort: instanceNativePort } = portPairs[i];
           const instanceHost = '127.0.0.1';
 
-          (value as { port?: number; hostname?: string }).port = instancePort;
-          (value as { port?: number; hostname?: string }).hostname = instanceHost;
+          connectionTarget.port = instancePort;
+          connectionTarget.hostname = instanceHost;
 
           log.debug(
-            `Starting tauri-driver for ${key} (ID: ${instanceId}) on ${instanceHost}:${instancePort} ` +
+            `Starting tauri-driver for ${instanceId} on ${instanceHost}:${instancePort} ` +
               `(native port: ${instanceNativePort})`,
           );
 
@@ -562,17 +547,15 @@ export default class TauriLaunchService {
     } else if (isEmbedded) {
       // Embedded provider: spawn app directly with embedded WebDriver server
       this.isEmbeddedMode = true;
-      // Store embedded mode info globally for triggerDeeplink
-      setEmbeddedModeInfo(true, undefined);
       log.info('Embedded provider mode - spawning Tauri app with embedded WebDriver server');
 
       const hostname = '127.0.0.1';
 
       // For each capability, spawn the app with embedded WebDriver
-      for (let i = 0; i < capsList.length; i++) {
-        const cap = capsList[i];
+      for (let i = 0; i < instances.length; i++) {
+        const { caps: cap, connectionTarget } = instances[i];
         const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
-        const embeddedPort = getEmbeddedPort(instanceOptions);
+        const embeddedPort = await this.allocateEmbeddedPort(cap, instanceOptions, i);
         const appBinaryPath = cap['tauri:options']?.application;
 
         if (!appBinaryPath) {
@@ -580,9 +563,6 @@ export default class TauriLaunchService {
         }
 
         log.debug(`Starting embedded WebDriver for instance ${i} on port ${embeddedPort}`);
-
-        // Store embedded mode info and app binary path globally for triggerDeeplink
-        setEmbeddedModeInfo(true, appBinaryPath);
 
         // Spawn the app with embedded WebDriver
         try {
@@ -594,8 +574,8 @@ export default class TauriLaunchService {
         }
 
         // Update capabilities to connect to the embedded WebDriver server
-        (cap as { port?: number; hostname?: string }).port = embeddedPort;
-        (cap as { port?: number; hostname?: string }).hostname = hostname;
+        connectionTarget.port = embeddedPort;
+        connectionTarget.hostname = hostname;
         log.debug(`Set embedded WebDriver connection on capabilities: ${hostname}:${embeddedPort}`);
       }
 
@@ -619,13 +599,13 @@ export default class TauriLaunchService {
           log.info(`tauri-driver listening on ${hostname}:${port}`);
         } catch (error) {
           log.error(`Failed to start tauri-driver: ${error}`);
-          throw new SevereServiceError(`Failed to start tauri-driver: ${errorMessage(error)}`);
+          throw severeServiceError('Failed to start tauri-driver', error);
         }
 
         // Update the capabilities object with hostname and port so WDIO connects to tauri-driver
-        for (const cap of capsList) {
-          (cap as { port?: number; hostname?: string }).port = port;
-          (cap as { port?: number; hostname?: string }).hostname = hostname;
+        for (const { connectionTarget } of instances) {
+          connectionTarget.port = port;
+          connectionTarget.hostname = hostname;
           log.debug(`Set tauri-driver connection on capabilities: ${hostname}:${port}`);
         }
 
@@ -719,9 +699,8 @@ export default class TauriLaunchService {
       delete (cap as { browserName?: string }).browserName;
     }
 
-    // Log DISPLAY status
     if (process.platform === 'linux') {
-      log.debug(`Worker ${cid} DISPLAY: ${process.env.DISPLAY || 'not set'}`);
+      log.debug(`Worker ${cid} display: ${describeDisplay() ?? 'not set'}`);
     }
 
     if (!firstCap) {
@@ -762,7 +741,7 @@ export default class TauriLaunchService {
       const { port, nativePort } = await this.allocateWorkerPorts(cid);
 
       // Generate isolated data directory
-      const dataDir = generateDataDirectory(`worker-${cid}`);
+      const dataDir = this.allocateDataDirectory(`worker-${cid}`);
 
       // Merge options (global + capability-specific)
       const workerOptions = mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']);
@@ -824,6 +803,11 @@ export default class TauriLaunchService {
     }
 
     log.debug(`Tauri worker session started: ${cid}`);
+  }
+
+  private allocateEmbeddedPort(cap: TauriCapabilities, options: TauriServiceOptions, index: number): Promise<number> {
+    const instancePort = cap['wdio:tauriServiceOptions']?.embeddedPort;
+    return this.portManager.allocatePort(instancePort ?? getEmbeddedPort(options) + index);
   }
 
   /**
@@ -913,6 +897,28 @@ export default class TauriLaunchService {
     return { port, nativePort };
   }
 
+  private allocateDataDirectory(instanceId: string): string {
+    const dataDir = generateDataDirectory(instanceId);
+    this.dataDirectories.set(instanceId, dataDir);
+    return dataDir;
+  }
+
+  private async removeDataDirectories(instanceIds: string[]): Promise<void> {
+    for (const instanceId of instanceIds) {
+      const dataDir = this.dataDirectories.get(instanceId);
+      if (dataDir === undefined) {
+        continue;
+      }
+      this.dataDirectories.delete(instanceId);
+      try {
+        await rm(dataDir, { recursive: true, force: true, maxRetries: 3 });
+        log.debug(`Removed data directory for ${instanceId}: ${dataDir}`);
+      } catch (error) {
+        log.warn(`Failed to remove data directory ${dataDir}: ${errorMessage(error)}`);
+      }
+    }
+  }
+
   /**
    * Start tauri-driver for a specific worker
    */
@@ -957,6 +963,7 @@ export default class TauriLaunchService {
 
     if (this.perWorkerMode) {
       await this.driverPool.stopDriver(cid);
+      await this.removeDataDirectories([`worker-${cid}`]);
     }
 
     // CrabNebula (macOS): cycle backends + drivers between workers
@@ -974,7 +981,9 @@ export default class TauriLaunchService {
    */
   private async cycleCnInfrastructure(): Promise<void> {
     const configs = this.cnCycleConfigs;
-    if (!configs) return;
+    if (!configs) {
+      return;
+    }
 
     const hostname = '127.0.0.1';
     log.info(`Cycling ${configs.length} CrabNebula backend(s) + driver(s) between workers`);
@@ -1054,7 +1063,7 @@ export default class TauriLaunchService {
         this.testRunnerBackend = undefined;
       }
 
-      const embeddedCleanupErrors: unknown[] = [];
+      const driverCleanupErrors: unknown[] = [];
       if (this.isEmbeddedMode) {
         log.info(`Stopping ${this.embeddedProcesses.size} embedded driver process(es)...`);
         for (const [key, process] of this.embeddedProcesses) {
@@ -1064,23 +1073,31 @@ export default class TauriLaunchService {
             log.debug(`Stopped embedded driver: ${key}`);
           } catch (error) {
             log.warn(`Failed to stop embedded driver ${key}: ${errorMessage(error)}`);
-            embeddedCleanupErrors.push(error);
+            driverCleanupErrors.push(error);
           }
         }
       }
 
-      await this.driverPool.stopAll();
-      this.instanceOptions.clear();
-      this.embeddedConfigs.clear();
-      this.portManager.clear();
-      this.backendPortManager.clear();
-
-      if (embeddedCleanupErrors.length === 1) {
-        throw embeddedCleanupErrors[0];
+      try {
+        await this.driverPool.stopAll();
+      } catch (error) {
+        log.warn(`Failed to stop driver processes: ${errorMessage(error)}`);
+        driverCleanupErrors.push(error);
+      } finally {
+        this.instanceOptions.clear();
+        this.embeddedConfigs.clear();
+        this.portManager.clear();
+        this.backendPortManager.clear();
       }
-      if (embeddedCleanupErrors.length > 1) {
-        throw new AggregateError(embeddedCleanupErrors, 'Failed to stop embedded driver processes', {
-          cause: embeddedCleanupErrors[0],
+
+      await this.removeDataDirectories([...this.dataDirectories.keys()]);
+
+      if (driverCleanupErrors.length === 1) {
+        throw driverCleanupErrors[0];
+      }
+      if (driverCleanupErrors.length > 1) {
+        throw new AggregateError(driverCleanupErrors, 'Failed to stop driver processes', {
+          cause: driverCleanupErrors[0],
         });
       }
 
@@ -1107,7 +1124,7 @@ export default class TauriLaunchService {
     );
 
     if (process.platform === 'linux') {
-      log.info(`Starting tauri-driver (DISPLAY from environment: ${process.env.DISPLAY || 'not set'})`);
+      log.info(`Starting tauri-driver (display from environment: ${describeDisplay() ?? 'not set'})`);
     }
 
     await this.driverPool.startDriver({

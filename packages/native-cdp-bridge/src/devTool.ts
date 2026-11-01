@@ -11,6 +11,7 @@ const log = createLogger('cdp-bridge', 'bridge');
 export type DevToolOptions = {
   host?: string;
   port?: number;
+  /** Timeout in ms for the debugger port to open, and for each request. */
   timeout?: number;
 };
 
@@ -46,6 +47,10 @@ export class DevTool {
     };
   }
 
+  get isPortOpened(): boolean {
+    return this.#isPortOpened;
+  }
+
   list() {
     return this.#executeRequest<DebuggerList>({ path: '/json' });
   }
@@ -62,17 +67,25 @@ export class DevTool {
   #waitDebuggerPort() {
     return new Promise<void>((resolve, reject) => {
       if (!this.#isPortOpened) {
+        const address = `${this.#options.host}:${this.#options.port}`;
         const waitOptions: WaitOptions = {
           ...this.#options,
           output: 'silent',
           interval: BRIDGE_RETRY_INTERVAL,
         };
         waitPort(waitOptions)
-          .then(() => {
+          .then(({ open }) => {
+            if (!open) {
+              reject(new Error(`${ERROR_MESSAGE.TIMEOUT_WAIT_PORT}: ${address}`));
+              return;
+            }
             this.#isPortOpened = true;
             resolve();
           })
-          .catch(reject);
+          .catch((error: unknown) => {
+            const detail = error instanceof Error ? requestErrorDetail(error) : String(error);
+            reject(new Error(`${detail}: ${address}`, { cause: error }));
+          });
       } else {
         resolve();
       }
@@ -115,14 +128,12 @@ export class DevTool {
           });
 
           req.on('error', (error) => {
-            reject(new Error(`Request Error: ${error.message}`));
+            reject(new Error(`Request Error: ${requestErrorDetail(error)}`, { cause: error }));
           });
 
           req.end();
         })
-        .catch(() => {
-          reject(new Error(ERROR_MESSAGE.TIMEOUT_WAIT_PORT));
-        });
+        .catch(reject);
     });
   }
 
@@ -132,6 +143,15 @@ export class DevTool {
     log.trace(message);
     reject(new Error(message));
   }
+}
+
+// When every address for a host such as localhost refuses the connection, Node throws an
+// AggregateError with an empty message; its inner errors name each address.
+function requestErrorDetail(error: Error): string {
+  if (error.message || !(error instanceof AggregateError)) {
+    return error.message;
+  }
+  return error.errors.map((inner) => (inner instanceof Error ? inner.message : String(inner))).join('; ');
 }
 
 const getReqInfo = (request: ClientRequest) =>

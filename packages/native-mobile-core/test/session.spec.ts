@@ -13,6 +13,7 @@ const onPrepare = vi.fn().mockResolvedValue(undefined);
 const onComplete = vi.fn().mockResolvedValue(undefined);
 const before = vi.fn().mockResolvedValue(undefined);
 const after = vi.fn().mockResolvedValue(undefined);
+const afterSession = vi.fn().mockResolvedValue(undefined);
 
 // FakeLauncher mirrors RN's launcher, which owns Metro and stops it in onComplete.
 class FakeLauncher {
@@ -40,6 +41,7 @@ class FakeWorker {
   ) {}
   before = before;
   after = after;
+  afterSession = afterSession;
 }
 
 const makeSession = () =>
@@ -54,6 +56,7 @@ const resetMocks = () => {
   onComplete.mockClear().mockResolvedValue(undefined);
   before.mockClear().mockResolvedValue(undefined);
   after.mockClear().mockResolvedValue(undefined);
+  afterSession.mockClear().mockResolvedValue(undefined);
   deleteSession.mockClear();
   remoteMock.mockClear().mockResolvedValue(fakeBrowser);
 };
@@ -78,6 +81,13 @@ describe('createMobileSession init', () => {
     resetMocks();
     await makeSession().init({ platformName: 'Android' }, {}, { port: 4444, path: '/wd/hub' });
     expect(remoteMock).toHaveBeenCalledWith(expect.objectContaining({ port: 4444, path: '/wd/hub' }));
+    expect(remoteMock.mock.calls[0][0]).not.toHaveProperty('connectionRetryTimeout');
+  });
+
+  it('should forward connectionRetryTimeout from globalOptions to remote()', async () => {
+    resetMocks();
+    await makeSession().init({ platformName: 'Android' }, { connectionRetryTimeout: 180_000 });
+    expect(remoteMock).toHaveBeenCalledWith(expect.objectContaining({ connectionRetryTimeout: 180_000 }));
   });
 
   it('should delete the session, stop the launcher, and rethrow when worker.before fails', async () => {
@@ -151,14 +161,18 @@ describe('createMobileSession init', () => {
 });
 
 describe('createMobileSession cleanup', () => {
-  it('should call worker.after, deleteSession, and launcher.onComplete for a managed browser', async () => {
+  it('should call worker.after, worker.afterSession, deleteSession, and launcher.onComplete in order for a managed browser', async () => {
     resetMocks();
     const session = makeSession();
     const browser = await session.init({ platformName: 'Android' });
     await session.cleanup(browser);
-    expect(after).toHaveBeenCalled();
-    expect(deleteSession).toHaveBeenCalled();
-    expect(onComplete).toHaveBeenCalled();
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(afterSession).toHaveBeenCalledTimes(1);
+    expect(deleteSession).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(after.mock.invocationCallOrder[0]).toBeLessThan(afterSession.mock.invocationCallOrder[0]);
+    expect(afterSession.mock.invocationCallOrder[0]).toBeLessThan(deleteSession.mock.invocationCallOrder[0]);
+    expect(deleteSession.mock.invocationCallOrder[0]).toBeLessThan(onComplete.mock.invocationCallOrder[0]);
   });
 
   it('should not throw when launcher.onComplete fails during cleanup (best-effort)', async () => {
@@ -179,6 +193,25 @@ describe('createMobileSession cleanup', () => {
       const pending = session.cleanup(browser);
       await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
       await expect(pending).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should bound a hung worker.after, which afterSession runs again, so cleanup still finishes', async () => {
+    resetMocks();
+    const session = makeSession();
+    const browser = await session.init({ platformName: 'Android' });
+    const hang = new Promise<void>(() => {});
+    after.mockReturnValueOnce(hang).mockReturnValueOnce(hang);
+    afterSession.mockImplementationOnce(() => after());
+    vi.useFakeTimers();
+    try {
+      const pending = session.cleanup(browser);
+      await vi.advanceTimersByTimeAsync(2 * DEFAULT_TEARDOWN_TIMEOUT_MS);
+      await expect(pending).resolves.toBeUndefined();
+      expect(deleteSession).toHaveBeenCalledTimes(1);
+      expect(onComplete).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

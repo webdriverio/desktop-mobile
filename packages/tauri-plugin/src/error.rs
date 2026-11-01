@@ -7,6 +7,9 @@ pub enum Error {
   #[error(transparent)]
   Io(#[from] std::io::Error),
 
+  #[error(transparent)]
+  Tauri(#[from] tauri::Error),
+
   #[error("Execute error: {0}")]
   ExecuteError(String),
 

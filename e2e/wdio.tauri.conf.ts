@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { NormalizedPackageJson } from '@wdio/native-types';
 
 import { createEnvironmentContext } from './config/envSchema.js';
+import { webkitDisplayServer } from './lib/display.js';
 import { fileExists, resolveTauriFixtureBinary, safeJsonParse } from './lib/utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,10 +30,10 @@ async function getTauriConfigContext(): Promise<TauriConfigContext> {
   // Parse and validate environment first (needed to check driverProvider)
   const envContext = createEnvironmentContext();
 
-  // Skip macOS Tauri tests only for official tauri-driver
+  // Skip macOS Tauri tests only for the external tauri-driver
   // CrabNebula and embedded providers support macOS
-  if (process.platform === 'darwin' && envContext.driverProvider === 'official') {
-    console.log('⚠️ Skipping Tauri tests on macOS with official driver due to WKWebView WebDriver limitations');
+  if (process.platform === 'darwin' && envContext.driverProvider === 'external') {
+    console.log('⚠️ Skipping Tauri tests on macOS with tauri-driver due to WKWebView WebDriver limitations');
     console.log('💡 Use driverProvider: "crabnebula" or "embedded" for macOS support');
     process.exit(78); // Exit code 78 indicates skipped tests
   }
@@ -269,14 +270,12 @@ export const config = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  // Don't use autoXvfb - tauri-driver runs in launcher (not worker) and needs display
-  // The entire test command must be wrapped with xvfb-run in CI
-  autoXvfb: false,
+  ...webkitDisplayServer,
   services: [
     [
       '@wdio/tauri-service',
       {
-        driverProvider: envContext.driverProvider || 'official',
+        driverProvider: envContext.driverProvider || 'external',
         autoInstallTauriDriver: envContext.driverProvider !== 'crabnebula',
       },
     ],
@@ -302,7 +301,7 @@ export const config = {
         (globalThis as unknown as Record<string, unknown>).__userClickOverrideRan = true;
         return origClick(...args);
       } as Parameters<typeof browser.overwriteCommand>[1],
-      true,
+      { attachToElement: true },
     );
   },
   mochaOpts: {

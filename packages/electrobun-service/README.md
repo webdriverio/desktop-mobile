@@ -29,14 +29,14 @@ WebView2, where the launcher spawns the app and a Chromedriver attaches via `deb
 **W3C WebDriver** for Linux WebKitGTK, where `WebKitWebDriver` launches the app and drives it
 directly. Build each OS with its drivable renderer:
 
-| OS | Renderer | Automation surface | Transport | Status |
-|---|---|---|---|---|
-| **macOS** | CEF | CDP | Chromedriver attach | ✅ supported — recommended macOS path |
-| **macOS** | WKWebView | none (local Web Inspector only) | — | ❌ unsupported — no remote automation surface; build with CEF. A future self-shipped embedded driver is tracked in [#629](https://github.com/webdriverio/desktop-mobile/issues/629). |
-| **Windows** | WebView2 | CDP | msedgedriver attach | ✅ supported — multi-window + multiremote |
-| **Windows** | CEF | — | — | ❌ unsupported — CEF can't create its profile on Windows; use the native renderer |
-| **Linux** | WebKitGTK | W3C WebDriver | `WebKitWebDriver` | ✅ supported — single-window ([requirements](#linux-webkitgtk-requirements)) |
-| **Linux** | CEF | — | — | ❌ unsupported — CEF serves no `/json` off macOS ([upstream #380](https://github.com/blackboardsh/electrobun/issues/380)); use the native renderer |
+| OS          | Renderer  | Automation surface              | Transport           | Status                                                                                                                                                                               |
+| ----------- | --------- | ------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **macOS**   | CEF       | CDP                             | Chromedriver attach | ✅ supported — recommended macOS path                                                                                                                                                |
+| **macOS**   | WKWebView | none (local Web Inspector only) | —                   | ❌ unsupported — no remote automation surface; build with CEF. A future self-shipped embedded driver is tracked in [#629](https://github.com/webdriverio/desktop-mobile/issues/629). |
+| **Windows** | WebView2  | CDP                             | msedgedriver attach | ✅ supported — multi-window + multiremote                                                                                                                                            |
+| **Windows** | CEF       | —                               | —                   | ❌ unsupported — CEF can't create its profile on Windows; use the native renderer                                                                                                    |
+| **Linux**   | WebKitGTK | W3C WebDriver                   | `WebKitWebDriver`   | ✅ supported — single-window ([requirements](#linux-webkitgtk-requirements))                                                                                                         |
+| **Linux**   | CEF       | —                               | —                   | ❌ unsupported — CEF serves no `/json` off macOS ([upstream #380](https://github.com/blackboardsh/electrobun/issues/380)); use the native renderer                                   |
 
 ```ts
 // electrobun.config.ts — build each OS with its drivable renderer
@@ -55,8 +55,10 @@ unsupported configuration — the launcher fails fast with a clear error.
 ### Linux (WebKitGTK) requirements
 
 The Linux path drives the native WebKitGTK renderer over **W3C WebDriver** via
-**`WebKitWebDriver`**, which the service spawns under `xvfb-run` to launch and drive the app on
-headless machines. Install both the WebKitGTK driver and Xvfb:
+**`WebKitWebDriver`**, which launches the app. The app runs on X11, because it doesn't start under a
+headless Weston. If an X display is set (`DISPLAY`), such as your desktop's, the service uses it.
+Otherwise, including when only a Wayland display is set, it runs the driver under `xvfb-run`. Install
+both the WebKitGTK driver and Xvfb:
 
 ```sh
 sudo apt-get install webkitgtk-webdriver xvfb     # Ubuntu 26.04+, Debian 13+
@@ -100,15 +102,15 @@ expect(title).toBe('My App');
 
 ## Supported surface (macOS + Windows + Linux)
 
-| Feature | Status |
-|---|---|
-| `execute` | ✅ |
-| mocking (`mock` + `clear`/`reset`/`restoreAllMocks` + `isMockFunction`) | ✅ |
-| frontend + backend log capture | ✅ (Linux: frontend via an injected console shim + the driver's stdout; `captureBackendLogs` structured capture is CDP-only) |
-| browser mode (`mode: 'browser'` against a dev server) | ✅ |
-| standalone / session mode | ✅ |
+| Feature                                                                 | Status                                                                                                                       |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `execute`                                                               | ✅                                                                                                                           |
+| mocking (`mock` + `clear`/`reset`/`restoreAllMocks` + `isMockFunction`) | ✅                                                                                                                           |
+| frontend + backend log capture                                          | ✅ (Linux: frontend via an injected console shim + the driver's stdout; `captureBackendLogs` structured capture is CDP-only) |
+| browser mode (`mode: 'browser'` against a dev server)                   | ✅ (the page runs in plain Chrome without `browser.electrobun`, so the service's `execute` and `mock` aren't available)      |
+| standalone / session mode                                               | ✅                                                                                                                           |
 
-Browser mode also supports the optional **`devServer`** service option — the launcher spawns your dev server in `onPrepare`, waits until `devServerUrl` is reachable, and tears it down afterwards (and on a startup failure). It accepts a shell command (`'pnpm dev'`), a config object (`{ command, cwd, env, timeoutMs, reuseExistingServer }`), or an `async () => ({ url, close })` function; `reuseExistingServer` defaults to reusing a running server locally and always spawning fresh in CI.
+Browser mode also supports the optional **`devServer`** service option — the launcher spawns your dev server in `onPrepare`, waits until `devServerUrl` is reachable, and tears it down afterwards (and on a startup failure). It accepts a shell command (`'pnpm dev'`), a config object (`{ command, cwd, env, timeoutMs, reuseExistingServer }`), or an `async () => ({ url, close })` function; `reuseExistingServer` defaults to reusing a running server locally and always spawning fresh in CI. In standalone mode, a dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
 
 ## Known limitations
 
@@ -119,13 +121,13 @@ context, which folds parallel instances together (blocking multiremote). Upstrea
 tracked in [#320](https://github.com/webdriverio/desktop-mobile/issues/320); the non-CEF
 (native-renderer) track is [#317](https://github.com/webdriverio/desktop-mobile/issues/317).
 
-| Area | Status |
-|---|---|
+| Area                           | Status                                                                                                                                                                                                                                                                                                         |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | multiremote / parallel workers | ✅ Windows — WebView2 isolates each instance, so parallel workers and multiremote both work; ✅ Linux — WebKitGTK clones the bundle per instance (each gets its own `WebKitWebDriver` + app), so parallel workers and multiremote both work; ❌ macOS CEF — instances fold together, per the root cause above. |
-| `switchWindow` / `listWindows` | ✅ Windows; ⚠️ macOS CEF unreliable — two windows race in the shared global context, so run locally; ⚠️ Linux best-effort — W3C window handles mapped by order. |
-| `triggerDeeplink` | ⚠️ macOS unreliable — no `open-url` routing to the spawned instance; ❌ Windows/Linux upstream-blocked — Electrobun registers URL schemes and wires `open-url` macOS-only ([blackboardsh/electrobun#465](https://github.com/blackboardsh/electrobun/issues/465)). |
-| single-window apps | ⚠️ a lone CEF window doesn't reliably appear in `/json`, so the bridge can intermittently find no target to attach to. Opening a second window stabilises target exposure — the fixtures open it staggered behind the first window's `dom-ready`. |
-| `emitEvent` | deferred — the Bun event bus isn't CDP-reachable. |
+| `switchWindow` / `listWindows` | ✅ Windows; ⚠️ macOS CEF unreliable — two windows race in the shared global context, so run locally; ⚠️ Linux best-effort — W3C window handles mapped by order.                                                                                                                                                |
+| `triggerDeeplink`              | ⚠️ macOS unreliable — no `open-url` routing to the spawned instance; ❌ Windows/Linux upstream-blocked — Electrobun registers URL schemes and wires `open-url` macOS-only ([blackboardsh/electrobun#465](https://github.com/blackboardsh/electrobun/issues/465)).                                              |
+| single-window apps             | ⚠️ a lone CEF window doesn't reliably appear in `/json`, so the bridge can intermittently find no target to attach to. Opening a second window stabilises target exposure — the fixtures open it staggered behind the first window's `dom-ready`.                                                              |
+| `emitEvent`                    | deferred — the Bun event bus isn't CDP-reachable.                                                                                                                                                                                                                                                              |
 
 As each upstream fix lands, the corresponding platform/feature is re-enabled and
 the service advances toward `1.0`.

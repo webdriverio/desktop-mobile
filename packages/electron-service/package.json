@@ -25,7 +25,7 @@
     ]
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1"
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
@@ -47,23 +47,29 @@
     "tests"
   ],
   "peerDependencies": {
+    "@wdio/globals": "^9.0.0 || ^10.0.0",
+    "@wdio/types": "^9.0.0 || ^10.0.0",
     "electron": "*",
-    "webdriverio": ">9.0.0"
+    "webdriverio": "^9.0.0 || ^10.0.0"
   },
   "peerDependenciesMeta": {
+    "@wdio/globals": {
+      "optional": true
+    },
+    "@wdio/types": {
+      "optional": true
+    },
     "electron": {
       "optional": true
     },
     "webdriverio": {
-      "optional": false
+      "optional": true
     }
   },
   "dependencies": {
-    "@babel/parser": "^8.0.7",
+    "@babel/parser": "^8.0.8",
     "@electron/fuses": "^2.1.3",
     "@electron/packager": "^20.3.0",
-    "@wdio/globals": "catalog:default",
-    "@wdio/logger": "catalog:default",
     "@wdio/native-cdp-bridge": "workspace:*",
     "@wdio/native-core": "workspace:*",
     "@wdio/native-types": "workspace:*",
@@ -71,36 +77,38 @@
     "compare-versions": "^6.1.1",
     "debug": "^4.4.3",
     "deepmerge-ts": "^8.0.2",
-    "electron-to-chromium": "^1.5.461",
+    "electron-to-chromium": "^1.5.464",
     "fast-copy": "^4.2.0",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
-    "puppeteer-core": "^25.15.0",
+    "puppeteer-core": "^25.16.0",
     "recast": "^0.24.0",
-    "webdriverio": "catalog:default",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@electron-forge/shared-types": "^7.11.2",
-    "@puppeteer/browsers": "^3.2.5",
+    "@electron-forge/shared-types": "^8.0.1",
+    "@puppeteer/browsers": "^3.2.6",
     "@repo/test-utils": "workspace:*",
     "@types/debug": "^4.1.12",
     "@types/electron-to-chromium": "^1.5.0",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "@wdio/bundler": "workspace:*",
+    "@wdio/globals": "catalog:default",
     "@wdio/native-spy": "workspace:*",
     "@wdio/types": "catalog:default",
-    "builder-util": "^26.15.3",
-    "devtools-protocol": "^0.0.1721602",
+    "@wdio/utils": "catalog:default",
+    "builder-util": "^26.16.0",
+    "devtools-protocol": "^0.0.1724436",
     "electron": "catalog:default",
     "jsdom": "^30.1.3",
-    "nock": "^14.0.17",
+    "nock": "^15.0.5",
     "shx": "^0.4.0",
     "tinyspy": "^4.0.6",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "webdriverio": "catalog:default"
   },
   "files": [
     "dist",

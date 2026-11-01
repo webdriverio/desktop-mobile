@@ -21,13 +21,13 @@ CodeQL raised `actions/artifact-poisoning` alerts against debug log steps and ar
 
 ## Affected Files
 
-| File | Step Name | Alert Type | Detailed Section |
-|------|-----------|------------|------------------|
-| `.github/workflows/_ci-e2e-electron.reusable.yml` | 🐛 Show Logs on Failure | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
-| `.github/workflows/_ci-e2e-tauri.reusable.yml` | 🐛 Debug Information | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
-| `.github/workflows/_ci-e2e-tauri-embedded.reusable.yml` | 🐛 Debug Information | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
-| `.github/workflows/_ci-e2e-tauri-crabnebula.reusable.yml` | 🐛 Debug Information | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
-| `.github/workflows/_ci-build-tauri-e2e-app.reusable.yml` | 📦 Install Dependencies | pnpm install | [pnpm install](#alert-pnpm-install-after-artifact-download) |
+| File                                                      | Step Name               | Alert Type       | Detailed Section                                                    |
+| --------------------------------------------------------- | ----------------------- | ---------------- | ------------------------------------------------------------------- |
+| `.github/workflows/_ci-e2e-electron.reusable.yml`         | 🐛 Show Logs on Failure | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
+| `.github/workflows/_ci-e2e-tauri.reusable.yml`            | 🐛 Debug Information    | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
+| `.github/workflows/_ci-e2e-tauri-embedded.reusable.yml`   | 🐛 Debug Information    | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
+| `.github/workflows/_ci-e2e-tauri-crabnebula.reusable.yml` | 🐛 Debug Information    | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
+| `.github/workflows/_ci-build-tauri-e2e-app.reusable.yml`  | 📦 Install Dependencies | pnpm install     | [pnpm install](#alert-pnpm-install-after-artifact-download)         |
 
 ---
 
@@ -62,7 +62,6 @@ Artifacts are first extracted to `${RUNNER_TEMP}/artifact-extract-{run_id}-{atte
 #### 2. Copying of Specific Directories
 
 The "Extract and Copy Archive" step only copies specific directories to the workspace:
-
 - `**/dist` directories (build output)
 - `**/dist-js` directories (build output)
 - `**/target` directories (Rust/Tauri build output)

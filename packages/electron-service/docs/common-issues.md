@@ -9,7 +9,6 @@ The service works out which Chromedriver to use from your app's Electron version
 The usual cause is testing an app built elsewhere — a downloaded release artifact, or a build produced by a separate CI job — so the tests have no local Electron install even though `appBinaryPath` points at a perfectly good app.
 
 Any one of these resolves it:
-
 - Install `electron` as a `devDependency` in the project being tested.
 - Set the `browserVersion` capability to the Electron version under test — see [Chromedriver Configuration](./configuration.md#chromedriver-configuration).
 - Set `wdio:chromedriverOptions.binary` to a Chromedriver you provide.
@@ -19,13 +18,11 @@ Any one of these resolves it:
 The Electron version was found, but the service could not map it to a Chromium version, so it cannot select a matching Chromedriver. Installing Electron will not help — it is already installed.
 
 The mapping comes from `https://electronjs.org/headers/index.json`, falling back to the bundled `electron-to-chromium` data when that request fails. It comes up short when:
-
 - the build is a **fork** whose version is not a published Electron release;
 - the build is a **nightly** and the online lookup is unavailable — the bundled fallback contains no nightly versions;
 - the Electron release is **newer than the bundled data** and the online lookup is unavailable.
 
 Resolve it by pinning Chromedriver yourself:
-
 - Set `wdio:chromedriverOptions.binary` to a Chromedriver matching your app's Chromium version.
 - Or set the `browserVersion` capability to the **Chromium** version your Electron build uses. You can read that from the app itself:
 
@@ -73,21 +70,23 @@ npm run build                       # for production
 
 See: [Electron Fuses Documentation](https://www.electronjs.org/docs/latest/tutorial/fuses#nodecliinspect)
 
+## CDP bridge could not connect to the main process
+
+The `EnableNodeCliInspectArguments` fuse is enabled, but the service could not reach the app's Node inspector. The service logs the connection error when the session starts, and every `browser.electron` call that needs the bridge throws it, with a message starting `CDP bridge could not connect to the main process, API is disabled:`. Main process log capture is off for that session. Tests that don't use those APIs still run.
+
+Check that:
+- The app is still running after it starts. If it exits or crashes during startup, its inspector goes with it.
+- The inspector has time to start. On a slow machine, raise [`cdpBridgeTimeout`](./configuration.md#cdpbridgetimeout).
+
 ## DevToolsActivePort file doesn't exist
 
-This is a Chromium error which may appear when using Docker or CI. Most of the "fixes" discussed online are based around passing different combinations of args to Chromium - you can set these via [`appArgs`](./configuration.md#appargs), though in most cases using xvfb has proven to be more effective; the service itself uses xvfb when running E2Es on Linux CI.
+This is a Chromium error which may appear when using Docker or CI. Most of the "fixes" discussed online are based around passing different combinations of args to Chromium - you can set these via [`appArgs`](./configuration.md#appargs), though in most cases running under a virtual display such as Xvfb has proven more effective.
 
-See this [WDIO documentation page](https://webdriver.io/docs/headless-and-xvfb) for instructions on how to set up xvfb.
-
-**Note:** WebdriverIO 9.19.1+ is required for automatic Xvfb support via the `autoXvfb` configuration option. For legacy WDIO versions, you'll need to use external tools like `xvfb-maybe` or manually set up Xvfb.
+WebdriverIO 9.19.1+ starts a virtual display on Linux when none is set; older versions need `xvfb-run` or `xvfb-maybe`. WebdriverIO v10 starts Weston if it's installed and Xvfb otherwise, and the service is tested on both. See [Headless & Display Servers](https://webdriver.io/docs/headless-and-display-servers).
 
 ### Failed to create session. session not created: probably user data directory is already in use, please specify a unique value for --user-data-dir argument, or don't use --user-data-dir
 
-This is another obscure Chromium error which, despite the message, is usually not fixed by providing a unique `--user-data-dir` value. In the Electron context this usually occurs when the Electron app crashes during or shortly after initialization. WDIO / ChromeDriver attempts to reconnect, starting a new electron instance, which attempts to use the same user-data-dir path. Whilst there may be other causes, on Linux this is often fixed with xvfb.
-
-See this [WDIO documentation page](https://webdriver.io/docs/headless-and-xvfb) for instructions on how to set up xvfb.
-
-**Note:** WebdriverIO 9.19.1+ is required for automatic Xvfb support via the `autoXvfb` configuration option. For legacy WDIO versions, you'll need to use external tools like `xvfb-maybe` or manually set up Xvfb.
+This is another obscure Chromium error which, despite the message, is usually not fixed by providing a unique `--user-data-dir` value. In the Electron context this usually occurs when the Electron app crashes during or shortly after initialization. WDIO / ChromeDriver attempts to reconnect, starting a new electron instance, which attempts to use the same user-data-dir path. Whilst there may be other causes, on Linux this is often fixed with a virtual display, as described [above](#devtoolsactiveport-file-doesnt-exist).
 
 ### All versions of Electron fail to open on Ubuntu 24.04+
 
@@ -104,19 +103,19 @@ export const config = {
     [
       'electron',
       {
-        apparmorAutoInstall: 'sudo' // or true if running as root
-      }
-    ]
+        apparmorAutoInstall: 'sudo', // or true if running as root
+      },
+    ],
   ],
   // OR configure it per capability:
   capabilities: [
     {
-      'browserName': 'electron',
+      browserName: 'electron',
       'wdio:electronServiceOptions': {
-        apparmorAutoInstall: 'sudo'
-      }
-    }
-  ]
+        apparmorAutoInstall: 'sudo',
+      },
+    },
+  ],
 };
 ```
 
@@ -136,10 +135,10 @@ This error occurs when importing the `browser` object directly at the top level 
 
 ```typescript
 // ❌ This may cause "TypeError: logger is not a function"
-import { browser } from "@wdio/electron-service";
+import { browser } from '@wdio/electron-service';
 
-describe("My Tests", () => {
-  it("should work", async () => {
+describe('My Tests', () => {
+  it('should work', async () => {
     await browser.electron.execute(/* ... */);
   });
 });
@@ -151,18 +150,18 @@ The solution is to use dynamic import within a `before` hook to ensure the servi
 
 ```typescript
 // ✅ Correct approach - dynamic import in before hook
-import type { Mock } from "@vitest/spy";
-import { $, expect } from "@wdio/globals";
-import type { browser as WdioBrowser } from "@wdio/electron-service";
+import type { Mock } from '@vitest/spy';
+import { $, expect } from '@wdio/globals';
+import type { browser as WdioBrowser } from '@wdio/electron-service';
 
 let browser: typeof WdioBrowser;
 
-describe("My Tests", () => {
+describe('My Tests', () => {
   before(async () => {
-    ({ browser } = await import("@wdio/electron-service"));
+    ({ browser } = await import('@wdio/electron-service'));
   });
 
-  it("should work", async () => {
+  it('should work', async () => {
     await browser.electron.execute(/* ... */);
   });
 });

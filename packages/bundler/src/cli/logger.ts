@@ -4,8 +4,12 @@ export class Logger {
   constructor(private level: LogLevel = 'normal') {}
 
   static create(verbose?: boolean, extraVerbose?: boolean): Logger {
-    if (extraVerbose) return new Logger('extra-verbose');
-    if (verbose) return new Logger('verbose');
+    if (extraVerbose) {
+      return new Logger('extra-verbose');
+    }
+    if (verbose) {
+      return new Logger('verbose');
+    }
     return new Logger('normal');
   }
 

@@ -61,8 +61,12 @@ describe('PackageAnalyzer', () => {
 
       mockExistsSync.mockImplementation((path: string) => {
         const normalizedPath = normalize(path);
-        if (normalizedPath.endsWith('package.json')) return true;
-        if (normalizedPath.endsWith(normalize('src/index.ts'))) return true;
+        if (normalizedPath.endsWith('package.json')) {
+          return true;
+        }
+        if (normalizedPath.endsWith(normalize('src/index.ts'))) {
+          return true;
+        }
         return false;
       });
 
@@ -118,9 +122,15 @@ describe('PackageAnalyzer', () => {
 
       mockExistsSync.mockImplementation((path: string) => {
         const normalizedPath = normalize(path);
-        if (normalizedPath.endsWith('package.json')) return true;
-        if (normalizedPath.endsWith(normalize('src/index.ts'))) return true;
-        if (normalizedPath.endsWith(normalize('src/utils.ts'))) return true;
+        if (normalizedPath.endsWith('package.json')) {
+          return true;
+        }
+        if (normalizedPath.endsWith(normalize('src/index.ts'))) {
+          return true;
+        }
+        if (normalizedPath.endsWith(normalize('src/utils.ts'))) {
+          return true;
+        }
         return false;
       });
 
@@ -138,8 +148,12 @@ describe('PackageAnalyzer', () => {
     it('should handle different file extensions', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         const normalizedPath = normalize(path);
-        if (normalizedPath.endsWith('package.json')) return true;
-        if (normalizedPath.endsWith(normalize('src/index.mts'))) return true; // .mts instead of .ts
+        if (normalizedPath.endsWith('package.json')) {
+          return true;
+        }
+        if (normalizedPath.endsWith(normalize('src/index.mts'))) {
+          return true; // .mts instead of .ts
+        }
         return false;
       });
 
@@ -154,8 +168,12 @@ describe('PackageAnalyzer', () => {
     it('should handle index files in subdirectories', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         const normalizedPath = normalize(path);
-        if (normalizedPath.endsWith('package.json')) return true;
-        if (normalizedPath.endsWith(normalize('src/index/index.ts'))) return true;
+        if (normalizedPath.endsWith('package.json')) {
+          return true;
+        }
+        if (normalizedPath.endsWith(normalize('src/index/index.ts'))) {
+          return true;
+        }
         return false;
       });
 
@@ -175,8 +193,12 @@ describe('PackageAnalyzer', () => {
 
       mockExistsSync.mockImplementation((path: string) => {
         const normalizedPath = normalize(path);
-        if (normalizedPath.endsWith('package.json')) return true;
-        if (normalizedPath.endsWith(normalize('src/index.ts'))) return true;
+        if (normalizedPath.endsWith('package.json')) {
+          return true;
+        }
+        if (normalizedPath.endsWith(normalize('src/index.ts'))) {
+          return true;
+        }
         return false;
       });
 
@@ -196,8 +218,12 @@ describe('PackageAnalyzer', () => {
 
       mockExistsSync.mockImplementation((path: string) => {
         const normalizedPath = normalize(path);
-        if (normalizedPath.endsWith('package.json')) return true;
-        if (normalizedPath.endsWith(normalize('src/index.ts'))) return true;
+        if (normalizedPath.endsWith('package.json')) {
+          return true;
+        }
+        if (normalizedPath.endsWith(normalize('src/index.ts'))) {
+          return true;
+        }
         return false;
       });
 
@@ -225,8 +251,12 @@ describe('PackageAnalyzer', () => {
 
       mockExistsSync.mockImplementation((path: string) => {
         const normalizedPath = normalize(path);
-        if (normalizedPath.endsWith('package.json')) return true;
-        if (normalizedPath.endsWith(normalize('src/index.ts'))) return true;
+        if (normalizedPath.endsWith('package.json')) {
+          return true;
+        }
+        if (normalizedPath.endsWith(normalize('src/index.ts'))) {
+          return true;
+        }
         return false;
       });
 

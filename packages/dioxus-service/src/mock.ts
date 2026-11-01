@@ -140,16 +140,26 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
     await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
-    outerMockClear();
-    outerMockReset();
+    // native-spy's reset calls mock.mockClear(), which this file replaced with a call into the app.
+    // Put the local clear back while it runs, so only the outer mock is reset.
+    const asyncMockClear = mock.mockClear;
+    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+    try {
+      outerMockReset();
+    } finally {
+      mock.mockClear = asyncMockClear;
+    }
     outerMock.mockName(currentName);
     return mock;
   };
 
   mock.mockRestore = async () => {
-    await runInterceptorScript<void>(browserToUse, interceptor.buildUnregistrationScript(command));
-    outerMockClear();
-    mockStore.deleteMock(`dioxus.${command}`);
+    try {
+      await runInterceptorScript<void>(browserToUse, interceptor.buildUnregistrationScript(command));
+    } finally {
+      outerMockClear();
+      mockStore.deleteMock(`dioxus.${command}`);
+    }
     return mock;
   };
 

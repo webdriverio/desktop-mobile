@@ -29,7 +29,6 @@ The `release.yml` workflow handles both manual and automated releases using the 
 Automated releases trigger when CI completes on `main` with release labels on merged PRs. The `release-preview.yml` workflow runs on PRs to show what will be released.
 
 **Release Labels:**
-
 - **Scope labels** (prefix `scope:`):
   - `scope:electron` - Release Electron packages
   - `scope:tauri` - Release Tauri packages
@@ -58,16 +57,16 @@ Always run with `dry_run: true` first to verify:
 
 ## Required Secrets
 
-| Secret | Required | Purpose |
-|--------|----------|---------|
-| `DEPLOY_KEY` | All releases | SSH key for pushing tags/commits |
-| `CRATES_IO_TOKEN` | Tauri releases | Publishing Rust crates |
-| `OLLAMA_API_KEY` | Optional | LLM-enhanced release notes |
+| Secret            | Required       | Purpose                          |
+| ----------------- | -------------- | -------------------------------- |
+| `DEPLOY_KEY`      | All releases   | SSH key for pushing tags/commits |
+| `CRATES_IO_TOKEN` | Tauri releases | Publishing Rust crates           |
+| `OLLAMA_API_KEY`  | Optional       | LLM-enhanced release notes       |
 
 ## Required Variables
 
-| Variable | Required | Purpose |
-|----------|----------|---------|
+| Variable       | Required             | Purpose                                                                                                          |
+| -------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `OLLAMA_MODEL` | Every releasekit run | The release notes model, e.g. `minimax-m3.1-flash:cloud`. Change it in the repository settings to switch models. |
 
 ## Architecture

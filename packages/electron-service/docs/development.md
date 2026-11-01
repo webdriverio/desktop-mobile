@@ -8,11 +8,11 @@ See the [Monorepo Setup Guide](../../docs/setup.md) for prerequisites, cloning, 
 
 The project uses a catalog system to manage Electron versions across three catalogs:
 
-| Catalog | Purpose | Example |
-|---------|---------|---------|
+| Catalog   | Purpose                    | Example                                   |
+| --------- | -------------------------- | ----------------------------------------- |
 | `default` | Stable production versions | `electron: "catalog:default"` → `^32.0.1` |
-| `next` | Latest/nightly builds | `electron-nightly: "catalog:next"` |
-| `minimum` | Lowest supported versions | `electron: "catalog:minimum"` → `^28.0.0` |
+| `next`    | Latest/nightly builds      | `electron-nightly: "catalog:next"`        |
+| `minimum` | Lowest supported versions  | `electron: "catalog:minimum"` → `^28.0.0` |
 
 See [Dependency Management](../../docs/setup.md#dependency-management) for catalog switching and update commands.
 
@@ -43,8 +43,8 @@ pnpm test:e2e-mac-universal-local
 
 Task graphs:
 
-![E2E Task Graph](../.github/assets/e2e-graph.png 'E2E Task Graph')
-![Mac Universal E2E Task Graph](../.github/assets/e2e-graph-mac-universal.png 'Mac Universal E2E Task Graph')
+![E2E Task Graph](../.github/assets/e2e-graph.png "E2E Task Graph")
+![Mac Universal E2E Task Graph](../.github/assets/e2e-graph-mac-universal.png "Mac Universal E2E Task Graph")
 
 Enable debug output for all namespaces:
 
@@ -89,6 +89,5 @@ Project maintainers publish releases using GitHub Actions. Releases are driven b
 ### Contributing
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines, commit format, and PR process.
-
 - **[Help Wanted Issues](https://github.com/webdriverio/desktop-mobile/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3Ahelp%3Awanted)**
 - **[Beginner Friendly Issues](https://github.com/webdriverio/desktop-mobile/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3Ahelp%3Abeginner-friendly)**

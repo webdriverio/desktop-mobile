@@ -171,6 +171,22 @@ describe('native-spy', () => {
       expect(mock()).toBe('default');
     });
 
+    it('should call a restored original with the receiver it was invoked on', () => {
+      const api = {
+        name: 'app',
+        getName(this: { name: string }) {
+          return this.name;
+        },
+      };
+      const original = api.getName;
+      const mock = fn(undefined, { original });
+      api.getName = mock;
+
+      mock.mockRestore();
+
+      expect(api.getName()).toBe('app');
+    });
+
     it('should reset all state including implementation with mockRestore', () => {
       const mock = fn(() => 'original');
       mock.mockReturnValue('overridden');
@@ -316,6 +332,52 @@ describe('native-spy', () => {
       }).toThrow('error');
 
       expect(mock()).toBe('queued');
+    });
+
+    it('should keep the temporary implementation until an async callback settles', async () => {
+      const mock = fn();
+      mock.mockReturnValue('original');
+
+      const result = await mock.withImplementation(
+        () => 'temporary',
+        async () => {
+          await Promise.resolve();
+          return mock();
+        },
+      );
+
+      expect(result).toBe('temporary');
+      expect(mock()).toBe('original');
+    });
+
+    it('should restore the implementation after an async callback rejects', async () => {
+      const mock = fn();
+      mock.mockReturnValue('original');
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          async () => {
+            await Promise.resolve();
+            throw new Error('callback error');
+          },
+        ),
+      ).rejects.toMatchObject({ message: 'callback error' });
+
+      expect(mock()).toBe('original');
+    });
+
+    it('should use the temporary implementation over mockRejectedValue, then restore the rejection', () => {
+      const mock = fn();
+      mock.mockRejectedValue(new Error('rejected'));
+
+      const result = mock.withImplementation(
+        () => 'temporary',
+        () => mock(),
+      );
+
+      expect(result).toBe('temporary');
+      expect(() => mock()).toThrow('rejected');
     });
   });
 

@@ -3,8 +3,7 @@
 ## Overview
 
 The `tauri-plugin-wdio` is a **required** Tauri plugin that enables WebdriverIO testing of Tauri applications. It provides:
-
-- **Execute API** - Run JavaScript code from tests with access to Tauri APIs
+- **Execute API** - Run JavaScript in the app's frontend from tests, and call its commands
 - **Mocking Support** - Mock Tauri backend commands for isolated testing
 - **Log Forwarding** - Capture console logs from both frontend and backend
 - **Invoke Interception** - Enable mocking without backend command modifications
@@ -13,10 +12,10 @@ The `tauri-plugin-wdio` is a **required** Tauri plugin that enables WebdriverIO 
 
 There are two Tauri plugins for WebdriverIO testing:
 
-| Plugin | Package | Purpose | Required |
-|--------|---------|---------|----------|
-| `tauri-plugin-wdio` | Rust + JS | Execute API, mocking, log forwarding | **Yes** |
-| `tauri-plugin-wdio-webdriver` | Rust only | Embedded WebDriver server | Only for embedded provider |
+| Plugin                        | Package   | Purpose                              | Required                    |
+| ----------------------------- | --------- | ------------------------------------ | --------------------------- |
+| `tauri-plugin-wdio`           | Rust + JS | Execute API, mocking, log forwarding | **Yes**                     |
+| `tauri-plugin-wdio-webdriver` | Rust only | Embedded WebDriver server            | For `embedded`, the default |
 
 ### When You Need Each
 
@@ -49,7 +48,7 @@ Only basic WebDriver operations work without the plugin:
 ### What Requires the Plugin
 
 All advanced testing features require the plugin:
-- ✅ `browser.tauri.execute()` - Execute JavaScript with Tauri APIs
+- ✅ `browser.tauri.execute()` - Run JavaScript in the frontend and call commands
 - ✅ `browser.tauri.mock()` - Mock backend commands
 - ✅ All mocking operations
 - ✅ Console log capture
@@ -89,7 +88,9 @@ The plugin requires WDIO permissions in your capabilities. Edit `src-tauri/capab
 ```json
 {
   "identifier": "default",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:default",
@@ -106,6 +107,7 @@ Or use individual permissions if you prefer fine-grained control:
     "core:default",
     "core:window:default",
     "wdio:allow-execute",
+    "wdio:allow-emit-deep-link",
     "wdio:allow-log-frontend",
     "wdio:allow-debug-plugin",
     "wdio:allow-get-active-window-label",
@@ -133,7 +135,9 @@ Make sure `withGlobalTauri` is enabled in `src-tauri/tauri.conf.json`:
       }
     ],
     "security": {
-      "capabilities": ["default"]
+      "capabilities": [
+        "default"
+      ]
     }
   }
 }
@@ -155,6 +159,8 @@ Import the frontend plugin in your main frontend entry file (usually `index.html
 import '@wdio/tauri-plugin';
 ```
 
+`@wdio/tauri-plugin` uses your app's `@tauri-apps/api` (2.10 or later) rather than bringing its own copy.
+
 This import must happen **before** your tests run. The plugin auto-initializes on import and sets up:
 - `window.wdioTauri` API
 - Console forwarding
@@ -163,11 +169,10 @@ This import must happen **before** your tests run. The plugin auto-initializes o
 
 ### Step 6: Build and Verify
 
-Build your Tauri app:
+Build a debug binary to test:
 
 ```bash
-cd src-tauri
-cargo build --release
+npm run tauri build -- --debug
 ```
 
 The build should complete successfully without errors about the plugin.
@@ -183,18 +188,7 @@ After starting your test session, the plugin will log initialization messages:
 [WDIO Plugin] Successfully initialized
 ```
 
-### Method 2: Test Plugin Availability
-
-In a test, check if the plugin is available:
-
-```typescript
-it('should have plugin available', async () => {
-  const available = await browser.tauri.isTauriApiAvailable?.();
-  expect(available).toBe(true);
-});
-```
-
-### Method 3: Try Execute API
+### Method 2: Try Execute API
 
 The execute API will work if the plugin is properly installed:
 
@@ -212,18 +206,20 @@ it('should execute JavaScript', async () => {
 ### "Tauri plugin not available" Error
 
 This means the plugin is not detected. Check:
-
 1. **Plugin registered in Rust**
+
    ```rust
    .plugin(tauri_plugin_wdio::init())
    ```
 
 2. **Frontend import present**
+
    ```typescript
    import '@wdio/tauri-plugin';
    ```
 
 3. **`withGlobalTauri` enabled**
+
    ```json
    {
      "app": {
@@ -238,7 +234,6 @@ This means the plugin is not detected. Check:
 ### "window.wdioTauri is undefined" Error
 
 The frontend plugin didn't initialize. Make sure:
-
 1. The import statement is in your **main entry point**, before tests run
 2. You're not running in an iframe or separate context
 3. The app has time to initialize (add a small delay if needed):
@@ -256,7 +251,6 @@ it('should have wdioTauri', async () => {
 ### Mocking Doesn't Work
 
 Make sure:
-
 1. Plugin is installed and available (see verification methods above)
 2. You're using `browser.tauri.mock()`, not trying to mock directly
 3. The mock is set up **before** calling the command:
@@ -275,24 +269,26 @@ const mock = await browser.tauri.mock('my_command');
 ### Plugin Compilation Errors
 
 If you get Rust compilation errors:
-
 1. **Ensure Rust toolchain is up to date**
+
    ```bash
    rustup update
    ```
 
 2. **Clear Cargo cache**
+
    ```bash
    cd src-tauri
    cargo clean
-   cargo build --release
+   cargo build
    ```
 
 3. **Check Tauri version compatibility**
-   - tauri-plugin-wdio requires **Tauri v2.0+**
+   - tauri-plugin-wdio requires **Tauri v2.10+**
    - If you're on Tauri v1, this plugin won't work
 
 4. **Check dependency versions**
+
    ```toml
    tauri = { version = "2", ... }
    tauri-plugin-wdio = "1"
@@ -303,7 +299,6 @@ If you get Rust compilation errors:
 ### How It Works
 
 The plugin consists of two parts:
-
 1. **Rust Backend** (`packages/tauri-plugin/src/`)
    - Provides Tauri commands: `execute`, `log_frontend`, `debug_plugin`
    - Handles script execution via `window.eval()`
@@ -318,7 +313,6 @@ The plugin consists of two parts:
 ### Plugin Lifecycle
 
 When you import `@wdio/tauri-plugin`:
-
 1. Plugin code loads and detects Tauri APIs
 2. Sets up console forwarding
 3. Sets up invoke interception for mocking
@@ -329,8 +323,8 @@ When you import `@wdio/tauri-plugin`:
 ### Permissions Detail
 
 The `wdio:default` permission includes every plugin command:
-
 - `wdio:allow-execute` - Execute JavaScript in frontend context
+- `wdio:allow-emit-deep-link` - Emit a deep link for `triggerDeeplink()`
 - `wdio:allow-log-frontend` - Forward frontend logs
 - `wdio:allow-debug-plugin` - Debug plugin state
 - `wdio:allow-get-active-window-label` - Get active window label
@@ -354,8 +348,8 @@ If you want a smaller surface, you can grant a subset — `wdio:allow-execute` a
 ### Should I Include the Plugin in Production?
 
 **No**, the plugin is **test-only**. For production builds:
-
 1. **Conditionally register the plugin**
+
    ```rust
    fn main() {
        let mut builder = tauri::Builder::default();
@@ -372,6 +366,7 @@ If you want a smaller surface, you can grant a subset — `wdio:allow-execute` a
    ```
 
 2. **Or use feature flags**
+
    ```toml
    [features]
    wdio = ["dep:tauri-plugin-wdio"]
@@ -396,6 +391,7 @@ If you want a smaller surface, you can grant a subset — `wdio:allow-execute` a
    ```
 
 3. **Build release without the plugin**
+
    ```bash
    cargo build --release
    ```
@@ -411,19 +407,18 @@ The plugin:
 ## Next Steps
 
 Once the plugin is installed and verified:
-
 1. Read [Quick Start](./quick-start.md) for minimal test setup
 2. See [API Reference](./api-reference.md) for available functions
 3. Check [Usage Examples](./usage-examples.md) for testing patterns
 4. View [Configuration](./configuration.md) for service options
 
-## Plugin 2: tauri-plugin-wdio-webdriver (Optional - Embedded WebDriver)
+## Plugin 2: tauri-plugin-wdio-webdriver (Embedded WebDriver)
 
-This plugin embeds a W3C WebDriver HTTP server directly in your Tauri application. Use it when you want to test on macOS without CrabNebula, or when you prefer not to install an external driver.
+This plugin embeds a W3C WebDriver HTTP server directly in your Tauri application. The default `embedded` provider needs it; the `external` and `crabnebula` providers don't.
 
 ### Requirements
 
-- Tauri v2.0+
+- Tauri v2.10+
 - The `embedded` provider in use (the default; or set `driverProvider: 'embedded'` explicitly)
 
 ### Installation
@@ -431,9 +426,11 @@ This plugin embeds a W3C WebDriver HTTP server directly in your Tauri applicatio
 #### 1. Add Cargo Dependency
 
 ```toml
-[target.'cfg(debug_assertions)'.dependencies]
+[dependencies]
 tauri-plugin-wdio-webdriver = "1"
 ```
+
+The next step registers it only in debug builds, so release builds never start its WebDriver server.
 
 #### 2. Register Plugin in Rust
 
@@ -455,7 +452,9 @@ fn main() {
 ```json
 {
   "identifier": "default",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:default",
@@ -472,10 +471,15 @@ The embedded WebDriver server runs on port `4445` by default. To customize:
 
 ```typescript
 // In wdio.conf.ts
-services: [['@wdio/tauri-service', {
-  driverProvider: 'embedded',
-  embeddedPort: 4445,  // Optional, defaults to 4445
-}]]
+services: [
+  [
+    '@wdio/tauri-service',
+    {
+      driverProvider: 'embedded',
+      embeddedPort: 4445, // Optional, defaults to 4445
+    },
+  ],
+];
 ```
 
 Or set the port via environment variable:
@@ -492,12 +496,12 @@ TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
 
 ### Differences from External Driver
 
-| Aspect | External Driver (external/crabnebula) | Embedded Server |
-|--------|--------------------------------------|-----------------|
-| Architecture | Separate driver process | HTTP server in-app |
-| macOS support | Requires CrabNebula | Native |
-| Setup complexity | Higher (driver installation) | Lower (no external deps) |
-| Port management | Service manages | Service + app coordinate |
+| Aspect           | External Driver (external/crabnebula) | Embedded Server          |
+| ---------------- | ------------------------------------- | ------------------------ |
+| Architecture     | Separate driver process               | HTTP server in-app       |
+| macOS support    | Requires CrabNebula                   | Native                   |
+| Setup complexity | Higher (driver installation)          | Lower (no external deps) |
+| Port management  | Service manages                       | Service + app coordinate |
 
 ## See Also
 

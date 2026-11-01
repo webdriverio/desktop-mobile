@@ -15,11 +15,17 @@ function fakeChild() {
   const proc = new EventEmitter() as EventEmitter & Record<string, unknown>;
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
-  proc.kill = vi.fn();
-  proc.pid = 4242;
+  // No pid: with one, stop() would kill the real process with that pid instead of calling kill() below.
+  proc.pid = undefined;
   proc.exitCode = null;
   proc.signalCode = null;
   proc.killed = false;
+  proc.kill = vi.fn(() => {
+    queueMicrotask(() => {
+      proc.exitCode = 143;
+      proc.emit('exit', null, 'SIGTERM');
+    });
+  });
   return proc;
 }
 
@@ -157,33 +163,35 @@ describe('startManagedDevServer', () => {
       probe: async () => true,
       isCI: true,
     });
-    expect(spawn).toHaveBeenCalledWith('pnpm dev', expect.objectContaining({ shell: true }));
-    expect(managed.url).toBe(url);
+    try {
+      expect(spawn).toHaveBeenCalledWith('pnpm dev', expect.objectContaining({ shell: true }));
+      expect(managed.url).toBe(url);
+    } finally {
+      await managed.stop();
+    }
   });
 
   it('should spawn even when reachable if reuseExistingServer is false (string/object form)', async () => {
     vi.stubGlobal('fetch', reachable());
     const spawn = vi.fn(() => fakeChild()) as never;
-    await startManagedDevServer({ command: 'pnpm dev', reuseExistingServer: false, timeoutMs: 1000 }, url, {
-      spawn,
-      probe: async () => true,
-      isCI: false,
-    });
-    expect(spawn).toHaveBeenCalled();
+    const managed = await startManagedDevServer(
+      { command: 'pnpm dev', reuseExistingServer: false, timeoutMs: 1000 },
+      url,
+      {
+        spawn,
+        probe: async () => true,
+        isCI: false,
+      },
+    );
+    try {
+      expect(spawn).toHaveBeenCalled();
+    } finally {
+      await managed.stop();
+    }
   });
 
   it('should stop the spawned process and rethrow when it never becomes ready (no orphan)', async () => {
     const proc = fakeChild();
-    // Stays alive (exitCode null) but never answers the probe → start() times out while the process
-    // is still running, which is the orphan case. pid undefined forces the direct-child kill branch
-    // so the test never signals a real process group; emit 'exit' so stop()'s teardown resolves.
-    proc.pid = undefined;
-    proc.kill = vi.fn(() => {
-      queueMicrotask(() => {
-        proc.exitCode = 143;
-        proc.emit('exit', null, 'SIGTERM');
-      });
-    });
     const spawn = vi.fn(() => proc) as never;
 
     await expect(
@@ -194,5 +202,110 @@ describe('startManagedDevServer', () => {
       }),
     ).rejects.toThrow(/did not become ready/);
     expect(proc.kill).toHaveBeenCalled();
+  });
+
+  it('should reject a concurrent start that would reuse an active managed server in this process', async () => {
+    vi.stubGlobal('fetch', unreachable());
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const first = await startManagedDevServer('pnpm dev', url, {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+
+    try {
+      vi.stubGlobal('fetch', reachable());
+      await expect(
+        startManagedDevServer('pnpm dev', `${url}/index.html`, {
+          spawn,
+          probe: async () => true,
+          isCI: false,
+        }),
+      ).rejects.toThrow(/devServerUrl without devServer.*separate processes/);
+    } finally {
+      await first.stop();
+    }
+  });
+
+  it('should reject a concurrent start at the same URL in CI, where it would spawn a second server', async () => {
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const first = await startManagedDevServer('pnpm dev', url, { spawn, probe: async () => true, isCI: true });
+
+    try {
+      await expect(
+        startManagedDevServer('pnpm dev', url, { spawn, probe: async () => true, isCI: true }),
+      ).rejects.toThrow(/still in use by another session/);
+      expect(spawn).toHaveBeenCalledTimes(1);
+    } finally {
+      await first.stop();
+    }
+  });
+
+  it('should let only one of two sessions starting at once claim the same URL', async () => {
+    vi.stubGlobal('fetch', unreachable());
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const deps = { spawn, probe: async () => true, isCI: false };
+
+    const [a, b] = await Promise.allSettled([
+      startManagedDevServer('pnpm dev', url, deps),
+      startManagedDevServer('pnpm dev', url, deps),
+    ]);
+
+    const started = [a, b].filter((result) => result.status === 'fulfilled');
+    try {
+      expect(started).toHaveLength(1);
+      expect([a, b].filter((result) => result.status === 'rejected')).toHaveLength(1);
+      expect(spawn).toHaveBeenCalledTimes(1);
+    } finally {
+      for (const result of started) {
+        await result.value.stop();
+      }
+    }
+  });
+
+  it('should allow starting again at the same URL after the owning managed server stops', async () => {
+    vi.stubGlobal('fetch', unreachable());
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const first = await startManagedDevServer('pnpm dev', url, {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+    await first.stop();
+
+    const second = await startManagedDevServer('pnpm dev', url, {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+    try {
+      expect(spawn).toHaveBeenCalledTimes(2);
+    } finally {
+      await second.stop();
+    }
+  });
+
+  it('should allow concurrent managed servers on different URLs', async () => {
+    vi.stubGlobal('fetch', unreachable());
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const first = await startManagedDevServer('pnpm dev', 'http://localhost:1420', {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+    try {
+      const second = await startManagedDevServer('pnpm dev', 'http://localhost:1421', {
+        spawn,
+        probe: async () => true,
+        isCI: false,
+      });
+      try {
+        expect(spawn).toHaveBeenCalledTimes(2);
+      } finally {
+        await second.stop();
+      }
+    } finally {
+      await first.stop();
+    }
   });
 });

@@ -10,9 +10,9 @@ name: Release
 
 on:
   workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+    workflows: [ CI ]
+    types: [ completed ]
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       scope:
@@ -65,7 +65,7 @@ on:
         description: "PR number of a merged standing release PR. When set, runs the manifest-driven publish path and ignores scope/bump. Set by standing-pr.yml; manual callers should leave blank."
         required: false
         type: string
-        default: ''
+        default: ""
 
 concurrency:
   group: release
@@ -105,19 +105,19 @@ jobs:
         uses: goosewobbler/releasekit@v0.42.1
         with:
           mode: gate
-          node-version: '24'
+          node-version: "24"
           project-dir: .
           branch: main
           json: "true"
           summary: "true"
-          skip-checkout: 'true'
+          skip-checkout: "true"
         env:
           GITHUB_TOKEN: ${{ github.token }}
           OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
 
   release-auto:
     name: Release (Immediate)
-    needs: [gate]
+    needs: [ gate ]
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && needs.gate.outputs.should_release == 'true'
     uses: ./.github/workflows/_release.reusable.yml
     permissions:

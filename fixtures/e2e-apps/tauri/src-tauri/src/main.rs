@@ -24,6 +24,7 @@ use clipboard::{ClipboardContext, ClipboardProvider};
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, Window};
+use tauri_plugin_deep_link::DeepLinkExt;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct WindowBounds {
@@ -229,16 +230,6 @@ async fn get_command_line_args() -> Result<Vec<String>, String> {
   Ok(std::env::args().collect())
 }
 
-fn emit_deep_links<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
-  let deep_links = DEEP_LINKS.lock().map(|guard| guard.clone()).unwrap_or_default();
-
-  if !deep_links.is_empty() {
-    for link in &deep_links {
-      let _ = app.emit("deeplink-received", link);
-    }
-  }
-}
-
 fn create_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::WebviewWindow<R> {
   if let Some(existing) = app.get_webview_window("main") {
     return existing;
@@ -303,10 +294,9 @@ async fn get_close_guard_requests() -> u32 {
 fn main() {
   let is_splash = std::env::var("ENABLE_SPLASH_WINDOW").is_ok();
 
-  // Enable single-instance plugin when explicitly requested (deeplink tests via WDIO env)
-  // OR when launched as a protocol handler (args contain testapp:// URL).
-  // The latter case handles Windows protocol-handler launches where cmd /c "set ..."
-  // env var propagation is unreliable — detecting the URL in args is more robust.
+  // The single-instance plugin lets only one copy of the app run, which breaks multiremote, so
+  // only deeplink runs register it. The instance the OS starts for a URL doesn't get the
+  // service's `env`, so a testapp:// argument registers the plugin too.
   let has_deeplink_arg = std::env::args().any(|a| a.starts_with("testapp://"));
   let enable_single_instance = std::env::var("ENABLE_SINGLE_INSTANCE").is_ok() || has_deeplink_arg;
 
@@ -327,42 +317,29 @@ fn main() {
     builder = builder.plugin(tauri_plugin_automation::init());
   }
 
-  // Add single-instance plugin only when explicitly enabled (deeplink tests)
+  // The single-instance plugin's `deep-link` feature forwards the URL, so the callback is empty.
   if enable_single_instance {
-    builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-      // Forward deep links from second instance to the running instance
-      for arg in args.iter() {
-        if arg.starts_with("testapp://") {
-          if let Ok(mut links) = DEEP_LINKS.lock() {
-            links.push(arg.clone());
-          }
-          let _ = app.emit("deeplink-received", arg);
-        }
-      }
-    }));
+    builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}));
   }
 
   builder
     .plugin(tauri_plugin_deep_link::init())
     .setup(move |app| {
-      // Collect deep links from CLI args at startup
-      let cli_deep_links = collect_deep_links_from_args();
-      if !cli_deep_links.is_empty() {
-        let mut deep_links_guard = DEEP_LINKS.lock().unwrap();
-        for link in &cli_deep_links {
-          deep_links_guard.push(link.clone());
+      DEEP_LINKS.lock().unwrap().extend(collect_deep_links_from_args());
+
+      // Runtime links go straight to the page; DEEP_LINKS keeps only the launch links.
+      let handle = app.handle().clone();
+      app.deep_link().on_open_url(move |event| {
+        for url in event.urls() {
+          let _ = handle.emit("deeplink-received", url.to_string());
         }
-        drop(deep_links_guard);
-        emit_deep_links(&app.handle());
-      }
+      });
 
       // Register deeplink protocol at runtime (Linux/Windows only)
       // This is needed for development/testing when the protocol handler
       // hasn't been registered by the installer
       #[cfg(any(target_os = "linux", target_os = "windows"))]
       {
-        use tauri_plugin_deep_link::DeepLinkExt;
-
         match app.deep_link().register("testapp") {
           Ok(_) => {}
           Err(_e) => {

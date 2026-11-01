@@ -38,6 +38,44 @@ async function keysInputEvents() {
   return (await browser.execute('return window.__keysInputEvents || []')) as unknown as ValueEvent[];
 }
 
+async function fieldEvents() {
+  return (await browser.execute('return window.__fieldEvents || []')) as unknown as string[];
+}
+
+// A field that logs its events with its value, and a button to move focus to.
+async function fillChangeScratch({ initialValue = '', inShadowHost = false } = {}) {
+  await fillScratch(
+    `scratch.innerHTML = '<div id="fresh-host"></div><button id="fresh-other">other</button>';
+    var host = document.querySelector("#fresh-host");
+    var parent = ${inShadowHost ? 'host.attachShadow({ mode: "open", delegatesFocus: true })' : 'host'};
+    parent.innerHTML = '<input id="fresh-field" value="${initialValue}">';
+    window.__fieldEvents = [];
+    for (var type of ["input", "change", "blur"]) {
+      parent.querySelector("#fresh-field").addEventListener(type, function (ev) {
+        window.__fieldEvents.push(ev.type + " " + ev.target.value);
+      });
+    }`,
+  );
+}
+
+// Cancels the form's submit so the page doesn't navigate.
+async function fillFormScratch(fields: string) {
+  await fillScratch(
+    `scratch.innerHTML = '<form id="fresh-form">${fields}</form>';
+    var form = document.querySelector("#fresh-form");
+    window.__fieldEvents = [];
+    for (var type of ["keydown", "keyup", "change", "click", "submit"]) {
+      form.addEventListener(type, function (ev) {
+        var detail = ev.type === "change" ? ev.target.value
+          : ev.type === "submit" ? (ev.submitter ? ev.submitter.id : "without submitter")
+          : ev.code || ev.target.id;
+        window.__fieldEvents.push(ev.type + " " + detail);
+      });
+    }
+    form.addEventListener("submit", function (ev) { ev.preventDefault(); });`,
+  );
+}
+
 async function fillScratch(script: string) {
   await browser.execute(`var scratch = document.querySelector("#keys-scratch"); ${script}`);
 }
@@ -51,8 +89,10 @@ async function errorOf(action: Promise<unknown>) {
 
 describe('special keys (embedded)', () => {
   beforeEach(async () => {
+    // Blur to fire any pending change, then reset the event logs.
     await browser.execute(
-      'window.__keyTargetEvents = [];' +
+      'if (document.activeElement) { document.activeElement.blur(); }' +
+        'window.__keyTargetEvents = [];' +
         'document.querySelector("#keys-input").value = "";' +
         'document.querySelector("#keys-editor").textContent = "";' +
         'document.querySelector("#keys-blocking-input").value = "";' +
@@ -275,16 +315,356 @@ describe('special keys (embedded)', () => {
     expect((await keyTargetEvents()).find((event) => event.key === 'PageDown')).toMatchObject({ shiftKey: true });
   });
 
+  it('should send the code, keyCode and Shift a browser sends for printable keys', async () => {
+    await browser.$('#key-target').click();
+    await browser.execute('window.__keyTargetEvents = [];');
+    await browser.keys(['a', 'A', 'p', '5', '!', ';', ':', "'", 'é']);
+    const events = (await keyTargetEvents()).map(({ key, code, keyCode, shiftKey }) => ({
+      key,
+      code,
+      keyCode,
+      shiftKey,
+    }));
+    expect(events).toEqual([
+      { key: 'a', code: 'KeyA', keyCode: 65, shiftKey: false },
+      { key: 'A', code: 'KeyA', keyCode: 65, shiftKey: true },
+      { key: 'p', code: 'KeyP', keyCode: 80, shiftKey: false },
+      { key: '5', code: 'Digit5', keyCode: 53, shiftKey: false },
+      { key: '!', code: 'Digit1', keyCode: 49, shiftKey: true },
+      { key: ';', code: 'Semicolon', keyCode: 186, shiftKey: false },
+      { key: ':', code: 'Semicolon', keyCode: 186, shiftKey: true },
+      { key: "'", code: 'Quote', keyCode: 222, shiftKey: false },
+      { key: 'é', code: '', keyCode: 0, shiftKey: false },
+    ]);
+  });
+
+  it('should press Enter for a newline and Backspace for a backspace character, skip a carriage return, and type a tab', async () => {
+    await browser.$('#key-target').click();
+    await browser.execute('window.__keyTargetEvents = [];');
+    await browser.keys(['\n', '\r', '\b', '\t']);
+    expect((await keyTargetEvents()).map(({ key, code, keyCode }) => ({ key, code, keyCode }))).toEqual([
+      { key: 'Enter', code: 'Enter', keyCode: 13 },
+      { key: 'Backspace', code: 'Backspace', keyCode: 8 },
+      { key: '\t', code: 'Tab', keyCode: 9 },
+    ]);
+    const input = browser.$('#keys-input');
+    await input.setValue('ab\b\r\nc');
+    expect(await input.getValue()).toBe('ac');
+  });
+
   it('should fire input and change only when the value changes', async () => {
     const input = browser.$('#keys-input');
     await input.addValue(Key.NULL);
     await input.addValue(Key.PageDown);
+    await browser.$('#key-target').click();
     expect(await keysInputEvents()).toEqual([]);
     await input.addValue('a');
+    expect(await keysInputEvents()).toEqual([{ type: 'input', value: 'a' }]);
+    await browser.$('#key-target').click();
     expect(await keysInputEvents()).toEqual([
       { type: 'input', value: 'a' },
       { type: 'change', value: 'a' },
     ]);
+  });
+
+  it('should fire change before blur when a click moves focus', async () => {
+    await fillChangeScratch();
+    const field = browser.$('#fresh-field');
+    await field.addValue('ab');
+    await field.addValue('c');
+    expect(await fieldEvents()).toEqual(['input ab', 'input abc']);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input ab', 'input abc', 'change abc', 'blur abc']);
+  });
+
+  it('should fire change before blur when the page moves focus', async () => {
+    await fillChangeScratch();
+    await browser.$('#fresh-field').addValue('x');
+    await browser.execute('document.querySelector("#fresh-other").focus()');
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+  });
+
+  it('should take focus off the field when a click lands on an element that cannot take it', async () => {
+    await fillChangeScratch();
+    await fillScratch(`scratch.insertAdjacentHTML("beforeend", '<div id="fresh-plain">plain</div>');`);
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-plain').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+    expect(await browser.execute('return document.activeElement === document.body')).toBe(true);
+  });
+
+  it('should fire change when an input handler moves focus on', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `document.querySelector("#fresh-field").addEventListener("input", function () {
+        document.querySelector("#fresh-other").focus();
+      });`,
+    );
+    await browser.$('#fresh-field').addValue('1');
+    expect(await fieldEvents()).toEqual(['input 1', 'change 1', 'blur 1']);
+  });
+
+  it("should fire change when a click on the field's label takes focus from it, as a browser does", async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<label id="fresh-label" for="fresh-field">label</label>');`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-label').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+  });
+
+  it('should focus the field a label points to only once', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<input id="fresh-b"><label id="fresh-b-label" for="fresh-b">b</label>');
+      for (var type of ["focus", "blur"]) {
+        document.querySelector("#fresh-b").addEventListener(type, function (ev) {
+          window.__fieldEvents.push(ev.type + " b");
+        });
+      }`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-b-label').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x', 'focus b']);
+  });
+
+  it('should focus a contenteditable when a click lands inside it', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<div id="fresh-editor" contenteditable="true"><b id="fresh-bold">bold</b></div>');`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-bold').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+    expect(await browser.execute('return document.activeElement.id')).toBe('fresh-editor');
+  });
+
+  it('should take focus off the field when a click lands in a scrolling box', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<div style="overflow: auto; height: 20px"><p id="fresh-para">a</p><p>b</p><p>c</p></div>');`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-para').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+    expect(await browser.execute('return document.activeElement === document.body')).toBe(true);
+  });
+
+  it('should keep focus on a focused element when a click lands on its text', async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<div id="fresh-panel" tabindex="-1"><p id="fresh-text">text</p></div>';
+      document.querySelector("#fresh-panel").focus();`,
+    );
+    await browser.$('#fresh-text').click();
+    expect(await browser.execute('return document.activeElement.id')).toBe('fresh-panel');
+  });
+
+  it("should leave a range input's value alone when clicking it", async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<input id="fresh-range" type="range" min="0" max="100" value="10" style="width: 300px">';`,
+    );
+    await browser.$('#fresh-range').click();
+    expect(await browser.$('#fresh-range').getValue()).toBe('10');
+  });
+
+  it("should let the page react to a click's press before its release, as real input does", async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<button id="fresh-press">press</button>';
+      var button = document.querySelector("#fresh-press");
+      window.__pressReacted = false;
+      button.addEventListener("pointerdown", function () {
+        Promise.resolve().then(function () { window.__pressReacted = true; });
+      });
+      button.addEventListener("pointerup", function () { window.__releaseSawPress = window.__pressReacted; });`,
+    );
+    await browser.$('#fresh-press').click();
+    expect(await browser.execute('return window.__releaseSawPress')).toBe(true);
+  });
+
+  it("should not start a window drag when clicking in Tauri's drag region", async () => {
+    // Tauri's drag.js stops the mousedown of any drag it starts, so a mousedown reaching the window means no drag.
+    await fillScratch(
+      `scratch.innerHTML = '<div id="fresh-drag" data-tauri-drag-region>title</div>';
+      window.__mousedownReachedWindow = false;
+      window.addEventListener("mousedown", function () { window.__mousedownReachedWindow = true; }, { once: true });`,
+    );
+    await browser.$('#fresh-drag').click();
+    expect(await browser.execute('return window.__mousedownReachedWindow')).toBe(true);
+  });
+
+  it('should keep focus in the field when the clicked element cancels its mousedown', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `var other = document.querySelector("#fresh-other");
+      other.addEventListener("mousedown", function (ev) { ev.preventDefault(); });
+      other.addEventListener("click", function () { window.__fieldEvents.push("click other"); });`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input x', 'click other']);
+  });
+
+  it('should leave focus where a click handler moves it', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<input id="fresh-target">');
+      document.querySelector("#fresh-other").addEventListener("click", function () {
+        document.querySelector("#fresh-target").focus();
+      });`,
+    );
+    await browser.$('#fresh-other').click();
+    expect(await browser.execute('return document.activeElement.id')).toBe('fresh-target');
+  });
+
+  it('should refuse to clear an element that is not editable', async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<input id="fresh-box" type="checkbox"><select id="fresh-select"><option>1</option></select>';`,
+    );
+    for (const selector of ['#fresh-box', '#fresh-select']) {
+      expect((await errorOf(browser.$(selector).clearValue()))?.message).toMatch(/cannot be cleared/);
+    }
+  });
+
+  it('should leave an empty field alone on Clear', async () => {
+    await fillChangeScratch();
+    await browser.$('#fresh-field').clearValue();
+    expect(await fieldEvents()).toEqual([]);
+  });
+
+  it('should fire no change when the edits leave the value as it was', async () => {
+    await fillChangeScratch();
+    const field = browser.$('#fresh-field');
+    await field.addValue('x');
+    await field.addValue(Key.Backspace);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input x', 'input ', 'blur ']);
+  });
+
+  it('should clear with input, then change, then blur', async () => {
+    await fillChangeScratch({ initialValue: 'old' });
+    await browser.$('#fresh-field').clearValue();
+    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ']);
+  });
+
+  it('should fire the change resulting from setValue when focus leaves', async () => {
+    await fillChangeScratch({ initialValue: '1' });
+    await browser.$('#fresh-field').setValue('2');
+    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2']);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
+  });
+
+  it('should fire change on Enter in an input, and not again when focus leaves', async () => {
+    await fillChangeScratch();
+    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+    expect(await fieldEvents()).toEqual(['input x', 'change x']);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+  });
+
+  it('should fire the change resulting from setValue when Enter is pressed', async () => {
+    await fillChangeScratch({ initialValue: '1' });
+    await browser.$('#fresh-field').setValue('2');
+    await browser.keys(Key.Enter);
+    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2']);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
+  });
+
+  it("should click the form's default button on Enter in an input, after its change, as Chrome does", async () => {
+    await fillFormScratch('<input id="fresh-field"><button id="fresh-submit">go</button>');
+    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+    expect(await fieldEvents()).toEqual([
+      'keydown Enter',
+      'change x',
+      'click fresh-submit',
+      'submit fresh-submit',
+      'keyup Enter',
+    ]);
+  });
+
+  it('should submit a form without a submit button on Enter only when it has a single text field', async () => {
+    const pressEnter = async () => {
+      await browser.execute('document.querySelector("#fresh-field").focus(); window.__fieldEvents = [];');
+      await browser.keys(Key.Enter);
+      return fieldEvents();
+    };
+    await fillFormScratch('<input id="fresh-field"><input type="checkbox"><input type="date">');
+    expect(await pressEnter()).toEqual(['keydown Enter', 'submit without submitter', 'keyup Enter']);
+    await fillFormScratch('<input id="fresh-field"><input type="password">');
+    expect(await pressEnter()).toEqual(['keydown Enter', 'keyup Enter']);
+  });
+
+  it('should not submit the form when a keydown handler cancels Enter', async () => {
+    await fillFormScratch('<input id="fresh-field"><button id="fresh-submit">go</button>');
+    await browser.execute(
+      'document.querySelector("#fresh-field").addEventListener("keydown", function (ev) { ev.preventDefault(); });',
+    );
+    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+    expect(await fieldEvents()).toEqual(['keydown Enter', 'keyup Enter']);
+  });
+
+  it('should click a button on Enter before the keyup, and on Space after it, as Chrome does', async () => {
+    await fillFormScratch('<input id="fresh-field"><button id="fresh-submit">go</button>');
+    await browser.$('#fresh-submit').addValue(Key.Enter);
+    expect(await fieldEvents()).toEqual(['keydown Enter', 'click fresh-submit', 'submit fresh-submit', 'keyup Enter']);
+    await browser.execute('window.__fieldEvents = [];');
+    await browser.keys(Key.Space);
+    expect(await fieldEvents()).toEqual(['keydown Space', 'keyup Space', 'click fresh-submit', 'submit fresh-submit']);
+  });
+
+  it('should not click a button on Space when a keyup handler cancels it', async () => {
+    await fillFormScratch('<button id="fresh-submit">go</button>');
+    await browser.execute(
+      `var button = document.querySelector("#fresh-submit");
+      button.addEventListener("keyup", function (ev) { ev.preventDefault(); });
+      button.focus();`,
+    );
+    await browser.keys(Key.Space);
+    expect(await fieldEvents()).toEqual(['keydown Space', 'keyup Space']);
+  });
+
+  it('should press Enter on the button a keydown handler moves focus to, after the change, as Chrome does', async () => {
+    await fillFormScratch(
+      '<input id="fresh-field"><button type="button" id="fresh-other">other</button><button id="fresh-submit">go</button>',
+    );
+    // Registered after the form's logger, so the log is the same whether or not the focus move fires blur.
+    await browser.execute(
+      `document.querySelector("#fresh-form").addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") { document.querySelector("#fresh-other").focus(); }
+      });`,
+    );
+    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+    expect(await fieldEvents()).toEqual(['keydown Enter', 'change x', 'click fresh-other', 'keyup Enter']);
+  });
+
+  it('should release held keys in reverse press order, so Space clicks once Control is up', async () => {
+    await fillFormScratch('<button id="fresh-submit">go</button>');
+    await browser.execute('document.querySelector("#fresh-submit").focus();');
+    try {
+      await browser.action('key').down(' ').down(Key.Control).perform(true);
+    } finally {
+      await browser.releaseActions();
+    }
+    expect(await fieldEvents()).toEqual([
+      'keydown Space',
+      'keydown ControlLeft',
+      'keyup ControlLeft',
+      'keyup Space',
+      'click fresh-submit',
+      'submit fresh-submit',
+    ]);
+  });
+
+  it('should not fire change when a click on the shadow host leaves the field focused', async () => {
+    await fillChangeScratch({ inShadowHost: true });
+    const host = browser.$('#fresh-host');
+    await host.addValue('x');
+    await host.click();
+    expect(await fieldEvents()).toEqual(['input x']);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
   });
 
   it('should type line breaks and quotes from the actions API', async () => {

@@ -87,7 +87,6 @@ The function now returns an `ElectronStandaloneCapability` (a single object) ins
 ## Verification
 
 After updating, verify your migration:
-
 1. **Check your package.json** - Should list `@wdio/electron-service` instead of `wdio-electron-service`
 2. **Check your wdio.conf.ts** - Should use `'electron'` or `'@wdio/electron-service'` in services
 3. **Run your tests** - Everything should work as before

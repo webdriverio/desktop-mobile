@@ -6,6 +6,7 @@ import type {
   LogCaptureConfig,
   MockLifecycleConfig,
   MockOverride,
+  RequestedMultiremoteCapabilities,
   Result,
   ServiceMockContext,
 } from './shared.js';
@@ -264,7 +265,7 @@ export interface ReactNativeServiceAPI {
  * Unlike the desktop services, this does **not** extend `BaseServiceOptions`: a
  * React Native app is launched by Appium via capabilities (`appium:app` /
  * `appium:appPackage`+`appium:appActivity` / `appium:bundleId`), so the
- * desktop binary-launch fields (`appArgs`, startup/command timeouts) don't apply.
+ * desktop binary-launch fields (`appArgs`, `startTimeout`) don't apply.
  * Only the shared log-capture + mock-lifecycle config and RN/Metro-specific
  * options are exposed.
  */
@@ -381,7 +382,7 @@ export interface ReactNativeServiceCapabilities {
 
 type ReactNativeServiceRequestedStandaloneCapabilities = Capabilities.RequestedStandaloneCapabilities &
   ReactNativeServiceCapabilities;
-type ReactNativeServiceRequestedMultiremoteCapabilities = Capabilities.RequestedMultiremoteCapabilities &
+type ReactNativeServiceRequestedMultiremoteCapabilities = RequestedMultiremoteCapabilities &
   ReactNativeServiceCapabilities;
 
 export type ReactNativeServiceCapabilitiesType =

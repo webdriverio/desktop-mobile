@@ -8,12 +8,20 @@ const onPrepareMock = vi.fn();
 const onWorkerStartMock = vi.fn();
 const onCompleteMock = vi.fn();
 const beforeMock = vi.fn();
+const afterMock = vi.fn();
+const afterSessionMock = vi.fn();
 const remoteMock = vi.fn();
 
 vi.mock('../src/service.js', () => ({
   default: class MockElectronWorkerService {
     async before(...args: unknown[]) {
       return beforeMock(...args);
+    }
+    async after(...args: unknown[]) {
+      return afterMock(...args);
+    }
+    async afterSession(...args: unknown[]) {
+      return afterSessionMock(...args);
     }
   },
 }));
@@ -54,6 +62,8 @@ describe('Session Management', () => {
     remoteMock.mockResolvedValue(browserMock);
     onCompleteMock.mockResolvedValue(undefined);
     beforeMock.mockResolvedValue(undefined);
+    afterMock.mockResolvedValue(undefined);
+    afterSessionMock.mockResolvedValue(undefined);
     mockClose.mockResolvedValue(undefined);
     browserMock.deleteSession.mockResolvedValue(undefined);
   });
@@ -109,6 +119,13 @@ describe('Session Management', () => {
       const caps = baseCaps();
       await init([caps]);
       expect(beforeMock).toHaveBeenCalledWith(caps, [], browserMock);
+      expect(remoteMock.mock.calls[0][0]).not.toHaveProperty('connectionRetryTimeout');
+    });
+
+    it('should forward connectionRetryTimeout from globalOptions to remote()', async () => {
+      const caps = baseCaps();
+      await init([caps], { connectionRetryTimeout: 180_000 });
+      expect(remoteMock).toHaveBeenCalledWith(expect.objectContaining({ connectionRetryTimeout: 180_000 }));
     });
 
     it('should initialize log writer when captureMainProcessLogs is enabled with logDir', async () => {
@@ -198,11 +215,21 @@ describe('Session Management', () => {
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
-    it('should delete the WebDriver session during cleanup', async () => {
+    it('should run after, afterSession, deleteSession, and onComplete in order during cleanup', async () => {
       const caps = baseCaps();
       const browser = await init([caps]);
       await cleanup(browser);
+      expect(afterMock).toHaveBeenCalledTimes(1);
+      expect(afterSessionMock).toHaveBeenCalledTimes(1);
       expect(browserMock.deleteSession).toHaveBeenCalledTimes(1);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(afterMock.mock.invocationCallOrder[0]).toBeLessThan(afterSessionMock.mock.invocationCallOrder[0]);
+      expect(afterSessionMock.mock.invocationCallOrder[0]).toBeLessThan(
+        browserMock.deleteSession.mock.invocationCallOrder[0],
+      );
+      expect(browserMock.deleteSession.mock.invocationCallOrder[0]).toBeLessThan(
+        onCompleteMock.mock.invocationCallOrder[0],
+      );
     });
 
     it('should swallow a benign deleteSession error during cleanup', async () => {

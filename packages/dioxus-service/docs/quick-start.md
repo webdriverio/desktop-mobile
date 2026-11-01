@@ -6,17 +6,20 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
 
 ### Required Software
 
-1. **Node.js 18+** - Download from [nodejs.org](https://nodejs.org)
+1. **Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+)** - Download from [nodejs.org](https://nodejs.org)
 
 2. **Rust Toolchain** - Required for building Dioxus apps
+
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 3. **Dioxus CLI (`dx`)** - Builds the app and bundles the files it loads with `asset!()`. Install the version that matches your `dioxus` crate, for example:
+
    ```bash
    cargo install dioxus-cli --locked --version 0.7.10
    ```
+
    [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), if you have it, downloads a prebuilt `dx` instead of compiling it: `cargo binstall dioxus-cli --version 0.7.10`.
 
 ### Platform-Specific Requirements
@@ -27,21 +30,26 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
 
 #### Linux
 
-- **WebKitGTK Development Libraries** - Required to build Dioxus desktop apps:
+- **WebKitGTK and libxdo Development Libraries** - Required to build Dioxus desktop apps:
+
   ```bash
   # Debian/Ubuntu
-  sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+  sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 
   # Fedora
-  sudo dnf install -y webkit2gtk4.1-devel gtk3-devel
+  sudo dnf install -y webkit2gtk4.1-devel gtk3-devel libxdo-devel
 
   # Arch Linux
-  sudo pacman -S webkit2gtk-4.1 gtk3
+  sudo pacman -S webkit2gtk-4.1 gtk3 xdotool
   ```
+
+- **Supported distributions** - Debian 12+, Ubuntu 22.04+, Fedora 40+, Arch Linux and Void Linux. Alpine isn't supported, because its musl C library can't build GTK and WebKitGTK apps. Neither are CentOS Stream and RHEL: version 9's glib is too old, and version 10 drops WebKitGTK.
+
+- **A display** - See [Linux Without a Display](#linux-without-a-display) for CI and other headless machines.
 
 #### macOS
 
-✅ **Supported** - No additional setup. See [Platform Support](./platform-support.md) for details.
+✅ **Supported** - No additional setup.
 
 ## Setting Up a Dioxus App
 
@@ -110,11 +118,11 @@ Build with `dx` rather than `cargo build`. `dx` bundles the files your app loads
 
 `dx` prints the bundle path when the build finishes. The debug binary is at:
 
-| Platform | Binary path |
-|----------|-------------|
-| macOS | `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app` |
-| Linux | `target/dx/my_app/debug/linux/app/my_app` |
-| Windows | `target\dx\my_app\debug\windows\app\my_app.exe` |
+| Platform | Binary path                                                    |
+| -------- | -------------------------------------------------------------- |
+| macOS    | `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app` |
+| Linux    | `target/dx/my_app/debug/linux/app/my_app`                      |
+| Windows  | `target\dx\my_app\debug\windows\app\my_app.exe`                |
 
 ## WebdriverIO Installation
 
@@ -143,12 +151,14 @@ export const config = {
 
   services: ['@wdio/dioxus-service'],
 
-  capabilities: [{
-    browserName: 'dioxus',
-    'dioxus:options': {
-      application: appPaths[process.platform],  // Path to debug binary
+  capabilities: [
+    {
+      browserName: 'dioxus',
+      'dioxus:options': {
+        application: appPaths[process.platform], // Path to debug binary
+      },
     },
-  }],
+  ],
 
   logLevel: 'info',
   waitforTimeout: 10000,
@@ -225,8 +235,8 @@ npx wdio run wdio.conf.ts --logLevel debug
 ### "Embedded WebDriver server did not become ready" or "Bridge not available"
 
 `wdio-dioxus` is not wired into your app. Make sure:
-
 1. Add to `[dependencies]` in `Cargo.toml`:
+
    ```toml
    wdio-dioxus = "1"
    ```
@@ -235,8 +245,6 @@ npx wdio run wdio.conf.ts --logLevel debug
 
 3. Build in debug mode (`dx build --desktop`, not `dx build --desktop --release`).
 
-4. Nothing else is listening on the embedded port (`4444` by default). Set `embeddedPort` in the service options to use a different one.
-
 ### Styles or images are missing during tests
 
 The app was built with `cargo build`, which doesn't bundle the files loaded with `asset!()`. Build with `dx build --desktop` and point `dioxus:options.application` at the `dx` output (see [Building the Dioxus App](#building-the-dioxus-app)).
@@ -244,7 +252,6 @@ The app was built with `cargo build`, which doesn't bundle the files loaded with
 ### "Application not found at path"
 
 The `appBinaryPath` or `dioxus:options.application` is wrong. Verify:
-
 1. You built the app: `dx build --desktop`
 2. The path exists: `dx` prints it when the build finishes (see [Building the Dioxus App](#building-the-dioxus-app))
 3. Update the path in `wdio.conf.ts` if needed
@@ -310,40 +317,65 @@ Example GitHub Actions workflow:
 
 ```yaml
 name: E2E Tests
-on: [push, pull_request]
+on: [ push, pull_request ]
 
 jobs:
   test:
-    runs-on: ubuntu-latest  # or windows-latest / macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: "22"
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev xvfb
 
       - name: Install dependencies
         run: npm install
 
-      - uses: cargo-bins/cargo-binstall@main
+      - uses: cargo-bins/cargo-binstall@v1.25.3
 
       - name: Install Dioxus CLI
-        run: cargo binstall dioxus-cli --no-confirm
+        # Match the dioxus version in your Cargo.lock.
+        run: cargo binstall dioxus-cli --version 0.7.10 --no-confirm
 
       - name: Build Dioxus app
         run: dx build --desktop
 
-      - name: Run tests (Linux needs a virtual display for desktop apps)
-        if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:e2e
-
       - name: Run tests
-        if: runner.os != 'Linux'
         run: npm run test:e2e
+```
+
+### Linux Without a Display
+
+Install Xvfb or Weston:
+
+```bash
+sudo apt-get install -y xvfb    # or: weston
+```
+
+With WebdriverIO v10 you don't need a wrapper or any config: when no display is set, WebdriverIO starts a display server before the service starts your app, Weston if it's installed and Xvfb otherwise. The service is tested on both. If your app has X11-only dependencies, set `displayServer: 'xvfb'` so WebdriverIO doesn't pick Weston:
+
+```typescript
+export const config = {
+  displayServer: 'xvfb',
+  // ...
+};
+```
+
+With WebdriverIO v9, its virtual display only covers the test workers, not the service that starts your app, so install Xvfb and wrap the whole run:
+
+```bash
+xvfb-run -a npx wdio run wdio.conf.ts
 ```
 
 ## See Also
@@ -351,7 +383,6 @@ jobs:
 - [Configuration Reference](./configuration.md)
 - [API Reference](./api-reference.md)
 - [App Setup](./app-setup.md)
-- [Platform Support](./platform-support.md)
 - [Troubleshooting](./troubleshooting.md)
 - [WebdriverIO Documentation](https://webdriver.io/docs)
 - [Dioxus Documentation](https://dioxuslabs.com/learn)

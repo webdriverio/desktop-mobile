@@ -9,6 +9,7 @@ import type {
   LogLevel,
   MockOverride,
   MockResult,
+  RequestedMultiremoteCapabilities,
   Result,
   ServiceMockContext,
 } from './shared.js';
@@ -18,19 +19,16 @@ import type {
 // ============================================================================
 
 /**
- * Tauri APIs object type - matches window.__TAURI__ structure
+ * The first argument of a `browser.tauri.execute()` script. Its `core.invoke` goes through any mocks
+ * set up in that window with `browser.tauri.mock()`.
  */
 export interface TauriAPIs {
   core: {
-    invoke: (command: string, ...args: unknown[]) => Promise<unknown>;
+    invoke<T = unknown>(
+      command: string,
+      args?: Record<string, unknown> | number[] | ArrayBuffer | Uint8Array,
+    ): Promise<T>;
   };
-  app?: {
-    getName: () => Promise<string>;
-    getVersion: () => Promise<string>;
-  };
-  window?: unknown;
-  event?: unknown;
-  [key: string]: unknown;
 }
 
 /**
@@ -56,10 +54,14 @@ export interface TauriMockInstance extends Omit<Mock, MockOverride> {
   mockReset(): Promise<TauriMock>;
   mockRestore(): Promise<TauriMock>;
   mockReturnThis(): Promise<TauriMock>;
-  withImplementation<ReturnValue, InnerArguments extends unknown[]>(
+  /**
+   * Runs `callbackFn` in the app's webview with `implFn` in place, then restores the previous implementation.
+   * Resolves with the callback's result once it settles.
+   */
+  withImplementation<ReturnValue>(
     implFn: AbstractFn,
-    callbackFn: (tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue,
-  ): Promise<ReturnValue>;
+    callbackFn: (tauri: TauriAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>>;
   mockName(name: string): TauriMock;
   getMockName(): string;
   getMockImplementation(): AbstractFn | undefined;
@@ -116,7 +118,7 @@ export interface TauriServiceAPI {
    * ```js
    * const result = await browser.tauri.execute(
    *   (tauri, name) => tauri.core.invoke('greet', { name }),
-   *   { windowLabel: 'popup' },
+   *   withExecuteOptions({ windowLabel: 'popup' }),
    *   'Alice'
    * );
    * ```
@@ -125,23 +127,23 @@ export interface TauriServiceAPI {
     script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     options: TauriExecuteOptions,
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
+  ): Promise<Awaited<ReturnValue>>;
 
   /**
-   * Execute JavaScript code in the Tauri frontend context with access to Tauri APIs.
+   * Execute JavaScript code in the Tauri frontend context.
    *
    * @example
    * ```js
    * const result = await browser.tauri.execute(({ core }) => core.invoke('get_platform_info'));
    * ```
    *
-   * @param script - Function to execute (receives Tauri APIs as first parameter) or string
+   * @param script - Function to execute (receives `{ core: { invoke } }` as first parameter) or string
    * @param args - Additional arguments passed to the script
    */
   execute<ReturnValue, InnerArguments extends unknown[]>(
     script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
+  ): Promise<Awaited<ReturnValue>>;
 
   /**
    * Check if a value is a Tauri mock function or if a command is mocked.
@@ -267,19 +269,25 @@ export interface TauriServiceAPI {
    *
    * Works in both modes:
    * - Browser mode: routes through the in-browser listener registry
-   * - Native mode: routes through the real Tauri `event.emit()` / `event.emitTo()` via the backend
+   * - Native mode: calls Tauri's event commands, as `emit()` / `emitTo()` do, from the session's
+   *   current window. A capability for that window must allow `core:event:allow-emit` and
+   *   `core:event:allow-emit-to`, which `core:default` includes.
+   *
+   * The call skips any mocks of `plugin:event|emit` / `plugin:event|emit_to`, so it always reaches
+   * the listeners. On the multiremote root, it emits on every instance.
    *
    * @param event - Event name to emit (e.g. `'data-loaded'`)
    * @param payload - Optional event payload (JSON-serialised across the boundary)
-   * @param target - Optional target filter — string is treated as `{ kind: 'AnyLabel', label }`,
-   *                 or pass an explicit `TauriEventTarget`. Omit to emit to all subscribers.
+   * @param target - Optional target; a string is a label, as `{ kind: 'AnyLabel', label }`. A listener
+   *                 receives the event when either side is `Any` (as a plain `listen()` is), when the
+   *                 labels match and either side is `AnyLabel`, or when the kinds and labels both match.
    *
    * @example
    * ```js
    * // Frontend: const unlisten = await listen('data-loaded', (e) => updateUI(e.payload));
    * await browser.tauri.emitEvent('data-loaded', { rows: 3 });
    *
-   * // Targeted emit — only listeners that subscribed with target: 'main' fire
+   * // Targeted emit — reaches listeners on 'main', and listeners with no target
    * await browser.tauri.emitEvent('focus-window', undefined, 'main');
    * ```
    */
@@ -336,7 +344,7 @@ export interface TauriServiceOptions extends BaseServiceOptions, DriverProviderC
    * Controls which webview window browser.tauri.execute() and other
    * Tauri-specific operations target by default.
    * Can be overridden at runtime with browser.tauri.switchWindow()
-   * or per-call with browser.tauri.execute(script, args, { windowLabel }).
+   * or per-call with browser.tauri.execute(script, withExecuteOptions({ windowLabel }), ...args).
    * @default 'main'
    */
   windowLabel?: string;
@@ -373,6 +381,8 @@ export interface TauriServiceGlobalOptions extends BaseServiceGlobalOptions, Dri
    * @default 'main'
    */
   windowLabel?: string;
+  /** Timeout for app startup in ms. A capability-level value takes precedence. */
+  startTimeout?: number;
 }
 
 /**
@@ -399,8 +409,7 @@ export interface TauriServiceCapabilities {
 
 type TauriServiceRequestedStandaloneCapabilities = Capabilities.RequestedStandaloneCapabilities &
   TauriServiceCapabilities;
-type TauriServiceRequestedMultiremoteCapabilities = Capabilities.RequestedMultiremoteCapabilities &
-  TauriServiceCapabilities;
+type TauriServiceRequestedMultiremoteCapabilities = RequestedMultiremoteCapabilities & TauriServiceCapabilities;
 
 export type TauriServiceCapabilitiesType =
   | TauriServiceRequestedStandaloneCapabilities[]

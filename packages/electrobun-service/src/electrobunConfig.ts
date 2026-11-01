@@ -10,7 +10,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, severeServiceError } from '@wdio/native-utils';
 
 import { SERVICE_NAME } from './constants.js';
 import { cefRendererRequired, SevereServiceError } from './errors.js';
@@ -341,8 +341,6 @@ export function writeRemoteDebuggingPort(buildJsonPath: string, port: number, us
       `Pinned remote-debugging-port=${port}${userDataDir ? ` + user-data-dir=${userDataDir}` : ''} into ${buildJsonPath}`,
     );
   } catch (error) {
-    throw new SevereServiceError(
-      `Failed to write the CEF remote-debugging port into ${buildJsonPath}: ${(error as Error).message}`,
-    );
+    throw severeServiceError(`Failed to write the CEF remote-debugging port into ${buildJsonPath}`, error);
   }
 }

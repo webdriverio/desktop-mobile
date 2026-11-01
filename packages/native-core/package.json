@@ -24,7 +24,7 @@
     ]
   },
   "engines": {
-    "node": ">=18.20.0"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1"
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
@@ -42,7 +42,6 @@
     "lint:fix": "biome check --write --linter-enabled=true --formatter-enabled=false src/"
   },
   "dependencies": {
-    "@wdio/logger": "catalog:default",
     "@wdio/native-types": "workspace:*",
     "@wdio/native-utils": "workspace:*",
     "debug": "^4.4.3",

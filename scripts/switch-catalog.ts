@@ -2,7 +2,9 @@
 
 /**
  * Script to switch catalog dependencies for all packages in the workspace
- * Usage: node scripts/switch-catalog.ts [default|next|minimum]
+ * Usage: node scripts/switch-catalog.ts [default|next|minimum] [--wdio-only]
+ *
+ * --wdio-only switches only `webdriverio` and `@wdio/*`, leaving Electron and the build tools on `default`.
  */
 
 import { execSync } from 'node:child_process';
@@ -22,7 +24,9 @@ type CatalogName = (typeof VALID_CATALOGS)[number];
 
 // Function to sort dependencies alphabetically
 function sortDependencies(deps: Record<string, string> | undefined): Record<string, string> | undefined {
-  if (!deps) return undefined;
+  if (!deps) {
+    return undefined;
+  }
   return Object.keys(deps)
     .sort()
     .reduce(
@@ -95,10 +99,14 @@ const CATALOG_DEPENDENCIES = CATALOGS.get('default') ?? new Set<string>();
 
 // Only handles "dir/*" trailing-glob; the workspace doesn't use anything fancier.
 function expandWorkspacePath(entry: string): string[] {
-  if (!entry.endsWith('/*')) return [entry];
+  if (!entry.endsWith('/*')) {
+    return [entry];
+  }
   const parent = entry.slice(0, -2);
   const parentAbs = path.join(rootDir, parent);
-  if (!fs.existsSync(parentAbs)) return [];
+  if (!fs.existsSync(parentAbs)) {
+    return [];
+  }
   return fs
     .readdirSync(parentAbs, { withFileTypes: true })
     .filter((dirent) => dirent.isDirectory())
@@ -113,11 +121,17 @@ for (const entry of WORKSPACE_PACKAGES) {
 }
 
 // Convert Sets to arrays and sort for consistent ordering
-const CATALOG_DEPENDENCIES_ARRAY = Array.from(CATALOG_DEPENDENCIES).sort();
+const args = process.argv.slice(2);
+const wdioOnly = args.includes('--wdio-only');
+const isWdioPackage = (dep: string) => dep === 'webdriverio' || dep.startsWith('@wdio/');
+
+const CATALOG_DEPENDENCIES_ARRAY = Array.from(CATALOG_DEPENDENCIES)
+  .filter((dep) => !wdioOnly || isWdioPackage(dep))
+  .sort();
 const WORKSPACE_PACKAGES_ARRAY = Array.from(EXPANDED_PACKAGES).sort();
 
 // Handle CLI arguments
-const catalogName = process.argv[2]?.toLowerCase() as CatalogName | undefined;
+const catalogName = args.find((arg) => !arg.startsWith('--'))?.toLowerCase() as CatalogName | undefined;
 
 if (!catalogName || !VALID_CATALOGS.includes(catalogName)) {
   console.error(`Error: Please specify a valid catalog: ${VALID_CATALOGS.join(', ')}`);
@@ -126,18 +140,18 @@ if (!catalogName || !VALID_CATALOGS.includes(catalogName)) {
 
 // Resolve the catalog ref a dep should use under the target catalog. If the
 // target catalog contains the dep, use it directly. Otherwise fall back to
-// `catalog:default` so deps that exist only in default (e.g. @wdio/xvfb, which
-// is v9-only and has no v8 to put in the `minimum` catalog) don't produce a
-// broken `catalog:<missing>` ref. The next predictable case for this is the
-// `@wdio/xvfb` → `@wdio/display-server` rename in WDIO v10.
+// `catalog:default` so deps that exist only in default don't produce a broken
+// `catalog:<missing>` ref.
 function resolveCatalogRef(dep: string, target: CatalogName): string {
   const targetDeps = CATALOGS.get(target);
-  if (targetDeps?.has(dep)) return `catalog:${target}`;
+  if (targetDeps?.has(dep)) {
+    return `catalog:${target}`;
+  }
   return 'catalog:default';
 }
 
 try {
-  console.log(`Switching all packages to '${catalogName}' catalog...\n`);
+  console.log(`Switching ${wdioOnly ? 'WebdriverIO packages' : 'all packages'} to the '${catalogName}' catalog...\n`);
 
   // Process each package's package.json
   for (const packagePath of WORKSPACE_PACKAGES_ARRAY) {
@@ -197,7 +211,7 @@ try {
     }
 
     // Handle switching from next catalog to other catalogs
-    if (catalogName !== 'next') {
+    if (catalogName !== 'next' && !wdioOnly) {
       // Check devDependencies
       if (packageJson.devDependencies?.['electron-nightly']) {
         // When switching from next to any other catalog, remove electron-nightly and add electron
@@ -232,7 +246,7 @@ try {
 
   console.log('\nRunning pnpm install to apply the changes...');
   try {
-    execSync('pnpm install', { stdio: 'inherit' });
+    execSync('pnpm install --no-frozen-lockfile', { stdio: 'inherit' });
     console.log('\n✓ Successfully switched catalog and installed dependencies');
   } catch (error) {
     console.error('\nError running pnpm install:', error);

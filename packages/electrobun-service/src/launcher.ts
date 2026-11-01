@@ -5,10 +5,11 @@ import {
   BaseLauncher,
   closeLogWriter,
   isLogWriterInitialized,
+  normaliseInstanceCaps,
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
-import { createLogger, errorMessage, isErr } from '@wdio/native-utils';
+import { createLogger, errorMessage, isErr, severeServiceError } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
@@ -100,7 +101,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     config: Options.Testrunner,
     capabilities: ElectrobunCapabilities[] | Record<string, { capabilities: ElectrobunCapabilities }>,
   ): Promise<void> {
-    const capsList = normaliseCaps(capabilities);
+    const capsList = normaliseInstanceCaps(capabilities).map(({ caps }) => caps);
 
     // Reject a mixed browser-mode & native-mode capability set: this launcher applies one
     // mode to all caps. Silently treating a native cap as browser (or vice-versa) because a
@@ -156,7 +157,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
           // Unmanaged: preflight the user-started server before workers navigate to it.
           const reachable = await probeDevServerReachable(devServerUrl);
           if (isErr(reachable)) {
-            throw new SevereServiceError(reachable.error.message);
+            throw severeServiceError(reachable.error);
           }
         }
         for (const cap of capsList) {
@@ -173,9 +174,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});
         this.#stopDevServer = undefined;
-        throw error instanceof SevereServiceError
-          ? error
-          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
+        throw error instanceof SevereServiceError ? error : severeServiceError('Failed to start dev server', error);
       }
       this.browserMode = true;
       log.info('Browser mode enabled — skipping Electrobun binary/CDP setup');
@@ -286,7 +285,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       return;
     }
 
-    const capsList = normaliseWorkerCaps(capabilities);
+    const capsList = normaliseInstanceCaps(capabilities);
     const workerApps: ElectrobunAppProcess[] = [];
 
     for (let i = 0; i < capsList.length; i++) {
@@ -436,49 +435,4 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       }
     }
   }
-}
-
-function normaliseCaps(
-  capabilities: ElectrobunCapabilities[] | Record<string, { capabilities: ElectrobunCapabilities }>,
-): ElectrobunCapabilities[] {
-  if (Array.isArray(capabilities)) {
-    return capabilities;
-  }
-  return Object.values(capabilities).map((entry) => entry.capabilities);
-}
-
-/** A worker capability paired with the object WDIO reads its per-instance connection params from. */
-interface WorkerCapEntry {
-  /** The W3C capabilities; capability keys go here. */
-  caps: ElectrobunCapabilities;
-  /**
-   * Where to write this instance's `hostname`/`port` so WDIO connects to it. Normally the caps
-   * object; for multiremote it's the outer `{ capabilities }` wrapper, since WDIO's multiremote
-   * path reads them ONLY from there, not the inner caps (see `@wdio/runner` `initializeInstance`).
-   */
-  connectionTarget: Record<string, unknown>;
-}
-
-/**
- * Flatten the capabilities `onWorkerStart` receives (array, lone object, or multiremote record)
- * into a per-instance list. Caps are held by reference so the keys set on each below reach WDIO.
- */
-function normaliseWorkerCaps(
-  capabilities:
-    | ElectrobunCapabilities
-    | ElectrobunCapabilities[]
-    | Record<string, { capabilities: ElectrobunCapabilities }>,
-): WorkerCapEntry[] {
-  if (Array.isArray(capabilities)) {
-    return capabilities.map((caps) => ({ caps, connectionTarget: caps as Record<string, unknown> }));
-  }
-  const values = Object.values(capabilities);
-  if (values.length > 0 && values.every((v) => v != null && typeof v === 'object' && 'capabilities' in v)) {
-    return (values as Array<{ capabilities: ElectrobunCapabilities }>).map((entry) => ({
-      caps: entry.capabilities,
-      connectionTarget: entry as unknown as Record<string, unknown>,
-    }));
-  }
-  const caps = capabilities as ElectrobunCapabilities;
-  return [{ caps, connectionTarget: caps as Record<string, unknown> }];
 }

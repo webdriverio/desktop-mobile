@@ -1,4 +1,3 @@
-import { PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../src/mockStore.js';
 import DioxusWorkerService from '../src/service.js';
@@ -158,97 +157,26 @@ describe('DioxusWorkerService', () => {
     expect(mockStore.getMocks()).toHaveLength(0);
   });
 
-  describe('afterSession() session teardown', () => {
-    function makeNativeBrowser(deleteSession: () => Promise<void>): WebdriverIO.Browser {
+  describe('afterSession()', () => {
+    function makeNativeBrowser(): WebdriverIO.Browser {
       return {
         isMultiremote: false,
         sessionId: 'sess-1',
         execute: vi.fn().mockResolvedValue(undefined),
-        deleteSession: vi.fn(deleteSession),
+        deleteSession: vi.fn().mockResolvedValue(undefined),
       } as unknown as WebdriverIO.Browser;
     }
 
-    it('should not talk to the app once the runner has deleted the session', async () => {
-      const browser = makeNativeBrowser(() => Promise.resolve());
+    it('should not talk to the app or delete the session in afterSession()', async () => {
+      const browser = makeNativeBrowser();
       const service = new DioxusWorkerService({}, {});
       await service.before({}, [], browser);
       vi.mocked(browser.execute).mockClear();
-      (browser as { sessionId?: string }).sessionId = undefined;
 
       await service.afterSession();
 
       expect(browser.execute).not.toHaveBeenCalled();
       expect(browser.deleteSession).not.toHaveBeenCalled();
-    });
-
-    it('should delete the session when one is present', async () => {
-      const browser = makeNativeBrowser(() => Promise.resolve());
-      const service = new DioxusWorkerService({}, {});
-      await service.before({}, [], browser);
-
-      await service.afterSession();
-
-      expect(browser.deleteSession).toHaveBeenCalledTimes(1);
-    });
-
-    it('should swallow a benign "Session not found" error instead of rethrowing', async () => {
-      // The Windows flake: deleteSession sees the session already gone; left to
-      // propagate it triggers a retry that closes the socket and crashes libuv.
-      const browser = makeNativeBrowser(() => Promise.reject(new Error('Session not found')));
-      const service = new DioxusWorkerService({}, {});
-      await service.before({}, [], browser);
-
-      await expect(service.afterSession()).resolves.toBeUndefined();
-      expect(browser.deleteSession).toHaveBeenCalledTimes(1);
-    });
-
-    it('should swallow a connection-closed (UND_ERR_CLOSED) error during teardown', async () => {
-      const closed = Object.assign(new Error('other side closed'), { code: 'UND_ERR_CLOSED' });
-      const browser = makeNativeBrowser(() => Promise.reject(closed));
-      const service = new DioxusWorkerService({}, {});
-      await service.before({}, [], browser);
-
-      await expect(service.afterSession()).resolves.toBeUndefined();
-    });
-
-    it('should not hang when deleteSession never settles (bounded by timeout)', async () => {
-      vi.useFakeTimers();
-      try {
-        const browser = makeNativeBrowser(() => new Promise<void>(() => {}));
-        const service = new DioxusWorkerService({}, {});
-        await service.before({}, [], browser);
-
-        const pending = service.afterSession();
-        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
-
-        await expect(pending).resolves.toBeUndefined();
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-  });
-
-  describe('afterSession() multiremote teardown', () => {
-    it('should keep deleting the remaining instances when getInstance throws for one', async () => {
-      const healthy = {
-        sessionId: 'sess-b',
-        deleteSession: vi.fn().mockResolvedValue(undefined),
-      } as unknown as WebdriverIO.Browser;
-      const mrBrowser = {
-        isMultiremote: true,
-        instances: ['browserA', 'browserB'],
-        getInstance: vi.fn((name: string) => {
-          if (name === 'browserA') {
-            throw new Error('Multiremote object has no instance named "browserA"');
-          }
-          return healthy;
-        }),
-      } as unknown as WebdriverIO.MultiRemoteBrowser;
-      const service = new DioxusWorkerService({}, {});
-      (service as unknown as { browser: WebdriverIO.MultiRemoteBrowser }).browser = mrBrowser;
-
-      await expect(service.afterSession()).resolves.toBeUndefined();
-      expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
     });
   });
 

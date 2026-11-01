@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeServiceOptions } from '../src/serviceConfig.js';
+import { mergeServiceOptions, resolveStartTimeout } from '../src/serviceConfig.js';
 
 describe('mergeServiceOptions', () => {
   it('should let capability options override global options', () => {
@@ -25,11 +25,6 @@ describe('mergeServiceOptions', () => {
     expect(mergeServiceOptions({}, undefined).driverProvider).toBeUndefined();
   });
 
-  it("should normalise driverProvider: 'official' to 'external'", () => {
-    expect(mergeServiceOptions({ driverProvider: 'official' }, undefined).driverProvider).toBe('external');
-    expect(mergeServiceOptions({}, { driverProvider: 'official' }).driverProvider).toBe('external');
-  });
-
   it('should default the log capture options', () => {
     expect(mergeServiceOptions()).toMatchObject({
       captureBackendLogs: false,
@@ -37,5 +32,27 @@ describe('mergeServiceOptions', () => {
       backendLogLevel: 'info',
       frontendLogLevel: 'info',
     });
+  });
+
+  it('should default logLevel when neither side sets it', () => {
+    expect(mergeServiceOptions({}, {}).logLevel).toBe('info');
+  });
+
+  it('should keep a global logLevel when the capability leaves it unset', () => {
+    expect(mergeServiceOptions({ logLevel: 'debug' }, { logLevel: undefined }).logLevel).toBe('debug');
+  });
+
+  it('should let the capability override a global logLevel', () => {
+    expect(mergeServiceOptions({ logLevel: 'debug' }, { logLevel: 'error' }).logLevel).toBe('error');
+  });
+});
+
+describe('resolveStartTimeout', () => {
+  it('should default to 60000', () => {
+    expect(resolveStartTimeout({})).toBe(60000);
+  });
+
+  it('should prefer an explicit startTimeout', () => {
+    expect(resolveStartTimeout({ startTimeout: 45000 })).toBe(45000);
   });
 });

@@ -19,6 +19,10 @@
 #     pnpm pack -C packages/$pkg --pack-destination "$(pwd)/dist/tarballs"
 #   done
 #   TARBALLS_DIR="$(pwd)/dist/tarballs" fixtures/package-tests/dioxus-app/docker/test.sh all test
+#
+# BINSTALL_BIN, if set, is a Linux cargo-binstall binary to mount into the
+# container (CI passes the runner's). Without it, the container compiles dx with
+# cargo install, which is slower.
 
 set -e
 
@@ -87,6 +91,15 @@ run_tests_in_container() {
 
     echo -e "${YELLOW}=== Running tests for $distro ===${NC}"
 
+    local binstall_mount=()
+    if [ -n "${BINSTALL_BIN:-}" ]; then
+        if [ ! -f "$BINSTALL_BIN" ]; then
+            echo -e "${RED}BINSTALL_BIN '$BINSTALL_BIN' is not a file.${NC}"
+            return 1
+        fi
+        binstall_mount=(-v "$BINSTALL_BIN:/root/.cargo/bin/cargo-binstall:ro")
+    fi
+
     # The in-container logic lives in container-test.sh (reached through the
     # workspace bind mount) instead of an inline `bash -c` string -- an
     # unescaped double quote in an inline script truncates it silently and
@@ -96,6 +109,7 @@ run_tests_in_container() {
         -v "$REPO_ROOT:/workspace" \
         -v "$log_dir:/workspace/logs-output" \
         -v "$TARBALLS_DIR:/tarballs:ro" \
+        "${binstall_mount[@]}" \
         -w /workspace \
         "dioxus-distro-test:$distro" \
         bash /workspace/fixtures/package-tests/dioxus-app/docker/container-test.sh \

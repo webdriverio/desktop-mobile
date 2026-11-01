@@ -14,7 +14,7 @@ vi.mock('../src/diagnostics.js', () => ({
 }));
 
 vi.mock('@wdio/native-utils', async (importOriginal) => ({
-  errorMessage: (await importOriginal<typeof import('@wdio/native-utils')>()).errorMessage,
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
   createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   formatDiagnosticResults: vi.fn(),
   isErr: (r: { ok: boolean }) => r.ok === false,
@@ -48,11 +48,6 @@ vi.mock('../src/driverManager.js', () => ({
 
 vi.mock('../src/edgeDriverManager.js', () => ({
   ensureMsEdgeDriver: vi.fn().mockResolvedValue({ ok: true, value: { method: 'found', driverVersion: '120' } }),
-}));
-
-vi.mock('../src/commands/triggerDeeplink.js', () => ({
-  setEmbeddedModeInfo: vi.fn(),
-  setCrabnebulaModeInfo: vi.fn(),
 }));
 
 vi.mock('../src/crabnebulaBackend.js', () => ({

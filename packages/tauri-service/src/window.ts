@@ -70,13 +70,14 @@ async function resolveLabelToHandle(browser: WebdriverIO.Browser, targetLabel: s
   for (const handle of handles) {
     try {
       await browser.switchToWindow(handle);
-      const handleLabel = await browser.executeAsync<string | null, []>(
+      const handleLabel: string | null = await browser.executeAsyncScript(
         `var done = arguments[arguments.length - 1];
          try {
            window.__TAURI__.core.invoke('plugin:wdio|get_active_window_label')
              .then(function(l) { done(l); })
              ['catch'](function() { done(null); });
          } catch(e) { done(null); }`,
+        [],
       );
       if (handleLabel) {
         discovered.set(handleLabel, handle);

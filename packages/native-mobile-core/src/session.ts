@@ -1,11 +1,15 @@
 // Standalone (`remote()`) session factory for Appium-driven mobile services.
 
+import type { StandaloneSessionOptions } from '@wdio/native-types';
 import {
   boundedOnComplete,
   createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
   errorMessage,
   failStartup as failStartupShared,
+  runBounded,
   safeDeleteSession,
+  standaloneRequestTimeout,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
@@ -32,6 +36,7 @@ interface MobileLauncherLike<TCap> {
 interface MobileWorkerLike<TCap> {
   before(capability: TCap, specs: string[], browser: WebdriverIO.Browser): Promise<void>;
   after(): Promise<void>;
+  afterSession?(): Promise<void>;
 }
 
 export interface MobileSessionDeps<TOptions, TCap> {
@@ -46,7 +51,7 @@ export interface MobileSessionDeps<TOptions, TCap> {
 export interface MobileSession<TOptions, TCap> {
   init(
     capabilities: TCap | TCap[],
-    globalOptions?: TOptions,
+    globalOptions?: TOptions & StandaloneSessionOptions,
     connection?: AppiumServerConnection,
   ): Promise<WebdriverIO.Browser>;
   cleanup(browser: WebdriverIO.Browser): Promise<void>;
@@ -70,7 +75,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
   async function init(
     capabilities: TCap | TCap[],
-    globalOptions?: TOptions,
+    globalOptions?: TOptions & StandaloneSessionOptions,
     connection?: AppiumServerConnection,
   ): Promise<WebdriverIO.Browser> {
     log.debug('Initializing mobile service in standalone mode…');
@@ -103,6 +108,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
       path: '/',
       ...deps.defaultConnection,
       ...connection,
+      ...standaloneRequestTimeout(globalOptions),
       capabilities: capability as WebdriverIO.Capabilities,
     }).catch((error: unknown) => {
       log.error(`Failed to create remote session: ${errorMessage(error)}`);
@@ -135,9 +141,22 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
     const service = activeServices.get(browser);
     try {
-      await service?.after();
+      await runBounded(
+        async () => service?.after(),
+        DEFAULT_TEARDOWN_TIMEOUT_MS,
+        () => log.warn('service.after() timed out during cleanup'),
+      );
     } catch (e) {
       log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
+    }
+    try {
+      await runBounded(
+        async () => service?.afterSession?.(),
+        DEFAULT_TEARDOWN_TIMEOUT_MS,
+        () => log.warn('service.afterSession() timed out during cleanup'),
+      );
+    } catch (e) {
+      log.warn(`service.afterSession() failed during cleanup: ${errorMessage(e)}`);
     } finally {
       activeServices.delete(browser);
     }

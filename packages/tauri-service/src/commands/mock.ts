@@ -1,5 +1,6 @@
+import { requireInstance } from '@wdio/native-core';
 import type { TauriMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage, isMultiremote, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
 import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
 
@@ -30,140 +31,153 @@ function shouldProcessMock(mockName: string, commandPrefix?: string): boolean {
   return new RegExp(`^tauri\\.${escapedPrefix}`).test(mockName);
 }
 
-export async function mock(this: TauriServiceContext, command: string): Promise<TauriMock> {
-  // First try returning an existing mock without requiring a browser context
+function getMockBrowser(context: TauriServiceContext | undefined): WebdriverIO.Browser | undefined {
+  if (
+    context?.browser &&
+    !isMultiremote(context.browser) &&
+    context.browser.tauri &&
+    typeof context.browser.tauri.execute === 'function'
+  ) {
+    return context.browser as WebdriverIO.Browser;
+  }
+  if (
+    globalThis.browser &&
+    (globalThis.browser as WebdriverIO.Browser).tauri &&
+    typeof (globalThis.browser as WebdriverIO.Browser).tauri.execute === 'function'
+  ) {
+    return globalThis.browser as WebdriverIO.Browser;
+  }
+  if (globalThis.browser && !isMultiremote(globalThis.browser)) {
+    return globalThis.browser as WebdriverIO.Browser;
+  }
+  if (context?.browser && !isMultiremote(context.browser)) {
+    return context.browser as WebdriverIO.Browser;
+  }
+  return globalThis.browser as WebdriverIO.Browser | undefined;
+}
+
+export async function mock(this: TauriServiceContext | undefined, command: string): Promise<TauriMock> {
+  const browserContext = getMockBrowser(this);
+  if (!browserContext) {
+    throw new Error('mock requires a valid browser context');
+  }
+
   try {
-    // Retrieve an existing mock from the store
-    const existingMock = mockStore.getMock(`tauri.${command}`);
+    const existingMock = mockStore.getMock(browserContext, `tauri.${command}`);
     await existingMock.mockReset();
     return existingMock;
   } catch (_e) {
-    // No existing mock, determine browser context now
-    let browserContext: WebdriverIO.Browser | undefined;
-    // Prefer this.browser if it has tauri capabilities
-    if (
-      this &&
-      this.browser &&
-      !this.browser.isMultiremote &&
-      this.browser.tauri &&
-      typeof this.browser.tauri.execute === 'function'
-    ) {
-      browserContext = this.browser as WebdriverIO.Browser;
-    } else if (
-      globalThis.browser &&
-      (globalThis.browser as WebdriverIO.Browser).tauri &&
-      typeof (globalThis.browser as WebdriverIO.Browser).tauri.execute === 'function'
-    ) {
-      browserContext = globalThis.browser as WebdriverIO.Browser;
-    } else if (globalThis.browser && !(globalThis.browser as unknown as WebdriverIO.MultiRemoteBrowser).isMultiremote) {
-      browserContext = globalThis.browser as WebdriverIO.Browser;
-    } else if (this?.browser && !this.browser.isMultiremote) {
-      browserContext = this.browser as WebdriverIO.Browser;
-    }
-
-    // Create a new mock and store it
     const newMock = await createMock(command, browserContext);
-    mockStore.setMock(newMock);
+    mockStore.setMock(browserContext, newMock);
     return newMock;
   }
 }
 
-export async function clearAllMocks(this: TauriServiceContext, commandPrefix?: string): Promise<void> {
-  const mocks = mockStore.getMocks();
-  let clearedCount = 0;
+type BulkAppCall = (browser: WebdriverIO.Browser) => Promise<unknown>;
 
-  for (const [mockName, mock] of mocks) {
-    if (shouldProcessMock(mockName, commandPrefix)) {
-      await mock.mockClear();
-      clearedCount++;
-    }
+async function runOnMocks(
+  commandName: string,
+  context: TauriServiceContext | undefined,
+  op: MockLifecycleOp,
+  commandPrefix: string | undefined,
+  bulkAppCall?: BulkAppCall,
+): Promise<void> {
+  const browserContext = context?.browser || globalThis.browser;
+  if (!browserContext) {
+    throw new Error(`${commandName} requires a valid browser context`);
   }
 
-  log.debug(
-    `clearAllMocks: cleared ${clearedCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
+  const runOn = async (owner: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser, app?: WebdriverIO.Browser) => {
+    const mocks = mockStore.getMocks(owner);
+    const count = await runBulkMockOp(mocks, op, {
+      matches: (name) => shouldProcessMock(name, commandPrefix),
+      bulkAppCall: app && bulkAppCall ? () => bulkAppCall(app) : undefined,
+    });
+    log.debug(
+      `${commandName}: ${op} ran on ${count} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
+    );
+  };
+
+  if (!isMultiremote(browserContext)) {
+    await runOn(browserContext, browserContext);
+    return;
+  }
+
+  // The root has no app of its own, so its mocks skip the in-app bulk call
+  const targets = [
+    ...browserContext.instances.map((name) => ({
+      name,
+      run: async () => {
+        const instance = requireInstance(browserContext, name);
+        await runOn(instance, instance);
+      },
+    })),
+    { name: 'the multiremote root', run: () => runOn(browserContext) },
+  ];
+  const results = await Promise.allSettled(targets.map(({ run }) => run()));
+  const failures = results.flatMap((result, i) =>
+    result.status === 'rejected' ? [{ name: targets[i].name, error: result.reason as unknown }] : [],
   );
+  if (failures.length === 0) {
+    return;
+  }
+  const message = `${commandName} failed on ${failures
+    .map(({ name, error }) => `${name}: ${errorMessage(error)}`)
+    .join('; ')}`;
+  throw failures.length === 1
+    ? new Error(message, { cause: failures[0].error })
+    : new AggregateError(
+        failures.map(({ error }) => error),
+        message,
+      );
+}
+
+export async function clearAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
+  await runOnMocks('clearAllMocks', this, 'mockClear', commandPrefix);
 }
 
 export async function resetAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
-  const browserContext = this?.browser || globalThis.browser;
-
-  if (!browserContext || browserContext.isMultiremote) {
-    throw new Error('resetAllMocks requires a valid browser context');
-  }
-
-  // Reset mocks in the injection script (with prefix filtering if provided)
-  await (browserContext as WebdriverIO.Browser).execute<void, [string]>((prefix) => {
-    // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-    if (window.__wdio_mocks__) {
-      // @ts-expect-error - Reset each mock
-      for (const [commandName, mock] of Object.entries(window.__wdio_mocks__)) {
-        // Filter by prefix if provided
-        if (!prefix || commandName.startsWith(prefix)) {
-          // @ts-expect-error - mock has mockReset method
-          if (mock && typeof mock.mockReset === 'function') {
+  await runOnMocks('resetAllMocks', this, 'mockReset', commandPrefix, (browser) =>
+    browser.execute<void, [string]>((prefix) => {
+      // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+      if (window.__wdio_mocks__) {
+        // @ts-expect-error - Reset each mock
+        for (const [commandName, mock] of Object.entries(window.__wdio_mocks__)) {
+          // Filter by prefix if provided
+          if (!prefix || commandName.startsWith(prefix)) {
             // @ts-expect-error - mock has mockReset method
-            mock.mockReset();
+            if (mock && typeof mock.mockReset === 'function') {
+              // @ts-expect-error - mock has mockReset method
+              mock.mockReset();
+            }
           }
         }
       }
-    }
-  }, commandPrefix ?? '');
-
-  // Reset outer mocks (with prefix filtering)
-  const mocks = mockStore.getMocks();
-  let resetCount = 0;
-  for (const [mockName, mock] of mocks) {
-    if (shouldProcessMock(mockName, commandPrefix)) {
-      await mock.mockReset();
-      resetCount++;
-    }
-  }
-
-  log.debug(
-    `resetAllMocks: reset ${resetCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
+    }, commandPrefix ?? ''),
   );
 }
 
 export async function restoreAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
-  const browserContext = this?.browser || globalThis.browser;
-
-  if (!browserContext || browserContext.isMultiremote) {
-    throw new Error('restoreAllMocks requires a valid browser context');
-  }
-
-  // Restore mocks in the injection script (with prefix filtering if provided)
-  await (browserContext as WebdriverIO.Browser).execute<void, [string]>((prefix) => {
-    // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-    if (window.__wdio_mocks__) {
-      if (!prefix) {
-        // No prefix: clear all mocks
-        // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-        window.__wdio_mocks__ = {};
-      } else {
-        // With prefix: selectively delete matching mocks
-        // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-        for (const commandName of Object.keys(window.__wdio_mocks__)) {
-          if (commandName.startsWith(prefix)) {
-            // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-            delete window.__wdio_mocks__[commandName];
+  await runOnMocks('restoreAllMocks', this, 'mockRestore', commandPrefix, (browser) =>
+    browser.execute<void, [string]>((prefix) => {
+      // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+      if (window.__wdio_mocks__) {
+        if (!prefix) {
+          // No prefix: clear all mocks
+          // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+          window.__wdio_mocks__ = {};
+        } else {
+          // With prefix: selectively delete matching mocks
+          // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+          for (const commandName of Object.keys(window.__wdio_mocks__)) {
+            if (commandName.startsWith(prefix)) {
+              // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+              delete window.__wdio_mocks__[commandName];
+            }
           }
         }
       }
-    }
-  }, commandPrefix ?? '');
-
-  // Restore outer mocks (with prefix filtering)
-  const mocks = mockStore.getMocks();
-  let restoredCount = 0;
-  for (const [mockName, mock] of mocks) {
-    if (shouldProcessMock(mockName, commandPrefix)) {
-      await mock.mockRestore();
-      restoredCount++;
-    }
-  }
-
-  log.debug(
-    `restoreAllMocks: restored ${restoredCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
+    }, commandPrefix ?? ''),
   );
 }
 

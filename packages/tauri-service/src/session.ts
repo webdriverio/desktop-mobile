@@ -1,7 +1,15 @@
 import http from 'node:http';
 import { join } from 'node:path';
 import { getLogWriter } from '@wdio/native-core';
-import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteSession } from '@wdio/native-utils';
+import type { StandaloneSessionOptions } from '@wdio/native-types';
+import {
+  boundedOnComplete,
+  createLogger,
+  errorMessage,
+  failStartup,
+  safeDeleteSession,
+  standaloneRequestTimeout,
+} from '@wdio/native-utils';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
@@ -29,7 +37,7 @@ async function checkDriverHealth(hostname: string, port: number): Promise<boolea
 
 async function driverRemoteOptions(
   capabilities: TauriCapabilities,
-  startTimeout: number,
+  standaloneOptions?: StandaloneSessionOptions,
 ): Promise<Parameters<typeof remote>[0]> {
   const hostname = (capabilities as { hostname?: string }).hostname || 'localhost';
   const port = (capabilities as { port?: number }).port;
@@ -53,15 +61,11 @@ async function driverRemoteOptions(
     log.warn('tauri-driver health check failed before session creation');
   }
 
-  log.debug(`Starting remote session with startTimeout=${startTimeout}ms`);
-
   return {
     hostname,
     port,
     capabilities: driverCapabilities,
-    // native desktop apps can be slow to start
-    connectionRetryTimeout: startTimeout * 4,
-    connectionRetryCount: 10,
+    ...standaloneRequestTimeout(standaloneOptions),
   };
 }
 
@@ -90,14 +94,14 @@ function browserSessionCapabilities(capabilities: TauriCapabilities): TauriCapab
 
 export async function init(
   callerCapabilities: TauriCapabilities,
-  globalOptions?: TauriServiceGlobalOptions,
+  globalOptions?: TauriServiceGlobalOptions & StandaloneSessionOptions,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing Tauri service in standalone mode...');
 
   const capabilities = copyCapabilities(callerCapabilities);
-  const serviceOptions = capabilities['wdio:tauriServiceOptions'] ?? {};
+  const serviceOptions = mergeServiceOptions(globalOptions ?? {}, capabilities['wdio:tauriServiceOptions']);
   if (serviceOptions.captureBackendLogs || serviceOptions.captureFrontendLogs) {
-    if (mergeServiceOptions(globalOptions, serviceOptions).mode === 'browser') {
+    if (serviceOptions.mode === 'browser') {
       log.warn('Log capture is unavailable in browser mode: there is no Tauri app process to capture logs from');
     } else if (serviceOptions.logDir) {
       const writer = getLogWriter('tauri-service');
@@ -123,8 +127,8 @@ export async function init(
 
     // Browser mode has no Tauri driver: WebdriverIO starts and manages chromedriver itself.
     const remoteOptions = launcher.isBrowserMode
-      ? { capabilities: browserSessionCapabilities(capabilities) }
-      : await driverRemoteOptions(capabilities, serviceOptions.startTimeout || 30000);
+      ? { capabilities: browserSessionCapabilities(capabilities), ...standaloneRequestTimeout(globalOptions) }
+      : await driverRemoteOptions(capabilities, globalOptions);
 
     const service = new TauriWorkerService(globalOptions ?? {}, capabilities);
 
@@ -158,7 +162,14 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
     const service = activeServices.get(browser);
-    const svc = service as unknown as { afterSession?: () => Promise<void> } | undefined;
+    const svc = service as unknown as
+      | { after?: () => void | Promise<void>; afterSession?: () => Promise<void> }
+      | undefined;
+    try {
+      await svc?.after?.();
+    } catch (e) {
+      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
+    }
     try {
       await svc?.afterSession?.();
     } catch (e) {
@@ -166,6 +177,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     } finally {
       activeServices.delete(browser);
     }
+
+    await safeDeleteSession(browser, 'cleanup', log);
 
     await boundedOnComplete(launcher, 'cleanup', log);
     activeLaunchers.delete(browser);
@@ -184,9 +197,8 @@ export function createTauriCapabilities(
     appArgs?: string[];
     tauriDriverPort?: number;
     logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
-    commandTimeout?: number;
     startTimeout?: number;
-    driverProvider?: 'external' | 'official' | 'crabnebula' | 'embedded';
+    driverProvider?: 'external' | 'crabnebula' | 'embedded';
     autoInstallTauriDriver?: boolean;
   } = {},
 ): TauriCapabilities {
@@ -199,9 +211,8 @@ export function createTauriCapabilities(
       appBinaryPath,
       appArgs: options.appArgs || [],
       tauriDriverPort: options.tauriDriverPort,
-      logLevel: options.logLevel || 'info',
-      commandTimeout: options.commandTimeout || 30000,
-      startTimeout: options.startTimeout || 60000,
+      logLevel: options.logLevel,
+      startTimeout: options.startTimeout,
       driverProvider: options.driverProvider,
       autoInstallTauriDriver: options.autoInstallTauriDriver,
     },

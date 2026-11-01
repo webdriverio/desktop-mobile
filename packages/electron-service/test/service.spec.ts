@@ -204,16 +204,26 @@ describe('Electron Worker Service', () => {
       expect(() => serviceApi.restoreAllMocks()).toThrow('CDP bridge is not available, API is disabled');
     });
 
-    it('should gracefully degrade when CDP bridge connection fails', async () => {
+    it('should disable the API with the connection error when the CDP bridge cannot connect', async () => {
       const { ElectronCdpBridge } = await import('../src/bridge.js');
-      vi.mocked(ElectronCdpBridge.prototype.connect).mockRejectedValueOnce(new Error('Connection refused'));
+      const connectionError = new Error('Connection refused');
+      vi.mocked(ElectronCdpBridge.prototype.connect).mockRejectedValueOnce(connectionError);
 
       instance = new ElectronWorkerService({}, {});
       await instance.before({}, [], browser);
 
       const serviceApi = browser.electron as BrowserExtension['electron'];
-      expect(() => serviceApi.execute(() => {})).toThrow('CDP bridge is not available, API is disabled');
-      expect(() => serviceApi.mock('app', 'getName')).toThrow('CDP bridge is not available, API is disabled');
+      let thrown: unknown;
+      try {
+        serviceApi.execute(() => {});
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toMatchObject({
+        message: 'CDP bridge could not connect to the main process, API is disabled: Connection refused',
+        cause: connectionError,
+      });
+      expect(() => serviceApi.mock('app', 'getName')).toThrow('CDP bridge could not connect to the main process');
     });
 
     it('should log warning when fuse check has non-fatal error', async () => {
@@ -252,13 +262,13 @@ describe('Electron Worker Service', () => {
 
       const oc = vi.mocked((browser as any).overwriteCommand);
       const calls = oc.mock.calls;
-      const overridden = calls.map((c: unknown[]) => ({ name: c[0], isElement: c[2] }));
+      const overridden = calls.map((c: unknown[]) => ({ name: c[0], options: c[2] }));
       expect(overridden).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ name: 'click', isElement: true }),
-          expect.objectContaining({ name: 'doubleClick', isElement: true }),
-          expect.objectContaining({ name: 'setValue', isElement: true }),
-          expect.objectContaining({ name: 'clearValue', isElement: true }),
+          expect.objectContaining({ name: 'click', options: { attachToElement: true } }),
+          expect.objectContaining({ name: 'doubleClick', options: { attachToElement: true } }),
+          expect.objectContaining({ name: 'setValue', options: { attachToElement: true } }),
+          expect.objectContaining({ name: 'clearValue', options: { attachToElement: true } }),
         ]),
       );
     });
@@ -831,6 +841,17 @@ describe('Electron Worker Service', () => {
 
       expect(fn).toHaveBeenCalled();
     });
+
+    it('should still reset and restore when clearing fails, then report the failure', async () => {
+      instance = new ElectronWorkerService({ clearMocks: true, resetMocks: true, restoreMocks: true }, {});
+      await instance.before({}, [], browser);
+      vi.mocked(commands.clearAllMocks).mockRejectedValueOnce(new Error('clear failed'));
+
+      await expect(instance.beforeTest()).rejects.toMatchObject({ message: 'clear failed' });
+
+      expect(commands.resetAllMocks).toHaveBeenCalled();
+      expect(commands.restoreAllMocks).toHaveBeenCalled();
+    });
   });
 
   describe('beforeCommand()', () => {
@@ -1326,13 +1347,13 @@ describe('Electron Worker Service', () => {
         await instance.before({}, [], browserModeBrowser);
 
         const oc = vi.mocked((browserModeBrowser as any).overwriteCommand);
-        const overridden = oc.mock.calls.map((c: unknown[]) => ({ name: c[0], isElement: c[2] }));
+        const overridden = oc.mock.calls.map((c: unknown[]) => ({ name: c[0], options: c[2] }));
         expect(overridden).toEqual(
           expect.arrayContaining([
-            expect.objectContaining({ name: 'click', isElement: true }),
-            expect.objectContaining({ name: 'doubleClick', isElement: true }),
-            expect.objectContaining({ name: 'setValue', isElement: true }),
-            expect.objectContaining({ name: 'clearValue', isElement: true }),
+            expect.objectContaining({ name: 'click', options: { attachToElement: true } }),
+            expect.objectContaining({ name: 'doubleClick', options: { attachToElement: true } }),
+            expect.objectContaining({ name: 'setValue', options: { attachToElement: true } }),
+            expect.objectContaining({ name: 'clearValue', options: { attachToElement: true } }),
           ]),
         );
       });

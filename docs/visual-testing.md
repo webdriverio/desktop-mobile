@@ -1,6 +1,6 @@
 # Visual Regression Testing
 
-WDIO's service architecture lets framework services and ecosystem services compose freely. Adding **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)** for visual regression testing (VRT) alongside any of our framework services is supported by default — no special integration needed. This guide covers only what's *framework-specific* on top of the [upstream guide](https://webdriver.io/docs/visual-testing/): output-path conventions, framework-specific known issues, and the mock-API handoff for native UI surfaces.
+WDIO's service architecture lets framework services and ecosystem services compose freely. Adding **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)** for visual regression testing (VRT) alongside any of our framework services is supported by default — no special integration needed. This guide covers only what's _framework-specific_ on top of the [upstream guide](https://webdriver.io/docs/visual-testing/): output-path conventions, framework-specific known issues, and the mock-API handoff for native UI surfaces.
 
 A complete working setup for every currently supported framework — see the [README](../README.md) for the list — lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo, each package with `wdio.visual.conf.ts` + `test/visual/visual.spec.ts`.
 
@@ -45,7 +45,9 @@ import { browser, expect } from '@wdio/globals';
 const MAX_MISMATCH_PCT = 1; // see "Cross-platform considerations"
 
 it('matches baseline', async () => {
-  await browser.execute(async () => { await document.fonts.ready; });
+  await browser.execute(async () => {
+    await document.fonts.ready;
+  });
   expect(await browser.checkScreen('home')).toBeLessThanOrEqual(MAX_MISMATCH_PCT);
 });
 ```
@@ -73,7 +75,9 @@ Consecutive WebView2 / Chromium renders on Windows produce ~0.5% pixel-level mis
 Before any `checkScreen()` / `checkElement()` call:
 
 ```ts
-await browser.execute(async () => { await document.fonts.ready; });
+await browser.execute(async () => {
+  await document.fonts.ready;
+});
 await browser.execute(() => {
   if (document.getElementById('wdio-vrt-stabilise')) return;
   const style = document.createElement('style');
@@ -88,34 +92,42 @@ await browser.execute(() => {
 
 Mask volatile regions (timestamps, avatars) using the visual service's `hideElements` / `removeElements` options.
 
-### Linux: Xvfb display server (Tauri + Dioxus)
+### Linux: display server
 
-Tauri and Dioxus tests on Linux need a display server. Both stacks use wry → WebKitGTK, so wrap your test run with `xvfb-run` at 16-bit colour depth — 24-bit triggers GTK/WebKit pixbuf issues:
+On Linux, WebdriverIO v10 starts a display server before the service starts your app: Weston if it's installed, otherwise Xvfb. Screenshots differ between the two, so pin one for visual tests, or baselines captured on one machine won't match runs on another. Xvfb is the one every service is tested on:
 
-```bash
-xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
-  pnpm wdio run wdio.visual.conf.ts
+```typescript
+export const config = {
+  displayServer: 'xvfb',
+  // ...
+};
 ```
 
-Electron does not need a manual wrapper — WDIO manages the display via its `autoXvfb` feature. The exception is Ubuntu 26.04 with WDIO v9, where `autoXvfb` workers fail with `write EINVAL` ([webdriverio#15685](https://github.com/webdriverio/webdriverio/issues/15685)). There, wrap the run in `xvfb-run --auto-servernum` instead.
+On WebdriverIO v9, the display only covers the test workers. That's enough for Electron, but Tauri and Dioxus start the app outside the workers, so wrap the run:
+
+```bash
+xvfb-run -a pnpm wdio run wdio.visual.conf.ts
+```
+
+Screenshots also depend on the display's size and colour depth, so capture baselines and compare them under the same display settings.
 
 ## Tauri provider notes
 
 Tauri's three driver providers behave differently for VRT:
 
-| Provider | Captures | Native chrome included? | Notes |
-|---|---|---|---|
-| `embedded` | Webview only | ❌ | Default, recommended for most users. Works on macOS, Linux, Windows. |
-| `official` | Webview only | ❌ | Works on Windows. **Known issue on Linux** (see below). No macOS support. |
-| `crabnebula` | OS window (incl. title bar) | ✅ | Captures via OS-level Screen Recording. **macOS CI is excluded** — see below. |
+| Provider     | Captures                    | Native chrome included? | Notes                                                                         |
+| ------------ | --------------------------- | ----------------------- | ----------------------------------------------------------------------------- |
+| `embedded`   | Webview only                | ❌                      | Default, recommended for most users. Works on macOS, Linux, Windows.          |
+| `external`   | Webview only                | ❌                      | Works on Windows. **Known issue on Linux** (see below). No macOS support.     |
+| `crabnebula` | OS window (incl. title bar) | ✅                      | Captures via OS-level Screen Recording. **macOS CI is excluded** — see below. |
 
 **Per-provider baselines are required.** Switching from `embedded` to `crabnebula` mid-suite would mismatch every baseline by ~30% because CrabNebula's screenshot includes the OS title bar and embedded's does not. Use the `<provider>` segment in your output path.
 
-### Known issue: `official` provider on Linux
+### Known issue: `external` provider on Linux
 
-`tauri-driver` + WebKitGTK + `@wdio/tauri-service`'s `patchedExecute` interact badly with the visual service's `before()` hook. The hook calls `browser.execute('return window.devicePixelRatio')` which gets wrapped into an `executeAsync` HTTP call that never returns, timing out after ~2 minutes. The visual service then fails to register its commands and every assertion errors with `browser.checkScreen is not a function`.
+`tauri-driver` + WebKitGTK + `@wdio/tauri-service`'s `patchedExecute` interact badly with the visual service's `before()` hook. The hook calls `browser.execute('return window.devicePixelRatio')`, which `patchedExecute` sends as a WebDriver `executeAsyncScript` call that never returns, timing out after ~2 minutes. The visual service then fails to register its commands and every assertion errors with `browser.checkScreen is not a function`.
 
-Workaround: use the `embedded` provider on Linux for visual testing. The `official` provider works fine for non-visual specs there.
+Workaround: use the `embedded` provider on Linux for visual testing. The `external` provider works fine for non-visual specs there.
 
 ### Known issue: `crabnebula` on hosted macOS CI
 
@@ -133,14 +145,15 @@ Visual testing doesn't work with Dioxus yet: the embedded driver's screenshots a
 ## Asserting native UI behaviour without pixels
 
 The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. Use your framework service's mock APIs instead — they intercept at the framework layer, where the native UI originates. The shape varies per framework; examples:
-
 - **Electron** — see [API Reference](../packages/electron-service/docs/api-reference.md):
+
   ```ts
   const menuMock = await browser.electron.mock('Menu', 'setApplicationMenu');
   // … exercise the app …
   expect(menuMock).toHaveBeenCalled();
   ```
 - **Tauri** — see [Usage Examples](../packages/tauri-service/docs/usage-examples.md) and [API Reference](../packages/tauri-service/docs/api-reference.md):
+
   ```ts
   const dialogMock = await browser.tauri.mock('plugin:dialog|open');
   dialogMock.mockReturnValue('/some/file');
@@ -148,6 +161,7 @@ The visual service captures **webview content only** (with the noted CrabNebula 
   expect(dialogMock).toHaveBeenCalled();
   ```
 - **Dioxus** — see [Usage Examples](../packages/dioxus-service/docs/usage-examples.md) and [API Reference](../packages/dioxus-service/docs/api-reference.md):
+
   ```ts
   const clipboardMock = await browser.dioxus.mock('clipboard_read');
   await clipboardMock.mockReturnValue('mocked clipboard text');

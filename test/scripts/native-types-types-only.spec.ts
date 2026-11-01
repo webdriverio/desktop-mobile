@@ -35,10 +35,14 @@ function runtimeExports(source: string): string[] {
         .split(/\s+as\s+/)
         .pop()
         ?.trim();
-      if (name) names.push(name);
+      if (name) {
+        names.push(name);
+      }
     }
   }
-  if (/\bexport\s+default\b/.test(js)) names.push('default');
+  if (/\bexport\s+default\b/.test(js)) {
+    names.push('default');
+  }
   return names;
 }
 
@@ -46,9 +50,13 @@ describe('native-types stays types-only (detect-changes soundness guard)', () =>
   it('should export no runtime values beyond the allowlisted version constant', () => {
     const offenders: string[] = [];
     for (const file of readdirSync(SRC)) {
-      if (!/\.[cm]?tsx?$/.test(file)) continue; // .ts / .tsx / .mts / .cts
+      if (!/\.[cm]?tsx?$/.test(file)) {
+        continue; // .ts / .tsx / .mts / .cts
+      }
       for (const name of runtimeExports(readFileSync(join(SRC, file), 'utf8'))) {
-        if (!ALLOWED_RUNTIME_EXPORTS.has(name)) offenders.push(`${file}: ${name}`);
+        if (!ALLOWED_RUNTIME_EXPORTS.has(name)) {
+          offenders.push(`${file}: ${name}`);
+        }
       }
     }
     expect(offenders).toEqual([]);

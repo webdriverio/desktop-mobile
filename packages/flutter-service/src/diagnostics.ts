@@ -27,8 +27,12 @@ function meetsMinimum(version: string, floor: string): boolean {
   const parts = (v: string) => v.split('.', 3).map((p) => Number.parseInt(p, 10) || 0);
   const [vMaj, vMin, vPatch] = parts(version);
   const [fMaj, fMin, fPatch] = parts(floor);
-  if (vMaj !== fMaj) return vMaj > fMaj;
-  if (vMin !== fMin) return vMin > fMin;
+  if (vMaj !== fMaj) {
+    return vMaj > fMaj;
+  }
+  if (vMin !== fMin) {
+    return vMin > fMin;
+  }
   return vPatch >= fPatch;
 }
 

@@ -12,8 +12,8 @@ name: Release Preview
 
 on:
   pull_request:
-    branches: [main]
-    types: [opened, synchronize, labeled, unlabeled]
+    branches: [ main ]
+    types: [ opened, synchronize, labeled, unlabeled ]
 
 concurrency:
   group: release-preview-${{ github.event.pull_request.number }}
@@ -41,7 +41,7 @@ jobs:
         id: preview
         uses: goosewobbler/releasekit@v0.42.1
         with:
-          node-version: '24'
+          node-version: "24"
           mode: preview
           # Returns the markdown as an output instead of posting it.
           preview-dry-run: true

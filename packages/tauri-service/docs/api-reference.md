@@ -8,34 +8,27 @@ The following methods are available on the `browser.tauri` object when connected
 
 ### `browser.tauri.execute(script, ...args)`
 
-Execute JavaScript code in the Tauri frontend context with access to Tauri APIs. Requires tauri-plugin-wdio to be installed and configured.
+Execute JavaScript code in the Tauri frontend context. Requires tauri-plugin-wdio to be installed and configured.
 
 **Parameters:**
-- `script` (Function | string) - JavaScript code to execute. If a function, receives Tauri APIs as the first parameter
+- `script` (Function | string) - JavaScript code to execute. If a function, it receives `{ core: { invoke } }` as the first parameter. `core.invoke` goes through any mocks set up in that window with `browser.tauri.mock()`.
 - `...args` (any[]) - Additional arguments passed to the script
 
-**Returns:** `Promise<ReturnValue>`
+**Returns:** `Promise<Awaited<ReturnValue>>`
 
 **Example:**
 ```typescript
-// Execute with destructured Tauri APIs
-const result = await browser.tauri.execute(({ core }) => {
-  return core.invoke('get_platform_info');
-});
+// Call your app's commands
+const info = await browser.tauri.execute(({ core }) => core.invoke<PlatformInfo>('get_platform_info'));
 
-// Execute with full Tauri APIs object
-const version = await browser.tauri.execute(async (tauri) => {
-  return tauri.app?.getVersion();
-});
+// Tauri's built-in commands work too, if a capability for the window allows them. `core:default` allows this one
+const version = await browser.tauri.execute(({ core }) => core.invoke<string>('plugin:app|version'));
 
 // Execute with arguments
-const result = await browser.tauri.execute(
-  (tauri, name) => tauri.core.invoke('greet', { name }),
-  'World'
-);
+const greeting = await browser.tauri.execute((tauri, name) => tauri.core.invoke('greet', { name }), 'World');
 
 // Execute string of code
-const result = await browser.tauri.execute('window.location.href');
+const href = await browser.tauri.execute('window.location.href');
 ```
 
 **Note:** Requires tauri-plugin-wdio to be installed. See [Plugin Setup](./plugin-setup.md).
@@ -46,12 +39,19 @@ const result = await browser.tauri.execute('window.location.href');
 
 ### `browser.tauri.emitEvent(event, payload?, target?)`
 
-Emit a Tauri event to all listeners registered via `listen()` or `once()` in the frontend. The same call works in both native and browser mode — in native mode it routes through Tauri's real `event.emit()` / `event.emitTo()` via the plugin bridge; in browser mode it dispatches through the in-page listener registry installed by the IPC injection.
+Emit a Tauri event to all listeners registered via `listen()` or `once()` in the frontend. The same call works in both native and browser mode — in native mode it calls Tauri's event commands in the app, as `@tauri-apps/api`'s `emit()` / `emitTo()` do; in browser mode it dispatches through the in-page listener registry installed by the IPC injection. In native mode the call runs in the session's current window, so a capability for that window must allow `core:event:allow-emit` and `core:event:allow-emit-to`, which `core:default` includes. After a `switchWindow()` to a window outside the app's capabilities, the emit is rejected.
+
+The call skips any mocks of `plugin:event|emit` / `plugin:event|emit_to`, so it always reaches the listeners. On the multiremote root, it emits on every instance.
 
 **Parameters:**
 - `event` (string) - The event name to emit
 - `payload?` (T) - Optional payload, JSON-serialized to listeners
-- `target?` (string | TauriEventTarget) - Optional target filter — emits only to listeners whose `target` matches. Pass a window/webview label as a string, or a structured `TauriEventTarget` object.
+- `target?` (string | TauriEventTarget) - Optional target. A string is a label, the same as `{ kind: 'AnyLabel', label }`. A listener receives the event when:
+  - either side is `{ kind: 'Any' }`. A plain `listen()` registers this way, so it receives every event, targeted or not;
+  - the labels match and either side is `AnyLabel`;
+  - or the kinds and labels both match. `App` has no label, so it matches only `App`.
+
+  So `{ kind: 'Window', label: 'main' }` misses a listener registered through `getCurrentWebviewWindow()`, which is a `WebviewWindow` listener, while `'main'` reaches it.
 
 **Returns:** `Promise<void>`
 
@@ -67,7 +67,7 @@ const unlisten = await listen<{ rows: number }>('data-loaded', (e) => {
 await browser.tauri.emitEvent('data-loaded', { rows: 3 });
 await expect($('#count')).toHaveText('3');
 
-// Targeted emit — only listeners that subscribed with target 'main' receive it
+// Targeted emit — reaches listeners on the 'main' window, and listeners with no target
 await browser.tauri.emitEvent('focus-window', undefined, 'main');
 ```
 
@@ -114,6 +114,8 @@ expect(mockReadFile).toHaveBeenCalledTimes(1);
 
 See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 
+**Multiremote:** Each instance has its own mocks. `browser.getInstance('app1').tauri.mock('read_file')` and `browser.getInstance('app2').tauri.mock('read_file')` return different mocks, each registered in its own app. `clearAllMocks()`, `resetAllMocks()`, `restoreAllMocks()` and `isMockFunction('read_file')` on an instance only see that instance's mocks. On the multiremote root, they cover every instance.
+
 **See Also:**
 - [Browser Mode Guide](./browser-mode.md)
 
@@ -141,7 +143,7 @@ if (browser.tauri.isMockFunction(mock)) {
 
 ### `browser.tauri.clearAllMocks(commandPrefix?)`
 
-Clear all mock call history and reset results, but keep the mock implementations in place.
+Clear all mock call history and reset results, but keep the mock implementations in place. In multiremote, an instance clears only its own mocks, and the root clears every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with command names starting with this prefix will be cleared
@@ -161,7 +163,7 @@ await browser.tauri.clearAllMocks('clipboard');
 
 ### `browser.tauri.resetAllMocks(commandPrefix?)`
 
-Reset all mocks to their initial state (clears implementations and call history).
+Reset all mocks to their initial state (clears implementations and call history). In multiremote, an instance resets only its own mocks, and the root resets every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are reset
@@ -172,7 +174,7 @@ Reset all mocks to their initial state (clears implementations and call history)
 
 ### `browser.tauri.restoreAllMocks(commandPrefix?)`
 
-Remove all mocks and restore original command implementations.
+Remove all mocks and restore original command implementations. In multiremote, an instance restores only its own mocks, and the root restores every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are restored
@@ -189,7 +191,7 @@ await browser.tauri.restoreAllMocks();
 
 ### `browser.tauri.triggerDeeplink(url)`
 
-Trigger a deeplink to the Tauri application for testing protocol handlers. Uses platform-specific commands (`open` on macOS, `xdg-open` on Linux, `cmd /c start` on Windows).
+Trigger a deeplink to the Tauri application for testing protocol handlers. With the `embedded` provider, and CrabNebula on macOS, it has tauri-plugin-wdio emit the deep-link plugin's `deep-link://new-url` event inside the app, which needs `wdio:allow-emit-deep-link` in the app's capabilities (`wdio:default` includes it). Otherwise it opens the URL through the OS (`rundll32` on Windows, `gio open` on Linux). Either way, the app's `onOpenUrl` / `on_open_url` handlers receive it. On Windows and Linux, the OS route needs the single-instance plugin; see [How the Deeplink Reaches Your App](./deeplink-testing.md#how-the-deeplink-reaches-your-app).
 
 **Parameters:**
 - `url` (string) - The deeplink URL to trigger (e.g., `'myapp://open?file=test.txt'`)
@@ -274,14 +276,14 @@ import { withExecuteOptions } from '@wdio/tauri-service';
 // Execute in a specific window without changing session default
 const result = await browser.tauri.execute(
   (tauri) => tauri.core.invoke('get_data'),
-  withExecuteOptions({ windowLabel: 'popup' })
+  withExecuteOptions({ windowLabel: 'popup' }),
 );
 
 // Can also pass arguments after options
 const greeting = await browser.tauri.execute(
   (tauri, name) => tauri.core.invoke('greet', { name }),
   withExecuteOptions({ windowLabel: 'settings' }),
-  'Alice'
+  'Alice',
 );
 ```
 
@@ -438,23 +440,21 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 
 ### `withImplementation(implFn, callbackFn)`
 
-Temporarily use a different implementation for the duration of a callback.
+Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's frontend like an `execute()` script, and receives the same `{ core: { invoke } }`. The implementation is restored when the callback returns, or when its promise settles. Mocks are per window, so this rejects if the command isn't mocked in the current window.
 
 **Example:**
 ```typescript
 const mock = await browser.tauri.mock('my_command');
 await mock.mockReturnValue('default');
 
-await mock.withImplementation(
+const result = await mock.withImplementation(
   () => 'temporary',
-  async () => {
-    const result = await browser.tauri.execute(({ core }) => core.invoke('my_command'));
-    console.log(result); // 'temporary'
-  }
+  ({ core }) => core.invoke('my_command'),
 );
+console.log(result); // 'temporary'
 
-const result = await browser.tauri.execute(({ core }) => core.invoke('my_command'));
-console.log(result); // 'default'
+const after = await browser.tauri.execute(({ core }) => core.invoke('my_command'));
+console.log(after); // 'default'
 ```
 
 ---
@@ -477,7 +477,7 @@ Initialize the Tauri service in standalone mode. Use this when you want to manag
 
 **Parameters:**
 - `capabilities` (Capabilities) - WebdriverIO capabilities with Tauri options
-- `globalOptions?` (TauriServiceGlobalOptions) - Global service options
+- `globalOptions?` (TauriServiceGlobalOptions & StandaloneSessionOptions) - Global service and standalone session options
 
 **Returns:** `Promise<Browser>`
 
@@ -488,8 +488,8 @@ import { startWdioSession } from '@wdio/tauri-service';
 const browser = await startWdioSession({
   browserName: 'tauri',
   'tauri:options': {
-    application: './path/to/app.exe'
-  }
+    application: './path/to/app.exe',
+  },
 });
 
 // Use browser...
@@ -522,7 +522,7 @@ Create Tauri-specific capabilities for use in WebdriverIO config.
 import { createTauriCapabilities } from '@wdio/tauri-service';
 
 const capabilities = createTauriCapabilities('./path/to/app.exe', {
-  captureBackendLogs: true
+  captureBackendLogs: true,
 });
 ```
 
@@ -556,13 +556,12 @@ interface TauriServiceOptions {
   tauriDriverPort?: number;
   tauriDriverPath?: string;
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
-  commandTimeout?: number;
   startTimeout?: number;
   captureBackendLogs?: boolean;
   captureFrontendLogs?: boolean;
   backendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
   frontendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
-  driverProvider?: 'embedded' | 'external' | 'crabnebula'; // 'official' is a deprecated alias for 'external'
+  driverProvider?: 'embedded' | 'external' | 'crabnebula';
   embeddedPort?: number;
   statusPollTimeout?: number;
   crabnebulaDriverPath?: string;
@@ -595,19 +594,9 @@ type TauriResult<T = unknown> = { ok: true; value: T } | { ok: false; error: str
 
 // Usage
 if (result.ok) {
-  console.log(result.value);  // Success case
+  console.log(result.value); // Success case
 } else {
   console.error(result.error); // Error case
-}
-```
-
-### `TauriCommandContext`
-
-```typescript
-interface TauriCommandContext {
-  command: string;
-  args: unknown[];
-  timeout?: number;
 }
 ```
 

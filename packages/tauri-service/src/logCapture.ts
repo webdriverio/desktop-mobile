@@ -54,7 +54,9 @@ export function createLogCapture(opts: LogCaptureOptions): ReadlineInterface | u
     onErrorDetected,
     onLine: (line, inst) => {
       const parsed = parseLogLine(line);
-      if (!parsed) return;
+      if (!parsed) {
+        return;
+      }
 
       if (serviceOptions.captureBackendLogs && parsed.source !== 'frontend') {
         const minLevel = (serviceOptions.backendLogLevel ?? 'info') as LogLevel;

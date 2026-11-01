@@ -38,4 +38,4 @@ Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and
 
 ### Comments
 
-Default to none. Write one only when the *why* is non-obvious: a hidden constraint, a workaround, behavior that would surprise a reader. Don't restate the code, and don't cite details that drift silently (versions, stack traces, "this used to do X"). Do link an issue or PR whose resolution would change the code: `// Workaround for forge/forge#4219; drop once a fix lands`. JSDoc only where a public API needs it.
+Default to none. Write one only when the _why_ is non-obvious: a hidden constraint, a workaround, behavior that would surprise a reader. Don't restate the code, and don't cite details that drift silently (versions, stack traces, "this used to do X"). Do link an issue or PR whose resolution would change the code: `// Workaround for forge/forge#4219; drop once a fix lands`. JSDoc only where a public API needs it.

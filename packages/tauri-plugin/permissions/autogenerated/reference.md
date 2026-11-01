@@ -5,6 +5,7 @@ Allows all WebDriverIO plugin commands for testing
 #### This default permission set includes the following:
 
 - `wdio:allow-execute`
+- `wdio:allow-emit-deep-link`
 - `wdio:allow-log-frontend`
 - `wdio:allow-debug-plugin`
 - `wdio:allow-get-active-window-label`
@@ -42,6 +43,32 @@ Enables the debug_plugin command without any pre-configured scope.
 <td>
 
 Denies the debug_plugin command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`wdio:allow-emit-deep-link`
+
+</td>
+<td>
+
+Enables the emit_deep_link command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`wdio:deny-emit-deep-link`
+
+</td>
+<td>
+
+Denies the emit_deep_link command without any pre-configured scope.
 
 </td>
 </tr>

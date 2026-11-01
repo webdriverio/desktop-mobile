@@ -24,7 +24,7 @@
     ]
   },
   "engines": {
-    "node": ">=18.20.0"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1"
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
@@ -33,14 +33,14 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
-    "@electron-forge/shared-types": "^7.11.2",
+    "@electron-forge/shared-types": "^8.0.1",
     "@electron/packager": "^20.3.0",
     "@types/node": "^26.6.5",
     "@wdio/bundler": "workspace:*",
     "@wdio/globals": "catalog:default",
     "@wdio/native-spy": "workspace:*",
     "@wdio/types": "catalog:default",
-    "builder-util": "^26.15.3",
+    "builder-util": "^26.16.0",
     "electron": "catalog:default",
     "shx": "^0.4.0",
     "typescript": "^6.0.3",
@@ -59,5 +59,17 @@
     "type": "git",
     "url": "https://github.com/webdriverio/desktop-mobile.git",
     "directory": "packages/native-types"
+  },
+  "peerDependencies": {
+    "@wdio/types": "^9.0.0 || ^10.0.0",
+    "webdriverio": "^9.0.0 || ^10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@wdio/types": {
+      "optional": true
+    },
+    "webdriverio": {
+      "optional": true
+    }
   }
 }

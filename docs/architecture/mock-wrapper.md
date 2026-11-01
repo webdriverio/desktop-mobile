@@ -3,11 +3,13 @@
 Vitest's `fn()` creates a mock with a non-configurable `.mock` property. To provide auto-updating mock state across process boundaries, we use a wrapper function pattern.
 
 ## Why Wrappers
+
 - Vitest's `.mock` property is `configurable: false` — can't redefine it
 - We need `.mock` to return auto-updating state from the inner mock
 - The wrapper delegates to the original mock but exposes a custom `.mock` getter
 
 ## Pattern
+
 ```typescript
 // 1. Create original mock
 const outerMock = vitestFn();
@@ -37,6 +39,7 @@ wrapperMock.mockImplementation = mock.mockImplementation.bind(mock);
 ```
 
 ## Rules
+
 - Always return the wrapper, not the original mock
 - Bind all methods from original mock onto wrapper
 - Set `__isElectronMock` / `__isTauriMock` on wrapper for identification

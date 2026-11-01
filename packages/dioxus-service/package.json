@@ -6,7 +6,7 @@
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/dioxus-service",
   "license": "MIT",
   "engines": {
-    "node": ">=18.20.0"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1"
   },
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -49,18 +49,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@wdio/globals": "catalog:default",
-    "@wdio/logger": "catalog:default",
     "@wdio/native-core": "workspace:*",
     "@wdio/native-spy": "workspace:*",
     "@wdio/native-types": "workspace:*",
     "@wdio/native-utils": "workspace:*",
-    "@wdio/spec-reporter": "catalog:default",
-    "@wdio/types": "catalog:default",
     "debug": "^4.4.3",
     "get-port": "^7.1.0",
-    "tslib": "^2.8.1",
-    "webdriverio": "catalog:default"
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
     "@repo/test-utils": "workspace:*",
@@ -68,16 +63,22 @@
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "@wdio/bundler": "workspace:*",
+    "@wdio/types": "catalog:default",
     "shx": "^0.4.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "webdriverio": "catalog:default"
   },
   "peerDependencies": {
-    "webdriverio": "^9.0.0"
+    "@wdio/types": "^9.0.0 || ^10.0.0",
+    "webdriverio": "^9.0.0 || ^10.0.0"
   },
   "peerDependenciesMeta": {
+    "@wdio/types": {
+      "optional": true
+    },
     "webdriverio": {
-      "optional": false
+      "optional": true
     }
   },
   "keywords": [

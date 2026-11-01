@@ -34,6 +34,8 @@ describe('crate-drift workflow', () => {
   });
 
   it('should only list crates that exist', () => {
-    for (const leg of legs) expect(publishedCrates).toEqual(expect.arrayContaining(cratesOf(leg)));
+    for (const leg of legs) {
+      expect(publishedCrates).toEqual(expect.arrayContaining(cratesOf(leg)));
+    }
   });
 });

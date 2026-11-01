@@ -212,8 +212,12 @@ export class DriverProcess {
           onLine: onLogLine ?? noop,
         });
 
-        if (stdoutHandler) this.streamHandlers.push(stdoutHandler);
-        if (stderrHandler) this.streamHandlers.push(stderrHandler);
+        if (stdoutHandler) {
+          this.streamHandlers.push(stdoutHandler);
+        }
+        if (stderrHandler) {
+          this.streamHandlers.push(stderrHandler);
+        }
 
         this._proc.once('exit', (code, signal) => {
           if (!settled) {
@@ -389,8 +393,12 @@ export class DriverProcess {
       let killTimeout: ReturnType<typeof setTimeout> | null = null;
 
       const cleanup = () => {
-        if (shutdownTimeout) clearTimeout(shutdownTimeout);
-        if (killTimeout) clearTimeout(killTimeout);
+        if (shutdownTimeout) {
+          clearTimeout(shutdownTimeout);
+        }
+        if (killTimeout) {
+          clearTimeout(killTimeout);
+        }
       };
 
       const onExit = () => {

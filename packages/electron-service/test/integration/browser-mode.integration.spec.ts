@@ -227,8 +227,12 @@ describe('browser mode — registration gate', () => {
 
     const chan1Registration = defer<unknown>();
     browser.execute.mockImplementation(async (arg: unknown) => {
-      if (isLivenessScript(arg)) return false;
-      if (isRegistrationScript(arg, 'chan1')) return chan1Registration.promise;
+      if (isLivenessScript(arg)) {
+        return false;
+      }
+      if (isRegistrationScript(arg, 'chan1')) {
+        return chan1Registration.promise;
+      }
       return undefined;
     });
 
@@ -272,7 +276,9 @@ describe('browser mode — registration gate', () => {
       }
       if (isRegistrationScript(arg, 'appInfo:get')) {
         registrationCalls++;
-        if (registrationCalls === 1) throw new Error('registration failed');
+        if (registrationCalls === 1) {
+          throw new Error('registration failed');
+        }
         return undefined;
       }
       return undefined;
@@ -345,7 +351,9 @@ describe('browser mode — navigation lifecycle', () => {
     expect(injectionAfterNav.length).toBeGreaterThan(0);
 
     browser.execute.mockImplementation(async (arg: unknown) => {
-      if (isLivenessScript(arg)) return false;
+      if (isLivenessScript(arg)) {
+        return false;
+      }
       return undefined;
     });
 

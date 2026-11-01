@@ -1,10 +1,12 @@
+import { forEachInstance, requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
+import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
 import {
   createLogger,
+  errorMessage,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
-  safeDeleteSession,
+  isMultiremote,
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
 import { execute } from './commands/execute.js';
@@ -14,7 +16,7 @@ import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
 import { mergeServiceOptions } from './serviceConfig.js';
 
-import type { TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
+import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
@@ -45,7 +47,7 @@ export default class TauriWorkerService {
   private resetMocksPrefix?: string;
   private restoreMocks: boolean;
   private restoreMocksPrefix?: string;
-  private driverProvider?: 'external' | 'official' | 'crabnebula' | 'embedded';
+  private driverProvider: DriverProvider;
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
@@ -72,7 +74,7 @@ export default class TauriWorkerService {
     const launcherOptions = capabilityOptions
       ? merged
       : mergeServiceOptions(options, firstInstance?.capabilities?.['wdio:tauriServiceOptions']);
-    this.driverProvider = launcherOptions.driverProvider;
+    this.driverProvider = launcherOptions.driverProvider ?? 'embedded';
     this.windowLabel = merged.windowLabel || getDefaultWindowLabel();
     this.mode = launcherOptions.mode;
     this.devServerUrl = launcherOptions.devServerUrl;
@@ -88,9 +90,9 @@ export default class TauriWorkerService {
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
     log.info(
-      `before() start — mode=${this.mode ?? 'binary'} provider=${this.driverProvider ?? 'embedded'} ` +
-        `multiremote=${browser.isMultiremote} ` +
-        `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+      `before() start — mode=${this.mode ?? 'binary'} provider=${this.driverProvider} ` +
+        `multiremote=${isMultiremote(browser)} ` +
+        `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
     this.browser = browser;
 
@@ -103,59 +105,50 @@ export default class TauriWorkerService {
         return;
       }
 
-      if (browser.isMultiremote) {
-        const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-        log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
+      if (isMultiremote(browser)) {
+        log.info(`Initializing ${browser.instances.length} multiremote instances`);
 
         // Add Tauri API to the root multiremote object first
         stage = 'addTauriApi:root';
         this.addTauriApi(browser as unknown as WebdriverIO.Browser);
-
-        // Add Tauri API to each instance and wait for readiness
-        for (const instanceName of mrBrowser.instances) {
-          const mrInstance = mrBrowser.getInstance(instanceName);
-          stage = `init:${instanceName}`;
-          log.info(`Initializing instance: ${instanceName}`);
-          this.addTauriApi(mrInstance);
-          this.patchBrowserExecute(mrInstance);
-          setCurrentWindowLabel(mrInstance, this.windowLabel);
-          setSessionProvider(mrInstance, this.driverProvider ?? 'embedded');
-          stage = `waitUntilWindowAvailable:${instanceName}`;
-          await waitUntilWindowAvailable(mrInstance);
-          log.info(`Instance ${instanceName} window available`);
-
-          // Wait for plugin initialization on this instance
-          // Skip for CrabNebula - browser.execute() not supported
-          if (this.driverProvider !== 'crabnebula') {
-            stage = `waitForPluginInit:${instanceName}`;
-            log.info(`Waiting for Tauri plugin initialization on ${instanceName}...`);
-            try {
-              await mrInstance.execute(async function checkMultiremotePluginInit() {
-                // @ts-expect-error - window exists in browser context
-                if (typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.waitForInit === 'function') {
-                  // @ts-expect-error - window exists in browser context
-                  await window.wdioTauri.waitForInit();
-                  return true;
-                }
-                return false;
-              });
-              log.info(`Tauri plugin initialization complete for ${instanceName}`);
-            } catch (error) {
-              log.warn(`Failed to wait for plugin initialization on ${instanceName}:`, error);
-            }
-          }
-        }
       } else {
         log.info('Initializing standard browser');
-        stage = 'addTauriApi:single';
-        this.addTauriApi(browser as WebdriverIO.Browser);
-        this.patchBrowserExecute(browser as WebdriverIO.Browser);
-        setCurrentWindowLabel(browser as WebdriverIO.Browser, this.windowLabel);
-        setSessionProvider(browser as WebdriverIO.Browser, this.driverProvider ?? 'embedded');
-        stage = 'waitUntilWindowAvailable:single';
-        await waitUntilWindowAvailable(browser as WebdriverIO.Browser);
-        log.info('Standard browser window available');
       }
+
+      await forEachInstance(browser, async (instance, { name }) => {
+        stage = `init:${name ?? 'single'}`;
+        if (name !== undefined) {
+          log.info(`Initializing instance: ${name}`);
+        }
+        this.addTauriApi(instance);
+        this.patchBrowserExecute(instance);
+        setCurrentWindowLabel(instance, this.windowLabel);
+        setSessionProvider(instance, this.driverProvider);
+        stage = `waitUntilWindowAvailable:${name ?? 'single'}`;
+        await waitUntilWindowAvailable(instance);
+        log.info(name === undefined ? 'Standard browser window available' : `Instance ${name} window available`);
+
+        // A single session waits for the plugin once, below.
+        // Skip for CrabNebula - browser.execute() not supported
+        if (name !== undefined && this.driverProvider !== 'crabnebula') {
+          stage = `waitForPluginInit:${name}`;
+          log.info(`Waiting for Tauri plugin initialization on ${name}...`);
+          try {
+            await instance.execute(async function checkMultiremotePluginInit() {
+              // @ts-expect-error - window exists in browser context
+              if (typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.waitForInit === 'function') {
+                // @ts-expect-error - window exists in browser context
+                await window.wdioTauri.waitForInit();
+                return true;
+              }
+              return false;
+            });
+            log.info(`Tauri plugin initialization complete for ${name}`);
+          } catch (error) {
+            log.warn(`Failed to wait for plugin initialization on ${name}:`, error);
+          }
+        }
+      });
 
       // Wait for the plugin to fully initialize (specifically attachConsole())
       // This ensures frontend console logs will be captured
@@ -187,21 +180,15 @@ export default class TauriWorkerService {
       if (this.driverProvider === 'embedded') {
         stage = 'clearStaleMocks';
         try {
-          if (browser.isMultiremote) {
-            const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-            for (const instanceName of mrBrowser.instances) {
-              const mrInstance = mrBrowser.getInstance(instanceName);
-              await mrInstance.execute(function clearStaleMocks() {
-                // @ts-expect-error - window is available in browser context
-                if (window.__wdio_mocks__) window.__wdio_mocks__ = {};
-              });
-            }
-          } else {
-            await (browser as WebdriverIO.Browser).execute(function clearStaleMocks() {
+          await forEachInstance(browser, (instance) =>
+            instance.execute(function clearStaleMocks() {
               // @ts-expect-error - window is available in browser context
-              if (window.__wdio_mocks__) window.__wdio_mocks__ = {};
-            });
-          }
+              if (window.__wdio_mocks__) {
+                // @ts-expect-error - window is available in browser context
+                window.__wdio_mocks__ = {};
+              }
+            }),
+          );
           log.debug('Cleared stale mocks at session start');
         } catch (error) {
           log.warn('Failed to clear stale mocks at session start:', error);
@@ -215,7 +202,7 @@ export default class TauriWorkerService {
     } catch (error) {
       log.error(
         `before() failed at stage="${stage}" — mode=${this.mode ?? 'binary'} ` +
-          `provider=${this.driverProvider ?? 'embedded'} multiremote=${browser.isMultiremote}`,
+          `provider=${this.driverProvider} multiremote=${isMultiremote(browser)}`,
         error,
       );
       throw error;
@@ -223,19 +210,33 @@ export default class TauriWorkerService {
   }
 
   async beforeTest(_test: unknown, _context: unknown): Promise<void> {
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    const attempt = async (op: () => Promise<void>) => {
+      try {
+        await op();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
     if (this.clearMocks) {
-      await clearAllMocks.call({ browser: this.browser }, this.clearMocksPrefix);
+      await attempt(() => clearAllMocks.call({ browser: this.browser }, this.clearMocksPrefix));
     }
     if (this.resetMocks) {
-      await resetAllMocks.call({ browser: this.browser }, this.resetMocksPrefix);
+      await attempt(() => resetAllMocks.call({ browser: this.browser }, this.resetMocksPrefix));
     }
     if (this.restoreMocks) {
-      await restoreAllMocks.call({ browser: this.browser }, this.restoreMocksPrefix);
+      await attempt(() => restoreAllMocks.call({ browser: this.browser }, this.restoreMocksPrefix));
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
     }
   }
 
   async beforeCommand(commandName: string, _args: unknown[]): Promise<void> {
-    if (!this.browser || this.browser.isMultiremote) {
+    if (!this.browser || isMultiremote(this.browser)) {
       return;
     }
 
@@ -255,7 +256,7 @@ export default class TauriWorkerService {
   }
 
   async afterCommand(commandName: string, _args: unknown[], _result: unknown, error?: Error): Promise<void> {
-    if (commandName !== 'switchToWindow' || !this.browser || this.browser.isMultiremote) {
+    if (commandName !== 'switchToWindow' || !this.browser || isMultiremote(this.browser)) {
       return;
     }
 
@@ -290,18 +291,15 @@ export default class TauriWorkerService {
       return;
     }
 
-    // Only standalone cleanup() gets here with a live session; under the runner the delete is a no-op.
-    if (!this.browser.isMultiremote) {
+    if (!isMultiremote(this.browser)) {
       const stdBrowser = this.browser as WebdriverIO.Browser;
       clearWindowState(stdBrowser.sessionId);
-      await safeDeleteSession(stdBrowser, 'afterSession', log);
     } else {
       const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
         try {
-          const instance = mrBrowser.getInstance(instanceName);
+          const instance = requireInstance(mrBrowser, instanceName);
           clearWindowState(instance.sessionId);
-          await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
         } catch (error) {
           log.warn(`Failed to clean up instance ${instanceName}:`, error);
         }
@@ -334,17 +332,11 @@ export default class TauriWorkerService {
     // preloadActive is true only when the interceptor is already installed pre-navigation on
     // every relevant session, which decides whether the post-load execute() below is the
     // primary injection path or merely belt-and-suspenders.
-    let preloadActive: boolean;
-    if ((browser as unknown as { isMultiremote?: boolean }).isMultiremote) {
-      const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-      const registered: boolean[] = [];
-      for (const instanceName of mrBrowser.instances) {
-        registered.push(await this.registerBidiPreload(mrBrowser.getInstance(instanceName), injectionScript));
-      }
-      preloadActive = registered.length > 0 && registered.every(Boolean);
-    } else {
-      preloadActive = await this.registerBidiPreload(browser, injectionScript);
-    }
+    const registered: boolean[] = [];
+    await forEachInstance(browser, async (instance) => {
+      registered.push(await this.registerBidiPreload(instance, injectionScript));
+    });
+    const preloadActive = registered.length > 0 && registered.every(Boolean);
 
     await browser.url(this.devServerUrl);
     try {
@@ -360,10 +352,10 @@ export default class TauriWorkerService {
       log.warn('Post-load IPC re-inject failed; preload already covered injection on this session:', error);
     }
     (browser as unknown as Record<string, boolean>).__wdioBrowserMode__ = true;
-    if ((browser as unknown as { isMultiremote?: boolean }).isMultiremote) {
+    if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
-        const instance = mrBrowser.getInstance(instanceName);
+        const instance = requireInstance(mrBrowser, instanceName);
         (instance as unknown as Record<string, boolean>).__wdioBrowserMode__ = true;
         this.addTauriApi(instance, true);
       }
@@ -425,26 +417,22 @@ export default class TauriWorkerService {
    * fired on (`this`).
    */
   private patchBrowserUrl(browser: WebdriverIO.Browser, injectionScript: string): void {
-    browser.overwriteCommand(
-      'url',
-      async function (
-        this: WebdriverIO.Browser,
-        originalUrl: (href?: string) => Promise<string | undefined>,
-        href?: string,
-      ): Promise<string | undefined> {
-        const result = await Reflect.apply(originalUrl, this, [href]);
-        if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioBrowserMode__ && !this.isBidi) {
-          try {
-            await this.execute(injectionScript);
-          } catch (error) {
-            log.warn('Failed to re-inject IPC script after navigation:', error);
-            throw error;
-          }
+    browser.overwriteCommand('url', async function (
+      this: WebdriverIO.Browser,
+      originalUrl: (href?: string) => Promise<string | undefined>,
+      href?: string,
+    ): Promise<string | undefined> {
+      const result = await Reflect.apply(originalUrl, this, [href]);
+      if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioBrowserMode__ && !this.isBidi) {
+        try {
+          await this.execute(injectionScript);
+        } catch (error) {
+          log.warn('Failed to re-inject IPC script after navigation:', error);
+          throw error;
         }
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1],
-      false,
-    );
+      }
+      return result;
+    } as Parameters<typeof browser.overwriteCommand>[1]);
   }
 
   /**
@@ -464,7 +452,7 @@ export default class TauriWorkerService {
       execute: async <ReturnValue, InnerArguments extends unknown[]>(
         script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
         ...args: InnerArguments
-      ): Promise<ReturnValue> => {
+      ): Promise<Awaited<ReturnValue>> => {
         if (browserMode) {
           throw new Error(
             'browser.tauri.execute() is not supported in browser mode. Use browser.execute() for frontend code or browser.tauri.mock() to intercept Tauri commands.',
@@ -481,12 +469,7 @@ export default class TauriWorkerService {
 
       isMockFunction: ((commandOrFn: unknown) => {
         if (typeof commandOrFn === 'string') {
-          try {
-            mockStore.getMock(`tauri.${commandOrFn}`);
-            return true;
-          } catch {
-            return false;
-          }
+          return getMocksInScope(browser).some(([mockId]) => mockId === `tauri.${commandOrFn}`);
         }
         return isMockFunction(commandOrFn);
       }) as TauriServiceAPI['isMockFunction'],
@@ -507,7 +490,7 @@ export default class TauriWorkerService {
         if (browserMode) {
           throw new Error('browser.tauri.triggerDeeplink() is not supported in browser mode.');
         }
-        return triggerDeeplink.call({ browser }, url);
+        return triggerDeeplink.call({ browser, provider: this.driverProvider }, url);
       },
 
       switchWindow: async (label: string): Promise<void> => {
@@ -533,56 +516,42 @@ export default class TauriWorkerService {
         payload?: T,
         target?: string | TauriEventTarget,
       ): Promise<void> => {
-        if (browserMode) {
-          await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
-            (...inner: unknown[]) => {
-              const [ev, p, t] = inner as [string, unknown, unknown];
-              // @ts-expect-error - window exists in browser context
-              const w = window as {
-                __wdio_emit_tauri_event__?: (e: string, p: unknown, t: unknown) => void;
-              };
-              if (!w.__wdio_emit_tauri_event__) {
-                throw new Error('Tauri event registry not initialised — is browser mode active?');
-              }
-              w.__wdio_emit_tauri_event__(ev, p, t);
-            },
-            eventName,
-            payload,
-            target,
-          );
-        } else if (target === undefined) {
-          await execute(
-            browser,
-            (tauri: TauriAPIs, ...a: unknown[]) => {
-              const [ev, p] = a as [string, unknown];
-              const ev2 = tauri.event as { emit: (name: string, payload?: unknown) => Promise<void> } | undefined;
-              if (!ev2) {
-                throw new Error('Tauri event API not available — is @tauri-apps/api loaded?');
-              }
-              return ev2.emit(ev, p);
-            },
-            eventName,
-            payload,
-          );
-        } else {
-          await execute(
-            browser,
-            (tauri: TauriAPIs, ...a: unknown[]) => {
-              const [ev, p, t] = a as [string, unknown, unknown];
-              const ev2 = tauri.event as
-                | { emitTo: (target: unknown, name: string, payload?: unknown) => Promise<void> }
-                | undefined;
-              if (!ev2) {
-                throw new Error('Tauri event API not available — is @tauri-apps/api loaded?');
-              }
-              return ev2.emitTo(t, ev, p);
-            },
-            eventName,
-            payload,
-            target,
-          );
+        if (!isMultiremote(browser)) {
+          await emitTauriEvent(browser, browserMode, eventName, payload, target);
+          await getMockUpdateScheduler(browser).schedule();
+          return;
         }
-        await getMockUpdateScheduler(browser).schedule();
+        const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+        const instanceNames = mrBrowser.instances;
+        const results = await Promise.allSettled(
+          instanceNames.map(async (name) =>
+            emitTauriEvent(requireInstance(mrBrowser, name), browserMode, eventName, payload, target),
+          ),
+        );
+        const failures = results.flatMap((result, i) =>
+          result.status === 'rejected' ? [{ instance: instanceNames[i], error: result.reason as unknown }] : [],
+        );
+        if (failures.length === 0) {
+          await getMockUpdateScheduler(browser).schedule();
+          return;
+        }
+        // Sync if some instances emitted, so their calls are recorded, but throw the emit failures: a
+        // broken session fails the sync too
+        if (failures.length < instanceNames.length) {
+          await getMockUpdateScheduler(browser)
+            .schedule()
+            .catch((error: unknown) => log.warn('Mock sync failed after a failed emitEvent:', error));
+        }
+        // Reporters print only the message, not `cause` or `errors`, so the message names each failure
+        const message = `emitEvent('${eventName}') failed on ${failures
+          .map(({ instance, error }) => `${instance}: ${errorMessage(error)}`)
+          .join('; ')}`;
+        throw failures.length === 1
+          ? new Error(message, { cause: failures[0].error })
+          : new AggregateError(
+              failures.map(({ error }) => error),
+              message,
+            );
       },
     };
   }
@@ -624,7 +593,6 @@ export default class TauriWorkerService {
     }
 
     const originalExecute = browser.execute.bind(browser);
-    const originalExecuteAsync = (browser.executeAsync as typeof browser.execute).bind(browser);
     const isEmbedded = this.driverProvider === 'embedded';
 
     const patchedExecute = async function patchedExecute<ReturnValue, InnerArguments extends unknown[]>(
@@ -644,10 +612,10 @@ export default class TauriWorkerService {
         );
       }
 
-      // Non-embedded (tauri-driver/official): use executeAsync for both functions and strings.
+      // Non-embedded (external / tauri-driver): use executeAsyncScript for both functions and strings.
       // WebKit (macOS/iOS Tauri) doesn't auto-await Promises from sync execute.
       if (typeof script === 'function') {
-        // Function scripts: use executeAsync with .then() callbacks to handle async results
+        // Function scripts: use executeAsyncScript with .then() callbacks to handle async results
         // Wrap in Promise.resolve to handle both sync and async function return values
         const wrappedScript = `
             ${CONSOLE_WRAPPER_SCRIPT}
@@ -656,16 +624,13 @@ export default class TauriWorkerService {
                 (e) => arguments[arguments.length-1]({ __wdio_error__: e instanceof Error ? e.message : String(e) })
             );
         `;
-        const asyncResult = await (originalExecuteAsync as (script: string, ...a: unknown[]) => Promise<unknown>)(
-          wrappedScript,
-          ...args,
-        );
+        const asyncResult = await browser.executeAsyncScript(wrappedScript, toElementReferences(args));
         if (asyncResult && typeof asyncResult === 'object' && '__wdio_error__' in asyncResult) {
           throw new Error((asyncResult as { __wdio_error__: string }).__wdio_error__);
         }
         return asyncResult as ReturnValue;
       } else {
-        // For strings: use executeAsync with explicit done callback
+        // For strings: use executeAsyncScript with an explicit done callback
         // WebKit (macOS/iOS Tauri) doesn't auto-await returned Promises - must call callback explicitly
         const trimmed = scriptString.trim();
         const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(
@@ -680,10 +645,7 @@ export default class TauriWorkerService {
                 (e) => arguments[arguments.length-1]({ __wdio_error__: e instanceof Error ? e.message : String(e) })
             );
         `;
-        const asyncResult = await (originalExecuteAsync as (script: string, ...a: unknown[]) => Promise<unknown>)(
-          wrappedScript,
-          ...args,
-        );
+        const asyncResult = await browser.executeAsyncScript(wrappedScript, toElementReferences(args));
         if (asyncResult && typeof asyncResult === 'object' && '__wdio_error__' in asyncResult) {
           throw new Error((asyncResult as { __wdio_error__: string }).__wdio_error__);
         }
@@ -700,6 +662,24 @@ export default class TauriWorkerService {
     patchedBrowser[EXECUTE_PATCHED] = true;
     log.debug('browser.execute() patched with console forwarding');
   }
+}
+
+// W3C WebDriver's web element identifier: https://www.w3.org/TR/webdriver2/#elements
+const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+
+/** Sends WebdriverIO elements as W3C element references, as `browser.execute` does for its arguments. */
+function toElementReferences(args: unknown[]): Parameters<WebdriverIO.Browser['executeAsyncScript']>[1] {
+  return args.map((arg) => {
+    if (typeof arg !== 'object' || arg === null || !('selector' in arg) || !('elementId' in arg)) {
+      return arg;
+    }
+    if (!arg.elementId) {
+      throw new Error(
+        `The element with selector "${String(arg.selector)}" you are trying to pass into the execute method wasn't found`,
+      );
+    }
+    return { [ELEMENT_KEY]: arg.elementId };
+  }) as Parameters<WebdriverIO.Browser['executeAsyncScript']>[1];
 }
 
 function sleep(ms: number): Promise<void> {
@@ -720,8 +700,13 @@ const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateSchedule
  * leads to empty mock.calls assertions, which is harder to diagnose than an AggregateError.
  */
 class MockUpdateScheduler {
+  #browser: WebdriverIO.Browser;
   #running: Promise<void> | null = null;
   #queued: Promise<void> | null = null;
+
+  constructor(browser: WebdriverIO.Browser) {
+    this.#browser = browser;
+  }
 
   schedule(): Promise<void> {
     if (!this.#running) {
@@ -741,7 +726,9 @@ class MockUpdateScheduler {
   #wrapRun(run: Promise<void>): Promise<void> {
     let wrapped!: Promise<void>;
     wrapped = run.finally(() => {
-      if (this.#running !== wrapped) return;
+      if (this.#running !== wrapped) {
+        return;
+      }
       if (this.#queued) {
         const promoted = this.#queued;
         this.#queued = null;
@@ -760,8 +747,10 @@ class MockUpdateScheduler {
   }
 
   async #runOnce(): Promise<void> {
-    const mocks = mockStore.getMocks();
-    if (mocks.length === 0) return;
+    const mocks = getMocksInScope(this.#browser);
+    if (mocks.length === 0) {
+      return;
+    }
 
     const tryUpdate = async (
       mockId: string,
@@ -808,10 +797,69 @@ class MockUpdateScheduler {
   }
 }
 
+async function emitTauriEvent(
+  browser: WebdriverIO.Browser,
+  browserMode: boolean,
+  eventName: string,
+  payload: unknown,
+  target: string | TauriEventTarget | undefined,
+): Promise<void> {
+  if (browserMode) {
+    await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
+      (...inner: unknown[]) => {
+        const [ev, p, t] = inner as [string, unknown, unknown];
+        // @ts-expect-error - window exists in browser context
+        const w = window as {
+          __wdio_emit_tauri_event__?: (e: string, p: unknown, t: unknown) => void;
+        };
+        if (!w.__wdio_emit_tauri_event__) {
+          throw new Error('Tauri event registry not initialised — is browser mode active?');
+        }
+        w.__wdio_emit_tauri_event__(ev, p, t);
+      },
+      eventName,
+      payload,
+      target,
+    );
+    return;
+  }
+
+  // A null target emits to everyone, as in browser mode
+  const [command, args] =
+    target == null
+      ? ['plugin:event|emit', { event: eventName, payload }]
+      : [
+          'plugin:event|emit_to',
+          {
+            target: typeof target === 'string' ? { kind: 'AnyLabel', label: target } : target,
+            event: eventName,
+            payload,
+          },
+        ];
+  // Mocks only wrap tauri.core.invoke, so calling __TAURI_INTERNALS__.invoke keeps a mock of these
+  // commands from swallowing the test's own emit
+  await execute(
+    browser,
+    (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) =>
+      (
+        globalThis as unknown as {
+          __TAURI_INTERNALS__: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<unknown> };
+        }
+      ).__TAURI_INTERNALS__.invoke(cmd, cmdArgs),
+    command,
+    args,
+  );
+}
+
+// A multiremote root's commands fan out to every instance, so it sees every instance's mocks
+function getMocksInScope(browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser): [string, TauriMock][] {
+  return isMultiremote(browser) ? mockStore.getAllMocks() : mockStore.getMocks(browser);
+}
+
 function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateScheduler {
   let scheduler = mockUpdateSchedulers.get(browser);
   if (!scheduler) {
-    scheduler = new MockUpdateScheduler();
+    scheduler = new MockUpdateScheduler(browser);
     mockUpdateSchedulers.set(browser, scheduler);
   }
   return scheduler;

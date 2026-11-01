@@ -198,7 +198,7 @@ export async function installTauriDriver(): Promise<string> {
 
 /**
  * Ensure tauri-driver is available, installing if necessary
- * Supports both official (cargo) and CrabNebula (npm) drivers
+ * Supports both tauri-driver (cargo) and CrabNebula (npm) drivers
  */
 export async function ensureTauriDriver(options: TauriServiceOptions): Promise<DriverInstallResult> {
   const provider = options.driverProvider ?? 'external';

@@ -487,6 +487,25 @@ describe('Tauri Mocking', () => {
       });
     });
 
+    describe('withImplementation', () => {
+      it('should use the temporary implementation until an async callback settles', async () => {
+        const mockReadClipboard = await browser.tauri.mock('read_clipboard');
+        await mockReadClipboard.mockReturnValue('default');
+
+        const result = await mockReadClipboard.withImplementation(
+          () => 'temporary',
+          async ({ core }) => {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            return core.invoke('read_clipboard');
+          },
+        );
+
+        expect(result).toBe('temporary');
+        const content = await browser.tauri.execute(({ core }) => core.invoke('read_clipboard'));
+        expect(content).toBe('default');
+      });
+    });
+
     describe('mock.calls', () => {
       it('should return the calls of the mock execution', async () => {
         const mockWriteClipboard = await browser.tauri.mock('write_clipboard');

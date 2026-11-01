@@ -5,14 +5,15 @@ import type {
   ElectronServiceCapabilities,
   ElectronServiceGlobalOptions,
   PathGenerationError,
+  RequestedMultiremoteCapabilities,
 } from '@wdio/native-types';
 import {
   createLogger,
-  errorMessage,
   formatDiagnosticResults,
   isErr,
   type NormalizedReadResult,
   readPackageUp,
+  severeServiceError,
 } from '@wdio/native-utils';
 import { getAppBuildInfo } from './appBuildInfo.js';
 import { getBinaryPath } from './binaryPath.js';
@@ -135,7 +136,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
   async onPrepare(_config: Options.Testrunner, capabilities: ElectronServiceCapabilities) {
     const capsList = Array.isArray(capabilities)
       ? capabilities
-      : Object.values(capabilities as Capabilities.RequestedMultiremoteCapabilities).map(
+      : Object.values(capabilities as RequestedMultiremoteCapabilities).map(
           (multiremoteOption) => (multiremoteOption as Capabilities.WithRequestedCapabilities).capabilities,
         );
 
@@ -208,7 +209,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           if (!this.#globalOptions.devServer && !probedUrls.has(devServerUrl)) {
             const reachable = await probeDevServerReachable(devServerUrl);
             if (isErr(reachable)) {
-              throw new SevereServiceError(reachable.error.message);
+              throw severeServiceError(reachable.error);
             }
             probedUrls.add(devServerUrl);
           }
@@ -236,9 +237,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});
         this.#stopDevServer = undefined;
-        throw error instanceof SevereServiceError
-          ? error
-          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
+        throw error instanceof SevereServiceError ? error : severeServiceError('Failed to start dev server', error);
       }
       this.#browserMode = true;
       log.info('Browser mode enabled — skipping Electron binary and CDP bridge setup');
@@ -347,13 +346,14 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
                 }`;
                 throw new Error(
                   `Could not find Electron app built with ${buildToolName}!\nIf the application is not compiled, please do so before running your tests, e.g. via \`${suggestedCompileCommand}\`.`,
+                  { cause: e },
                 );
               }
               throw e;
             }
           } catch (e) {
             log.error(String(e));
-            throw new SevereServiceError(errorMessage(e));
+            throw severeServiceError(e);
           }
         }
 
@@ -420,7 +420,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
     ).catch((err) => {
       const msg = `Failed setting up Electron session: ${err.stack}`;
       log.error(msg);
-      throw new SevereServiceError(msg);
+      throw severeServiceError('Failed setting up Electron session', err);
     });
 
     // Apply AppArmor workaround once per session with all discovered binary paths
@@ -473,7 +473,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
       const detail = error instanceof Error ? error.stack || error.message : String(error);
       const msg = `Failed to assign debugging ports to Electron instances: ${detail}`;
       log.error(msg);
-      throw new SevereServiceError(msg);
+      throw severeServiceError('Failed to assign debugging ports to Electron instances', error);
     }
   }
 

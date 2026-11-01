@@ -3,7 +3,6 @@
 ## Overview
 
 Your Dioxus app needs one crate, `wdio-dioxus`, and one call to `wdio_dioxus::install(config)`. When `@wdio/dioxus-service` launches the app, that call:
-
 - starts the WebDriver server that the service connects to, inside your app's process
 - installs the bridge, which provides the Execute API, mocking, log forwarding and window management
 
@@ -88,11 +87,11 @@ dx build --desktop
 
 `dx` prints the bundle path when the build finishes. The debug binary is at:
 
-| Platform | Binary path |
-|----------|-------------|
-| macOS | `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app` |
-| Linux | `target/dx/my_app/debug/linux/app/my_app` |
-| Windows | `target\dx\my_app\debug\windows\app\my_app.exe` |
+| Platform | Binary path                                                    |
+| -------- | -------------------------------------------------------------- |
+| macOS    | `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app` |
+| Linux    | `target/dx/my_app/debug/linux/app/my_app`                      |
+| Windows  | `target\dx\my_app\debug\windows\app\my_app.exe`                |
 
 The service's `appBinaryPath` or `dioxus:options.application` should point to the debug binary.
 
@@ -119,7 +118,12 @@ curl http://127.0.0.1:4444/status
 Once the app's window has loaded, the server reports it's ready:
 
 ```json
-{"value":{"message":"wdio-dioxus-embedded-driver is ready","ready":true}}
+{
+  "value": {
+    "message": "wdio-dioxus-embedded-driver is ready",
+    "ready": true
+  }
+}
 ```
 
 `"ready": false` ("waiting for webview") means the server is running but the window hasn't registered with the bridge yet. If nothing is listening on the port, check that `DIOXUS_WEBVIEW_AUTOMATION=true` is set, that `main.rs` calls `install()`, and that this is a debug build; see [Troubleshooting](./troubleshooting.md#bridge-issues).
@@ -149,7 +153,6 @@ Without it, the service never sees the app's windows, and startup fails with "th
 ## What Happens Internally
 
 When `@wdio/dioxus-service` launches the app, it sets `DIOXUS_WEBVIEW_AUTOMATION=true`, and `wdio_dioxus::install(config)`:
-
 1. **Sets a per-port webview data directory** in the system temp folder, so parallel app instances (multiremote) don't share WebView2/WebKit state.
 2. **Installs the bridge**, which:
    - registers a `wdio://` custom protocol on the webview (`http://wdio.invoke/` on Windows). This protocol is the IPC channel between the WDIO service process and the app's webview.

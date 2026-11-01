@@ -3,6 +3,7 @@ import process from 'node:process';
 import url from 'node:url';
 import { cleanupWdioSession, createDioxusCapabilities, startWdioSession } from '@wdio/dioxus-service';
 import type { DioxusAPIs } from '@wdio/native-types';
+import { startDisplay, webkitDisplayServer } from '../../../lib/display.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
@@ -12,6 +13,7 @@ const appBinaryPath = path.join(
   process.platform === 'win32' ? 'wdio-dioxus-e2e-app.exe' : 'wdio-dioxus-e2e-app',
 );
 
+const display = await startDisplay(webkitDisplayServer);
 const browser = await startWdioSession(
   createDioxusCapabilities(appBinaryPath, {
     appArgs: ['foo', 'bar=baz'],
@@ -33,6 +35,7 @@ try {
 } finally {
   await browser.deleteSession().catch((e: Error) => console.error(`deleteSession failed: ${e.message}`));
   await cleanupWdioSession(browser);
+  await display?.stop();
 }
 
 console.log('✅ Cleanup complete');

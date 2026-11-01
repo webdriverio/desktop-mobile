@@ -16,6 +16,7 @@ import type {
   BrowserBase,
   LogLevel,
   MockOverride,
+  RequestedMultiremoteCapabilities,
   ServiceMockContext,
 } from './shared.js';
 
@@ -49,18 +50,6 @@ export interface ElectronServiceAPI {
   mock: {
     (className: string): Promise<ElectronClassMock>;
     (apiName: string, funcName: string): Promise<ElectronFunctionMock>;
-    /**
-     * @deprecated Pass `returnValue` via the chained setter instead:
-     * `(await browser.electron.mock('api', 'fn')).mockReturnValue(value)`.
-     * The inline `returnValue` argument is a legacy convenience specific to
-     * Electron's two-part mock identity; all other services use the chained
-     * setter as the single convergent pattern.
-     *
-     * Note: TypeScript's TS-6385 deprecation diagnostic does not fire for `@deprecated`
-     * placed on individual call signatures within an object-type overload set (verified
-     * against TS 5.9). The JSDoc text surfaces in hover tooltips but no squiggle is emitted.
-     */
-    (apiName: string, funcName: string, returnValue: unknown): Promise<ElectronFunctionMock>;
   };
   /**
    * Mock all functions from an Electron API.
@@ -78,7 +67,7 @@ export interface ElectronServiceAPI {
   execute<ReturnValue, InnerArguments extends unknown[]>(
     script: string | ((electron: typeof Electron, ...innerArgs: InnerArguments) => ReturnValue),
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
+  ): Promise<Awaited<ReturnValue>>;
   /**
    * Clear mocked Electron API function(s).
    *
@@ -99,12 +88,7 @@ export interface ElectronServiceAPI {
   restoreAllMocks: (apiName?: string) => Promise<void>;
   /**
    * Checks that a given parameter is an Electron mock function. If you are using TypeScript, it will also narrow down its type.
-   *
-   * @deprecated Passing a string to `isMockFunction` is not supported for the Electron service.
-   * The Electron mock system uses duck-type checking (`__isElectronMock`) rather than a
-   * name-keyed store; this overload always returns `false`. Use the object-form overload instead.
    */
-  isMockFunction(target: string): false;
   isMockFunction(fn: unknown): fn is ElectronMockInstance;
   /**
    * Trigger a deeplink to the Electron application for testing protocol handlers.
@@ -164,7 +148,6 @@ export interface ElectronServiceAPI {
  * Captured here so the Omit list stays in sync with the documented surface.
  */
 type ElectronUnsupportedBaseOptions =
-  | 'commandTimeout'
   | 'startTimeout'
   | 'captureBackendLogs'
   | 'captureFrontendLogs'
@@ -287,15 +270,15 @@ export interface ElectronServiceGlobalOptions
    */
   rendererLogLevel?: LogLevel;
   /**
-   * Timeout for any request using CdpBridge to a node debugger.
+   * Timeout in milliseconds for the node debugger port to open, and for each request to the debugger.
    */
   cdpBridgeTimeout?: number;
   /**
-   * Interval in milliseconds to wait between attempts to connect to the node debugger.
+   * Interval in milliseconds between attempts to connect to the node debugger once its port is open.
    */
   cdpBridgeWaitInterval?: number;
   /**
-   * Number of attempts to connect to the node debugger before giving up.
+   * Number of times to retry connecting to the node debugger once its port is open.
    */
   cdpBridgeRetryCount?: number;
   /**
@@ -444,10 +427,10 @@ export interface ElectronMockInstance extends Omit<Mock, MockOverride> {
   mockReset(): Promise<ElectronFunctionMock>;
   mockRestore(): Promise<ElectronFunctionMock>;
   mockReturnThis(): Promise<ElectronFunctionMock>;
-  withImplementation<ReturnValue, InnerArguments extends unknown[]>(
+  withImplementation<ReturnValue>(
     implFn: AbstractFn,
-    callbackFn: (electron: typeof Electron, ...innerArgs: InnerArguments) => ReturnValue,
-  ): Promise<ReturnValue>;
+    callbackFn: (electron: typeof Electron) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>>;
   mockName(name: string): ElectronFunctionMock;
   getMockName(): string;
   getMockImplementation(): AbstractFn | undefined;
@@ -524,7 +507,7 @@ type ElectronServiceCustomCapability = {
 
 type ElectronServiceRequestedStandaloneCapabilities = Capabilities.RequestedStandaloneCapabilities &
   ElectronServiceCustomCapability;
-type ElectronServiceRequestedMultiremoteCapabilities = Capabilities.RequestedMultiremoteCapabilities &
+type ElectronServiceRequestedMultiremoteCapabilities = RequestedMultiremoteCapabilities &
   ElectronServiceCustomCapability;
 
 export type ElectronServiceCapabilities =

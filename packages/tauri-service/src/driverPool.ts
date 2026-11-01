@@ -7,12 +7,10 @@
 // callback + startup/error markers, then delegates to core.
 
 import { DriverPool as CoreDriverPool, type DriverInfo } from '@wdio/native-core';
-import type { LogLevel } from '@wdio/native-types';
 import { isErr } from '@wdio/native-utils';
 
 import { ensureTauriDriver } from './driverManager.js';
-import { forwardLog } from './logForwarder.js';
-import { parseLogLine } from './logParser.js';
+import { forwardDriverLine } from './logForwarder.js';
 import { getWebKitWebDriverPath } from './pathResolver.js';
 import type { TauriServiceOptions } from './types.js';
 
@@ -69,17 +67,7 @@ export class DriverPool {
       startupMarkers: TAURI_STARTUP_MARKERS,
       errorMarkers: TAURI_ERROR_MARKERS,
       onLogLine: (line, inst) => {
-        const parsed = parseLogLine(line);
-        if (!parsed) return;
-
-        if (serviceOptions.captureBackendLogs && parsed.source !== 'frontend') {
-          const minLevel = (serviceOptions.backendLogLevel ?? 'info') as LogLevel;
-          forwardLog('backend', parsed.level, parsed.message, minLevel, parsed.prefixedMessage, inst);
-        }
-        if (serviceOptions.captureFrontendLogs && parsed.source === 'frontend') {
-          const minLevel = (serviceOptions.frontendLogLevel ?? 'info') as LogLevel;
-          forwardLog('frontend', parsed.level, parsed.message, minLevel, parsed.prefixedMessage, inst);
-        }
+        forwardDriverLine(line, inst, serviceOptions);
       },
     });
   }

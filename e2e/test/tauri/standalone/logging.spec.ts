@@ -4,7 +4,7 @@ import process from 'node:process';
 import url from 'node:url';
 import { cleanupWdioSession, createTauriCapabilities, startWdioSession } from '@wdio/tauri-service';
 import '@wdio/native-types';
-import { xvfb } from '@wdio/xvfb';
+import { startDisplay, webkitDisplayServer } from '../../../lib/display.js';
 import {
   assertLogContains,
   getLogDirName,
@@ -28,7 +28,7 @@ if (!fs.existsSync(appDir)) {
 const appBinaryPath = resolveTauriFixtureBinary(appDir);
 
 // Get driver provider from environment
-const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded';
+const driverProvider = process.env.DRIVER_PROVIDER as 'external' | 'crabnebula' | 'embedded';
 
 // Create session options with log capture enabled
 const sessionOptions = createTauriCapabilities(appBinaryPath, {
@@ -51,10 +51,7 @@ if (sessionOptions['wdio:tauriServiceOptions']) {
   console.log(`[DEBUG] Setting logDir to: ${logDir}`);
 }
 
-// Initialize xvfb if running on Linux
-if (process.platform === 'linux') {
-  await xvfb.init();
-}
+const display = await startDisplay(webkitDisplayServer);
 
 console.log('🔍 Debug: Starting Tauri standalone logging test');
 
@@ -150,6 +147,7 @@ try {
 } finally {
   // Clean up - quit the app and stop tauri-driver.
   await cleanupWdioSession(browser);
+  await display?.stop();
   console.log('✅ Cleanup complete');
 }
 

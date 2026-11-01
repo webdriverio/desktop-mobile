@@ -34,14 +34,14 @@ keeps the two in step, so bump them together.
 Every interactive element exposes a stable `accessibilityLabel` (= Appium
 accessibility id) and `testID`:
 
-| Selector | Element |
-|----------|---------|
-| `app-title` | Title text |
-| `counter` | The current count |
-| `increment-button` | `+` |
-| `decrement-button` | `−` |
-| `reset-button` | `Reset` |
-| `status` | Last-action status line |
+| Selector           | Element                 |
+| ------------------ | ----------------------- |
+| `app-title`        | Title text              |
+| `counter`          | The current count       |
+| `increment-button` | `+`                     |
+| `decrement-button` | `−`                     |
+| `reset-button`     | `Reset`                 |
+| `status`           | Last-action status line |
 
 ## Hooks for `execute` / `mock` / `emitEvent`
 

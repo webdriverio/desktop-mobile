@@ -12,10 +12,13 @@ The service cannot find the tauri-driver executable.
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    autoInstallTauriDriver: true, // Requires Rust/cargo
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      autoInstallTauriDriver: true, // Requires Rust/cargo
+    },
+  ],
+];
 ```
 
 **Solution 2: Manual Installation**
@@ -35,10 +38,13 @@ If installed in a non-standard location:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    tauriDriverPath: '/custom/path/tauri-driver'
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      tauriDriverPath: '/custom/path/tauri-driver',
+    },
+  ],
+];
 ```
 
 ### "WebKitWebDriver not found" (Linux only)
@@ -67,10 +73,22 @@ sudo xbps-install -y libwebkit2gtk41
 ```
 
 **Unsupported Distributions**
-
 - **Alpine Linux**: Cannot build Tauri apps (musl incompatibility). Use Ubuntu, Debian, Fedora, or Arch instead.
 - **CentOS/RHEL**: Stream 9 has glib too old (requires 2.70+), Stream 10 removed WebKitGTK. Use **Fedora 40+** instead.
 - **openSUSE**: Untested. WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6).
+
+On other distributions, find the package that ships it:
+
+```bash
+# Debian-based
+apt-cache search webkit webdriver
+
+# RedHat-based
+dnf provides '*/WebKitWebDriver'
+
+# Pacman-based (sync the file database first with sudo pacman -Fy)
+pacman -F WebKitWebDriver
+```
 
 ### "MSEdgeDriver not found" (Windows only)
 
@@ -80,16 +98,18 @@ The Edge WebDriver for Windows is not found.
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    autoDownloadEdgeDriver: true  // Default: true
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      autoDownloadEdgeDriver: true, // Default: true
+    },
+  ],
+];
 ```
 
 **Solution 2: Manual Download**
-
 1. Check your WebView2 version:
-   - Build your app: `cargo build --release`
+   - Build your app: `npm run tauri build -- --debug`
    - Right-click the .exe → Properties → Details
    - Note the "File version" (e.g., 143.0.3650.139)
 
@@ -99,10 +119,13 @@ services: [
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    autoDownloadEdgeDriver: false
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      autoDownloadEdgeDriver: false,
+    },
+  ],
+];
 ```
 
 See [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for detailed setup.
@@ -165,9 +188,8 @@ Edit `src-tauri/capabilities/default.json`:
 **Check 5: Rebuild Application**
 
 ```bash
-cd src-tauri
-cargo clean
-cargo build --release
+cargo clean --manifest-path src-tauri/Cargo.toml
+npm run tauri build -- --debug
 ```
 
 See [Plugin Setup](./plugin-setup.md) for complete installation guide.
@@ -243,7 +265,7 @@ const mock = await browser.tauri.mock('my_command');
 
 ```typescript
 // Make sure command name matches exactly
-const mock = await browser.tauri.mock('get_user');  // Must match your command name
+const mock = await browser.tauri.mock('get_user'); // Must match your command name
 await mock.mockReturnValue({ id: 1 });
 ```
 
@@ -257,17 +279,16 @@ The Tauri app binary cannot be found.
 
 ```bash
 # Windows
-if exist "src-tauri\target\release\my-app.exe" echo "Found"
+if exist "src-tauri\target\debug\my-app.exe" echo "Found"
 
 # Linux/macOS
-ls -la src-tauri/target/release/my-app
+ls -la src-tauri/target/debug/my-app
 ```
 
 **Solution 2: Build the Application**
 
 ```bash
-cd src-tauri
-cargo build --release
+npm run tauri build -- --debug
 ```
 
 **Solution 3: Use Correct Path**
@@ -276,12 +297,15 @@ Update `wdio.conf.ts`:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows
-    // or
-    appBinaryPath: './src-tauri/target/release/my-app',     // Linux/macOS
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      appBinaryPath: './src-tauri/target/debug/my-app.exe', // Windows
+      // or
+      appBinaryPath: './src-tauri/target/debug/my-app', // Linux/macOS
+    },
+  ],
+];
 ```
 
 **Solution 4: Use Absolute Path**
@@ -290,37 +314,36 @@ services: [
 import path from 'path';
 
 services: [
-  ['@wdio/tauri-service', {
-    appBinaryPath: path.resolve('./src-tauri/target/release/my-app.exe')
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      appBinaryPath: path.resolve('./src-tauri/target/debug/my-app.exe'),
+    },
+  ],
+];
 ```
 
 ### Commands Timing Out
 
 Operations take too long or timeout unexpectedly.
 
-**Solution 1: Increase Command Timeout**
+**Solution 1: Increase the Request Timeout**
+
+WebdriverIO's `connectionRetryTimeout` bounds each WebDriver request. The default is 120000 (2 minutes).
 
 ```typescript
-services: [
-  ['@wdio/tauri-service', {
-    commandTimeout: 60000  // 60 seconds instead of default 10s
-  }]
-]
+export const config = {
+  connectionRetryTimeout: 180000, // 3 minutes
+};
 ```
 
-**Solution 2: Increase Start Timeout**
+In standalone mode, pass it with the service options instead:
 
 ```typescript
-services: [
-  ['@wdio/tauri-service', {
-    startTimeout: 60000  // Allow more time for app to start
-  }]
-]
+const browser = await startWdioSession(capabilities, { connectionRetryTimeout: 180000 });
 ```
 
-**Solution 3: Wait for App to Be Ready**
+**Solution 2: Wait for App to Be Ready**
 
 ```typescript
 it('should wait for app', async () => {
@@ -333,18 +356,22 @@ it('should wait for app', async () => {
 });
 ```
 
-**Solution 4: Check App Logs**
+**Solution 3: Check App Logs**
 
 Enable logging to see what's happening:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    captureBackendLogs: true,
-    captureFrontendLogs: true,
-    logLevel: 'debug'
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      captureBackendLogs: true,
+      captureFrontendLogs: true,
+      backendLogLevel: 'debug',
+      frontendLogLevel: 'debug',
+    },
+  ],
+];
 ```
 
 ### "Port already in use"
@@ -355,16 +382,19 @@ Multiple tests are conflicting on the same port.
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    tauriDriverPort: 4445  // Instead of default 4444
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      tauriDriverPort: 4445, // Instead of default 4444
+    },
+  ],
+];
 ```
 
 **Solution 2: Auto-Assign Ports for Multiremote**
 
 ```typescript
-maxInstances: 3  // Each worker gets unique port (4444, 4445, 4446)
+maxInstances: 3; // Each worker gets unique port (4444, 4445, 4446)
 ```
 
 **Solution 3: Kill Process Using Port**
@@ -384,29 +414,36 @@ Get-Process -Id (Get-NetTCPConnection -LocalPort 4444).OwningProcess | Stop-Proc
 `'embedded'` is the default provider on every platform, and it requires `tauri-plugin-wdio-webdriver` in your app. If the plugin is missing or not registered, the embedded server never starts and the session times out waiting for it.
 
 **Solution 1: Add the embedded plugin (recommended)**
-
 1. Install `tauri-plugin-wdio-webdriver` in your Tauri app:
+
    ```bash
    cd src-tauri && cargo add tauri-plugin-wdio-webdriver
    ```
 2. Register it in your Rust code (debug builds) and keep the default embedded provider:
+
    ```typescript
    services: [['@wdio/tauri-service', {
      driverProvider: 'embedded',
    }]]
    ```
+
    The embedded server listens on port 4445 by default; override it with the `embeddedPort` option or the `TAURI_WEBDRIVER_PORT` env var if needed.
 
 **Solution 2: Use the external tauri-driver instead**
 
 ```typescript
-services: [['@wdio/tauri-service', {
-  driverProvider: 'external',
-  autoInstallTauriDriver: true,
-}]]
+services: [
+  [
+    '@wdio/tauri-service',
+    {
+      driverProvider: 'external',
+      autoInstallTauriDriver: true,
+    },
+  ],
+];
 ```
 
-See [Platform Support](./platform-support.md) for per-platform details.
+See [Choosing a Driver Provider](./configuration.md#choosing-a-driver-provider) to compare the providers.
 
 ### macOS: Embedded WebDriver Not Ready
 
@@ -459,18 +496,20 @@ import { withExecuteOptions } from '@wdio/tauri-service';
 
 const result = await browser.tauri.execute(
   (tauri) => tauri.core.invoke('get_data'),
-  withExecuteOptions({ windowLabel: 'popup' })
+  withExecuteOptions({ windowLabel: 'popup' }),
 );
 ```
 
 ```typescript
 // wdio.conf.ts
 export const config = {
-  capabilities: [{
-    'wdio:tauriServiceOptions': {
-      driverProvider: 'embedded',
+  capabilities: [
+    {
+      'wdio:tauriServiceOptions': {
+        driverProvider: 'embedded',
+      },
     },
-  }],
+  ],
 };
 ```
 
@@ -480,22 +519,22 @@ export const config = {
 
 ### Enable Debug Logging
 
-Get more detailed information about what the service is doing:
+Get more detailed information about what the service is doing by setting WebdriverIO's `logLevel`:
 
 ```typescript
-services: [
-  ['@wdio/tauri-service', {
-    logLevel: 'debug',  // Verbose logging
-    commandTimeout: 60000
-  }]
-]
+export const config = {
+  logLevel: 'debug',
+  // ...
+};
 ```
 
-### Verbose Test Output
+Or pass it on the command line:
 
 ```bash
 npx wdio run wdio.conf.ts --logLevel debug
 ```
+
+The service's own `logLevel` option only filters `tauri-driver` output.
 
 ### Check Service Status
 
@@ -514,22 +553,28 @@ it('should check service', async () => {
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    captureBackendLogs: false,
-    captureFrontendLogs: false,  // Logs add overhead
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      captureBackendLogs: false,
+      captureFrontendLogs: false, // Logs add overhead
+    },
+  ],
+];
 ```
 
 **Solution 2: Increase Log Level**
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    backendLogLevel: 'warn',  // Skip debug/info logs
-    frontendLogLevel: 'warn',
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      backendLogLevel: 'warn', // Skip debug/info logs
+      frontendLogLevel: 'warn',
+    },
+  ],
+];
 ```
 
 **Solution 3: Run Tests Serially**
@@ -537,7 +582,7 @@ services: [
 ```typescript
 // wdio.conf.ts
 export const config = {
-  maxInstances: 1,  // Run one test at a time
+  maxInstances: 1, // Run one test at a time
 };
 ```
 
@@ -546,65 +591,31 @@ export const config = {
 ### Tests Fail in CI But Pass Locally
 
 **Common Causes:**
-
 1. **Missing WebDriver on CI**
    - Install WebKitWebDriver on Linux CI
    - Download MSEdgeDriver on Windows CI
 
 2. **Display Server Missing on Linux CI**
-   - Use Xvfb for headless testing:
-     ```bash
-     xvfb-run -a npm run test:e2e
-     ```
+   - See [Linux Without a Display](./quick-start.md#linux-without-a-display)
 
 3. **Different Binary on CI**
-   - Ensure build happens before tests: `cargo build --release`
+   - Ensure a debug build happens before tests: `npm run tauri build -- --debug`
    - Verify binary path matches CI environment
 
 4. **Environment Variables**
    - Set `APP_BINARY` or similar if using env-based paths:
+
      ```bash
-     APP_BINARY="./src-tauri/target/release/my-app" npm run test:e2e
+     APP_BINARY="./src-tauri/target/debug/my-app" npm run test:e2e
      ```
 
-### Example GitHub Actions Setup
-
-```yaml
-name: E2E Tests
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install WebKitWebDriver
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y webkitgtk-webdriver
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Tauri app
-        run: npm run tauri build
-
-      - name: Run tests with Xvfb
-        run: xvfb-run -a npm run test:e2e
-```
+See the [Quick Start](./quick-start.md#cicd-integration) for an example GitHub Actions workflow.
 
 ## Getting Help
 
 If you're still stuck:
-
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
 3. **See [Plugin Setup](./plugin-setup.md)** for plugin requirements
-4. **Check [Platform Support](./platform-support.md)** for platform-specific issues
-5. **Enable debug logging** to see detailed output
-6. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions) or [WDIO forum](https://github.com/webdriverio/webdriverio/discussions)
+4. **Enable debug logging** to see detailed output
+5. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions) or [WDIO forum](https://github.com/webdriverio/webdriverio/discussions)

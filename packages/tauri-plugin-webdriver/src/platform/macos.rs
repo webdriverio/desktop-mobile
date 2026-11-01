@@ -240,109 +240,16 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
   }
 
   // =========================================================================
-  // Async Script Execution (using callAsyncJavaScript)
+  // Async Script Execution
   // =========================================================================
 
+  /// Runs through `execute_script`, which awaits the script's promise and polls for the result.
   async fn execute_async_script(
     &self,
     script: &str,
     args: &[Value],
   ) -> Result<Value, WebDriverErrorResponse> {
-    let args_json = serde_json::to_string(args)
-      .map_err(|e| WebDriverErrorResponse::invalid_argument(&e.to_string()))?;
-
-    // Build wrapper that includes argument deserialization.
-    // callAsyncJavaScript treats the body as function statements, so `return` is required —
-    // without it the function returns undefined immediately and the Promise is discarded.
-    let wrapper = format!(
-      r"return new Promise((resolve, reject) => {{
-                var ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
-                function deserializeArg(arg) {{
-                    if (arg === null || arg === undefined) return arg;
-                    if (Array.isArray(arg)) return arg.map(deserializeArg);
-                    if (typeof arg === 'object') {{
-                        if (arg[ELEMENT_KEY]) {{
-                            var el = window['__wd_el_' + arg[ELEMENT_KEY].replace(/-/g, '')];
-                            if (!el) throw new Error('stale element reference');
-                            return el;
-                        }}
-                        var result = {{}};
-                        for (var key in arg) {{
-                            if (arg.hasOwnProperty(key)) result[key] = deserializeArg(arg[key]);
-                        }}
-                        return result;
-                    }}
-                    return arg;
-                }}
-                var __done = function(result, error) {{
-                    if (error) {{
-                        reject(new Error(typeof error === 'string' ? error : String(error)));
-                    }} else {{
-                        resolve(result);
-                    }}
-                }};
-                var __args = {args_json}.map(deserializeArg);
-                __args.push(__done);
-                try {{
-                    (function() {{ {script} }}).apply(null, __args);
-                }} catch (e) {{
-                    reject(e);
-                }}
-            }})"
-    );
-
-    let (tx, rx) = oneshot::channel();
-
-    let result = self.window.with_webview(move |webview| unsafe {
-      let wk_webview: &WKWebView = &*webview.inner().cast();
-      let ns_script = NSString::from_str(&wrapper);
-      let mtm = MainThreadMarker::new_unchecked();
-
-      // Empty dictionary for arguments (we pass args via JSON in the script)
-      let empty_dict: Retained<NSDictionary<NSString, AnyObject>> = NSDictionary::new();
-
-      // Get the page content world
-      let content_world = WKContentWorld::pageWorld(mtm);
-
-      let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
-      let block = RcBlock::new(move |result: *mut AnyObject, error: *mut NSError| {
-        let response = if !error.is_null() {
-          let error_ref = &*error;
-          Err(describe_ns_error(error_ref))
-        } else if result.is_null() {
-          Ok(Value::Null)
-        } else {
-          let obj = &*result;
-          Ok(ns_object_to_json(obj))
-        };
-
-        if let Ok(mut guard) = tx.lock() {
-          if let Some(tx) = guard.take() {
-            let _ = tx.send(response);
-          }
-        }
-      });
-
-      wk_webview.callAsyncJavaScript_arguments_inFrame_inContentWorld_completionHandler(
-        &ns_script,
-        Some(&empty_dict),
-        None,
-        &content_world,
-        Some(&block),
-      );
-    });
-
-    if let Err(e) = result {
-      return Err(WebDriverErrorResponse::javascript_error(&e.to_string(), None));
-    }
-
-    let timeout = std::time::Duration::from_millis(self.timeouts.script_ms);
-    match tokio::time::timeout(timeout, rx).await {
-      Ok(Ok(Ok(value))) => Ok(value),
-      Ok(Ok(Err(error))) => Err(WebDriverErrorResponse::javascript_error(&error, None)),
-      Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error("Channel closed")),
-      Err(_) => Err(WebDriverErrorResponse::script_timeout()),
-    }
+    self.execute_script(&async_script_as_promise(script), args).await
   }
 
   /// DirectEval (`/wdio/eval`) with out-of-band result delivery + reclaim recovery.
@@ -937,5 +844,32 @@ impl EvalMessageHandler {
     let this = Self::alloc(mtm);
     let this = this.set_ivars(EvalMessageHandlerIvars { registry });
     msg_send![super(this), init]
+  }
+}
+
+/// A function body that calls an async-style `script` with its arguments and a done callback, and
+/// returns a promise of the value passed to `done`.
+fn async_script_as_promise(script: &str) -> String {
+  format!(
+    "var __args = Array.prototype.slice.call(arguments);\n\
+     return new Promise(function (done) {{\n\
+       __args.push(done);\n\
+       (function () {{ {script} }}).apply(null, __args);\n\
+     }});"
+  )
+}
+
+#[cfg(test)]
+mod tests {
+  use super::async_script_as_promise;
+
+  #[test]
+  fn async_script_as_promise_passes_the_arguments_then_done() {
+    let body = async_script_as_promise("arguments[1](arguments[0] * 2)");
+
+    assert!(body.starts_with("var __args = Array.prototype.slice.call(arguments);"));
+    assert!(body.contains("return new Promise(function (done) {"));
+    assert!(body.contains("__args.push(done);"));
+    assert!(body.contains("(function () { arguments[1](arguments[0] * 2) }).apply(null, __args);"));
   }
 }

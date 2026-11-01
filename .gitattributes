@@ -1,2 +1,5 @@
 # Generated lockfiles — collapse in PR diffs (still tracked and reviewable on demand).
 Cargo.lock linguist-generated=true
+
+# Windows runners run these with bash too, and bash rejects CRLF line endings.
+*.sh text eol=lf

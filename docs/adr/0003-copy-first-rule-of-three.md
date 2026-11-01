@@ -18,20 +18,18 @@ management).
 It was actually built — roughly 1,241 lines with 125 passing tests, all green in isolation.
 Then it was integrated back into its one real consumer, the Electron service, and the result
 was worse than before:
-
 - Electron's launcher + service went from ~572 to ~615 lines (**+43 lines, +7.5%**) — the base
   classes produced type-casting and wrapper boilerplate, not shared implementation.
 - The concrete utilities went **unused**, because Electron already had working, tested,
   framework-specific versions and retrofitting them added risk for no gain.
 
-The diagnosis was textbook premature abstraction: generalising from a *single* implementation
+The diagnosis was textbook premature abstraction: generalising from a _single_ implementation
 (YAGNI), reaching for inheritance over composition, and designing for hypothetical future
 services instead of proven duplication.
 
 ## Decision
 
 Delete the heavyweight `@wdio/native-utils` base-class layer. Adopt a **copy-first** rule:
-
 - A new service **copies** proven patterns from the reference implementation (Electron for
   desktop) and adapts them, rather than inheriting a framework.
 - Shared code is **extracted into a package only after the pattern appears in ~3 places** (the
@@ -47,11 +45,11 @@ Delete the heavyweight `@wdio/native-utils` base-class layer. Adopt a **copy-fir
   and Tauri own their launchers outright; Dioxus and Electrobun extend a small shared base (next
   point) for the mechanical lifecycle only.
 - **Two narrow base classes were later earned by this exact rule — one per platform:**
-  - **Mobile** — once React Native *and* Flutter both demonstrated the duplication, the shared
+  - **Mobile** — once React Native _and_ Flutter both demonstrated the duplication, the shared
     Appium layer was extracted into `@wdio/native-mobile-core`, which RN and Flutter genuinely
     extend.
   - **Desktop** — `@wdio/native-core` exposes a deliberately minimal `BaseLauncher`: just shared
-    launcher *state* (a `PortManager` for driver ports, a `DriverPool` for tracking driver
+    launcher _state_ (a `PortManager` for driver ports, a `DriverPool` for tracking driver
     subprocesses, and a `stopAllDrivers()` teardown helper). Dioxus and Electrobun extend it;
     Electron and Tauri do not. This is **not** the rejected `@wdio/native-utils` layer — it shares
     only port/process/teardown plumbing, forces nothing onto the reference implementations, and
@@ -60,7 +58,7 @@ Delete the heavyweight `@wdio/native-utils` base-class layer. Adopt a **copy-fir
   port/process/teardown lifecycle.** A new desktop service that spawns a driver subprocess should
   **extend `native-core`'s `BaseLauncher`** rather than re-implement that plumbing, and
   copy-and-adapt the framework-specific parts around it.
-- A contributor tempted to extract a base class for *all* services should still read this record
+- A contributor tempted to extract a base class for _all_ services should still read this record
   first: that universal-inheritance path (`@wdio/native-utils`) was tried, cost several weeks, and
   was reverted. The bar is demonstrated duplication, not anticipated duplication — which is why the
   two narrow bases above exist and a universal one does not.

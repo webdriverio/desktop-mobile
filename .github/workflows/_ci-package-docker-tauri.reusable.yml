@@ -8,7 +8,7 @@ on:
   workflow_call:
     inputs:
       distro:
-        description: 'Linux distribution to test (ubuntu, fedora, debian, arch, void)'
+        description: "Linux distribution to test (ubuntu, fedora, debian, arch, void)"
         type: string
         required: true
 
@@ -27,7 +27,7 @@ jobs:
       - name: Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: Build packages
         run: pnpm turbo run build --filter=@wdio/tauri-service... --filter=@wdio/tauri-plugin

@@ -33,7 +33,9 @@ function startStaticServer(rootPath: string): Promise<Server> {
         walk(abs, rel);
       } else if (entry.isFile()) {
         allowed.set(`/${rel}`, abs);
-        if (rel === 'index.html') allowed.set('/', abs);
+        if (rel === 'index.html') {
+          allowed.set('/', abs);
+        }
       }
     }
   };
@@ -63,7 +65,9 @@ function startStaticServer(rootPath: string): Promise<Server> {
  * Electron-version detection in the launcher integration test.
  */
 function assertNoElectronProcesses(): void {
-  if (process.platform === 'win32') return;
+  if (process.platform === 'win32') {
+    return;
+  }
   try {
     const psOutput = execSync('ps -A -o command=', { encoding: 'utf-8' });
     const offenders = psOutput
@@ -104,7 +108,6 @@ export const config: Options.Testrunner = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  autoXvfb: true,
   services: ['electron'],
   framework: 'mocha',
   reporters: ['spec'],

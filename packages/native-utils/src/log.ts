@@ -34,7 +34,9 @@ export function createLogger(serviceName: string, area?: LogArea): Logger {
 
   const areaKey = `${serviceName}:${area ?? ''}`;
   const cached = areaCache.get(areaKey);
-  if (cached) return cached;
+  if (cached) {
+    return cached;
+  }
   const areaSuffix = area ? `:${area}` : '';
   const areaDebug = debug(`wdio-${serviceName}${areaSuffix}`);
   const areaLogger = createWdioLogger(`${serviceName}${areaSuffix}`);

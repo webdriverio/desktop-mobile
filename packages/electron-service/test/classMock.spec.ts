@@ -109,6 +109,29 @@ describe('createClassMock()', () => {
     expect(mockExecute).toHaveBeenCalledWith(expect.any(Function), 'Tray', { internal: true });
   });
 
+  it('should restore the other methods and the constructor before reporting a failed method restore', async () => {
+    class MockTray {
+      setImage() {}
+      destroy() {}
+    }
+    mockExecute.mockImplementation(makeClassExecute({ Tray: MockTray }));
+    const mockTray = await createClassMock('Tray');
+    mockExecute.mockClear();
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) => {
+      if (args[1] === 'setImage') {
+        throw new Error('inner restore failed');
+      }
+      return fn({ Tray: MockTray }, ...args);
+    });
+
+    await expect(mockTray.mockRestore()).rejects.toMatchObject({
+      message: 'mockRestore failed: electron.Tray.setImage: inner restore failed',
+    });
+
+    expect(mockExecute).toHaveBeenCalledWith(expect.any(Function), 'Tray', 'destroy', { internal: true });
+    expect(mockExecute).toHaveBeenCalledWith(expect.any(Function), 'Tray', { internal: true });
+  });
+
   it('should return electron.ClassName from getMockName', async () => {
     class MockTray {
       setImage() {}

@@ -42,15 +42,18 @@ block2 = "0.6"
 
 [target."cfg(target_os = \"macos\")".dependencies.objc2-foundation]
 version = "0.3"
-features = [ "NSString", "NSData", "NSError", "NSArray", "NSDictionary", "NSTimer", "NSRunLoop", "NSDate", "block2" ]
+default-features = false
+features = [ "std", "NSString", "NSData", "NSError", "NSArray", "NSDictionary", "NSTimer", "NSRunLoop", "NSDate", "block2" ]
 
 [target."cfg(target_os = \"macos\")".dependencies.objc2-app-kit]
 version = "0.3"
-features = [ "NSImage", "NSImageRep", "NSBitmapImageRep" ]
+default-features = false
+features = [ "std", "NSImage", "NSImageRep", "NSBitmapImageRep" ]
 
 [target."cfg(target_os = \"macos\")".dependencies.objc2-web-kit]
 version = "0.3"
-features = [ "WKWebView", "WKWebViewConfiguration", "WKSnapshotConfiguration", "WKUIDelegate", "WKPDFConfiguration", "WKFrameInfo", "WKContentWorld", "WKUserContentController", "WKScriptMessage", "WKScriptMessageHandler", "block2", "objc2-app-kit" ]
+default-features = false
+features = [ "std", "WKWebView", "WKWebViewConfiguration", "WKSnapshotConfiguration", "WKUIDelegate", "WKPDFConfiguration", "WKFrameInfo", "WKContentWorld", "WKUserContentController", "WKScriptMessage", "WKScriptMessageHandler", "block2", "objc2-app-kit" ]
 
 [target."cfg(target_os = \"windows\")".dependencies]
 webview2-com = "0.39"

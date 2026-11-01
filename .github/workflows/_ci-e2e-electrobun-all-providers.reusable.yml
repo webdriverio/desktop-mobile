@@ -11,27 +11,27 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Operating system to run tests on'
+        description: "Operating system to run tests on"
         required: true
         type: string
       node-version:
-        description: 'Node.js version to use for testing'
+        description: "Node.js version to use for testing"
         required: true
         type: string
       test-type:
-        description: 'Test type (standard, window, deeplink, multiremote)'
+        description: "Test type (standard, window, deeplink, multiremote)"
         type: string
-        default: 'standard'
+        default: "standard"
       build_id:
-        description: 'Build ID from the build job'
+        description: "Build ID from the build job"
         type: string
         required: false
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         type: string
         required: false
       cache_key:
-        description: 'Cache key to use for downloading package artifacts'
+        description: "Cache key to use for downloading package artifacts"
         type: string
         required: false
 
@@ -188,9 +188,6 @@ jobs:
             pkill -9 -f 'wdio-electrobun-bundle' || true
           fi
 
-      - name: 🖥️ Start Xvfb (Linux)
-        uses: ./.github/workflows/actions/start-xvfb
-
       # Step-level safety-net so a stuck run surfaces as steps.test.outcome == 'failure' for Check
       # Result. gsudo de-elevation restored WebView2's CDP port, so Windows E2E now runs in minutes
       # like macOS/Linux; 35m only trips on a genuine wedge, and with the Windows allow-fail gone a
@@ -204,7 +201,6 @@ jobs:
         env:
           TEST_TYPE: ${{ inputs.test-type }}
         run: |
-          # On Linux the display comes from the Start Xvfb step (no xvfb-run wrap needed).
           if ($env:RUNNER_OS -eq "Windows") {
             gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run ${{ steps.gen-test.outputs.script }}"
           } else {

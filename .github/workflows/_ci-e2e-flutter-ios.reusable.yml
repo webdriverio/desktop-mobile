@@ -12,20 +12,20 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Runner OS (macos-latest)'
+        description: "Runner OS (macos-latest)"
         required: true
         type: string
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       test-type:
         type: string
-        default: 'standard'
+        default: "standard"
       ios-device:
-        description: 'Simulator device name'
+        description: "Simulator device name"
         type: string
-        default: 'iPhone 17'
+        default: "iPhone 17"
       build_id:
         type: string
         required: false
@@ -162,7 +162,7 @@ jobs:
         run: |
           set -euo pipefail
           installed=$(pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 || true)
-          echo "$installed" | grep -qi xcuitest || pnpm --filter @repo/e2e exec appium driver install xcuitest
+          echo "$installed" | grep -i xcuitest >/dev/null || pnpm --filter @repo/e2e exec appium driver install xcuitest
 
       # WDA is built in-session by appium-xcuitest (which appium-flutter-driver wraps). The prebuilt-WDA
       # optimisation (appium:usePreinstalledWDA + a pre-built Runner.app) deterministically walls at

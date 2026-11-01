@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { NormalizedPackageJson } from '@wdio/native-types';
 
 import { createEnvironmentContext } from './config/envSchema.js';
+import { webkitDisplayServer } from './lib/display.js';
 import { fileExists, getLogDirName, resolveTauriFixtureBinary, safeJsonParse } from './lib/utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -265,7 +266,7 @@ export const config = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  autoXvfb: false,
+  ...webkitDisplayServer,
   services: [
     [
       '@wdio/tauri-service',
@@ -295,7 +296,7 @@ export const config = {
         (globalThis as unknown as Record<string, unknown>).__userClickOverrideRan = true;
         return origClick(...args);
       } as Parameters<typeof browser.overwriteCommand>[1],
-      true,
+      { attachToElement: true },
     );
   },
   mochaOpts: {

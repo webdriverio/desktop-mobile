@@ -7,6 +7,14 @@ import type { Mock, MockMetadata, MockResult } from './types.js';
 
 let globalCallId = 0;
 
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    (typeof value === 'object' || typeof value === 'function') &&
+    value !== null &&
+    typeof (value as PromiseLike<unknown>).then === 'function'
+  );
+}
+
 export interface FnOptions<T extends (...args: unknown[]) => unknown> {
   original?: T;
 }
@@ -35,12 +43,15 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
   };
 
   const mockFn: Mock<T> = function (this: unknown, ...args: Parameters<T>): ReturnType<T> {
+    const receiver = this === mockFn ? undefined : this;
+    const callImpl = (fn: T): ReturnType<T> => Reflect.apply(fn, receiver, args) as ReturnType<T>;
+
     // Get next result from queue or defaults
     let result: MockResult;
     if (implementationQueue.length > 0) {
       const impl = implementationQueue.shift() as T;
       try {
-        const value = impl(...(args as Parameters<T>));
+        const value = callImpl(impl);
         result = { type: 'return', value };
       } catch (error) {
         result = { type: 'throw', value: error };
@@ -49,7 +60,7 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
       result = { type: 'throw', value: defaultRejectedValue };
     } else if (implementationFn !== undefined) {
       try {
-        const value = implementationFn(...(args as Parameters<T>));
+        const value = callImpl(implementationFn);
         result = { type: 'return', value };
       } catch (error) {
         result = { type: 'throw', value: error };
@@ -62,7 +73,7 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
       result = { type: 'return', value: defaultReturnValue };
     } else if (mockRestored && originalFn !== undefined) {
       try {
-        const value = originalFn(...(args as Parameters<T>));
+        const value = callImpl(originalFn);
         result = { type: 'return', value };
       } catch (error) {
         result = { type: 'throw', value: error };
@@ -72,9 +83,8 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
     }
 
     // Record the call (matches vitest's structure)
-    const context = this === mockFn ? undefined : this;
     state.calls.push(args as Parameters<T>);
-    state.contexts.push(context);
+    state.contexts.push(receiver);
     state.invocationCallOrder.push(globalCallId++);
 
     if (result.type === 'throw') {
@@ -240,23 +250,35 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
     return this;
   };
 
-  mockFn.withImplementation = function <R>(this: Mock<T>, fn: T, callback: () => R): Awaited<ReturnType<T>> {
+  mockFn.withImplementation = function <R>(this: Mock<T>, fn: T, callback: () => R): R {
     const originalImplementation = implementationFn;
     const originalQueue = [...implementationQueue];
     const originalReturnThis = returnThis;
+    const originalRejectedValue = defaultRejectedValue;
+    const restore = () => {
+      implementationFn = originalImplementation;
+      implementationQueue.splice(0, implementationQueue.length, ...originalQueue);
+      returnThis = originalReturnThis;
+      defaultRejectedValue = originalRejectedValue;
+    };
 
     implementationFn = fn;
     implementationQueue.length = 0;
     returnThis = false;
+    defaultRejectedValue = undefined;
 
+    let result: R;
     try {
-      const result = callback() as Awaited<ReturnType<T>>;
-      return result;
-    } finally {
-      implementationFn = originalImplementation;
-      implementationQueue.splice(0, implementationQueue.length, ...originalQueue);
-      returnThis = originalReturnThis;
+      result = callback();
+    } catch (error) {
+      restore();
+      throw error;
     }
+    if (isThenable(result)) {
+      return Promise.resolve(result).finally(restore) as R;
+    }
+    restore();
+    return result;
   };
 
   return mockFn;

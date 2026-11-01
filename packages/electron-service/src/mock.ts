@@ -14,6 +14,21 @@ import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './m
 const log = createLogger('electron-service', 'mock');
 const browserInterceptor = createIpcInterceptor('electron');
 
+// Syncs even when `run` rejects, so the mock records the calls made before the failure.
+async function runThenSync<T>(mock: ElectronFunctionMock, run: () => Promise<T>): Promise<T> {
+  let result: T;
+  try {
+    result = await run();
+  } catch (error) {
+    await mock
+      .update()
+      .catch((syncError: unknown) => log.warn('Mock sync failed after withImplementation rejected:', syncError));
+    throw error;
+  }
+  await mock.update();
+  return result;
+}
+
 export async function createMock(
   apiName: string,
   funcName: string,
@@ -133,7 +148,9 @@ export async function createMock(
       (await browserToUse.electron.execute<unknown[][], [string, string, ExecuteOpts]>(
         (electron, apiName, funcName) => {
           const api = electron[apiName as keyof typeof electron];
-          if (!api) return [];
+          if (!api) {
+            return [];
+          }
           const mockObj = api[funcName as keyof ElectronType[ElectronInterface]] as ElectronFunctionMock;
           return mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock?.calls)) : [];
         },
@@ -309,6 +326,20 @@ export async function createElectronBrowserModeMock(
     return mock;
   };
 
+  const resetOuter = () => {
+    const currentName = outerMock.getMockName();
+    // native-spy's reset calls mock.mockClear(), which this file replaced with a call into the app.
+    // Put the local clear back while it runs, so only the outer mock is reset.
+    const asyncMockClear = mock.mockClear;
+    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+    try {
+      outerMockReset();
+    } finally {
+      mock.mockClear = asyncMockClear;
+    }
+    outerMock.mockName(currentName);
+  };
+
   mock.mockClear = async () => {
     await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockClear'));
     outerMockClear();
@@ -316,12 +347,10 @@ export async function createElectronBrowserModeMock(
   };
 
   mock.mockReset = async () => {
+    // Cleared before the page call, not after: an implementation set while it runs must survive re-registration.
     implState = null;
-    const currentName = outerMock.getMockName();
     await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
-    outerMockClear();
-    outerMockReset();
-    outerMock.mockName(currentName);
+    resetOuter();
     return mock;
   };
 
@@ -331,11 +360,8 @@ export async function createElectronBrowserModeMock(
     // is always synthetic. Deregistering the channel would make future ipcRenderer.invoke
     // calls throw "unmocked channel", breaking restoreMocks: true across tests.
     // Behave like mockReset: clear history and implementation but keep the channel alive.
-    const currentName = outerMock.getMockName();
     await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
-    outerMockClear();
-    outerMockReset();
-    outerMock.mockName(currentName);
+    resetOuter();
     return mock;
   };
 
@@ -345,33 +371,40 @@ export async function createElectronBrowserModeMock(
     return mock;
   };
 
-  mock.withImplementation = async (implFn, callbackFn) => {
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (electron: ElectronType) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
     const script = browserInterceptor.buildWithImplementationScript(
       channel,
       implFn as (...a: unknown[]) => unknown,
       callbackFn as (...a: unknown[]) => unknown,
     );
-    const result = await browser.executeAsync((s: string, done: (v: unknown) => void) => {
-      // eslint-disable-next-line no-new-func
-      const fn = new Function(`return (${s})`)() as () => Promise<unknown>;
-      Promise.resolve(fn()).then(done, (err: unknown) => {
-        done({ __wdioAsyncErr__: err instanceof Error ? err.message : String(err) });
-      });
-    }, script);
-    if (result && typeof result === 'object' && '__wdioAsyncErr__' in result) {
-      throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
-    }
-    await mock.update();
-    // The wire result is the callback's (serialized) return value; TS can't connect an
-    // assigned arrow's body to the contextual generic, so assert it back.
-    return result as ReturnType<typeof callbackFn>;
+    const result = await runThenSync(mock, async () => {
+      const value = await browser.execute(async (s: string) => {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function(`return (${s})`)() as () => Promise<unknown>;
+        try {
+          return await fn();
+        } catch (err) {
+          return { __wdioAsyncErr__: err instanceof Error ? err.message : String(err) };
+        }
+      }, script);
+      if (value && typeof value === 'object' && '__wdioAsyncErr__' in value) {
+        throw new Error((value as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
+      }
+      return value;
+    });
+    return result as Awaited<ReturnValue>;
   };
 
   // Used by the re-registration path in service.ts to replay persistent implementation
   // after a navigation wipes window.__wdio_mocks__. "Once" variants are intentionally
   // excluded — they were consumed before the navigation.
   (mock as unknown as Record<string, unknown>).__replayBrowserImpl = async (): Promise<void> => {
-    if (!implState) return;
+    if (!implState) {
+      return;
+    }
     if (implState.kind === 'implementation') {
       const s = browserInterceptor.serializeHandler(implState.fn);
       await runInterceptorScript<void>(browser, browserInterceptor.buildSetImplementationScript(channel, s));

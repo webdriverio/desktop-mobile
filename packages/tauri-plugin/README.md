@@ -7,11 +7,11 @@
 [![npm version](https://img.shields.io/npm/v/@wdio/tauri-plugin)](https://www.npmjs.com/package/@wdio/tauri-plugin)
 [![npm downloads](https://img.shields.io/npm/dw/@wdio/tauri-plugin)](https://www.npmjs.com/package/@wdio/tauri-plugin)
 
-A Tauri v2 plugin providing execute and mocking capabilities for WebDriverIO testing. This plugin enables E2E tests to execute JavaScript code in the frontend context with access to Tauri APIs and mock backend commands for isolated testing.
+A Tauri v2 plugin providing execute and mocking capabilities for WebDriverIO testing. This plugin lets E2E tests run JavaScript in the app's frontend, call the app's commands, and mock those commands for isolated testing.
 
 ## Features
 
-- **Execute JavaScript**: Run arbitrary JavaScript code in the frontend context with access to Tauri APIs
+- **Execute JavaScript**: Run JavaScript in the frontend context, and call your app's commands with `core.invoke`
 - **Command Mocking**: Intercept and mock Tauri backend commands for testing (via JS-side invoke interception)
 - **Log Forwarding**: Forward backend and frontend logs to WebdriverIO's logger
 - **Window Management**: Get active window label, list windows, get window states
@@ -70,7 +70,7 @@ import '@wdio/tauri-plugin';
 The `@wdio/tauri-service` automatically uses this plugin when available, providing a high-level API:
 
 ```typescript
-// Execute JavaScript with Tauri APIs
+// Call a command from the frontend
 const result = await browser.tauri.execute(({ core }) => {
   return core.invoke('get_platform_info');
 });
@@ -94,10 +94,8 @@ await browser.tauri.restoreAllMocks();
 The plugin exposes `window.wdioTauri` with the following API:
 
 ```typescript
-// Execute JavaScript with Tauri APIs
-const result = await window.wdioTauri.execute(
-  (tauri) => tauri.core.invoke('get_platform_info'),
-);
+// Run a function's source in this window; browser.tauri.execute() calls this for you
+const result = await window.wdioTauri.execute("({ core }) => core.invoke('get_platform_info')");
 
 // Wait for plugin initialization
 await window.wdioTauri.waitForInit();
@@ -110,13 +108,14 @@ window.wdioTauri.cleanupAll();
 
 ### Frontend API (`window.wdioTauri`)
 
-#### `execute(script, ...args): Promise<unknown>`
+#### `execute(script, options?, argsJson?): Promise<unknown>`
 
-Execute JavaScript code in the frontend context. The script receives the Tauri APIs object as the first parameter.
+Execute JavaScript code in the frontend context. `browser.tauri.execute()` calls this.
 
 **Parameters:**
-- `script`: Function or string to execute (receives Tauri APIs as first parameter)
-- `...args`: Additional arguments to pass to the script
+- `script`: Source code as a string. A function's source is called with `{ core: { invoke } }` and then the arguments, and `core.invoke` goes through any mocks set up in that window with `browser.tauri.mock()`. Any other string runs as a function body, with the arguments in `arguments`. A single expression, with no `;` and no leading statement keyword, returns its value.
+- `options.windowLabel`: The window to run the script in. Defaults to the window that calls `execute`.
+- `argsJson`: The arguments, as a JSON array string
 
 **Returns:** Promise resolving to the script's return value
 
@@ -143,7 +142,6 @@ Mocking is handled via `@wdio/tauri-service`'s `browser.tauri.mock()` API, which
 ### Rust Commands
 
 The plugin provides these Tauri commands:
-
 - `plugin:wdio|execute` - Execute JavaScript in frontend context
 - `plugin:wdio|log-frontend` - Forward frontend logs to Rust logger
 - `plugin:wdio|debug-plugin` - Debug plugin state
@@ -155,14 +153,15 @@ The plugin provides these Tauri commands:
 
 The `wdio:default` permission grants every plugin command. Mocking is implemented entirely via JS-side invoke interception (`window.__wdio_mocks__`), so there are no mock-related Rust permissions.
 
-| Permission | Description |
-|---|---|
-| `wdio:allow-execute` | Execute JavaScript in frontend context |
-| `wdio:allow-log-frontend` | Forward frontend logs |
-| `wdio:allow-debug-plugin` | Debug plugin state |
-| `wdio:allow-get-active-window-label` | Get active window label |
-| `wdio:allow-get-window-states` | Get window states |
-| `wdio:allow-list-windows` | List windows |
+| Permission                           | Description                              |
+| ------------------------------------ | ---------------------------------------- |
+| `wdio:allow-execute`                 | Execute JavaScript in frontend context   |
+| `wdio:allow-emit-deep-link`          | Emit a deep link for `triggerDeeplink()` |
+| `wdio:allow-log-frontend`            | Forward frontend logs                    |
+| `wdio:allow-debug-plugin`            | Debug plugin state                       |
+| `wdio:allow-get-active-window-label` | Get active window label                  |
+| `wdio:allow-get-window-states`       | Get window states                        |
+| `wdio:allow-list-windows`            | List windows                             |
 
 ## Configuration
 
@@ -177,7 +176,6 @@ The plugin requires explicit permissions in your Tauri app's capability file. Us
 ### Plugin Not Available
 
 If `window.wdioTauri` is undefined:
-
 1. Ensure the plugin is registered in `main.rs`
 2. Ensure permissions are configured in your capability file
 3. Ensure the frontend JavaScript is included in your app
@@ -194,7 +192,6 @@ If `window.wdioTauri` is undefined:
 ### Permission Errors
 
 If you get permission errors:
-
 1. Verify your capability file includes `"wdio:default"` or the specific permissions needed
 2. Ensure the capability file is referenced correctly in `tauri.conf.json`
 3. Clean and rebuild: `cargo clean && pnpm build`
@@ -202,7 +199,6 @@ If you get permission errors:
 ### Execute Timeout
 
 If execute commands timeout:
-
 1. Check that the script is valid JavaScript
 2. Ensure `window.__TAURI__` is available
 3. Verify the script doesn't have infinite loops
@@ -211,7 +207,6 @@ If execute commands timeout:
 ## Examples
 
 See the test fixtures in `fixtures/e2e-apps/tauri/` for complete examples of:
-
 - Plugin registration
 - Permission configuration
 - Frontend integration

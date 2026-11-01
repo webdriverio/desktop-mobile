@@ -4,6 +4,7 @@ import type {
   ElectronServiceGlobalOptions,
   ElectronServiceOptions,
   ElectronStandaloneCapability,
+  StandaloneSessionOptions,
 } from '@wdio/native-types';
 import {
   boundedOnComplete,
@@ -11,6 +12,7 @@ import {
   errorMessage,
   failStartup as failStartupShared,
   safeDeleteSession,
+  standaloneRequestTimeout,
 } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
@@ -35,7 +37,7 @@ function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<n
 
 export async function init(
   capabilities: ElectronServiceCapabilities,
-  globalOptions?: ElectronServiceGlobalOptions,
+  globalOptions?: ElectronServiceGlobalOptions & StandaloneSessionOptions,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing Electron service in standalone mode...');
 
@@ -73,6 +75,7 @@ export async function init(
 
   const browser = await remote({
     capabilities: capability,
+    ...standaloneRequestTimeout(globalOptions),
   }).catch((error: unknown) => {
     log.error(`Failed to create remote session: ${errorMessage(error)}`);
     return failStartup(launcher, error);

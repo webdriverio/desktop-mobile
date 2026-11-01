@@ -11,9 +11,9 @@ fixture's scaffold-in-CI approach.
 `lib/main.dart` wires the `wdio_flutter` contract (`enableFlutterDriverExtension()` →
 `enableWdioMocking()` → `runApp()`) and exposes the convergent surface the specs exercise:
 
-| Feature | Hook in the app |
-|---|---|
-| find/tap | `ValueKey('increment')` button, `ValueKey('counter')` text |
-| mock | `GreetingService.greet` routed through `wdioRegistry` (Tier-2 seam) → `ValueKey('greeting')` |
-| execute | top-level `fixtureMarker` constant |
-| emitEvent | `wdioEvents.stream` listener → `ValueKey('lastEvent')` |
+| Feature   | Hook in the app                                                                              |
+| --------- | -------------------------------------------------------------------------------------------- |
+| find/tap  | `ValueKey('increment')` button, `ValueKey('counter')` text                                   |
+| mock      | `GreetingService.greet` routed through `wdioRegistry` (Tier-2 seam) → `ValueKey('greeting')` |
+| execute   | top-level `fixtureMarker` constant                                                           |
+| emitEvent | `wdioEvents.stream` listener → `ValueKey('lastEvent')`                                       |

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { restoreAllMocks } from '../src/commands/allMocks.js';
 import { createFlutterMock } from '../src/mock.js';
 import { FlutterMockStore } from '../src/mockStore.js';
 import type { VmServiceClient } from '../src/vmService.js';
@@ -22,6 +23,25 @@ function makeClient() {
   } as unknown as VmServiceClient;
   return { client, calls };
 }
+
+describe('restoreAllMocks against a dead VM service', () => {
+  it('should attempt every mock, report each failure and still empty the store', async () => {
+    const { client } = makeClient();
+    const store = new FlutterMockStore();
+    for (const target of ['Svc.a', 'Svc.b', 'Svc.c']) {
+      await createFlutterMock(target, () => Promise.resolve(client), store);
+    }
+    const send = client.callServiceExtension as ReturnType<typeof vi.fn>;
+    send.mockClear().mockRejectedValue(new Error('WebSocket is not connected'));
+
+    await expect(restoreAllMocks(store)).rejects.toMatchObject({
+      errors: Array(3).fill(expect.objectContaining({ message: 'WebSocket is not connected' })),
+    });
+
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(store.getMocks()).toEqual([]);
+  });
+});
 
 describe('createFlutterMock', () => {
   it('should push a tagged value via ext.wdio.setMock', async () => {

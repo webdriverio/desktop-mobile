@@ -10,24 +10,24 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Operating system to run on'
+        description: "Operating system to run on"
         required: false
         type: string
-        default: 'ubuntu-latest'
+        default: "ubuntu-latest"
       crates:
-        description: 'Newline-separated crate directories to lint (also used as the rust-cache workspaces)'
+        description: "Newline-separated crate directories to lint (also used as the rust-cache workspaces)"
         required: true
         type: string
       test-crates:
-        description: 'Newline-separated crate directories to test'
+        description: "Newline-separated crate directories to test"
         required: false
         type: string
-        default: ''
+        default: ""
       generated-permissions-crates:
-        description: 'Newline-separated Tauri plugin crate directories whose generated permission files are checked'
+        description: "Newline-separated Tauri plugin crate directories whose generated permission files are checked"
         required: false
         type: string
-        default: ''
+        default: ""
 
 jobs:
   clippy:

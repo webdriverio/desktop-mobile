@@ -44,13 +44,13 @@ This difference is intentional and reflects:
 
 ## Version Support Matrix
 
-| Package | Status | Supported |
-|---------|--------|-----------|
+| Package                | Status      | Supported |
+| ---------------------- | ----------- | --------- |
 | @wdio/electron-service | Pre-release | ✅ Active |
-| @wdio/tauri-service | Pre-release | ✅ Active |
-| @wdio/native-utils | Stable | ✅ Active |
-| @wdio/native-types | Stable | ✅ Active |
-| @wdio/tauri-plugin | Pre-release | ✅ Active |
+| @wdio/tauri-service    | Pre-release | ✅ Active |
+| @wdio/native-utils     | Stable      | ✅ Active |
+| @wdio/native-types     | Stable      | ✅ Active |
+| @wdio/tauri-plugin     | Pre-release | ✅ Active |
 
 Check npm or each package's `package.json` for current version numbers.
 
@@ -86,7 +86,6 @@ Pre-release packages (`-next.X`) may have more frequent updates during active de
 ## Security Policy
 
 While we don't backport general fixes, **security vulnerabilities are treated differently**:
-
 1. Critical security issues in current versions are fixed immediately
 2. Security issues in previous major versions are evaluated case-by-case
 3. If feasible and impact is severe, security patches may be backported
@@ -96,7 +95,6 @@ To report security vulnerabilities, contact the maintainers privately (not via p
 ## Migration Support
 
 When major versions are released, we provide:
-
 - **Migration guides** - Documentation of breaking changes
 - **Deprecation warnings** - Advanced notice in previous versions when possible
 - **Community support** - Help via Discord and Discussions

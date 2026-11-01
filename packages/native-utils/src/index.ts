@@ -4,6 +4,7 @@ export { installMockSyncOverride } from './commandOverride.js';
 export { readConfig } from './config/read.js';
 export {
   type DiagnosticResult,
+  describeDisplay,
   diagnoseBinary,
   diagnoseDiskSpace,
   diagnoseDisplay,
@@ -13,7 +14,10 @@ export {
   formatDiagnosticResults,
   type LinuxLibrary,
 } from './diagnostics.js';
+export { errorMessage, severeServiceError } from './errors.js';
 export type { LogArea } from './log.js';
+export { type BulkMockOpOptions, type MockLifecycleOp, runBulkMockOp } from './mockLifecycle.js';
+export { isMultiremote } from './multiremote.js';
 export { type NormalizedReadResult, readPackageUp, readPackageUpSync } from './package.js';
 export {
   Err,
@@ -27,13 +31,13 @@ export {
   unwrapOr,
   wrapAsync,
 } from './result.js';
-export { hasSemicolonOutsideQuotes, hasTopLevelArrow } from './script-detect.js';
+export { hasSemicolonOutsideQuotes, hasTopLevelArrow, isFunctionSource } from './script-detect.js';
 export { selectExecutable, validateBinaryPaths } from './selectExecutable.js';
+export { standaloneRequestTimeout } from './standalone.js';
 export {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
   boundedOnComplete,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
-  errorMessage,
   failStartup,
   isBenignTeardownError,
   PROCESS_TEARDOWN_TIMEOUT_MS,

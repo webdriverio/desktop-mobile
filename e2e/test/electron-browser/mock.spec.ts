@@ -46,7 +46,9 @@ describe('Electron browser-mode E2E', () => {
       const g = globalThis as unknown as PageGlobals;
       g.window.electron.ipcRenderer.on('main:status', (_event, payload) => {
         const el = g.document.querySelector('[data-testid="event-output"]');
-        if (el) el.textContent = JSON.stringify(payload);
+        if (el) {
+          el.textContent = JSON.stringify(payload);
+        }
       });
     });
 

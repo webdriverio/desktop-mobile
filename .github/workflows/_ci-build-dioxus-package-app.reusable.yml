@@ -9,21 +9,21 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'OS of runner'
+        description: "OS of runner"
         required: true
         type: string
     outputs:
       build_id:
-        description: 'Unique identifier for this build'
+        description: "Unique identifier for this build"
         value: ${{ jobs.build-dioxus-package-app.outputs.build_id }}
       build_date:
-        description: 'Timestamp when the build completed'
+        description: "Timestamp when the build completed"
         value: ${{ jobs.build-dioxus-package-app.outputs.build_date }}
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         value: ${{ jobs.build-dioxus-package-app.outputs.artifact_size }}
       cache_key:
-        description: 'Cache key used for artifact uploads, can be passed to download actions'
+        description: "Cache key used for artifact uploads, can be passed to download actions"
         value: ${{ jobs.build-dioxus-package-app.outputs.cache_key }}
 
 env:
@@ -50,7 +50,7 @@ jobs:
       - name: Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: Install Rust Toolchain
         shell: bash
@@ -59,29 +59,12 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'fixtures/package-tests/dioxus-app/src-dioxus'
+          workspaces: "fixtures/package-tests/dioxus-app/src-dioxus"
           cache-on-failure: true
           cache-targets: false
           # ~/.cargo/bin/ can carry over stale binaries (e.g. rustup-init in
           # place of cargo) across runs on macOS, breaking the toolchain.
           cache-bin: false
-
-      - name: Fix ARM64 Package Sources (Linux)
-        if: runner.os == 'Linux' && runner.arch == 'ARM64'
-        shell: bash
-        run: |
-          echo "Fixing ARM64 package sources for Ubuntu..."
-          # Add proper arm64 sources for jammy
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
-
-          # Ensure default sources only use amd64
-          sudo sed -i -e 's/^deb http/deb [arch=amd64] http/' /etc/apt/sources.list
-          sudo sed -i -e 's/^deb mirror/deb [arch=amd64] mirror/' /etc/apt/sources.list
-
-          sudo apt-get update
 
       - name: Install Dioxus Dependencies (Linux)
         if: runner.os == 'Linux'
@@ -109,10 +92,22 @@ jobs:
         run: pnpm --filter @wdio/dioxus-bridge build
         shell: bash
 
-      - name: Build Dioxus Package Test App
-        run: cargo build
+      # Without a version the action installs the latest binstall. Passing its own tag
+      # means a Dependabot bump of the tag moves the binary too.
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.25.3
+        with:
+          version: ${{ github.action_ref }}
+
+      - name: Install Dioxus CLI
+        run: bash scripts/install-dx.sh
         shell: bash
-        working-directory: fixtures/package-tests/dioxus-app/src-dioxus
+        working-directory: fixtures/package-tests/dioxus-app
+
+      - name: Build Dioxus Package Test App
+        run: pnpm run build
+        shell: bash
+        working-directory: fixtures/package-tests/dioxus-app
 
       - name: Upload Dioxus Package Test App Binary
         id: upload-archive
@@ -120,6 +115,6 @@ jobs:
         with:
           name: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}
           output: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}/artifact.zip
-          paths: fixtures/package-tests/dioxus-app/target
+          paths: fixtures/package-tests/dioxus-app/target/dx
           cache_key_prefix: dioxus-package-app
-          retention_days: '90'
+          retention_days: "90"

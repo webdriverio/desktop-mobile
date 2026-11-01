@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CI=true
 
-# Install basic requirements and build tools INCLUDING webkit2gtk-driver and xvfb
+# Build tooling, WebKitWebDriver and display servers for headless testing
 RUN apt-get update -qq && \
     apt-get install -y \
         curl \
@@ -16,6 +16,7 @@ RUN apt-get update -qq && \
         pkg-config \
         libssl-dev \
         webkit2gtk-driver \
+        weston \
         xvfb && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

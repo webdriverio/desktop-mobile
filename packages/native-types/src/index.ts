@@ -119,9 +119,11 @@ export type {
   MockLifecycleConfig,
   MockOverride,
   MockResult,
+  RequestedMultiremoteCapabilities,
   Result,
   SelectorsBase,
   ServiceMockContext,
+  StandaloneSessionOptions,
 } from './shared.js';
 
 // Tauri types

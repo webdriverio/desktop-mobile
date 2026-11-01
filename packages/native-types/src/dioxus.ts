@@ -34,7 +34,7 @@ export type DioxusDriverProvider = 'external' | 'embedded';
  */
 export interface DioxusAPIs {
   /** Invoke a Rust command via the bridge's `wdio://` custom protocol. */
-  invoke: (command: string, args?: unknown) => Promise<unknown>;
+  invoke<T = unknown>(command: string, args?: unknown): Promise<T>;
   /** Optional log helpers — present when the bridge's log_bridge.rs is wired. */
   log?: {
     trace?: (msg: string) => Promise<void>;
@@ -85,7 +85,7 @@ export interface DioxusMock<TArgs extends unknown[] = unknown[], TReturns = unkn
  * Dioxus has no native event bus.
  */
 export interface DioxusServiceAPI {
-  execute<R, A extends unknown[]>(script: string | ((dx: DioxusAPIs, ...a: A) => R), ...args: A): Promise<R>;
+  execute<R, A extends unknown[]>(script: string | ((dx: DioxusAPIs, ...a: A) => R), ...args: A): Promise<Awaited<R>>;
 
   mock(command: string): Promise<DioxusMock>;
   isMockFunction(target: string): boolean;
@@ -139,7 +139,7 @@ export interface DioxusServiceOptions extends BaseServiceOptions, DriverProvider
   backendLogLevel?: LogLevel;
   /** Minimum frontend log level (default 'info'). */
   frontendLogLevel?: LogLevel;
-  /** Overall app startup budget in ms used for connectionRetryTimeout (default 60000). */
+  /** Overall app startup budget in ms for the embedded WebDriver server (default 60000). */
   startTimeout?: number;
   /** Embedded server status-poll timeout in ms (default 2000). */
   statusPollTimeout?: number;
@@ -157,6 +157,8 @@ export interface DioxusServiceGlobalOptions extends BaseServiceGlobalOptions, Dr
   windowLabel?: string;
   captureBackendLogs?: boolean;
   captureFrontendLogs?: boolean;
+  /** Timeout for app startup in ms. A capability-level value takes precedence. */
+  startTimeout?: number;
 }
 
 /**

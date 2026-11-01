@@ -166,22 +166,36 @@ describe('session', () => {
         cdpConnectionTimeout: 5000,
         appBinaryPath: '/apps/Demo.app',
       });
+      expect(remoteMock.mock.calls[0][0]).not.toHaveProperty('connectionRetryTimeout');
+    });
+
+    it('should forward connectionRetryTimeout from globalOptions to remote()', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+      await init(cap, { connectionRetryTimeout: 180_000 });
+
+      expect(remoteMock).toHaveBeenCalledWith(expect.objectContaining({ connectionRetryTimeout: 180_000 }));
     });
   });
 
   describe('cleanup', () => {
-    it('should run service teardown, delete the session, and call onComplete', async () => {
+    it('should run after, afterSession, deleteSession, and onComplete in order', async () => {
       const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
       const browser = await init(cap);
 
       await cleanup(browser);
 
       expect(serviceAfterMock).toHaveBeenCalledTimes(1);
-      // after() is the whole teardown — afterSession() would only re-run the
-      // same closeBridges() against already-cleared state.
-      expect(serviceAfterSessionMock).not.toHaveBeenCalled();
+      expect(serviceAfterSessionMock).toHaveBeenCalledTimes(1);
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(serviceAfterMock.mock.invocationCallOrder[0]).toBeLessThan(
+        serviceAfterSessionMock.mock.invocationCallOrder[0],
+      );
+      expect(serviceAfterSessionMock.mock.invocationCallOrder[0]).toBeLessThan(
+        deleteSessionMock.mock.invocationCallOrder[0],
+      );
+      expect(deleteSessionMock.mock.invocationCallOrder[0]).toBeLessThan(onCompleteMock.mock.invocationCallOrder[0]);
     });
 
     it('should resolve when launcher.onComplete rejects (best-effort teardown)', async () => {
@@ -253,12 +267,15 @@ describe('session', () => {
     it('should time out a hung service.after() during cleanup', async () => {
       const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
       const browser = await init(cap);
-      serviceAfterMock.mockReturnValueOnce(new Promise<void>(() => {}));
+      // The real afterSession() runs after() again, so the hang costs both bounds.
+      const hang = new Promise<void>(() => {});
+      serviceAfterMock.mockReturnValueOnce(hang).mockReturnValueOnce(hang);
+      serviceAfterSessionMock.mockImplementationOnce(() => serviceAfterMock());
 
       vi.useFakeTimers();
       try {
         const cleanupPromise = cleanup(browser);
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+        await vi.advanceTimersByTimeAsync(2 * DEFAULT_TEARDOWN_TIMEOUT_MS);
         await expect(cleanupPromise).resolves.toBeUndefined();
       } finally {
         vi.useRealTimers();

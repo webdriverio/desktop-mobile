@@ -19,6 +19,7 @@
 
 const COMMANDS: &[&str] = &[
   "execute",
+  "emit_deep_link",
   "log_frontend",
   "debug_plugin",
   "get_active_window_label",

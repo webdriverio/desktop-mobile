@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { webkitDisplayServer } from './lib/display.js';
 import { getLogDirName } from './lib/utils.js';
 
 // Exit 78 on darwin/linux — 'external' provider not supported on these platforms.
@@ -20,7 +21,9 @@ const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'dioxus');
 
 function getDioxusBinaryPath(dir: string): string {
   const targetDir = join(dir, 'target', 'debug');
-  if (process.platform === 'win32') return join(targetDir, 'wdio-dioxus-e2e-app.exe');
+  if (process.platform === 'win32') {
+    return join(targetDir, 'wdio-dioxus-e2e-app.exe');
+  }
   return join(targetDir, 'wdio-dioxus-e2e-app');
 }
 
@@ -47,7 +50,14 @@ switch (testType) {
     break;
   default:
     specs = ['./test/dioxus/*.spec.ts'];
-    exclude = ['./test/dioxus/window.spec.ts', './test/dioxus/deeplink.spec.ts'];
+    exclude = [
+      './test/dioxus/window.spec.ts',
+      './test/dioxus/deeplink.spec.ts',
+      // Embedded-only: wdio-dioxus-driver passes element commands to the platform's WebDriver server.
+      './test/dioxus/element-events.embedded.spec.ts',
+      './test/dioxus/screenshot.embedded.spec.ts',
+      './test/dioxus/special-keys.embedded.spec.ts',
+    ];
     break;
 }
 
@@ -154,7 +164,7 @@ if (testType === 'multiremote') {
   ];
 }
 
-const logDirName = getLogDirName(testType, 'dioxus', 'official');
+const logDirName = getLogDirName(testType, 'dioxus', 'external');
 const logDir = join(__dirname, 'logs', logDirName);
 
 export const config = {
@@ -169,7 +179,7 @@ export const config = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  autoXvfb: false,
+  ...webkitDisplayServer,
   services: [
     [
       '@wdio/dioxus-service',

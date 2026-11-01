@@ -36,7 +36,9 @@ const walk = (dir, prefix) => {
       walk(abs, rel);
     } else if (entry.isFile()) {
       allowed.set(`/${rel}`, abs);
-      if (rel === 'index.html') allowed.set('/', abs);
+      if (rel === 'index.html') {
+        allowed.set('/', abs);
+      }
     }
   }
 };

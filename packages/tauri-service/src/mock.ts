@@ -1,6 +1,6 @@
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { AbstractFn, TauriMock } from '@wdio/native-types';
+import type { AbstractFn, TauriAPIs, TauriMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 import { execute as tauriExecute } from './commands/execute.js';
 import mockStore from './mockStore.js';
@@ -14,6 +14,21 @@ function isBrowserMode(browser: WebdriverIO.Browser): boolean {
 
 async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
   return browser.execute(`return (${script})()`) as Promise<T>;
+}
+
+// Syncs even when `run` rejects, so the mock records the calls made before the failure.
+async function runThenSync<T>(mock: TauriMock, run: () => Promise<T>): Promise<T> {
+  let result: T;
+  try {
+    result = await run();
+  } catch (error) {
+    await mock
+      .update()
+      .catch((syncError: unknown) => log.warn('Mock sync failed after withImplementation rejected:', syncError));
+    throw error;
+  }
+  await mock.update();
+  return result;
 }
 
 export async function createMock(command: string, browserContext?: WebdriverIO.Browser): Promise<TauriMock> {
@@ -174,9 +189,12 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   };
 
   mock.mockRestore = async () => {
-    await tauriExecute<void>(browserToUse, interceptor.buildUnregistrationScript(command));
-    outerMockClear();
-    mockStore.deleteMock(`tauri.${command}`);
+    try {
+      await tauriExecute<void>(browserToUse, interceptor.buildUnregistrationScript(command));
+    } finally {
+      outerMockClear();
+      mockStore.deleteMock(browserToUse, `tauri.${command}`);
+    }
     return mock;
   };
 
@@ -185,18 +203,16 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
-  mock.withImplementation = async (implFn, callbackFn) => {
-    const result = await tauriExecute<unknown>(
-      browserToUse,
-      interceptor.buildWithImplementationScript(
-        command,
-        implFn as (...a: unknown[]) => unknown,
-        callbackFn as (...a: unknown[]) => unknown,
-      ),
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (tauri: TauriAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
+    const script = interceptor.buildWithImplementationScript(
+      command,
+      implFn as (...a: unknown[]) => unknown,
+      callbackFn as (...a: unknown[]) => unknown,
     );
-    // The wire result is the callback's (serialized) return value; TS can't connect an
-    // assigned arrow's body to the contextual generic, so assert it back.
-    return result as ReturnType<typeof callbackFn>;
+    return (await runThenSync(mock, () => tauriExecute<unknown>(browserToUse, script))) as Awaited<ReturnValue>;
   };
 
   wrapperMock.mockImplementation = mock.mockImplementation.bind(mock);
@@ -345,9 +361,12 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
   };
 
   mock.mockRestore = async () => {
-    await runInterceptorScript<void>(browser, interceptor.buildUnregistrationScript(command));
-    outerMockClear();
-    mockStore.deleteMock(`tauri.${command}`);
+    try {
+      await runInterceptorScript<void>(browser, interceptor.buildUnregistrationScript(command));
+    } finally {
+      outerMockClear();
+      mockStore.deleteMock(browser, `tauri.${command}`);
+    }
     return mock;
   };
 
@@ -356,24 +375,31 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     return mock;
   };
 
-  mock.withImplementation = async (implFn, callbackFn) => {
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (tauri: TauriAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
     const script = interceptor.buildWithImplementationScript(
       command,
       implFn as (...a: unknown[]) => unknown,
       callbackFn as (...a: unknown[]) => unknown,
     );
-    const result = await browser.executeAsync((s: string, done: (v: unknown) => void) => {
-      // eslint-disable-next-line no-new-func
-      const fn = new Function(`return (${s})`)() as () => Promise<unknown>;
-      Promise.resolve(fn()).then(done, (err: unknown) => {
-        done({ __wdioAsyncErr__: err instanceof Error ? err.message : String(err) });
-      });
-    }, script);
-    if (result && typeof result === 'object' && '__wdioAsyncErr__' in result) {
-      throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
-    }
-    // See the withImplementation note above — the wire result is the callback's return.
-    return result as ReturnType<typeof callbackFn>;
+    const result = await runThenSync(mock, async () => {
+      const value = await browser.execute(async (s: string) => {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function(`return (${s})`)() as () => Promise<unknown>;
+        try {
+          return await fn();
+        } catch (err) {
+          return { __wdioAsyncErr__: err instanceof Error ? err.message : String(err) };
+        }
+      }, script);
+      if (value && typeof value === 'object' && '__wdioAsyncErr__' in value) {
+        throw new Error((value as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
+      }
+      return value;
+    });
+    return result as Awaited<ReturnValue>;
   };
 
   return mock;

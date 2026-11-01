@@ -3,7 +3,6 @@ import {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
   boundedOnComplete,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
-  errorMessage,
   failStartup,
   isBenignTeardownError,
   PROCESS_TEARDOWN_TIMEOUT_MS,
@@ -35,22 +34,6 @@ describe('isBenignTeardownError', () => {
 
   it('should expose a non-empty pattern list', () => {
     expect(BENIGN_TEARDOWN_ERROR_PATTERNS.length).toBeGreaterThan(0);
-  });
-});
-
-describe('errorMessage', () => {
-  it('should use an Error message', () => {
-    expect(errorMessage(new Error('boom'))).toBe('boom');
-  });
-
-  it('should read the message of a plain error-like object', () => {
-    expect(errorMessage({ message: 'session not found', code: 'X' })).toBe('session not found');
-  });
-
-  it('should stringify anything else', () => {
-    expect(errorMessage(undefined)).toBe('undefined');
-    expect(errorMessage('boom')).toBe('boom');
-    expect(errorMessage({ code: 1 })).toBe('[object Object]');
   });
 });
 

@@ -1,5 +1,6 @@
+import { requireInstance } from '@wdio/native-core';
 import type { BrowserExtension } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, isMultiremote } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -62,10 +63,10 @@ export const ensureActiveWindowFocus = async (
   _commandName: string,
 ) => {
   // ensure focus
-  if (browser.isMultiremote) {
+  if (isMultiremote(browser)) {
     const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
     for (const instance of mrBrowser.instances) {
-      const mrInstance = mrBrowser.getInstance(instance);
+      const mrInstance = requireInstance(mrBrowser, instance);
       // Skip non-electron instances
       if (!hasElectronExtension(mrInstance)) {
         continue;

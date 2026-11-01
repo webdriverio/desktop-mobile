@@ -250,6 +250,20 @@ describe('TauriAdapter browser-mode events', () => {
     expect(typeof ev.id).toBe('number');
   });
 
+  it('should deliver a missing payload as null, as Tauri does', async () => {
+    const window = setup();
+    const received: unknown[] = [];
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback((data) => received.push(data));
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'Any' },
+      handler: handlerId,
+    });
+    window.__wdio_emit_tauri_event__('foo');
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|emit', { event: 'foo' });
+    expect(received.map((ev) => (ev as { payload: unknown }).payload)).toEqual([null, null]);
+  });
+
   it('should remove the listener via plugin:event|unlisten', async () => {
     const window = setup();
     const received: unknown[] = [];
@@ -315,6 +329,35 @@ describe('TauriAdapter browser-mode events', () => {
     window.__wdio_emit_tauri_event__('foo', 'msg2');
     expect(mainReceived).toHaveLength(2);
     expect(otherReceived).toHaveLength(1);
+  });
+
+  // Tauri's emit_to target rules
+  it.each([
+    [{ kind: 'Any' }, { kind: 'Window', label: 'main' }, true],
+    [{ kind: 'Window', label: 'main' }, { kind: 'Any' }, true],
+    [{ kind: 'Window', label: 'main' }, 'main', true],
+    [{ kind: 'Webview', label: 'main' }, 'main', true],
+    [{ kind: 'WebviewWindow', label: 'main' }, 'main', true],
+    [{ kind: 'AnyLabel', label: 'main' }, 'main', true],
+    [{ kind: 'AnyLabel', label: 'main' }, { kind: 'Window', label: 'main' }, true],
+    [{ kind: 'Window', label: 'main' }, { kind: 'Window', label: 'main' }, true],
+    [{ kind: 'WebviewWindow', label: 'main' }, { kind: 'Window', label: 'main' }, false],
+    [{ kind: 'Webview', label: 'main' }, { kind: 'WebviewWindow', label: 'main' }, false],
+    [{ kind: 'Window', label: 'other' }, 'main', false],
+    [{ kind: 'App' }, { kind: 'App' }, true],
+    [{ kind: 'App' }, 'main', false],
+    [{ kind: 'Window', label: 'main' }, { kind: 'App' }, false],
+  ])('should match a listener on %o to an emit to %o: %s', async (listenerTarget, emitTarget, delivered) => {
+    const window = setup();
+    const received: unknown[] = [];
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback((data) => received.push(data));
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: listenerTarget,
+      handler: handlerId,
+    });
+    window.__wdio_emit_tauri_event__('foo', 'msg', emitTarget);
+    expect(received).toHaveLength(delivered ? 1 : 0);
   });
 
   it('should record plugin:event|emit on a user mock and still dispatch to subscribers', async () => {

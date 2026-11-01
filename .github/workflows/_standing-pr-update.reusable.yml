@@ -12,10 +12,10 @@ on:
   workflow_call:
     secrets:
       ssh_key:
-        description: 'SSH deploy key for pushing the release branch'
+        description: "SSH deploy key for pushing the release branch"
         required: true
       ollama_api_key:
-        description: 'Ollama API key for LLM-enhanced release notes'
+        description: "Ollama API key for LLM-enhanced release notes"
         required: false
 
 permissions:
@@ -44,11 +44,11 @@ jobs:
         uses: goosewobbler/releasekit@v0.42.1
         with:
           mode: standing-pr-update
-          node-version: '24'
+          node-version: "24"
           project-dir: .
-          verbose: 'true'
-          summary: 'true'
-          skip-checkout: 'true'
+          verbose: "true"
+          summary: "true"
+          skip-checkout: "true"
         env:
           GITHUB_TOKEN: ${{ github.token }}
           OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}

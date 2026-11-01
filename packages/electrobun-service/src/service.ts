@@ -2,8 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
+import { forEachInstance } from '@wdio/native-core';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
-import { createLogger, errorMessage, runBounded } from '@wdio/native-utils';
+import { createLogger, errorMessage, isMultiremote, runBounded } from '@wdio/native-utils';
 
 import { classifyTarget } from './cefClassifier.js';
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
@@ -58,8 +59,8 @@ export default class ElectrobunWorkerService {
   ): Promise<void> {
     log.info(
       `before() — mode=${this.options.mode === 'browser' ? 'browser' : 'native'} ` +
-        `multiremote=${browser.isMultiremote} ` +
-        `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+        `multiremote=${isMultiremote(browser)} ` +
+        `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
 
     // Browser mode: the frontend runs in a plain Chrome session against a dev
@@ -72,24 +73,12 @@ export default class ElectrobunWorkerService {
       return;
     }
 
-    if (browser.isMultiremote) {
-      const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-      for (const instanceName of mrBrowser.instances) {
-        const instance = mrBrowser.getInstance(instanceName);
-        // Prefer the instance's own negotiated caps (which carry the launcher's per-instance
-        // debuggerAddress / webkitgtk binary) over the `before` capabilities argument — the sibling
-        // services (electron/tauri/dioxus) ignore that argument for multiremote. Fall back to it if
-        // the instance exposes no requestedCapabilities.
-        const caps = instanceCapabilities(instance) ?? capabilityFor(capabilities, instanceName);
-        await this.attachInstance(instance, caps);
-      }
+    await forEachInstance(browser, (instance, { caps }) => this.attachInstance(instance, caps), capabilities);
+    if (isMultiremote(browser)) {
       // Root fan-out isn't wired yet — install a guided-error stub so `browser.electrobun.*` on the
       // multiremote root fails with direction to per-instance access, not a raw TypeError.
-      installRootMultiremoteGuard(mrBrowser);
-      return;
+      installRootMultiremoteGuard(browser);
     }
-
-    await this.attachInstance(browser as WebdriverIO.Browser, capabilities);
   }
 
   private async attachInstance(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
@@ -231,37 +220,8 @@ export default class ElectrobunWorkerService {
   }
 }
 
-/** Resolve the per-instance capability from a multiremote capabilities map. */
-function capabilityFor(capabilities: unknown, instanceName: string): unknown {
-  if (capabilities && typeof capabilities === 'object' && instanceName in (capabilities as Record<string, unknown>)) {
-    const entry = (capabilities as Record<string, { capabilities?: unknown }>)[instanceName];
-    return entry?.capabilities ?? entry ?? capabilities;
-  }
-  return capabilities;
-}
-
-/**
- * The caps a multiremote instance's session was created with. Preferred over the `before` hook's
- * capabilities argument (which electron/tauri/dioxus ignore for multiremote) because it reflects the
- * launcher's per-instance mutations — the CDP `debuggerAddress`, or the WebKitGTK
- * `webkitgtk:browserOptions.binary`. Unwraps a W3C `alwaysMatch` envelope; returns undefined when the
- * instance exposes no requestedCapabilities so the caller can fall back.
- */
-function instanceCapabilities(instance: WebdriverIO.Browser): unknown {
-  const requested = (instance as { requestedCapabilities?: unknown }).requestedCapabilities;
-  if (requested && typeof requested === 'object' && 'alwaysMatch' in requested) {
-    return (requested as { alwaysMatch?: unknown }).alwaysMatch;
-  }
-  return requested;
-}
-
-/**
- * Install a root-browser `electrobun` stub for a multiremote run. Root fan-out (one call → every
- * instance, as electron/tauri/dioxus expose) isn't wired yet, so rather than leave
- * `browser.electrobun` undefined — a raw `TypeError` on first access — every method throws a guided
- * error pointing at per-instance access. Converging electrobun onto a real root API is tracked in
- * https://github.com/webdriverio/desktop-mobile/issues/656
- */
+// Workaround for #877; drop once the multiremote root fans out to every instance. Until
+// then, each root method throws an error that points at per-instance access.
 function installRootMultiremoteGuard(mrBrowser: WebdriverIO.MultiRemoteBrowser): void {
   const methods: ReadonlyArray<keyof ElectrobunServiceAPI> = [
     'execute',
@@ -280,7 +240,7 @@ function installRootMultiremoteGuard(mrBrowser: WebdriverIO.MultiRemoteBrowser):
       throw new Error(
         `browser.electrobun.${method}() is not available on the multiremote root browser — address ` +
           `each instance individually, e.g. browser.getInstance('<name>').electrobun.${method}(...). ` +
-          'Root fan-out is tracked in https://github.com/webdriverio/desktop-mobile/issues/656.',
+          'Root fan-out is tracked in https://github.com/webdriverio/desktop-mobile/issues/877.',
       );
     };
   }
@@ -336,7 +296,7 @@ async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBrid
  */
 function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: ElectrobunMockStore): void {
   const electrobun: ElectrobunServiceAPI = {
-    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
+    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
       execute<R, A>(bridge, script, ...args),
     switchWindow: async (label: string) => {
       await bridge.switchTarget(label);
@@ -374,7 +334,7 @@ function installApiW3C(
   // Safe cast: execute/mock only call `send('Runtime.evaluate', …)`, which WebDriverEvalBridge implements.
   const bridge = evalBridge as unknown as CdpBridge;
   const electrobun: ElectrobunServiceAPI = {
-    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
+    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
       execute<R, A>(bridge, script, ...args),
     switchWindow: async (label: string) => {
       const index = w3cWindowIndex(label);

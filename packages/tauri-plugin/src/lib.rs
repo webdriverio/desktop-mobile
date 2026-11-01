@@ -36,6 +36,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
   plugin::Builder::new("wdio")
     .invoke_handler(tauri::generate_handler![
       commands::execute,
+      commands::emit_deep_link,
       commands::log_frontend,
       commands::debug_plugin,
       commands::get_active_window_label,

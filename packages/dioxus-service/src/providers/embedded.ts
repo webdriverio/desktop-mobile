@@ -57,9 +57,7 @@ async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<voi
   if (serverAnswered) {
     throw new Error(
       `${notReady}: it answered, but the app's window never registered with the bridge. ` +
-        `If the app sets its own with_on_window callback, call wdio_dioxus::on_window from it. ` +
-        `If another process is using port ${port}, set embeddedPort in wdio:dioxusServiceOptions ` +
-        `or the ${EMBEDDED_PORT_ENV_VAR} env var.`,
+        `If the app sets its own with_on_window callback, call wdio_dioxus::on_window from it.`,
     );
   }
   throw new Error(

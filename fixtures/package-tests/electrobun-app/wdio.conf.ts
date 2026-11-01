@@ -103,7 +103,8 @@ export const config = {
   // CEF instance.
   specFileRetries: 2,
   specFileRetriesDeferred: false,
-  autoXvfb: false,
+  // Headless Weston never brings the WebKitGTK app up.
+  displayServer: 'xvfb',
   outputDir: join(__dirname, 'logs'),
   services: ['electrobun'],
   framework: 'mocha',

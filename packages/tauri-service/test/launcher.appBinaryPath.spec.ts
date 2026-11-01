@@ -61,11 +61,6 @@ vi.mock('../src/edgeDriverManager.js', () => ({
   ensureMsEdgeDriver: vi.fn().mockResolvedValue({ ok: true, value: { method: 'found', driverVersion: '120' } }),
 }));
 
-vi.mock('../src/commands/triggerDeeplink.js', () => ({
-  setEmbeddedModeInfo: vi.fn(),
-  setCrabnebulaModeInfo: vi.fn(),
-}));
-
 vi.mock('../src/crabnebulaBackend.js', () => ({
   startTestRunnerBackend: vi.fn(),
   stopTestRunnerBackend: vi.fn().mockResolvedValue(undefined),

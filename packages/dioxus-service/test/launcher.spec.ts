@@ -9,6 +9,7 @@ vi.mock('../src/providers/embedded.js', () => ({
 }));
 
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
+import type { PortManager } from '@wdio/native-core';
 import DioxusLaunchService from '../src/launcher.js';
 import { startEmbeddedDriver, stopEmbeddedDriver } from '../src/providers/embedded.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
@@ -95,13 +96,17 @@ describe('DioxusLaunchService', () => {
       await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).resolves.toBeUndefined();
     });
 
-    it('should assign distinct sequential ports to multiple embedded capabilities', async () => {
+    it('should prefer sequential ports for multiple embedded capabilities and use the free ones allocated', async () => {
       mockPlatform('linux');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'embedded', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,
         baseConfig,
       );
+      const allocatePort = vi
+        .spyOn((launcher as unknown as { portManager: PortManager }).portManager, 'allocatePort')
+        .mockResolvedValueOnce(4444)
+        .mockResolvedValueOnce(51234);
       const caps: DioxusCapabilities[] = [
         { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
         { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
@@ -109,11 +114,38 @@ describe('DioxusLaunchService', () => {
 
       await launcher.onPrepare(baseConfig, caps);
 
-      const calls = vi.mocked(startEmbeddedDriver).mock.calls;
-      const ports = calls.slice(-2).map((c) => c[1]);
-      expect(ports[1]).toBe(ports[0] + 1);
-      expect((caps[0] as { port?: number }).port).toBe(ports[0]);
-      expect((caps[1] as { port?: number }).port).toBe(ports[1]);
+      expect(allocatePort.mock.calls).toEqual([[4444], [4445]]);
+      expect(
+        vi
+          .mocked(startEmbeddedDriver)
+          .mock.calls.slice(-2)
+          .map((c) => c[1]),
+      ).toEqual([4444, 51234]);
+      expect((caps[0] as { port?: number }).port).toBe(4444);
+      expect((caps[1] as { port?: number }).port).toBe(51234);
+    });
+
+    it("should prefer a multiremote instance's own embeddedPort and connect each instance to its allocated port", async () => {
+      mockPlatform('linux');
+      const launcher = new DioxusLaunchService(
+        { driverProvider: 'embedded', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+      const allocatePort = vi
+        .spyOn((launcher as unknown as { portManager: PortManager }).portManager, 'allocatePort')
+        .mockResolvedValueOnce(5000)
+        .mockResolvedValueOnce(51234);
+      const caps = {
+        appA: { capabilities: { 'wdio:dioxusServiceOptions': { embeddedPort: 5000 } } as DioxusCapabilities },
+        appB: { capabilities: {} as DioxusCapabilities },
+      };
+
+      await launcher.onPrepare(baseConfig, caps);
+
+      expect(allocatePort.mock.calls).toEqual([[5000], [4445]]);
+      expect((caps.appA as { port?: number }).port).toBe(5000);
+      expect((caps.appB as { port?: number }).port).toBe(51234);
     });
 
     it('should stop already-started instances when a later one fails', async () => {

@@ -74,6 +74,14 @@ impl WebDriverErrorResponse {
     Self::new(StatusCode::BAD_REQUEST, "invalid argument", message, None)
   }
 
+  pub fn invalid_element_state(message: &str) -> Self {
+    Self::new(StatusCode::BAD_REQUEST, "invalid element state", message, None)
+  }
+
+  pub fn element_not_interactable(message: &str) -> Self {
+    Self::new(StatusCode::BAD_REQUEST, "element not interactable", message, None)
+  }
+
   pub fn unsupported_operation(message: &str) -> Self {
     Self::new(StatusCode::INTERNAL_SERVER_ERROR, "unsupported operation", message, None)
   }

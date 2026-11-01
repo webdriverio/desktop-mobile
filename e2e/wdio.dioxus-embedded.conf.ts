@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { webkitDisplayServer } from './lib/display.js';
 import { getLogDirName } from './lib/utils.js';
 
 process.env.DRIVER_PROVIDER = 'embedded';
@@ -14,7 +15,9 @@ const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'dioxus');
 
 function getDioxusBinaryPath(dir: string): string {
   const targetDir = join(dir, 'target', 'debug');
-  if (process.platform === 'win32') return join(targetDir, 'wdio-dioxus-e2e-app.exe');
+  if (process.platform === 'win32') {
+    return join(targetDir, 'wdio-dioxus-e2e-app.exe');
+  }
   return join(targetDir, 'wdio-dioxus-e2e-app');
 }
 
@@ -42,7 +45,12 @@ switch (testType) {
   default:
     specs = ['./test/dioxus/*.spec.ts'];
     maxInstances = 1;
-    exclude = ['./test/dioxus/window.spec.ts', './test/dioxus/deeplink.spec.ts'];
+    exclude = [
+      './test/dioxus/window.spec.ts',
+      './test/dioxus/deeplink.spec.ts',
+      // The embedded driver refuses screenshots until #741; screenshot.embedded.spec.ts checks that.
+      './test/dioxus/visual.spec.ts',
+    ];
     break;
 }
 
@@ -163,7 +171,7 @@ export const config = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  autoXvfb: false,
+  ...webkitDisplayServer,
   services: [
     [
       '@wdio/dioxus-service',

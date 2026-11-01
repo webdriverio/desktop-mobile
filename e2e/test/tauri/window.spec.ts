@@ -1,4 +1,5 @@
 import { expect } from '@wdio/globals';
+import { isMultiremote } from '@wdio/native-utils';
 import { browser, withExecuteOptions } from '@wdio/tauri-service';
 
 interface NativeWindowMetrics {
@@ -17,11 +18,11 @@ interface ViewportSize {
 const WINDOW_RECT_TOLERANCE = 1;
 
 async function getNativeWindowMetrics(): Promise<NativeWindowMetrics> {
-  return browser.tauri.execute(({ core }) => core.invoke('get_window_bounds')) as Promise<NativeWindowMetrics>;
+  return browser.tauri.execute(({ core }) => core.invoke<NativeWindowMetrics>('get_window_bounds'));
 }
 
 async function getViewportSize(): Promise<ViewportSize> {
-  return browser.execute<ViewportSize>(() => ({
+  return browser.execute<ViewportSize, []>(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
   }));
@@ -160,7 +161,7 @@ describe('application window tests', () => {
       return;
     }
 
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const multi = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       const browserA = multi.getInstance('browserA');
       const browserB = multi.getInstance('browserB');
@@ -182,7 +183,7 @@ describe('application window tests', () => {
       return;
     }
 
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const multi = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       const browserA = multi.getInstance('browserA');
       const browserB = multi.getInstance('browserB');

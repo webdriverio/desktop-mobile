@@ -7,6 +7,8 @@ const {
   mockOnWorkerEnd,
   mockOnComplete,
   mockBefore,
+  mockAfter,
+  mockAfterSession,
   mockLogWriterInitialize,
   mockLogWriterGetLogDir,
   mockLogWriterGetLogFile,
@@ -20,6 +22,8 @@ const {
   mockOnWorkerEnd: vi.fn().mockResolvedValue(undefined),
   mockOnComplete: vi.fn().mockResolvedValue(undefined),
   mockBefore: vi.fn().mockResolvedValue(undefined),
+  mockAfter: vi.fn().mockResolvedValue(undefined),
+  mockAfterSession: vi.fn().mockResolvedValue(undefined),
   mockLogWriterInitialize: vi.fn(),
   mockLogWriterGetLogDir: vi.fn().mockReturnValue('/tmp/logs'),
   mockLogWriterGetLogFile: vi.fn().mockReturnValue('/tmp/logs/test.log'),
@@ -61,6 +65,8 @@ vi.mock('../src/service.js', () => ({
   default: vi.fn().mockImplementation(function MockService() {
     return {
       before: mockBefore,
+      after: mockAfter,
+      afterSession: mockAfterSession,
     };
   }),
 }));
@@ -76,7 +82,7 @@ vi.mock('node:http', () => ({
 }));
 
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import TauriLaunchService from '../src/launcher.js';
 import TauriWorkerService from '../src/service.js';
 import { cleanup, createTauriCapabilities, init } from '../src/session.js';
@@ -118,6 +124,8 @@ describe('session', () => {
     mockOnWorkerEnd.mockResolvedValue(undefined);
     mockOnComplete.mockResolvedValue(undefined);
     mockBefore.mockResolvedValue(undefined);
+    mockAfter.mockResolvedValue(undefined);
+    mockAfterSession.mockResolvedValue(undefined);
     launcherState.isBrowserMode = false;
   });
 
@@ -134,22 +142,20 @@ describe('session', () => {
           appBinaryPath: '/path/to/app',
           appArgs: [],
           tauriDriverPort: undefined,
-          logLevel: 'info',
-          commandTimeout: 30000,
-          startTimeout: 60000,
+          logLevel: undefined,
+          startTimeout: undefined,
           driverProvider: undefined,
           autoInstallTauriDriver: undefined,
         },
       });
     });
 
-    it('should use default values for optional fields', () => {
+    it('should leave optional fields undefined so global options are not overridden', () => {
       const caps = createTauriCapabilities('/app');
       const serviceOpts = caps['wdio:tauriServiceOptions'];
 
-      expect(serviceOpts?.logLevel).toBe('info');
-      expect(serviceOpts?.commandTimeout).toBe(30000);
-      expect(serviceOpts?.startTimeout).toBe(60000);
+      expect(serviceOpts?.logLevel).toBeUndefined();
+      expect(serviceOpts?.startTimeout).toBeUndefined();
       expect(serviceOpts?.appArgs).toEqual([]);
     });
 
@@ -185,19 +191,14 @@ describe('session', () => {
       expect(caps['wdio:tauriServiceOptions']?.logLevel).toBe('error');
     });
 
-    it('should set custom commandTimeout', () => {
-      const caps = createTauriCapabilities('/app', { commandTimeout: 60000 });
-      expect(caps['wdio:tauriServiceOptions']?.commandTimeout).toBe(60000);
-    });
-
     it('should set custom startTimeout', () => {
       const caps = createTauriCapabilities('/app', { startTimeout: 60000 });
       expect(caps['wdio:tauriServiceOptions']?.startTimeout).toBe(60000);
     });
 
-    it('should set driverProvider to official', () => {
-      const caps = createTauriCapabilities('/app', { driverProvider: 'official' });
-      expect(caps['wdio:tauriServiceOptions']?.driverProvider).toBe('official');
+    it('should set driverProvider to external', () => {
+      const caps = createTauriCapabilities('/app', { driverProvider: 'external' });
+      expect(caps['wdio:tauriServiceOptions']?.driverProvider).toBe('external');
     });
 
     it('should set driverProvider to crabnebula', () => {
@@ -225,7 +226,6 @@ describe('session', () => {
         appArgs: ['--dev'],
         tauriDriverPort: 4444,
         logLevel: 'warn',
-        commandTimeout: 10000,
         startTimeout: 45000,
         driverProvider: 'crabnebula',
         autoInstallTauriDriver: true,
@@ -241,7 +241,6 @@ describe('session', () => {
           appArgs: ['--dev'],
           tauriDriverPort: 4444,
           logLevel: 'warn',
-          commandTimeout: 10000,
           startTimeout: 45000,
           driverProvider: 'crabnebula',
           autoInstallTauriDriver: true,
@@ -377,7 +376,7 @@ describe('session', () => {
       expect(remoteCall.hostname).toBe('localhost');
     });
 
-    it('should pass connectionRetryTimeout as startTimeout * 4', async () => {
+    it('should leave connectionRetryTimeout unset on remote() by default even when startTimeout is set', async () => {
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
@@ -391,28 +390,20 @@ describe('session', () => {
 
       await init(capabilities);
 
-      const remoteCall = mockRemote.mock.calls[0][0] as {
-        connectionRetryTimeout: number;
-        connectionRetryCount: number;
-      };
-      expect(remoteCall.connectionRetryTimeout).toBe(60000);
-      expect(remoteCall.connectionRetryCount).toBe(10);
+      const remoteCall = mockRemote.mock.calls[0][0];
+      expect(remoteCall).not.toHaveProperty('connectionRetryTimeout');
+      expect(remoteCall).not.toHaveProperty('connectionRetryCount');
     });
 
-    it('should use default startTimeout of 30000 when not specified', async () => {
+    it('should forward connectionRetryTimeout from globalOptions to remote()', async () => {
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      const capabilities = {
-        'tauri:options': { application: '/app' },
-      } as unknown as TauriCapabilities;
+      const capabilities = createTauriCapabilities('/app');
 
-      await init(capabilities);
+      await init(capabilities, { connectionRetryTimeout: 180000 });
 
-      const remoteCall = mockRemote.mock.calls[0][0] as {
-        connectionRetryTimeout: number;
-      };
-      expect(remoteCall.connectionRetryTimeout).toBe(120000);
+      expect(mockRemote.mock.calls[0][0].connectionRetryTimeout).toBe(180000);
     });
 
     it('should call service.before with the browser', async () => {
@@ -596,6 +587,45 @@ describe('session', () => {
       });
       expect(mockRemote.mock.calls[0][0]).toMatchObject({ hostname: '127.0.0.1', port: 4444 });
     });
+
+    it('should honour the log options from the global options', async () => {
+      await expect(
+        init(createTauriCapabilities('/app'), {
+          captureBackendLogs: true,
+          logDir: '/tmp/global-logs',
+        }),
+      ).rejects.toMatchObject({ message: expect.stringContaining('Tauri driver port was not set') });
+
+      expect(mockLogWriterInitialize).toHaveBeenCalledWith('/tmp/global-logs');
+    });
+
+    it('should honour captureFrontendLogs from the global options combined with a capability logDir', async () => {
+      await expect(
+        init(
+          {
+            'tauri:options': { application: '/app' },
+            'wdio:tauriServiceOptions': { logDir: '/tmp/cap-logs' },
+          } as unknown as TauriCapabilities,
+          { captureFrontendLogs: true },
+        ),
+      ).rejects.toMatchObject({ message: expect.stringContaining('Tauri driver port was not set') });
+
+      expect(mockLogWriterInitialize).toHaveBeenCalledWith('/tmp/cap-logs');
+    });
+
+    it('should let capability log options override the global log options', async () => {
+      await expect(
+        init(
+          {
+            'tauri:options': { application: '/app' },
+            'wdio:tauriServiceOptions': { captureBackendLogs: false, logDir: '/tmp/cap-logs' },
+          } as unknown as TauriCapabilities,
+          { captureBackendLogs: true, logDir: '/tmp/global-logs' },
+        ),
+      ).rejects.toMatchObject({ message: expect.stringContaining('Tauri driver port was not set') });
+
+      expect(mockLogWriterInitialize).not.toHaveBeenCalled();
+    });
   });
 
   describe('browser mode', () => {
@@ -629,6 +659,15 @@ describe('session', () => {
       expect(mockRemote).toHaveBeenCalledWith({ capabilities: chromeSessionCapabilities });
       expect(mockHttpGet).not.toHaveBeenCalled();
       expect(mockBefore).toHaveBeenCalledWith(chromeSessionCapabilities, [], browser);
+    });
+
+    it('should forward connectionRetryTimeout from globalOptions in browser mode', async () => {
+      await init(browserModeCapabilities(), { connectionRetryTimeout: 90000 });
+
+      expect(mockRemote).toHaveBeenCalledWith({
+        capabilities: chromeSessionCapabilities,
+        connectionRetryTimeout: 90000,
+      });
     });
 
     it('should open a browser-mode session when mode comes from the global options', async () => {
@@ -813,7 +852,7 @@ describe('session', () => {
       });
     });
 
-    it('should stop the launcher via onComplete alone when launcher is found', async () => {
+    it('should run after, afterSession, deleteSession, and onComplete in order during cleanup', async () => {
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -825,7 +864,46 @@ describe('session', () => {
       await cleanup(browser);
 
       expect(mockOnWorkerEnd).not.toHaveBeenCalled();
-      expect(mockOnComplete).toHaveBeenCalled();
+      expect(mockAfter).toHaveBeenCalledTimes(1);
+      expect(mockAfterSession).toHaveBeenCalledTimes(1);
+      expect(browser.deleteSession).toHaveBeenCalledTimes(1);
+      expect(mockOnComplete).toHaveBeenCalledTimes(1);
+      expect(mockAfter.mock.invocationCallOrder[0]).toBeLessThan(mockAfterSession.mock.invocationCallOrder[0]);
+      expect(mockAfterSession.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(browser.deleteSession).mock.invocationCallOrder[0],
+      );
+      expect(vi.mocked(browser.deleteSession).mock.invocationCallOrder[0]).toBeLessThan(
+        mockOnComplete.mock.invocationCallOrder[0],
+      );
+    });
+
+    it.each([
+      ['Session not found', new Error('Session not found')],
+      ['UND_ERR_CLOSED', Object.assign(new Error('other side closed'), { code: 'UND_ERR_CLOSED' })],
+      ['an unexpected error', new Error('boom')],
+    ])('should still stop the launcher when deleteSession rejects with %s', async (_, error) => {
+      const browser = await init({ 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities);
+      vi.clearAllMocks();
+      vi.mocked(browser.deleteSession).mockRejectedValueOnce(error);
+
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+      expect(mockOnComplete).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not hang cleanup when deleteSession never settles', async () => {
+      const browser = await init({ 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities);
+      vi.clearAllMocks();
+      vi.mocked(browser.deleteSession).mockReturnValueOnce(new Promise<void>(() => {}));
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS + 1_000);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(mockOnComplete).toHaveBeenCalledTimes(1);
     });
 
     it('should swallow a launcher.onComplete failure during cleanup', async () => {

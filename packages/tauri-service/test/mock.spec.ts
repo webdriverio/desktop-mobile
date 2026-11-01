@@ -196,14 +196,150 @@ describe('createMock', () => {
   });
 
   describe('mockRestore()', () => {
-    it('should call mockStore.deleteMock with the tauri-prefixed name', async () => {
+    it("should delete the tauri-prefixed name from the browser's mocks", async () => {
       const browser = makeBrowser();
       const mock = await createMock('my_cmd', browser);
 
       mockExecute.mockResolvedValueOnce(undefined);
       await mock.mockRestore();
 
-      expect(mockStore.deleteMock).toHaveBeenCalledWith('tauri.my_cmd');
+      expect(mockStore.deleteMock).toHaveBeenCalledWith(browser, 'tauri.my_cmd');
+    });
+  });
+
+  describe('when the app call fails', () => {
+    async function mockWithOneCall(browser = makeBrowser()) {
+      const syncPayload = { calls: [['arg']], results: [{ type: 'return', value: 1 }], invocationCallOrder: [0] };
+      mockExecute.mockResolvedValueOnce(undefined).mockResolvedValueOnce(syncPayload);
+      const mock = await createMock('my_cmd', browser);
+      await mock.update();
+      expect(mock.mock.calls).toHaveLength(1);
+      mockExecute.mockRejectedValueOnce(new Error('invalid session id'));
+      return mock;
+    }
+
+    it('should keep the outer calls on mockClear, so they stay in step with the app', async () => {
+      const mock = await mockWithOneCall();
+
+      await expect(mock.mockClear()).rejects.toMatchObject({ message: 'invalid session id' });
+
+      expect(mock.mock.calls).toHaveLength(1);
+    });
+
+    it('should keep the outer calls, its name and its async mockClear on mockReset', async () => {
+      const mock = await mockWithOneCall();
+
+      await expect(mock.mockReset()).rejects.toMatchObject({ message: 'invalid session id' });
+
+      expect(mock.mock.calls).toHaveLength(1);
+      expect(mock.getMockName()).toBe('tauri.my_cmd');
+      mockExecute.mockClear();
+      await mock.mockClear();
+      expect(mockExecute).toHaveBeenCalledOnce();
+    });
+
+    it('should still clear the outer calls and drop the store entry on mockRestore', async () => {
+      const browser = makeBrowser();
+      const mock = await mockWithOneCall(browser);
+
+      await expect(mock.mockRestore()).rejects.toMatchObject({ message: 'invalid session id' });
+
+      expect(mock.mock.calls).toHaveLength(0);
+      expect(mockStore.deleteMock).toHaveBeenCalledWith(browser, 'tauri.my_cmd');
+    });
+
+    it('should still drop the store entry on mockRestore in browser mode', async () => {
+      const execute = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('page closed'));
+      const browser = { isMultiremote: false, __wdioBrowserMode__: true, execute } as unknown as WebdriverIO.Browser;
+      const mock = await createMock('my_cmd', browser);
+
+      await expect(mock.mockRestore()).rejects.toMatchObject({ message: 'page closed' });
+
+      expect(mockStore.deleteMock).toHaveBeenCalledWith(browser, 'tauri.my_cmd');
+    });
+  });
+
+  describe('withImplementation()', () => {
+    const callData = { calls: [['arg']], results: [{ type: 'return', value: 'temporary' }], invocationCallOrder: [0] };
+
+    it('should resolve with the callback result and sync the calls made in it', async () => {
+      mockExecute.mockResolvedValueOnce(undefined).mockResolvedValueOnce('temporary').mockResolvedValueOnce(callData);
+      const mock = await createMock('my_cmd', makeBrowser());
+
+      const result = await mock.withImplementation(
+        () => 'temporary',
+        ({ core }) => core.invoke('my_cmd'),
+      );
+
+      expect(result).toBe('temporary');
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
+    });
+
+    it('should sync the calls made in the callback in browser mode', async () => {
+      const execute = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce('temporary')
+        .mockResolvedValueOnce(callData);
+      const browser = { isMultiremote: false, __wdioBrowserMode__: true, execute } as unknown as WebdriverIO.Browser;
+      const mock = await createMock('my_cmd', browser);
+
+      const result = await mock.withImplementation(
+        () => 'temporary',
+        ({ core }) => core.invoke('my_cmd'),
+      );
+
+      expect(result).toBe('temporary');
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
+    });
+
+    it('should sync the calls made before the callback rejected', async () => {
+      mockExecute
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce(callData);
+      const mock = await createMock('my_cmd', makeBrowser());
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          ({ core }) => core.invoke('my_cmd'),
+        ),
+      ).rejects.toMatchObject({ message: 'boom' });
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
+    });
+
+    it("should reject with the callback's error when the sync fails too", async () => {
+      mockExecute
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockRejectedValueOnce(new Error('page closed'));
+      const mock = await createMock('my_cmd', makeBrowser());
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          ({ core }) => core.invoke('my_cmd'),
+        ),
+      ).rejects.toMatchObject({ message: 'boom' });
+    });
+
+    it('should sync the calls made before the callback rejected in browser mode', async () => {
+      const execute = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ __wdioAsyncErr__: 'boom' })
+        .mockResolvedValueOnce(callData);
+      const browser = { isMultiremote: false, __wdioBrowserMode__: true, execute } as unknown as WebdriverIO.Browser;
+      const mock = await createMock('my_cmd', browser);
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          ({ core }) => core.invoke('my_cmd'),
+        ),
+      ).rejects.toMatchObject({ message: 'boom' });
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
     });
   });
 

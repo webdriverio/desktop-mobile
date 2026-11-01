@@ -62,9 +62,10 @@
     "protocol-install:electron-forge": "../fixtures/e2e-apps/electron-forge/scripts/protocol-install.sh"
   },
   "dependencies": {
-    "@wdio/appium-service": "9.32.0",
+    "@wdio/appium-service": "catalog:default",
     "@wdio/cli": "catalog:default",
     "@wdio/dioxus-service": "link:../packages/dioxus-service",
+    "@wdio/display-server": "catalog:default",
     "@wdio/electrobun-service": "link:../packages/electrobun-service",
     "@wdio/electron-service": "link:../packages/electron-service",
     "@wdio/flutter-service": "link:../packages/flutter-service",
@@ -74,8 +75,7 @@
     "@wdio/native-utils": "workspace:*",
     "@wdio/react-native-service": "link:../packages/react-native-service",
     "@wdio/tauri-service": "link:../packages/tauri-service",
-    "@wdio/visual-service": "^10.1.0",
-    "@wdio/xvfb": "catalog:default",
+    "@wdio/visual-service": "catalog:default",
     "electron": "catalog:default",
     "tsx": "^4.23.15",
     "webdriverio": "catalog:default"
@@ -92,7 +92,7 @@
     "appium": "^3.8.0",
     "appium-flutter-driver": "^4.1.0",
     "appium-uiautomator2-driver": "^8.7.0",
-    "appium-xcuitest-driver": "^12.19.1",
+    "appium-xcuitest-driver": "^12.20.0",
     "cross-env": "^10.1.0",
     "p-limit": "^7.3.3",
     "typescript": "^6.0.3",

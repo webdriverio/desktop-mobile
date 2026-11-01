@@ -254,7 +254,6 @@ export const config: WdioElectronConfig = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  autoXvfb: true,
   services: ['electron'],
   framework: 'mocha',
   reporters: ['spec'],
@@ -277,7 +276,7 @@ export const config: WdioElectronConfig = {
         (globalThis as unknown as Record<string, unknown>).__userClickOverrideRan = true;
         return origClick(...args);
       } as Parameters<typeof browser.overwriteCommand>[1],
-      true,
+      { attachToElement: true },
     );
   },
   mochaOpts: {

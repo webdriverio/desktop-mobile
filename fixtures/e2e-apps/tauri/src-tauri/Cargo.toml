@@ -15,7 +15,9 @@ tauri-build = { version = "2.7.0", features = [] }
 [dependencies]
 tauri = { version = "2.12.4", features = ["tray-icon"] }
 tauri-plugin-fs = "2.7.1"
-tauri-plugin-deep-link = "2"
+# Workaround for tauri-apps/plugins-workspace#3710; drop once a deep-link release builds
+# against rust-ini 0.21.3. 2.6.2 constructs ini::ParseOption without the fields that version added.
+tauri-plugin-deep-link = "=2.6.1"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-wdio = { path = "../../../../packages/tauri-plugin" }
 tauri-plugin-wdio-webdriver = { path = "../../../../packages/tauri-plugin-webdriver" }

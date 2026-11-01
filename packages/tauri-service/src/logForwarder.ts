@@ -2,6 +2,9 @@ import { getLogWriter, isLogWriterInitialized, shouldLog } from '@wdio/native-co
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
+import { driverOutputLevel, parseLogLine } from './logParser.js';
+import { DEFAULT_LOG_LEVEL } from './serviceConfig.js';
+
 export { shouldLog };
 
 type WdioLogger = ReturnType<typeof createLogger>;
@@ -17,6 +20,15 @@ function getLogger(): WdioLogger {
     cachedLogger = createLogger('tauri-service', 'service');
   }
   return cachedLogger;
+}
+
+let cachedDriverLogger: WdioLogger | undefined;
+
+function getDriverLogger(): WdioLogger {
+  if (!cachedDriverLogger) {
+    cachedDriverLogger = createLogger('tauri-service', 'driver');
+  }
+  return cachedDriverLogger;
 }
 
 /**
@@ -122,5 +134,53 @@ export function forwardLog(
     const logger = getLogger();
     const loggerMethod = getLoggerMethod(logger, level);
     loggerMethod(formattedMessage);
+  }
+}
+
+// tauri-driver has no log-level flag and exits on unknown arguments, so the service filters its output instead.
+function emitDriverOutput(line: string, minLevel: LogLevel): void {
+  const level = driverOutputLevel(line);
+  if (!level || !shouldLog(level, minLevel)) {
+    return;
+  }
+  const loggerMethod = getLoggerMethod(getDriverLogger(), level);
+  loggerMethod(line.trim());
+}
+
+export function forwardDriverLine(
+  line: string,
+  instanceId: string | undefined,
+  options: {
+    logLevel?: LogLevel;
+    captureBackendLogs?: boolean;
+    captureFrontendLogs?: boolean;
+    backendLogLevel?: LogLevel;
+    frontendLogLevel?: LogLevel;
+  },
+): void {
+  const parsed = parseLogLine(line);
+  if (!parsed) {
+    emitDriverOutput(line, options.logLevel ?? DEFAULT_LOG_LEVEL);
+    return;
+  }
+  if (options.captureBackendLogs && parsed.source !== 'frontend') {
+    forwardLog(
+      'backend',
+      parsed.level,
+      parsed.message,
+      options.backendLogLevel ?? 'info',
+      parsed.prefixedMessage,
+      instanceId,
+    );
+  }
+  if (options.captureFrontendLogs && parsed.source === 'frontend') {
+    forwardLog(
+      'frontend',
+      parsed.level,
+      parsed.message,
+      options.frontendLogLevel ?? 'info',
+      parsed.prefixedMessage,
+      instanceId,
+    );
   }
 }

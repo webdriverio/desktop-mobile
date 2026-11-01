@@ -35,11 +35,7 @@ If your app sets its own `with_on_window` callback after `install()`, call `wdio
 
 `wdio-dioxus` is only compiled in debug builds. Ensure you are using `dx build --desktop` (not `dx build --desktop --release`) and the binary path in your config points to the `debug` output, not the `release` one.
 
-**Check 4: Port is free**
-
-The embedded driver listens on port `4444` by default. If another process already holds that port, the service can't reach your app. Stop the other process, or set `embeddedPort` in the service options.
-
-**Check 5: Rebuild application**
+**Check 4: Rebuild application**
 
 ```bash
 cargo clean
@@ -55,7 +51,6 @@ The app was built with `cargo build`. Files loaded with `asset!()` are only bund
 ### Compilation errors from `wdio-dioxus`
 
 `wdio-dioxus` tracks the latest Dioxus release; the exact version it supports is its own `dioxus-desktop` dependency — see its [dependencies on crates.io](https://crates.io/crates/wdio-dioxus).
-
 1. Update your Rust toolchain: `rustup update`
 2. Clear the Cargo cache: `cargo clean && dx build --desktop`
 3. Pin your `dioxus` to the same minor as `wdio-dioxus`'s `dioxus-desktop` dependency (link above)
@@ -87,13 +82,18 @@ dx build --desktop  # Debug build (driver and bridge active)
 **Solution 3: Use Correct Path**
 
 ```typescript
-services: [['@wdio/dioxus-service', {
-  appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',   // Linux
-  // or
-  appBinaryPath: './target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app',   // macOS
-  // or
-  appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe',  // Windows
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      appBinaryPath: './target/dx/my_app/debug/linux/app/my_app', // Linux
+      // or
+      appBinaryPath: './target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app', // macOS
+      // or
+      appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe', // Windows
+    },
+  ],
+];
 ```
 
 **Solution 4: Use Absolute Path**
@@ -101,9 +101,14 @@ services: [['@wdio/dioxus-service', {
 ```typescript
 import path from 'path';
 
-services: [['@wdio/dioxus-service', {
-  appBinaryPath: path.resolve('./target/dx/my_app/debug/linux/app/my_app'),
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      appBinaryPath: path.resolve('./target/dx/my_app/debug/linux/app/my_app'),
+    },
+  ],
+];
 ```
 
 ### Debug vs. Release Build Mismatch
@@ -117,9 +122,14 @@ Always use `dx build --desktop` (without `--release`) for testing.
 **Solution 1: Increase Start Timeout**
 
 ```typescript
-services: [['@wdio/dioxus-service', {
-  startTimeout: 60000,  // Allow more time for app to start
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      startTimeout: 60000, // Allow more time for app to start
+    },
+  ],
+];
 ```
 
 **Solution 2: Increase Status Poll Timeout**
@@ -127,9 +137,14 @@ services: [['@wdio/dioxus-service', {
 For slow CI environments:
 
 ```typescript
-services: [['@wdio/dioxus-service', {
-  statusPollTimeout: 5000,  // Default: 2000
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      statusPollTimeout: 5000, // Default: 2000
+    },
+  ],
+];
 ```
 
 **Solution 3: Wait for App to Be Ready**
@@ -140,26 +155,6 @@ it('should wait for app', async () => {
   const element = await browser.$('button');
   expect(element).toBeDefined();
 });
-```
-
-### "Port already in use"
-
-**Solution 1: Change Embedded Port**
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  embeddedPort: 4446,  // Instead of default 4445
-}]]
-```
-
-**Solution 2: Kill Process Using Port**
-
-```bash
-# Linux/macOS
-lsof -ti:4445 | xargs kill -9
-
-# Windows (PowerShell)
-Get-Process -Id (Get-NetTCPConnection -LocalPort 4445).OwningProcess | Stop-Process -Force
 ```
 
 ---
@@ -213,13 +208,7 @@ Verify the window label matches exactly (case-sensitive) and the window is creat
 
 ### "X11 connection refused" or "Cannot open display"
 
-```bash
-# Install Xvfb
-sudo apt-get install -y xvfb
-
-# Run tests headless
-xvfb-run -a npx wdio run wdio.conf.ts
-```
+The app has no display: see [Linux Without a Display](./quick-start.md#linux-without-a-display). If you see this error while Weston is running, your app needs X11 (for example, an X11-only crate), so set `displayServer: 'xvfb'`.
 
 ---
 
@@ -228,22 +217,20 @@ xvfb-run -a npx wdio run wdio.conf.ts
 ### Tests Fail in CI But Pass Locally
 
 **Common Causes:**
-
 1. **Missing Linux build dependencies**
+
    ```bash
-   sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+   sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
    ```
 
-2. **Display server missing on Linux CI**
-   ```bash
-   xvfb-run -a npm run test:e2e
-   ```
+2. **Display server missing on Linux CI** - See [Linux Without a Display](./quick-start.md#linux-without-a-display).
 
 3. **Release binary used instead of debug**
    - Ensure `dx build --desktop` (not `dx build --desktop --release`) is run in CI
    - Verify the binary path in `wdio.conf.ts` points to the `debug` output, not the `release` one
 
 4. **Environment Variables**
+
    ```bash
    APP_BINARY="./target/dx/my_app/debug/linux/app/my_app" npm run test:e2e
    ```
@@ -273,10 +260,15 @@ Dioxus doesn't yet let apps turn this off. [DioxusLabs/dioxus#5587](https://gith
 ### Enable Debug Logging
 
 ```typescript
-services: [['@wdio/dioxus-service', {
-  captureBackendLogs: true,
-  captureFrontendLogs: true,
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      captureBackendLogs: true,
+      captureFrontendLogs: true,
+    },
+  ],
+];
 ```
 
 ### Verbose Test Output
@@ -290,10 +282,8 @@ npx wdio run wdio.conf.ts --logLevel debug
 ## Getting Help
 
 If you're still stuck:
-
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
 3. **See [App Setup](./app-setup.md)** for what the app needs
-4. **Check [Platform Support](./platform-support.md)** for platform-specific issues
-5. **Enable debug logging** to see detailed output
-6. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
+4. **Enable debug logging** to see detailed output
+5. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)

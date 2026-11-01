@@ -6,9 +6,14 @@
     "sourceMap": false,
     "inlineSources": false,
     "noEmit": true,
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "types": [
       "node",
       "@wdio/globals/types",
+      "@wdio/visual-service",
       "mocha"
     ],
     "typeRoots": [

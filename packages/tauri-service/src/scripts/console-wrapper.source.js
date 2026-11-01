@@ -12,10 +12,13 @@ const FRONTEND_PREFIX = '[Tauri:Frontend]';
 // Console wrapper state - prevent double-wrapping using Symbol
 (() => {
   const CONSOLE_WRAPPED = Symbol.for(CONSOLE_WRAPPED_KEY);
-  if (console[CONSOLE_WRAPPED]) return;
-
-  if (typeof window === 'undefined' || !window.__TAURI__ || !window.__TAURI__.core || !window.__TAURI__.core.invoke)
+  if (console[CONSOLE_WRAPPED]) {
     return;
+  }
+
+  if (typeof window === 'undefined' || !window.__TAURI__ || !window.__TAURI__.core || !window.__TAURI__.core.invoke) {
+    return;
+  }
 
   console[CONSOLE_WRAPPED] = true;
 

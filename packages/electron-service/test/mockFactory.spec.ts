@@ -59,6 +59,19 @@ describe('restoreElectronFunctionality()', () => {
     expect(result).toBe('SUCCESS_FALLBACK');
   });
 
+  it('should return the in-app error rather than reject, so a mock of a missing API still restores', async () => {
+    const electron = {
+      get app(): never {
+        throw new Error('app is gone');
+      },
+    };
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(electron, ...args));
+
+    await expect(restoreElectronFunctionality('app', 'getName', globalThis.browser)).resolves.toBe(
+      'ERROR: Error: app is gone',
+    );
+  });
+
   it('should return NO_RESTORE_AVAILABLE when no restore path exists', async () => {
     const electronApp: Record<string, unknown> = { getName: () => 'current' };
     const electron = { app: electronApp };
@@ -72,6 +85,44 @@ describe('restoreElectronFunctionality()', () => {
 
     expect(result).toBe('NO_RESTORE_AVAILABLE');
   });
+});
+
+describe('buildMockMethods() when the app call fails', () => {
+  let outerMock: Mock;
+  let mock: ElectronFunctionMock;
+
+  beforeEach(async () => {
+    outerMock = vi.fn() as unknown as Mock;
+    outerMock.getMockName = vi.fn(() => 'electron.app.getName');
+    outerMock.mockName = vi.fn();
+    outerMock.mockClear = vi.fn();
+    outerMock.mockReset = vi.fn();
+    outerMock.mockImplementation = vi.fn();
+    outerMock.mockImplementationOnce = vi.fn();
+    mock = vi.fn() as unknown as ElectronFunctionMock;
+
+    await buildMockMethods(mock, {
+      accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+      outerMock,
+      outerMockClear: outerMock.mockClear.bind(outerMock),
+      outerMockReset: outerMock.mockReset.bind(outerMock),
+      outerMockImplementation: outerMock.mockImplementation.bind(outerMock),
+      outerMockImplementationOnce: outerMock.mockImplementationOnce.bind(outerMock),
+      browserToUse: globalThis.browser,
+    });
+    mockExecute.mockRejectedValue(new Error('WebSocket is not connected'));
+  });
+
+  it.each(['mockClear', 'mockReset', 'mockRestore'] as const)(
+    'should leave the outer mock alone when %s fails',
+    async (op) => {
+      await expect(mock[op]()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
+
+      expect(outerMock.mockClear).not.toHaveBeenCalled();
+      expect(outerMock.mockReset).not.toHaveBeenCalled();
+      expect(mockExecute).toHaveBeenCalledOnce();
+    },
+  );
 });
 
 describe('buildMockMethods() with prototype accessor', () => {

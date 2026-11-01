@@ -6,6 +6,9 @@ import type { ClassifyTarget, Debugger } from '../src/types.js';
 // vi.mock factories can reference it).
 const h = vi.hoisted(() => ({
   targets: [] as Debugger[],
+  listError: undefined as Error | undefined,
+  isPortOpened: true,
+  listCalls: 0,
   sent: [] as string[],
   failEnable: false,
   closed: 0,
@@ -22,9 +25,16 @@ const h = vi.hoisted(() => ({
 
 vi.mock('../src/devTool.js', () => ({
   DevTool: class {
+    get isPortOpened() {
+      return h.isPortOpened;
+    }
     list = async () => {
+      h.listCalls++;
       if (h.listGate) {
         await h.listGate;
+      }
+      if (h.listError) {
+        throw h.listError;
       }
       return h.targets;
     };
@@ -81,7 +91,7 @@ vi.mock('../src/connection.js', async () => {
   };
 });
 
-import { CDP_DISCONNECT_EVENT } from '../src/constants.js';
+import { CDP_DISCONNECT_EVENT, ERROR_MESSAGE } from '../src/constants.js';
 import { MultiTargetCdpBridge, type MultiTargetCdpBridgeOptions } from '../src/multiTargetBridge.js';
 
 const classify: ClassifyTarget = (t) => {
@@ -112,6 +122,9 @@ const target = (id: string, url: string): Debugger => ({
 
 beforeEach(() => {
   h.targets = [];
+  h.listError = undefined;
+  h.isPortOpened = true;
+  h.listCalls = 0;
   h.sent.length = 0;
   h.failEnable = false;
   h.closed = 0;
@@ -141,6 +154,23 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
 
     await expect(bridge.connect()).rejects.toThrow('Runtime.enable failed');
     expect(h.closed).toBe(1);
+  });
+
+  it('should not retry discovery when the debugger port never opens', async () => {
+    h.isPortOpened = false;
+    h.listError = new Error(`${ERROR_MESSAGE.TIMEOUT_WAIT_PORT}: localhost:9222`);
+    const bridge = makeBridge({ connectionRetryCount: 3, waitInterval: 1 });
+
+    await expect(bridge.connect()).rejects.toThrow(ERROR_MESSAGE.TIMEOUT_WAIT_PORT);
+    expect(h.listCalls).toBe(1);
+  });
+
+  it('should retry discovery once the debugger port is open', async () => {
+    h.listError = new Error('Request Error: socket hang up');
+    const bridge = makeBridge({ connectionRetryCount: 3, waitInterval: 1 });
+
+    await expect(bridge.connect()).rejects.toThrow('Request Error: socket hang up');
+    expect(h.listCalls).toBe(4);
   });
 
   it('should refuse connect() after close()', async () => {

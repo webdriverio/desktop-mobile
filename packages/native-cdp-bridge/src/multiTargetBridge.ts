@@ -26,7 +26,9 @@ type MethodReturn<T extends Methods> = ProtocolMapping.Commands[T]['returnType']
 type SendParams<T extends Methods> = MethodParams<T> extends [] ? [] : [MethodParams<T>[number]];
 
 export type MultiTargetCdpBridgeOptions = DevToolOptions & {
+  /** Interval in ms between target discovery retries once the debugger port is open. */
   waitInterval?: number;
+  /** Number of target discovery retries once the debugger port is open. */
   connectionRetryCount?: number;
   /** WebSocket `Origin` header / extra headers passed to each per-target Connection. */
   origin?: string;
@@ -289,7 +291,8 @@ export class MultiTargetCdpBridge extends EventEmitter {
           return;
         }
       } catch (error) {
-        if (retries >= this.#options.connectionRetryCount) {
+        // A port that didn't open isn't retried: its wait used the whole `timeout`, or hit an error retrying won't fix.
+        if (this.#closed || !this.#devTool.isPortOpened || retries >= this.#options.connectionRetryCount) {
           throw error;
         }
         log.warn(`Target discovery attempt ${retries + 1} failed: ${(error as Error).message}`);

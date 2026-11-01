@@ -11,7 +11,6 @@ Deeplink testing allows you to verify that your Electron application correctly h
 ### Why is it Needed?
 
 Testing protocol handlers presents unique challenges:
-
 - **Windows Issue**: On Windows, triggering a deeplink normally launches a new app instance instead of routing to the running test instance. This happens because the test instance and the externally-triggered instance use different user data directories.
 - **Test Automation**: You need a programmatic way to trigger deeplinks without manual intervention.
 - **Cross-Platform Testing**: Different platforms use different mechanisms to trigger protocol handlers.
@@ -19,7 +18,6 @@ Testing protocol handlers presents unique challenges:
 ### When Should You Use It?
 
 Use `browser.electron.triggerDeeplink()` when you need to:
-
 - Test that your app correctly handles custom protocol URLs
 - Verify deeplink parameter parsing and routing logic
 - Ensure single-instance behavior works correctly
@@ -37,15 +35,18 @@ describe('Protocol Handler Tests', () => {
     await browser.electron.triggerDeeplink('myapp://open?file=test.txt');
 
     // Wait for app to process it
-    await browser.waitUntil(async () => {
-      const openedFile = await browser.electron.execute(() => {
-        return globalThis.lastOpenedFile;
-      });
-      return openedFile === 'test.txt';
-    }, {
-      timeout: 5000,
-      timeoutMsg: 'App did not handle the deeplink'
-    });
+    await browser.waitUntil(
+      async () => {
+        const openedFile = await browser.electron.execute(() => {
+          return globalThis.lastOpenedFile;
+        });
+        return openedFile === 'test.txt';
+      },
+      {
+        timeout: 5000,
+        timeoutMsg: 'App did not handle the deeplink',
+      },
+    );
   });
 });
 ```
@@ -56,9 +57,7 @@ The method preserves all URL parameters, including complex query strings:
 
 ```typescript
 it('should preserve query parameters', async () => {
-  await browser.electron.triggerDeeplink(
-    'myapp://action?param1=value1&param2=value2&array[]=a&array[]=b'
-  );
+  await browser.electron.triggerDeeplink('myapp://action?param1=value1&param2=value2&array[]=a&array[]=b');
 
   const receivedParams = await browser.electron.execute(() => {
     return globalThis.lastDeeplinkParams;
@@ -74,15 +73,11 @@ it('should preserve query parameters', async () => {
 
 ```typescript
 it('should reject invalid protocols', async () => {
-  await expect(
-    browser.electron.triggerDeeplink('https://example.com')
-  ).rejects.toThrow('Invalid deeplink protocol');
+  await expect(browser.electron.triggerDeeplink('https://example.com')).rejects.toThrow('Invalid deeplink protocol');
 });
 
 it('should reject malformed URLs', async () => {
-  await expect(
-    browser.electron.triggerDeeplink('not a url')
-  ).rejects.toThrow('Invalid deeplink URL');
+  await expect(browser.electron.triggerDeeplink('not a url')).rejects.toThrow('Invalid deeplink URL');
 });
 ```
 
@@ -100,10 +95,10 @@ The service handles platform-specific differences automatically:
 **URL Modification:**
 ```typescript
 // Input URL
-'myapp://test?foo=bar'
+'myapp://test?foo=bar';
 
 // URL triggered on Windows (userData appended automatically)
-'myapp://test?foo=bar&userData=/tmp/electron-test'
+'myapp://test?foo=bar&userData=/tmp/electron-test';
 ```
 
 **Why This is Needed:**
@@ -120,7 +115,7 @@ On Windows, when a protocol URL is opened, the OS launches the registered applic
 **URL Modification:**
 ```typescript
 // URL passed unchanged
-'myapp://test?foo=bar'
+'myapp://test?foo=bar';
 ```
 
 ### Linux
@@ -133,10 +128,10 @@ On Windows, when a protocol URL is opened, the OS launches the registered applic
 **URL Modification:**
 ```typescript
 // Input URL
-'myapp://test?foo=bar'
+'myapp://test?foo=bar';
 
 // URL triggered on Linux (userData appended automatically)
-'myapp://test?foo=bar&userData=/tmp/electron-test'
+'myapp://test?foo=bar&userData=/tmp/electron-test';
 ```
 
 **Why This is Needed:**
@@ -163,10 +158,10 @@ export const config = {
         appBinaryPath: './dist/win-unpacked/MyApp.exe',
 
         // Optional but recommended: Explicit user data directory
-        appArgs: ['--user-data-dir=/tmp/test-user-data']
-      }
-    }
-  ]
+        appArgs: ['--user-data-dir=/tmp/test-user-data'],
+      },
+    },
+  ],
 };
 ```
 
@@ -191,10 +186,10 @@ export const config = {
         // Either works on macOS
         appBinaryPath: './dist/mac/MyApp.app/Contents/MacOS/MyApp',
         // OR
-        appEntryPoint: './dist/main.js'
-      }
-    }
-  ]
+        appEntryPoint: './dist/main.js',
+      },
+    },
+  ],
 };
 ```
 
@@ -208,9 +203,7 @@ import { app } from 'electron';
 // Register protocol handler
 if (process.defaultApp) {
   // Development: Include path to main file
-  app.setAsDefaultProtocolClient('myapp', process.execPath, [
-    path.resolve(process.argv[1])
-  ]);
+  app.setAsDefaultProtocolClient('myapp', process.execPath, [path.resolve(process.argv[1])]);
 } else {
   // Production: No additional arguments needed
   app.setAsDefaultProtocolClient('myapp');
@@ -241,7 +234,7 @@ if (!gotTheLock) {
     }
 
     // Handle the deeplink from commandLine
-    const url = commandLine.find(arg => arg.startsWith('myapp://'));
+    const url = commandLine.find((arg) => arg.startsWith('myapp://'));
     if (url) {
       handleDeeplink(url);
     }
@@ -263,7 +256,7 @@ import path from 'path';
 
 // ===== WINDOWS & LINUX: Parse userData from deeplink (MUST be before app.ready) =====
 if (process.platform === 'win32' || process.platform === 'linux') {
-  const url = process.argv.find(arg => arg.startsWith('myapp://'));
+  const url = process.argv.find((arg) => arg.startsWith('myapp://'));
   if (url) {
     try {
       const parsed = new URL(url);
@@ -292,7 +285,7 @@ if (!gotTheLock) {
     }
 
     // Find and handle deeplink from command line
-    const url = commandLine.find(arg => arg.startsWith('myapp://'));
+    const url = commandLine.find((arg) => arg.startsWith('myapp://'));
     if (url) {
       handleDeeplink(url);
     }
@@ -304,9 +297,7 @@ if (!gotTheLock) {
 
 // ===== Protocol Handler Registration =====
 if (process.defaultApp) {
-  app.setAsDefaultProtocolClient('myapp', process.execPath, [
-    path.resolve(process.argv[1])
-  ]);
+  app.setAsDefaultProtocolClient('myapp', process.execPath, [path.resolve(process.argv[1])]);
 } else {
   app.setAsDefaultProtocolClient('myapp');
 }
@@ -321,8 +312,8 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
-    }
+      contextIsolation: true,
+    },
   });
 
   mainWindow.loadFile('index.html');
@@ -334,7 +325,7 @@ function createWindow() {
   });
 
   // Handle initial deeplink on Windows/Linux (from argv)
-  const url = process.argv.find(arg => arg.startsWith('myapp://'));
+  const url = process.argv.find((arg) => arg.startsWith('myapp://'));
   if (url) {
     handleDeeplink(url);
   }
@@ -409,13 +400,12 @@ function performAction(params: Record<string, string>) {
 **Cause:** The test instance and the deeplink-triggered instance are using different user data directories, preventing Electron's single-instance lock from working.
 
 **Solution:**
-
 1. Ensure you're using a packaged binary (not `appEntryPoint`) in your WDIO configuration
 2. Verify your app parses the `userData` parameter on Windows and Linux:
 
 ```typescript
 if (process.platform === 'win32' || process.platform === 'linux') {
-  const url = process.argv.find(arg => arg.startsWith('myapp://'));
+  const url = process.argv.find((arg) => arg.startsWith('myapp://'));
   if (url) {
     const parsed = new URL(url);
     const userDataPath = parsed.searchParams.get('userData');
@@ -490,7 +480,6 @@ await browser.electron.triggerDeeplink('file:///path/to/file'); // Throws error
 **Symptom:** The deeplink is triggered but your app doesn't receive it.
 
 **Possible Causes and Solutions:**
-
 1. **Protocol not registered:**
    - Verify `app.setAsDefaultProtocolClient()` is called
    - Check your app's package.json has correct protocol configuration
@@ -517,12 +506,16 @@ await browser.electron.triggerDeeplink('file:///path/to/file'); // Throws error
 await browser.electron.triggerDeeplink('myapp://action');
 
 // Wait for app to process
-await browser.waitUntil(async () => {
-  const processed = await browser.electron.execute(() => {
-    return globalThis.deeplinkProcessed;
-  });
-  return processed === true;
-}, {
-  timeout: 5000,
-  timeoutMsg: 'App did not process the deeplink within 5 seconds'
-});
+await browser.waitUntil(
+  async () => {
+    const processed = await browser.electron.execute(() => {
+      return globalThis.deeplinkProcessed;
+    });
+    return processed === true;
+  },
+  {
+    timeout: 5000,
+    timeoutMsg: 'App did not process the deeplink within 5 seconds',
+  },
+);
+```

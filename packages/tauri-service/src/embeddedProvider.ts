@@ -5,6 +5,7 @@ import { createLogger } from '@wdio/native-utils';
 import { throwIfAborted } from './errors.js';
 import { createLogCapture } from './logCapture.js';
 import { signalAndWaitForExit } from './processExit.js';
+import { resolveStartTimeout } from './serviceConfig.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
@@ -95,7 +96,7 @@ export async function startEmbeddedDriver(
   const logHandlers: ReadlineInterface[] = [];
   const startup = new AbortController();
 
-  const startTimeout = options.startTimeout || 60000;
+  const startTimeout = resolveStartTimeout(options);
   const timer = setTimeout(
     () =>
       startup.abort(
@@ -103,8 +104,7 @@ export async function startEmbeddedDriver(
           `Embedded WebDriver server did not become ready on port ${port} within ${startTimeout}ms. ` +
             `If you have installed tauri-plugin-wdio-webdriver, ensure it is registered in your Tauri app: ` +
             `app.plugin(tauri_plugin_wdio_webdriver::init()) in lib.rs. ` +
-            `If you are not using the embedded plugin, set driverProvider: 'external' in your service options. ` +
-            `To use a different port, set embeddedPort in your service options or the TAURI_WEBDRIVER_PORT env var.`,
+            `If you are not using the embedded plugin, set driverProvider: 'external' in your service options.`,
         ),
       ),
     startTimeout,
@@ -133,7 +133,9 @@ export async function startEmbeddedDriver(
   try {
     for (const stream of [child.stdout, child.stderr]) {
       const handler = createLogCapture({ stream, identifier: `embedded-${port}`, options, instanceId });
-      if (handler) logHandlers.push(handler);
+      if (handler) {
+        logHandlers.push(handler);
+      }
     }
     await pollWebDriverStatus(port, startup.signal);
     if (process.platform === 'win32') {

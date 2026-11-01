@@ -4,6 +4,7 @@ import type {
   ElectrobunCapabilities,
   ElectrobunServiceGlobalOptions,
   ElectrobunServiceOptions,
+  StandaloneSessionOptions,
 } from '@wdio/native-types';
 import {
   boundedOnComplete,
@@ -13,6 +14,7 @@ import {
   failStartup as failStartupShared,
   runBounded,
   safeDeleteSession,
+  standaloneRequestTimeout,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
@@ -35,7 +37,7 @@ function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise
 
 export async function init(
   capabilities: ElectrobunCapabilities,
-  globalOptions?: ElectrobunServiceGlobalOptions,
+  globalOptions?: ElectrobunServiceGlobalOptions & StandaloneSessionOptions,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing Electrobun service in standalone mode…');
 
@@ -54,6 +56,7 @@ export async function init(
 
   const browser = await remote({
     capabilities: capability as WebdriverIO.Capabilities,
+    ...standaloneRequestTimeout(globalOptions),
   }).catch((error: unknown) => {
     log.error(`Failed to create remote session: ${errorMessage(error)}`);
     return failStartup(launcher, error);
@@ -100,6 +103,15 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     );
   } catch (e) {
     log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
+  }
+  try {
+    await runBounded(
+      async () => service?.afterSession(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn('service.afterSession() timed out during cleanup'),
+    );
+  } catch (e) {
+    log.warn(`service.afterSession() failed during cleanup: ${errorMessage(e)}`);
   } finally {
     activeServices.delete(browser);
   }

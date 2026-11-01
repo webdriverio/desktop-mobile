@@ -79,7 +79,9 @@ export class StatusBar {
    * Initialize the status bar
    */
   initialize(): void {
-    if (!this.isEnabled || this.isInitialized) return;
+    if (!this.isEnabled || this.isInitialized) {
+      return;
+    }
 
     // Hide the cursor
     process.stdout.write(ANSI.hideCursor);
@@ -135,7 +137,9 @@ export class StatusBar {
    * Update the status bar with current test status
    */
   updateStatus(status: TestStatus): void {
-    if (!this.isEnabled || !this.isInitialized) return;
+    if (!this.isEnabled || !this.isInitialized) {
+      return;
+    }
 
     // Throttle updates to avoid flickering
     const now = Date.now();
@@ -194,7 +198,9 @@ export class StatusBar {
    * Create a progress bar string
    */
   private createProgressBar(current: number, total: number, width: number): string {
-    if (total === 0) return '─'.repeat(width);
+    if (total === 0) {
+      return '─'.repeat(width);
+    }
 
     const progress = Math.round((current / total) * width);
     const completed = '█'.repeat(progress);
@@ -226,10 +232,18 @@ export class StatusBar {
 
     // Sort results: failures first, then passes, then skipped
     const sortedResults = [...results].sort((a, b) => {
-      if (a.skipped && !b.skipped) return 1;
-      if (!a.skipped && b.skipped) return -1;
-      if (!a.success && b.success) return -1;
-      if (a.success && !b.success) return 1;
+      if (a.skipped && !b.skipped) {
+        return 1;
+      }
+      if (!a.skipped && b.skipped) {
+        return -1;
+      }
+      if (!a.success && b.success) {
+        return -1;
+      }
+      if (a.success && !b.success) {
+        return 1;
+      }
       return 0;
     });
 
@@ -272,7 +286,9 @@ export class StatusBar {
    * Clean up the status bar
    */
   cleanup(): void {
-    if (!this.isEnabled || !this.isInitialized) return;
+    if (!this.isEnabled || !this.isInitialized) {
+      return;
+    }
 
     // Show cursor
     process.stdout.write(ANSI.showCursor);

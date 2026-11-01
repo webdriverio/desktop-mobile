@@ -7,13 +7,11 @@ This directory contains test fixtures for the `@wdio/electron-bundler` package.
 ### Package Fixtures
 
 **`cjs/` and `esm/`** - Full package fixtures for integration testing:
-
 - `no-config/` - Package using bundler defaults (no config file)
 - `simple-ts-config/` - Package with basic TypeScript bundler config
 - `complex-transformations/` - Package with advanced config (nodeExternals, transformations)
 
 Each package fixture contains:
-
 - `package.json` - Package configuration
 - `src/index.ts` - Source code to be bundled
 - `wdio-bundler.config.ts` - Bundler configuration (if applicable)
@@ -21,7 +19,6 @@ Each package fixture contains:
 ### Standalone Config Fixtures
 
 **`configs/`** - Standalone config files for unit testing config loading:
-
 - `valid-ts-config.ts` - Valid TypeScript config for testing tsx loading
 - `invalid-syntax.ts` - Config with syntax errors for testing error handling
 - `minimal-config.json` - Minimal JSON config for testing JSON loading

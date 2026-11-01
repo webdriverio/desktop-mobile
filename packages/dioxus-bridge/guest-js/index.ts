@@ -75,7 +75,9 @@ function wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error' | 'debug', 
     original(...args);
     const message = args
       .map((arg) => {
-        if (typeof arg === 'string') return arg;
+        if (typeof arg === 'string') {
+          return arg;
+        }
         try {
           return JSON.stringify(arg);
         } catch {

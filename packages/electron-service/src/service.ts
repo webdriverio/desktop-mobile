@@ -1,4 +1,5 @@
 import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
+import { requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
@@ -10,8 +11,15 @@ import type {
   ElectronServiceGlobalOptions,
   ElectronType,
   ExecuteOpts,
+  Result,
 } from '@wdio/native-types';
-import { createLogger, installMockSyncOverride, waitUntilWindowAvailable } from '@wdio/native-utils';
+import {
+  createLogger,
+  errorMessage,
+  installMockSyncOverride,
+  isMultiremote,
+  waitUntilWindowAvailable,
+} from '@wdio/native-utils';
 import type { Capabilities, Services } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
@@ -93,7 +101,9 @@ class MockUpdateScheduler {
   #wrapRun(run: Promise<void>): Promise<void> {
     let wrapped!: Promise<void>;
     wrapped = run.finally(() => {
-      if (this.#running !== wrapped) return;
+      if (this.#running !== wrapped) {
+        return;
+      }
       if (this.#queued) {
         const promoted = this.#queued;
         this.#queued = null;
@@ -121,7 +131,9 @@ class MockUpdateScheduler {
     const suffix = `\x00${browserModeInstanceId(this.#browser)}`;
     const mocks = mockStore.getMocks().filter(([key]) => !key.includes('\x00') || key.endsWith(suffix));
     log.debug(`Found ${mocks.length} mocks to update`);
-    if (mocks.length === 0) return;
+    if (mocks.length === 0) {
+      return;
+    }
 
     // Split mocks by accessor kind so we can route each subset through the
     // right transport in exactly one round-trip: native mocks ride
@@ -202,7 +214,9 @@ async function batchUpdateNativeMocks(
   browser: WebdriverIO.Browser,
   entries: Array<[string, ElectronMock]>,
 ): Promise<void> {
-  if (entries.length === 0) return;
+  if (entries.length === 0) {
+    return;
+  }
   const items: Array<[string, ElectronMockReadAccessor]> = entries.map(([id, m]) => [
     id,
     (m as { __accessor: ElectronMockReadAccessor }).__accessor,
@@ -290,7 +304,9 @@ async function batchUpdateBrowserModeMocks(
   browser: WebdriverIO.Browser,
   entries: Array<[string, ElectronMock]>,
 ): Promise<void> {
-  if (entries.length === 0) return;
+  if (entries.length === 0) {
+    return;
+  }
   const ids = entries.map(([id]) => id);
   const channels = entries.map(([, m]) => {
     const acc = (m as { __accessor: ElectronMockReadAccessor }).__accessor;
@@ -375,8 +391,8 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   ): Promise<void> {
     log.info(
       `before() start — mode=${this.globalOptions.mode ?? 'binary'} ` +
-        `multiremote=${instance.isMultiremote} ` +
-        `instances=${instance.isMultiremote ? (instance as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+        `multiremote=${isMultiremote(instance)} ` +
+        `instances=${isMultiremote(instance) ? (instance as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
     this.browser = instance as WebdriverIO.Browser;
 
@@ -391,7 +407,8 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
 
       stage = 'initCdpBridge:root';
       log.info('Initialising CDP bridge...');
-      const cdpBridge = this.browser.isMultiremote ? undefined : await initCdpBridge(this.cdpOptions, capabilities);
+      const bridge = isMultiremote(this.browser) ? NO_BRIDGE : await initCdpBridge(this.cdpOptions, capabilities);
+      const cdpBridge = connectedBridge(bridge);
 
       // Initialize log capture if enabled
       // Note: Renderer logs work via Puppeteer and don't require CDP bridge
@@ -405,7 +422,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
        * Add electron API to browser object
        */
       stage = 'getElectronAPI:root';
-      this.browser.electron = getElectronAPI.call(this, this.browser, cdpBridge);
+      this.browser.electron = getElectronAPI.call(this, this.browser, bridge);
 
       const isElectronApiAvailable = (browser: WebdriverIO.Browser, cdpBridge: ElectronCdpBridge | undefined) =>
         browser?.electron && typeof browser.electron.execute === 'function' && cdpBridge !== undefined;
@@ -422,29 +439,25 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         const mrBrowser = instance;
 
         // Set up electron API for the root multiremote browser
-        // Use the first available instance's CDP bridge, or undefined if none available
-        let rootCdpBridge: ElectronCdpBridge | undefined;
+        let rootBridge = NO_BRIDGE;
 
         for (const instanceName of mrBrowser.instances) {
-          const mrInstance = mrBrowser.getInstance(instanceName);
+          const mrInstance = requireInstance(mrBrowser, instanceName);
           const caps =
             (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
             (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
 
           if (caps[CUSTOM_CAPABILITY_NAME]) {
             stage = `initCdpBridge:rootFrom:${instanceName}`;
-            const mrCdpBridge = await initCdpBridge(this.cdpOptions, caps);
-            if (mrCdpBridge && !rootCdpBridge) {
-              rootCdpBridge = mrCdpBridge;
-            }
-            break; // Use the first available CDP bridge for the root
+            rootBridge = await initCdpBridge(this.cdpOptions, caps);
+            break;
           }
         }
 
-        mrBrowser.electron = getElectronAPI.call(this, mrBrowser as unknown as WebdriverIO.Browser, rootCdpBridge);
+        mrBrowser.electron = getElectronAPI.call(this, mrBrowser as unknown as WebdriverIO.Browser, rootBridge);
 
         for (const instance of mrBrowser.instances) {
-          const mrInstance = mrBrowser.getInstance(instance);
+          const mrInstance = requireInstance(mrBrowser, instance);
           const caps =
             (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
             (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
@@ -455,7 +468,8 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
 
           stage = `initCdpBridge:${instance}`;
           log.info(`Initialising CDP bridge for instance: ${instance}`);
-          const mrCdpBridge = await initCdpBridge(this.cdpOptions, caps);
+          const mrBridge = await initCdpBridge(this.cdpOptions, caps);
+          const mrCdpBridge = connectedBridge(mrBridge);
 
           // Initialize log capture for this multiremote instance
           // Check if this specific instance has logging enabled
@@ -467,7 +481,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             await this.initializeLogCapture(mrCdpBridge, mrInstance, instance, caps);
           }
 
-          mrInstance.electron = getElectronAPI.call(this, mrInstance, mrCdpBridge);
+          mrInstance.electron = getElectronAPI.call(this, mrInstance, mrBridge);
 
           stage = `getPuppeteer:${instance}`;
           const mrPuppeteer = await getPuppeteer(mrInstance);
@@ -506,7 +520,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     } catch (error) {
       log.error(
         `before() failed at stage="${stage}" — mode=${this.globalOptions.mode ?? 'binary'} ` +
-          `multiremote=${instance.isMultiremote}`,
+          `multiremote=${isMultiremote(instance)}`,
         error,
       );
       throw error;
@@ -514,14 +528,28 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async beforeTest() {
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    const attempt = async (op: () => Promise<void>) => {
+      try {
+        await op();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
     if (this.clearMocks) {
-      await clearAllMocks();
+      await attempt(() => clearAllMocks());
     }
     if (this.resetMocks) {
-      await resetAllMocks();
+      await attempt(() => resetAllMocks());
     }
     if (this.restoreMocks) {
-      await restoreAllMocks();
+      await attempt(() => restoreAllMocks());
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
     }
   }
 
@@ -554,16 +582,16 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * be missed by mocks. If your app does this, use a Vite plugin to import the
    * injection script as a top-level module in your dev build.
    */
-  private async initBrowserMode(browser: WebdriverIO.Browser): Promise<void> {
+  private async initBrowserMode(browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser): Promise<void> {
     log.debug('Initialising Electron browser mode');
     const injectionScript = browserInterceptor.buildBrowserIpcInjectionScript();
 
-    if ((browser as unknown as { isMultiremote?: boolean }).isMultiremote) {
+    if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       (browser as unknown as Record<string, boolean>).__wdioElectronBrowserMode__ = true;
 
       for (const instanceName of mrBrowser.instances) {
-        const instance = mrBrowser.getInstance(instanceName);
+        const instance = requireInstance(mrBrowser, instanceName);
         const caps =
           (instance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
           (instance.requestedCapabilities as WebdriverIO.Capabilities);
@@ -621,27 +649,26 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * sessions not in Electron browser mode, and re-injection runs on the session
    * the navigation fired on (`this`).
    */
-  private patchBrowserUrl(browser: WebdriverIO.Browser, injectionScript: string): void {
-    browser.overwriteCommand(
-      'url',
-      async function (
-        this: WebdriverIO.Browser,
-        originalUrl: (href?: string) => Promise<string | undefined>,
-        href?: string,
-      ): Promise<string | undefined> {
-        const result = await Reflect.apply(originalUrl, this, [href]);
-        if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioElectronBrowserMode__) {
-          try {
-            await this.execute(injectionScript);
-          } catch (error) {
-            log.warn('Failed to re-inject IPC script after navigation:', error);
-            throw error;
-          }
+  private patchBrowserUrl(
+    browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
+    injectionScript: string,
+  ): void {
+    browser.overwriteCommand('url', async function (
+      this: WebdriverIO.Browser,
+      originalUrl: (href?: string) => Promise<string | undefined>,
+      href?: string,
+    ): Promise<string | undefined> {
+      const result = await Reflect.apply(originalUrl, this, [href]);
+      if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioElectronBrowserMode__) {
+        try {
+          await this.execute(injectionScript);
+        } catch (error) {
+          log.warn('Failed to re-inject IPC script after navigation:', error);
+          throw error;
         }
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1],
-      false,
-    );
+      }
+      return result;
+    } as Parameters<typeof browser.overwriteCommand>[1]);
   }
 
   /**
@@ -649,8 +676,10 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * execute(), mockAll(), and triggerDeeplink() throw — they require the Electron
    * main process which does not exist in browser mode.
    */
-  private getElectronBrowserModeAPI(browser: WebdriverIO.Browser): BrowserExtension['electron'] {
-    const isRootMultiremote = (browser as unknown as { isMultiremote?: boolean }).isMultiremote === true;
+  private getElectronBrowserModeAPI(
+    browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
+  ): BrowserExtension['electron'] {
+    const isRootMultiremote = isMultiremote(browser);
     return {
       mock: async (channel: string, funcName?: string): Promise<ElectronFunctionMock> => {
         if (isRootMultiremote) {
@@ -668,7 +697,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         const storeKey = browserModeStoreKey(browser, channel);
         let existing: ElectronFunctionMock | undefined;
         try {
-          existing = mockStore.getMock(storeKey) as ElectronFunctionMock;
+          existing = mockStore.getMock(storeKey);
         } catch (e) {
           if (!(e instanceof Error && e.message.startsWith('No mock registered for'))) {
             throw e;
@@ -694,7 +723,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             const isLive = (await browser.execute(
               `return !!(window.__wdio_mocks__ && typeof window.__wdio_mocks__[${JSON.stringify(channel)}] === 'function')`,
             )) as boolean;
-            if (isLive) return;
+            if (isLive) {
+              return;
+            }
             await browser.execute(`return (${browserInterceptor.buildRegistrationScript(channel)})()`);
             const replayImpl = (target as unknown as Record<string, unknown>).__replayBrowserImpl;
             if (typeof replayImpl === 'function') {
@@ -703,7 +734,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             await target.mockClear();
           })();
           registration = run.finally(() => {
-            if (inflight.get(channel) === registration) inflight.delete(channel);
+            if (inflight.get(channel) === registration) {
+              inflight.delete(channel);
+            }
           });
           inflight.set(channel, registration);
         }
@@ -824,10 +857,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         if (cdpBridge) {
           await this.logCaptureManager.captureMainProcessLogs(cdpBridge, logOptions, instanceId);
         } else {
-          log.warn(
-            'Main process log capture requested but CDP bridge is unavailable. ' +
-              'This may be due to EnableNodeCliInspectArguments fuse being disabled.',
-          );
+          log.warn('Main process log capture requested but the CDP bridge is unavailable.');
         }
       }
 
@@ -842,45 +872,43 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 }
 
-function isMultiremote(
-  browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
-): browser is WebdriverIO.MultiRemoteBrowser {
-  return browser.isMultiremote;
-}
+// A disabled fuse is not an error: the session runs without the bridge.
+type CdpBridgeResult = Result<ElectronCdpBridge | undefined, Error>;
 
+const NO_BRIDGE: CdpBridgeResult = { ok: true, value: undefined };
+
+const connectedBridge = (result: CdpBridgeResult) => (result.ok ? result.value : undefined);
+
+// WebdriverIO only logs a before() hook that throws and runs the spec anyway, so a
+// failed connection is returned for the API stub to report.
 async function initCdpBridge(
   cdpOptions: CdpBridgeOptions,
   capabilities: WebdriverIO.Capabilities,
-): Promise<ElectronCdpBridge | undefined> {
-  try {
-    // Check if the Electron binary has the necessary fuse enabled
-    const binaryPath = capabilities['goog:chromeOptions']?.binary;
-    if (binaryPath && typeof binaryPath === 'string') {
-      const fuseCheck = await checkInspectFuse(binaryPath);
+): Promise<CdpBridgeResult> {
+  // Check if the Electron binary has the necessary fuse enabled
+  const binaryPath = capabilities['goog:chromeOptions']?.binary;
+  if (binaryPath && typeof binaryPath === 'string') {
+    const fuseCheck = await checkInspectFuse(binaryPath);
 
-      // Fuse is disabled - cannot use CDP bridge
-      if (!fuseCheck.canUseCdpBridge) {
-        // Don't warn here - this will be handled by the API stub functions
-        return undefined;
-      }
-
-      // Fuse check encountered an error but we're proceeding anyway
-      if (fuseCheck.error) {
-        log.warn(fuseCheck.error);
-      }
+    // Fuse disabled: the API stub explains why.
+    if (!fuseCheck.canUseCdpBridge) {
+      return NO_BRIDGE;
     }
 
-    const options = Object.assign({}, cdpOptions, getDebuggerEndpoint(capabilities));
+    if (fuseCheck.error) {
+      log.warn(fuseCheck.error);
+    }
+  }
 
+  try {
+    const options = Object.assign({}, cdpOptions, getDebuggerEndpoint(capabilities));
     const cdpBridge = new ElectronCdpBridge(options);
     await cdpBridge.connect();
-    return cdpBridge;
+    return { ok: true, value: cdpBridge };
   } catch (error) {
-    log.warn(
-      'CDP bridge initialization failed — electron.execute(), mock(), and related APIs will be unavailable:',
-      error,
-    );
-    return undefined;
+    const cause = error instanceof Error ? error : new Error(String(error));
+    log.error(`CDP bridge could not connect to the main process, API is disabled: ${cause.message}`);
+    return { ok: false, error: cause };
   }
 }
 
@@ -902,10 +930,16 @@ const copyOriginalApi = async (browser: WebdriverIO.Browser) => {
   );
 };
 
-function getElectronAPI(this: ServiceConfig, browser: WebdriverIO.Browser, cdpBridge?: ElectronCdpBridge) {
+function getElectronAPI(this: ServiceConfig, browser: WebdriverIO.Browser, bridge: CdpBridgeResult) {
+  const cdpBridge = connectedBridge(bridge);
   const disabledApiFunc = () => {
+    if (!bridge.ok) {
+      throw new Error(`CDP bridge could not connect to the main process, API is disabled: ${bridge.error.message}`, {
+        cause: bridge.error,
+      });
+    }
     log.warn('CDP bridge is not available, API is disabled');
-    log.warn('This may be due to EnableNodeCliInspectArguments fuse being disabled or other connection issues.');
+    log.warn('The EnableNodeCliInspectArguments fuse is disabled, so the Node inspector cannot start.');
     log.warn('To enable the CDP bridge, ensure this fuse is enabled in your test builds.');
     log.warn('See: https://www.electronjs.org/docs/latest/tutorial/fuses#nodecliinspect');
     throw new Error('CDP bridge is not available, API is disabled');

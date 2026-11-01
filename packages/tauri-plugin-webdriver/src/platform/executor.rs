@@ -726,71 +726,17 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
   /// Click on element
   async fn click_element(&self, js_var: &str) -> Result<(), WebDriverErrorResponse> {
-    let active_element = crate::platform::key_input::deep_active_element_js("activeEl");
-    let text_field = crate::platform::key_input::is_text_field_js("el");
-    let script = format!(
-      r"(function() {{
-                var el = window.{js_var};
-                if (!el || !el.isConnected) {{
-                    throw new Error('stale element reference');
-                }}
-                {active_element}
-                // A caret set before focus stops WebKit selecting a fresh field's text (or putting a
-                // textarea's caret first), while a select-on-focus handler still picks its own selection.
-                if (activeEl !== el && {text_field}) {{
-                    try {{
-                        el.setSelectionRange(el.value.length, el.value.length);
-                    }} catch (e) {{}}
-                }}
-                el.scrollIntoView({{ block: 'center', inline: 'center' }});
-                el.click();
-                // Explicitly focus the element after click - programmatic click()
-                // doesn't always trigger focus like a real click would
-                if (typeof el.focus === 'function') {{
-                    el.focus();
-                }}
-                return true;
-            }})()"
-    );
-    self.evaluate_js(&script).await?;
+    self.evaluate_js(&click_press_script(js_var)).await?;
+    self.evaluate_js(&click_release_script(js_var)).await?;
     Ok(())
   }
 
-  /// Clear element content (for inputs/textareas)
+  /// Element Clear (W3C)
   async fn clear_element(&self, js_var: &str) -> Result<(), WebDriverErrorResponse> {
-    let script = format!(
-      r"(function() {{
-                var el = window.{js_var};
-                if (!el || !el.isConnected) {{
-                    throw new Error('stale element reference');
-                }}
-                if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && (el.disabled || el.readOnly)) {{
-                    return 'not editable';
-                }}
-                el.focus();
-                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {{
-                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                        el.tagName === 'INPUT' ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype,
-                        'value'
-                    ).set;
-                    nativeInputValueSetter.call(el, '');
-                    var inputEvent = new InputEvent('input', {{
-                        bubbles: true,
-                        cancelable: true,
-                        inputType: 'deleteContentBackward'
-                    }});
-                    el.dispatchEvent(inputEvent);
-                    var changeEvent = new Event('change', {{ bubbles: true }});
-                    el.dispatchEvent(changeEvent);
-                }} else if (el.isContentEditable) {{
-                    el.innerHTML = '';
-                }}
-                return true;
-            }})()"
-    );
+    let script = clear_element_script(js_var);
     if extract_value(&self.evaluate_js(&script).await?)?.as_str() == Some("not editable") {
       return Err(WebDriverErrorResponse::invalid_element_state(
-        "element is disabled or read-only, so it cannot be cleared",
+        "element is disabled, read-only, or not a text field or contenteditable, so it cannot be cleared",
       ));
     }
     Ok(())
@@ -845,10 +791,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
           self.dispatch_key_event(value, *is_down, modifiers).await?
         }
       }
-    }
-    if let Some(initial_value) = start.get("value").and_then(Value::as_str) {
-      let change_script = key_input::build_send_keys_change_script(js_var, initial_value);
-      self.evaluate_js(&change_script).await?;
     }
     Ok(())
   }
@@ -1310,10 +1252,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         self.evaluate_js(&script).await?;
         Ok(())
       }
-      None => {
-        let code = crate::platform::key_input::regular_key_code_for(key);
-        self.dispatch_regular_key(key, &code, is_down, modifiers).await
-      }
+      None => self.dispatch_regular_key(key, is_down, modifiers).await,
     }
   }
 
@@ -1321,12 +1260,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
   async fn dispatch_regular_key(
     &self,
     key: &str,
-    code: &str,
     is_down: bool,
     modifiers: &ModifierState,
   ) -> Result<(), WebDriverErrorResponse> {
-    let script =
-      crate::platform::key_input::build_regular_key_script(key, code, is_down, modifiers);
+    let script = crate::platform::key_input::build_regular_key_script(key, is_down, modifiers);
     self.evaluate_js(&script).await?;
     Ok(())
   }
@@ -1707,6 +1644,76 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // =============================================================================
 // Helper Functions for Default Implementations
 // =============================================================================
+
+fn click_press_script(js_var: &str) -> String {
+  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
+  format!(
+    r"(function() {{
+              {element_events}
+              var el = window.{js_var};
+              if (!el || !el.isConnected) {{
+                  throw new Error('stale element reference');
+              }}
+              el.scrollIntoView({{ behavior: 'instant', block: 'center', inline: 'center' }});
+              wdioPress(el);
+              return true;
+          }})()"
+  )
+}
+
+/// JS releasing the press, in its own script so that the page reacts to the press first.
+fn click_release_script(js_var: &str) -> String {
+  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
+  format!(
+    r"(function() {{
+              {element_events}
+              wdioRelease(window.{js_var});
+              return true;
+          }})()"
+  )
+}
+
+/// JS for Element Clear: returns 'not editable' for an element W3C can't clear.
+fn clear_element_script(js_var: &str) -> String {
+  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
+  format!(
+    r"(function() {{
+              {element_events}
+              var el = window.{js_var};
+              if (!el || !el.isConnected) {{
+                  throw new Error('stale element reference');
+              }}
+              return wdioClearElement(el);
+          }})()"
+  )
+}
+
+#[cfg(test)]
+mod element_script_tests {
+  use super::*;
+  use crate::platform::key_input::{after_helpers, ELEMENT_EVENTS_JS};
+
+  #[test]
+  fn click_scrolls_and_presses_then_releases_in_a_later_script() {
+    let press = click_press_script("__wd_el_abc");
+    let body = after_helpers(&press);
+    let scroll = body.find("el.scrollIntoView(").unwrap();
+    assert!(scroll < body.find("wdioPress(el);").unwrap());
+    assert!(body.contains("el.scrollIntoView({ behavior: 'instant',"));
+    assert!(!body.contains("wdioRelease("));
+    let release = click_release_script("__wd_el_abc");
+    let body = after_helpers(&release);
+    assert!(body.contains("wdioRelease(window.__wd_el_abc);"));
+  }
+
+  #[test]
+  fn clear_returns_the_shared_helpers_status() {
+    let script = clear_element_script("__wd_el_abc");
+    assert!(script.contains(ELEMENT_EVENTS_JS));
+    let stale = script.find("throw new Error('stale element reference');").unwrap();
+    assert!(stale < script.find("return wdioClearElement(el);").unwrap());
+  }
+}
 
 /// Extract string value from JavaScript result
 fn extract_string_value(result: &Value) -> Result<String, WebDriverErrorResponse> {

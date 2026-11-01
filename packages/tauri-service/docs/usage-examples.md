@@ -49,14 +49,14 @@ describe('Tauri App Interactions', () => {
 });
 ```
 
-## Tauri API Access
+## Running Code in the App
 
 ### Execute JavaScript in App Context
 
-Use `browser.tauri.execute()` to run JavaScript with access to Tauri APIs:
+Use `browser.tauri.execute()` to run JavaScript in the app's frontend. A function receives `{ core }`, and `core.invoke` calls your app's commands:
 
 ```typescript
-describe('Tauri API Access', () => {
+describe('Running code in the app', () => {
   it('should access window location', async () => {
     const url = await browser.tauri.execute(() => {
       return window.location.href;
@@ -64,7 +64,7 @@ describe('Tauri API Access', () => {
     console.log('Current URL:', url);
   });
 
-  it('should access Tauri invoke API', async () => {
+  it('should call a command', async () => {
     const result = await browser.tauri.execute(({ core }) => {
       return core.invoke('get_config');
     });
@@ -85,10 +85,10 @@ describe('Tauri API Access', () => {
   it('should execute with parameters', async () => {
     const username = 'test_user';
     const result = await browser.tauri.execute(
-      (args) => {
+      (_tauri, args) => {
         return { received: args.username };
       },
-      { username }
+      { username },
     );
 
     expect(result.received).toBe('test_user');
@@ -223,7 +223,7 @@ describe('Custom Tauri Commands', () => {
   it('should handle command with file paths', async () => {
     const result = await browser.tauri.execute(({ core }) => {
       return core.invoke('read_project_file', {
-        path: './src/main.rs'
+        path: './src/main.rs',
       });
     });
 
@@ -270,9 +270,7 @@ describe('Log Capture', () => {
     // Get new logs
     const newLogs = await browser.getLogs('browser');
 
-    const hasExpectedLog = newLogs.some(log =>
-      log.message.includes('Button clicked')
-    );
+    const hasExpectedLog = newLogs.some((log) => log.message.includes('Button clicked'));
     expect(hasExpectedLog).toBe(true);
   });
 
@@ -282,7 +280,7 @@ describe('Log Capture', () => {
     });
 
     const logs = await browser.getLogs('browser');
-    const debugLogs = logs.filter(log => log.level === 'DEBUG');
+    const debugLogs = logs.filter((log) => log.level === 'DEBUG');
 
     expect(debugLogs.length).toBeGreaterThan(0);
   });
@@ -298,32 +296,38 @@ Test interactions between multiple Tauri app instances:
 ```typescript
 describe('Multiremote - Multiple App Instances', () => {
   it('should interact with both app instances', async () => {
+    const app1 = browser.getInstance('app1');
+    const app2 = browser.getInstance('app2');
+
     // Access first app instance
-    const app1Button = await browser.app1.$('button[data-testid="send"]');
+    const app1Button = await app1.$('button[data-testid="send"]');
     await app1Button.click();
 
     // Access second app instance
-    const app2Input = await browser.app2.$('input[data-testid="message"]');
+    const app2Input = await app2.$('input[data-testid="message"]');
     const text = await app2Input.getValue();
 
     expect(text).toBe('Message from app1');
   });
 
-  it('should mock different commands per instance', async () => {
+  it('should mock a command separately on each instance', async () => {
+    const app1 = browser.getInstance('app1');
+    const app2 = browser.getInstance('app2');
+
     // Mock command on first app
-    const mock1 = await browser.app1.tauri.mock('get_user');
+    const mock1 = await app1.tauri.mock('get_user');
     await mock1.mockReturnValue({ id: 1, name: 'User1' });
 
-    // Mock different value on second app
-    const mock2 = await browser.app2.tauri.mock('get_user');
+    // A separate mock in the second app
+    const mock2 = await app2.tauri.mock('get_user');
     await mock2.mockReturnValue({ id: 2, name: 'User2' });
 
     // Verify each app gets its mocked value
-    const user1 = await browser.app1.tauri.execute(({ core }) => {
+    const user1 = await app1.tauri.execute(({ core }) => {
       return core.invoke('get_user');
     });
 
-    const user2 = await browser.app2.tauri.execute(({ core }) => {
+    const user2 = await app2.tauri.execute(({ core }) => {
       return core.invoke('get_user');
     });
 
@@ -331,19 +335,22 @@ describe('Multiremote - Multiple App Instances', () => {
     expect(user2.id).toBe(2);
   });
 
-  it('should clear mocks independently', async () => {
+  it('should restore mocks independently', async () => {
+    const app1 = browser.getInstance('app1');
+    const app2 = browser.getInstance('app2');
+
     // Set up mocks on both instances
-    const mock1 = await browser.app1.tauri.mock('get_config');
+    const mock1 = await app1.tauri.mock('get_config');
     await mock1.mockReturnValue({ version: '1.0.0' });
 
-    const mock2 = await browser.app2.tauri.mock('get_config');
+    const mock2 = await app2.tauri.mock('get_config');
     await mock2.mockReturnValue({ version: '2.0.0' });
 
-    // Clear only app1's mocks
-    await browser.app1.tauri.clearAllMocks();
+    // Restore only app1's mocks
+    await app1.tauri.restoreAllMocks();
 
     // app1 now calls real command, app2 still mocked
-    const config2 = await browser.app2.tauri.execute(({ core }) => {
+    const config2 = await app2.tauri.execute(({ core }) => {
       return core.invoke('get_config');
     });
 
@@ -393,14 +400,14 @@ describe('Multi-Window Testing', () => {
     // Use per-call windowLabel to target a specific window
     const result = await browser.tauri.execute(
       (tauri) => tauri.core.invoke('get_window_data'),
-      withExecuteOptions({ windowLabel: 'popup' })
+      withExecuteOptions({ windowLabel: 'popup' }),
     );
     expect(result).toEqual({ source: 'popup' });
   });
 
   it('should handle non-existent window gracefully', async () => {
     await expect(browser.tauri.switchWindow('nonexistent')).rejects.toThrow(
-      'Window label "nonexistent" not found. Available windows: main, settings, popup'
+      'Window label "nonexistent" not found. Available windows: main, settings, popup',
     );
   });
 });
@@ -411,12 +418,14 @@ describe('Multi-Window Testing', () => {
 ```typescript
 // wdio.conf.ts
 export const config = {
-  capabilities: [{
-    browserName: 'tauri',
-    'wdio:tauriServiceOptions': {
-      windowLabel: 'settings',  // Default to settings window
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'wdio:tauriServiceOptions': {
+        windowLabel: 'settings', // Default to settings window
+      },
     },
-  }],
+  ],
 };
 ```
 

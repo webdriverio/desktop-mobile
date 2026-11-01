@@ -1,6 +1,7 @@
+import { forEachInstance, requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, safeDeleteSession } from '@wdio/native-utils';
+import { createLogger, isMultiremote } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
@@ -14,7 +15,6 @@ const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
 
 export default class DioxusWorkerService {
-  private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
   private browserMode: boolean;
   private isEmbedded: boolean;
@@ -40,11 +40,10 @@ export default class DioxusWorkerService {
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
-    this.browser = browser;
     log.info(
       `before() start — mode=${this.browserMode ? 'browser' : 'native'} ` +
-        `multiremote=${browser.isMultiremote} ` +
-        `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+        `multiremote=${isMultiremote(browser)} ` +
+        `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
 
     let stage = 'init';
@@ -59,30 +58,25 @@ export default class DioxusWorkerService {
         return;
       }
 
-      if (browser.isMultiremote) {
-        const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-        log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
+      if (isMultiremote(browser)) {
+        log.info(`Initializing ${browser.instances.length} multiremote instances`);
         stage = 'addDioxusApi:root';
         this.addDioxusApi(browser as unknown as WebdriverIO.Browser);
-        for (const instanceName of mrBrowser.instances) {
-          const mrInstance = mrBrowser.getInstance(instanceName);
-          stage = `injectSpy:${instanceName}`;
-          log.info(`Injecting spy + installing dioxus API on instance: ${instanceName}`);
-          await this.injectSpy(mrInstance);
-          stage = `addDioxusApi:${instanceName}`;
-          this.addDioxusApi(mrInstance);
-        }
-      } else {
-        stage = 'injectSpy:single';
-        await this.injectSpy(browser as WebdriverIO.Browser);
-        stage = 'addDioxusApi:single';
-        this.addDioxusApi(browser as WebdriverIO.Browser);
       }
+      await forEachInstance(browser, async (instance, { name }) => {
+        if (name !== undefined) {
+          log.info(`Injecting spy + installing dioxus API on instance: ${name}`);
+        }
+        stage = `injectSpy:${name ?? 'single'}`;
+        await this.injectSpy(instance);
+        stage = `addDioxusApi:${name ?? 'single'}`;
+        this.addDioxusApi(instance);
+      });
       log.info('before() complete');
     } catch (error) {
       log.error(
         `before() failed at stage="${stage}" — mode=${this.browserMode ? 'browser' : 'native'} ` +
-          `multiremote=${browser.isMultiremote}`,
+          `multiremote=${isMultiremote(browser)}`,
         error,
       );
       throw error;
@@ -95,32 +89,9 @@ export default class DioxusWorkerService {
   }
 
   async afterSession(): Promise<void> {
-    log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
+    log.debug('DioxusWorkerService.afterSession — clearing mock and window state');
     mockStore.clear();
-
-    if (!this.browser) {
-      clearWindowState();
-      return;
-    }
-
-    try {
-      // Only standalone cleanup() gets here with a live session; under the runner the delete is a no-op.
-      if (!this.browser.isMultiremote) {
-        await safeDeleteSession(this.browser as WebdriverIO.Browser, 'afterSession', log);
-      } else {
-        const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-        for (const instanceName of mrBrowser.instances) {
-          try {
-            const instance = mrBrowser.getInstance(instanceName);
-            await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
-          } catch (error) {
-            log.warn(`Failed to clean up instance ${instanceName}:`, error);
-          }
-        }
-      }
-    } finally {
-      clearWindowState();
-    }
+    clearWindowState();
   }
 
   private addDioxusApi(browser: WebdriverIO.Browser): void {
@@ -128,7 +99,7 @@ export default class DioxusWorkerService {
       markAsEmbedded(browser);
     }
     const dioxus: DioxusServiceAPI = {
-      execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
+      execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
         execute<R, A>(browser, script, ...args),
       mock: (command: string) => mock(command, browser),
       clearAllMocks,
@@ -163,29 +134,25 @@ export default class DioxusWorkerService {
     // browser.url, which is a read-only command property on webdriverio (>=9.27) — direct
     // assignment throws "Cannot assign to read only property 'url'".
     const injectSpy = this.injectSpy.bind(this);
-    browser.overwriteCommand(
-      'url',
-      async function (
-        this: WebdriverIO.Browser,
-        originalUrl: (u?: string) => Promise<unknown>,
-        url?: string,
-      ): Promise<unknown> {
-        const result = await Reflect.apply(originalUrl, this, [url]);
-        if (url !== undefined) {
-          await injectSpy(this).catch((err) => {
-            log.warn('Failed to re-inject spy after navigation:', err);
-          });
-        }
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1],
-      false,
-    );
+    browser.overwriteCommand('url', async function (
+      this: WebdriverIO.Browser,
+      originalUrl: (u?: string) => Promise<unknown>,
+      url?: string,
+    ): Promise<unknown> {
+      const result = await Reflect.apply(originalUrl, this, [url]);
+      if (url !== undefined) {
+        await injectSpy(this).catch((err) => {
+          log.warn('Failed to re-inject spy after navigation:', err);
+        });
+      }
+      return result;
+    } as Parameters<typeof browser.overwriteCommand>[1]);
 
     this.addDioxusApi(browser);
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
-        this.addDioxusApi(mrBrowser.getInstance(instanceName));
+        this.addDioxusApi(requireInstance(mrBrowser, instanceName));
       }
     }
   }
@@ -211,7 +178,9 @@ export default class DioxusWorkerService {
     try {
       await browser.execute(function clearStaleMocks() {
         const page = globalThis as { __wdio_mocks__?: Record<string, unknown> };
-        if (page.__wdio_mocks__) page.__wdio_mocks__ = {};
+        if (page.__wdio_mocks__) {
+          page.__wdio_mocks__ = {};
+        }
       });
       log.debug('Cleared stale mocks at session start');
     } catch (err) {

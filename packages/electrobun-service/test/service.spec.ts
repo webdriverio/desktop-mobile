@@ -410,7 +410,7 @@ describe('ElectrobunWorkerService', () => {
         .electrobun;
       expect(root).toBeDefined();
       expect(() => root?.mock('api.thing')).toThrow(/multiremote root browser/);
-      expect(() => root?.execute('return 1')).toThrow(/issues\/656/);
+      expect(() => root?.execute('return 1')).toThrow(/issues\/877/);
       expect(() => root?.listWindows()).toThrow(/getInstance/);
       // The instances themselves still get a real, working API.
       expect((instanceA as unknown as Partial<Installed>).electrobun).toBeDefined();

@@ -17,8 +17,7 @@
  * - dist-js/index.d.ts  - TypeScript type declarations
  *
  * External dependencies:
- * - @tauri-apps/api       - Provided by the Tauri app (not bundled)
- * - @tauri-apps/plugin-log - Provided by the Tauri app (not bundled)
+ * - @tauri-apps/api - Provided by the Tauri app (not bundled)
  *
  * NOTE: If we add more browser-side bundles in the future (e.g., more plugins
  * with guest-js), consider adding a 'browser' mode to @wdio/bundler instead
@@ -47,7 +46,7 @@ async function main() {
       platform: 'browser',
       target: 'es2020',
       // External dependencies provided by the Tauri app
-      external: ['@tauri-apps/api', '@tauri-apps/plugin-log'],
+      external: ['@tauri-apps/api'],
     });
 
     console.log('✅ JavaScript bundle created');

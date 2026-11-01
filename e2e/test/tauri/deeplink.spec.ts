@@ -5,6 +5,7 @@ import { createDeeplinkHelpers } from '../../lib/deeplink.js';
 declare global {
   var receivedDeeplinks: string[];
   var deeplinkCount: number;
+  var frontendDeeplinks: string[];
 }
 
 const { clearDeeplinkState, waitForDeeplink, waitForDeeplinkStability } = createDeeplinkHelpers(() => browser.tauri);
@@ -36,6 +37,22 @@ describe('Deeplink Testing (browser.tauri.triggerDeeplink)', () => {
 
       const deeplinks = await browser.tauri.execute(() => globalThis.receivedDeeplinks);
       expect(deeplinks).toContain('testapp://open/file/path');
+    });
+
+    it("should reach the app's frontend onOpenUrl handler", async () => {
+      await browser.tauri.execute(() => {
+        globalThis.frontendDeeplinks = [];
+      });
+      await browser.tauri.triggerDeeplink('testapp://frontend');
+
+      await browser.waitUntil(
+        async () => {
+          const urls = await browser.tauri.execute(() => globalThis.frontendDeeplinks);
+          // Windows URL normalization may add trailing slash (testapp://frontend → testapp://frontend/)
+          return (urls ?? []).some((url) => /^testapp:\/\/frontend\/?$/.test(url));
+        },
+        { timeout: 30000, timeoutMsg: 'onOpenUrl did not receive the deeplink within 30 seconds' },
+      );
     });
   });
 

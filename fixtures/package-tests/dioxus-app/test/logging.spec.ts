@@ -8,7 +8,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const logsDir = join(__dirname, '..', 'logs');
 
 function readAllLogs(): string {
-  if (!existsSync(logsDir)) return '';
+  if (!existsSync(logsDir)) {
+    return '';
+  }
   return readdirSync(logsDir)
     .filter((f) => f.endsWith('.log'))
     .map((f) => readFileSync(join(logsDir, f), 'utf-8'))

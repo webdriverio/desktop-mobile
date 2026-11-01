@@ -32,7 +32,7 @@ vi.mock('webdriverio', () => ({
   remote: (...args: unknown[]) => remoteMock(...args),
 }));
 
-import { cleanup, init } from '../src/session.js';
+import { cleanup, createDioxusCapabilities, init } from '../src/session.js';
 import type { DioxusCapabilities } from '../src/types.js';
 
 function makeBrowser(): WebdriverIO.Browser {
@@ -66,6 +66,54 @@ describe('session', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('createDioxusCapabilities', () => {
+    it('should create capabilities with only appBinaryPath and leave optional fields undefined', () => {
+      const caps = createDioxusCapabilities('/app/dioxus-app');
+
+      expect(caps).toEqual({
+        browserName: 'dioxus',
+        'dioxus:options': {
+          application: '/app/dioxus-app',
+          args: [],
+        },
+        'wdio:dioxusServiceOptions': {
+          appBinaryPath: '/app/dioxus-app',
+          appArgs: [],
+          driverProvider: undefined,
+          embeddedPort: undefined,
+          captureBackendLogs: undefined,
+          captureFrontendLogs: undefined,
+        },
+      });
+    });
+
+    it('should set custom options when provided', () => {
+      const caps = createDioxusCapabilities('/app/dioxus-app', {
+        appArgs: ['--dev'],
+        driverProvider: 'embedded',
+        embeddedPort: 4447,
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+      });
+
+      expect(caps).toEqual({
+        browserName: 'dioxus',
+        'dioxus:options': {
+          application: '/app/dioxus-app',
+          args: ['--dev'],
+        },
+        'wdio:dioxusServiceOptions': {
+          appBinaryPath: '/app/dioxus-app',
+          appArgs: ['--dev'],
+          driverProvider: 'embedded',
+          embeddedPort: 4447,
+          captureBackendLogs: true,
+          captureFrontendLogs: true,
+        },
+      });
+    });
   });
 
   describe('init', () => {
@@ -120,6 +168,24 @@ describe('session', () => {
 
       expect(caps).toEqual(makeCaps());
       expect(remoteMock.mock.calls[0][0]).toMatchObject({ hostname: 'localhost', port: 4445 });
+    });
+
+    it('should leave connectionRetryTimeout unset on remote() by default even when startTimeout is set', async () => {
+      const caps = makeCaps();
+      caps['wdio:dioxusServiceOptions'] = { ...caps['wdio:dioxusServiceOptions'], startTimeout: 20_000 };
+
+      await init(caps, { startTimeout: 15_000 });
+
+      expect(remoteMock.mock.calls[0][0]).not.toHaveProperty('connectionRetryTimeout');
+      expect(remoteMock.mock.calls[0][0]).not.toHaveProperty('connectionRetryCount');
+    });
+
+    it('should forward connectionRetryTimeout from globalOptions to remote()', async () => {
+      const caps = { ...createDioxusCapabilities('/app/dioxus-app'), port: 9515, hostname: '127.0.0.1' };
+
+      await init(caps, { connectionRetryTimeout: 180_000 });
+
+      expect(remoteMock.mock.calls[0][0].connectionRetryTimeout).toBe(180_000);
     });
 
     it('should stop the launcher when remote() fails', async () => {
@@ -210,6 +276,14 @@ describe('session', () => {
       expect(serviceBeforeMock).toHaveBeenCalledWith(caps, [], browser);
     });
 
+    it('should forward connectionRetryTimeout from globalOptions in browser mode', async () => {
+      const caps = makeBrowserModeCaps();
+
+      await init(caps, { connectionRetryTimeout: 90_000 });
+
+      expect(remoteMock).toHaveBeenCalledWith({ capabilities: caps, connectionRetryTimeout: 90_000 });
+    });
+
     it('should open a browser-mode session when mode comes from the global options', async () => {
       const caps = { browserName: 'chrome' } as DioxusCapabilities;
 
@@ -275,12 +349,48 @@ describe('session', () => {
   });
 
   describe('cleanup', () => {
-    it('should run service teardown and stop the launcher', async () => {
+    it('should run after, afterSession, deleteSession, and onComplete in order', async () => {
       const browser = await init(makeCaps());
 
       await cleanup(browser);
 
       expect(serviceAfterMock).toHaveBeenCalledTimes(1);
+      expect(serviceAfterSessionMock).toHaveBeenCalledTimes(1);
+      expect(deleteSessionMock).toHaveBeenCalledTimes(1);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(serviceAfterMock.mock.invocationCallOrder[0]).toBeLessThan(
+        serviceAfterSessionMock.mock.invocationCallOrder[0],
+      );
+      expect(serviceAfterSessionMock.mock.invocationCallOrder[0]).toBeLessThan(
+        deleteSessionMock.mock.invocationCallOrder[0],
+      );
+      expect(deleteSessionMock.mock.invocationCallOrder[0]).toBeLessThan(onCompleteMock.mock.invocationCallOrder[0]);
+    });
+
+    it.each([
+      ['Session not found', new Error('Session not found')],
+      ['UND_ERR_CLOSED', Object.assign(new Error('other side closed'), { code: 'UND_ERR_CLOSED' })],
+      ['an unexpected error', new Error('boom')],
+    ])('should still stop the launcher when deleteSession rejects with %s', async (_, error) => {
+      const browser = await init(makeCaps());
+      deleteSessionMock.mockRejectedValueOnce(error);
+
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not hang cleanup when deleteSession never settles', async () => {
+      const browser = await init(makeCaps());
+      deleteSessionMock.mockReturnValueOnce(new Promise<void>(() => {}));
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS + 1_000);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 

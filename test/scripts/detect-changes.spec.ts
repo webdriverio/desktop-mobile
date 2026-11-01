@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import * as fs from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildServiceDependents,
   classifyChanges,
   classifyFile,
   discoverServices,
+  findCommentOnlyWorkflowChanges,
+  isCommentOnlyYamlDiff,
 } from '../../scripts/detect-changes.ts';
 
 const SERVICES = ['dioxus', 'electrobun', 'electron', 'flutter', 'react-native', 'tauri'];
@@ -330,5 +333,279 @@ describe('classifyChanges decisions', () => {
     expect(Object.values(d.runs).every(Boolean)).toBe(true);
     expect(d.triggersAll).toEqual(['scripts/test-package.ts']);
     expect(d.unknownFiles).toEqual(['packages/some-new-thing/src/index.ts']);
+  });
+});
+
+function lockfileText(parts: { importers?: string; packages?: string; snapshots?: string; catalogs?: string }): string {
+  const catalogs = parts.catalogs ? `\ncatalogs:\n${parts.catalogs}` : '';
+  return [
+    "lockfileVersion: '9.0'",
+    '',
+    'settings:',
+    '  autoInstallPeers: true',
+    '',
+    'importers:',
+    parts.importers ?? '',
+    '',
+    'packages:',
+    parts.packages ?? '',
+    '',
+    'snapshots:',
+    parts.snapshots ?? '',
+    catalogs,
+    '',
+  ].join('\n');
+}
+
+function importerBlock(importer: string, version: string): string {
+  return [
+    `  ${importer}:`,
+    '    dependencies:',
+    '      foo:',
+    `        specifier: ${version}`,
+    `        version: ${version}`,
+  ].join('\n');
+}
+
+function packageBlock(name: string): string {
+  return [`  ${name}:`, '    resolution: {integrity: abc}'].join('\n');
+}
+
+function snapshotBlock(name: string, dependency: string): string {
+  return [`  ${name}:`, '    dependencies:', `      bar: ${dependency}`].join('\n');
+}
+
+function classifyLock(base: string, head: string) {
+  return classifyChanges(['pnpm-lock.yaml'], SERVICES, {
+    dependents: DEPENDENTS,
+    lockfile: { base, head },
+  });
+}
+
+describe('pnpm-lock.yaml', () => {
+  it('should run every pipeline when no base copy is available', () => {
+    const d = decide(['pnpm-lock.yaml']);
+    expect(Object.values(d.runs).every(Boolean)).toBe(true);
+    expect(d.triggersAll).toEqual(['pnpm-lock.yaml']);
+  });
+
+  it('should run only the service whose importer changed', () => {
+    const base = lockfileText({ importers: importerBlock('packages/tauri-plugin', '1.0.0') });
+    const head = lockfileText({ importers: importerBlock('packages/tauri-plugin', '1.0.1') });
+    const d = classifyLock(base, head);
+    expect(d.runs).toEqual({
+      dioxus: false,
+      electrobun: false,
+      electron: false,
+      flutter: false,
+      'react-native': false,
+      tauri: true,
+    });
+    expect(d.triggersAll).toEqual([]);
+  });
+
+  it('should ignore a pruned orphan package beside one service importer', () => {
+    const base = lockfileText({
+      importers: importerBlock('packages/tauri-plugin', '1.0.0'),
+      packages: packageBlock('leftover@1.0.0'),
+      snapshots: snapshotBlock('leftover@1.0.0', '1.0.0'),
+    });
+    const head = lockfileText({ importers: importerBlock('packages/tauri-plugin', '1.0.1') });
+    const d = classifyLock(base, head);
+    expect(d.runs.tauri).toBe(true);
+    expect(d.runs.electron).toBe(false);
+    expect(d.triggersAll).toEqual([]);
+    expect(d.lintOnly).toBe(false);
+  });
+
+  it('should run the dependents of a changed shared-package importer', () => {
+    const base = lockfileText({ importers: importerBlock('packages/native-mobile-core', '1.0.0') });
+    const head = lockfileText({ importers: importerBlock('packages/native-mobile-core', '1.0.1') });
+    const d = classifyLock(base, head);
+    expect(d.runs.flutter).toBe(true);
+    expect(d.runs['react-native']).toBe(true);
+    expect(d.runs.tauri).toBe(false);
+    expect(d.sharedChanges).toBe(true);
+  });
+
+  it('should run every pipeline when a snapshot changes in place', () => {
+    const base = lockfileText({ snapshots: snapshotBlock("'foo@1.0.0'", '1.0.0') });
+    const head = lockfileText({ snapshots: snapshotBlock("'foo@1.0.0'", '2.0.0') });
+    const d = classifyLock(base, head);
+    expect(Object.values(d.runs).every(Boolean)).toBe(true);
+    expect(d.triggersAll).toEqual(['pnpm-lock.yaml']);
+  });
+
+  it('should run every pipeline when a catalog changes', () => {
+    const catalog = (version: string) => [`  default:`, '    foo:', `      specifier: ${version}`].join('\n');
+    const d = classifyLock(lockfileText({ catalogs: catalog('1.0.0') }), lockfileText({ catalogs: catalog('1.0.1') }));
+    expect(Object.values(d.runs).every(Boolean)).toBe(true);
+    expect(d.triggersAll).toEqual(['pnpm-lock.yaml']);
+  });
+
+  it('should run every pipeline when the root importer changes', () => {
+    const d = classifyLock(
+      lockfileText({ importers: importerBlock('.', '1.0.0') }),
+      lockfileText({ importers: importerBlock('.', '1.0.1') }),
+    );
+    expect(Object.values(d.runs).every(Boolean)).toBe(true);
+    expect(d.triggersAll).toEqual(['pnpm-lock.yaml']);
+  });
+
+  it('should stay lint-only when the only difference is a removed package', () => {
+    const base = lockfileText({ packages: packageBlock('leftover@1.0.0') });
+    const head = lockfileText({});
+    const d = classifyLock(base, head);
+    expect(Object.values(d.runs).every((run) => !run)).toBe(true);
+    expect(d.lintOnly).toBe(true);
+    expect(d.triggersAll).toEqual([]);
+  });
+
+  it('should stay lint-only when an inline `{}` package is added or removed', () => {
+    const withLeaf = lockfileText({
+      packages: [packageBlock("'kept@1.0.0'"), '', "  'leaf@1.0.0': {}"].join('\n'),
+      snapshots: [snapshotBlock("'kept@1.0.0'", '1.0.0'), '', "  'leaf@1.0.0': {}"].join('\n'),
+    });
+    const withoutLeaf = lockfileText({
+      packages: packageBlock("'kept@1.0.0'"),
+      snapshots: snapshotBlock("'kept@1.0.0'", '1.0.0'),
+    });
+    for (const [base, head] of [
+      [withLeaf, withoutLeaf],
+      [withoutLeaf, withLeaf],
+    ] as const) {
+      const d = classifyLock(base, head);
+      expect(d.lintOnly).toBe(true);
+      expect(d.triggersAll).toEqual([]);
+    }
+  });
+
+  it('should run every pipeline when an inline `{}` snapshot gains dependencies', () => {
+    const base = lockfileText({ snapshots: "  'foo@1.0.0': {}" });
+    const head = lockfileText({ snapshots: snapshotBlock("'foo@1.0.0'", '1.0.0') });
+    const d = classifyLock(base, head);
+    expect(Object.values(d.runs).every(Boolean)).toBe(true);
+    expect(d.triggersAll).toEqual(['pnpm-lock.yaml']);
+  });
+
+  it('should run only the service whose inline `{}` importer changed', () => {
+    const base = lockfileText({ importers: '  fixtures/e2e-apps/dioxus: {}' });
+    const head = lockfileText({ importers: importerBlock('fixtures/e2e-apps/dioxus', '1.0.0') });
+    const d = classifyLock(base, head);
+    expect(d.runs).toEqual({
+      dioxus: true,
+      electrobun: false,
+      electron: false,
+      flutter: false,
+      'react-native': false,
+      tauri: false,
+    });
+  });
+
+  it('should stay lint-only when an inline `{}` snapshot leaves the repo lockfile', () => {
+    const real = fs.readFileSync(new URL('../../pnpm-lock.yaml', import.meta.url), 'utf8');
+    const snapshots = real.lastIndexOf('\nsnapshots:\n');
+    const inline = /\n {2}\S[^\n]*: \{\}\n\n/g;
+    inline.lastIndex = snapshots;
+    const match = inline.exec(real);
+    if (!match) {
+      throw new Error('no inline snapshot entry in pnpm-lock.yaml');
+    }
+    const head = real.slice(0, match.index + 1) + real.slice(match.index + match[0].length);
+    const d = classifyLock(real, head);
+    expect(d.lintOnly).toBe(true);
+    expect(d.triggersAll).toEqual([]);
+  });
+
+  it('should classify one importer edit in the repo lockfile as that service', () => {
+    const real = fs.readFileSync(new URL('../../pnpm-lock.yaml', import.meta.url), 'utf8');
+    const marker = '  packages/tauri-plugin:\n';
+    const start = real.indexOf(marker);
+    const next = real.indexOf('\n  packages/', start + marker.length);
+    const block = real.slice(start, next);
+    const edited = block.replace('specifier: 2.12.4', 'specifier: 2.12.5');
+    const head = `${real.slice(0, start)}${edited}${real.slice(next)}`;
+    const d = classifyLock(real, head);
+    expect(d.runs.tauri).toBe(true);
+    expect(d.runs.electron).toBe(false);
+    expect(d.runs.flutter).toBe(false);
+    expect(d.triggersAll).toEqual([]);
+    expect(d.unknownFiles).toEqual([]);
+  });
+});
+
+function diffOf(...lines: string[]): string {
+  return ['diff --git a/x.yml b/x.yml', '--- a/x.yml', '+++ b/x.yml', '@@ -1 +1 @@', ...lines].join('\n');
+}
+
+describe('isCommentOnlyYamlDiff', () => {
+  it('should accept a diff that only changes comments', () => {
+    expect(isCommentOnlyYamlDiff(diffOf('-      # Dioxus: target', '+      # Dioxus: target/dx'))).toBe(true);
+  });
+
+  it('should accept added comments and blank lines', () => {
+    expect(isCommentOnlyYamlDiff(diffOf('+', '+# Why this job exists', '+   '))).toBe(true);
+  });
+
+  it('should reject a diff that also changes a value', () => {
+    expect(isCommentOnlyYamlDiff(diffOf('-  # note', '+  # note', '-    run: a', '+    run: b'))).toBe(false);
+  });
+
+  it('should reject a comment added after a value', () => {
+    expect(isCommentOnlyYamlDiff(diffOf('-    run: build', '+    run: build # fast'))).toBe(false);
+  });
+
+  it('should not count file headers as changed lines', () => {
+    expect(isCommentOnlyYamlDiff('diff --git a/x.yml b/x.yml\n--- a/x.yml\n+++ b/x.yml')).toBe(false);
+  });
+
+  it('should reject an empty diff', () => {
+    expect(isCommentOnlyYamlDiff('')).toBe(false);
+  });
+});
+
+describe('findCommentOnlyWorkflowChanges', () => {
+  const diffs: Record<string, string | undefined> = {
+    '.github/workflows/_ci-package.reusable.yml': diffOf('-      # old', '+      # new'),
+    '.github/workflows/_ci-build.reusable.yml': diffOf('-    run: a', '+    run: b'),
+    '.github/workflows/codeql.yml': diffOf('-  # old', '+  # new'),
+    '.github/workflows/_ci-unit.reusable.yml': undefined,
+  };
+  const files = [...Object.keys(diffs), 'scripts/test-package.ts'];
+
+  it('should find the workflow files whose diff only touches comments', () => {
+    const found = findCommentOnlyWorkflowChanges(files, SERVICES, (file) => diffs[file]);
+    expect([...found]).toEqual(['.github/workflows/_ci-package.reusable.yml']);
+  });
+
+  it('should only read diffs of workflow files that would run pipelines', () => {
+    const readDiff = vi.fn((file: string) => diffs[file]);
+    findCommentOnlyWorkflowChanges(files, SERVICES, readDiff);
+    expect(readDiff.mock.calls.map(([file]) => file)).toEqual([
+      '.github/workflows/_ci-package.reusable.yml',
+      '.github/workflows/_ci-build.reusable.yml',
+      '.github/workflows/_ci-unit.reusable.yml',
+    ]);
+  });
+});
+
+describe('classifyChanges with comment-only workflow changes', () => {
+  it('should run only dioxus when the core workflow change is comment-only', () => {
+    const d = classifyChanges(
+      ['.github/workflows/_ci-package.reusable.yml', 'fixtures/package-tests/dioxus-app/wdio.conf.ts'],
+      SERVICES,
+      { dependents: DEPENDENTS, commentOnly: new Set(['.github/workflows/_ci-package.reusable.yml']) },
+    );
+    expect(d.runs).toEqual(Object.fromEntries(SERVICES.map((svc) => [svc, svc === 'dioxus'])));
+    expect(d.triggersAll).toEqual([]);
+    expect(d.commentOnlyFiles).toEqual(['.github/workflows/_ci-package.reusable.yml']);
+  });
+
+  it('should run lint-only for a comment-only workflow change on its own', () => {
+    const d = classifyChanges(['.github/workflows/ci.yml'], SERVICES, {
+      dependents: DEPENDENTS,
+      commentOnly: new Set(['.github/workflows/ci.yml']),
+    });
+    expect(d.lintOnly).toBe(true);
   });
 });

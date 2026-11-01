@@ -6,7 +6,11 @@ type SyntheticWindow = {
   __wdio_spy__: { fn: typeof fn };
   __wdio_mocks__: Record<string, ReturnType<typeof fn>>;
   __wdio_ipc_context__?: Record<string, unknown>;
+  __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> };
 };
+
+type TauriCore = { core: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } };
+type AnyFn = (...a: unknown[]) => unknown;
 
 function makeSyntheticWindow(): SyntheticWindow {
   return {
@@ -163,5 +167,65 @@ describe('TauriAdapter integration (synthetic window)', () => {
       expect(win.__wdio_ipc_context__?.a).toBe(1);
       expect(win.__wdio_ipc_context__?.b).toBe(2);
     });
+  });
+
+  describe('buildWithImplementationScript', () => {
+    it('should pass the tauri object to the callback and keep the implementation until it settles', async () => {
+      const win = makeSyntheticWindow();
+      evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
+      win.__wdio_mocks__.my_cmd.mockReturnValue('original');
+      const tauri: TauriCore = { core: { invoke: async (cmd, args) => win.__wdio_mocks__[cmd](args) } };
+      const callback = async ({ core }: TauriCore) => {
+        await Promise.resolve();
+        return core.invoke('my_cmd');
+      };
+      const script = interceptor.buildWithImplementationScript('my_cmd', () => 'temporary', callback as AnyFn);
+
+      const result = await new Function('window', 'tauri', `return (${script})(tauri)`)(win, tauri);
+
+      expect(result).toBe('temporary');
+      expect(win.__wdio_mocks__.my_cmd()).toBe('original');
+    });
+
+    it('should build the tauri object from the mocked IPC when called without one', async () => {
+      const win = makeSyntheticWindow();
+      win.__TAURI_INTERNALS__ = { invoke: async (cmd, args) => win.__wdio_mocks__[cmd](args) };
+      evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
+      const callback = ({ core }: TauriCore) => core.invoke('my_cmd', { a: 1 });
+      const script = interceptor.buildWithImplementationScript('my_cmd', () => 'temporary', callback as AnyFn);
+
+      const result = await evalScript(script, win);
+
+      expect(result).toBe('temporary');
+      expect(win.__wdio_mocks__.my_cmd.mock.calls).toEqual([[{ a: 1 }]]);
+    });
+
+    it('should reject without running the callback when the command is not mocked in this window', async () => {
+      const win = makeSyntheticWindow();
+      let called = false;
+      const callback = () => {
+        called = true;
+      };
+      const script = interceptor.buildWithImplementationScript('my_cmd', () => 'temporary', callback);
+
+      await expect(evalScript(script, win)).rejects.toMatchObject({ message: 'my_cmd is not mocked in this window' });
+      expect(called).toBe(false);
+    });
+  });
+});
+
+describe('ElectronAdapter integration (synthetic window)', () => {
+  const interceptor = createIpcInterceptor('electron');
+
+  it('should reject withImplementation without running the callback when the channel is not mocked', async () => {
+    const win = makeSyntheticWindow();
+    let called = false;
+    const callback = () => {
+      called = true;
+    };
+    const script = interceptor.buildWithImplementationScript('my-channel', () => 'temporary', callback);
+
+    await expect(evalScript(script, win)).rejects.toMatchObject({ message: 'my-channel is not mocked in this window' });
+    expect(called).toBe(false);
   });
 });

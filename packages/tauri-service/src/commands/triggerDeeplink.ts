@@ -1,6 +1,8 @@
 import { executeDeeplinkCommand, getPlatformCommand, validateDeeplinkUrl } from '@wdio/native-core';
 import { createLogger } from '@wdio/native-utils';
 
+import type { DriverProvider } from '../types.js';
+
 // Re-export the framework-agnostic helpers so existing Tauri-side callers
 // keep working without touching their imports. Local callers below use them
 // directly via the import above.
@@ -8,88 +10,29 @@ export { executeDeeplinkCommand, getPlatformCommand, validateDeeplinkUrl };
 
 const log = createLogger('tauri-service', 'triggerDeeplink');
 
+interface TauriInternals {
+  invoke: (cmd: string, args: unknown) => Promise<unknown>;
+}
+
 interface TauriServiceContext {
   browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
+  provider: DriverProvider;
 }
 
-/**
- * Store CrabNebula mode info for access by triggerDeeplink.
- * Uses environment variables since launcher and worker run in separate processes.
- */
-export function setCrabnebulaModeInfo(isCrabnebula: boolean): void {
-  if (isCrabnebula) {
-    process.env.__WDIO_TAURI_CRABNEBULA__ = 'true';
-    log.debug('Set CrabNebula mode env: isCrabnebula=true');
-  }
-}
-
-/**
- * Get CrabNebula mode info from environment variables.
- */
-function isCrabnebulaProvider(): boolean {
-  return process.env.__WDIO_TAURI_CRABNEBULA__ === 'true';
-}
-
-/**
- * Store embedded mode info for access by triggerDeeplink.
- * Uses environment variables since launcher and worker run in separate processes.
- */
-export function setEmbeddedModeInfo(isEmbedded: boolean, appBinaryPath?: string): void {
-  if (isEmbedded) {
-    process.env.__WDIO_TAURI_EMBEDDED__ = 'true';
-    if (appBinaryPath) {
-      process.env.__WDIO_TAURI_APP_BINARY__ = appBinaryPath;
-    }
-    log.debug(`Set embedded mode env: isEmbedded=true, appBinaryPath=${appBinaryPath}`);
-  }
-}
-
-/**
- * Get embedded mode info from environment variables.
- */
-function getEmbeddedModeInfo(): { isEmbedded: boolean; appBinaryPath?: string } | undefined {
-  const isEmbedded = process.env.__WDIO_TAURI_EMBEDDED__ === 'true';
-  const appBinaryPath = process.env.__WDIO_TAURI_APP_BINARY__;
-  if (!isEmbedded) return undefined;
-  return { isEmbedded, appBinaryPath };
-}
-
-/**
- * Check if we're running with the embedded WebDriver provider.
- * Uses globally stored info from the launcher.
- */
-function isEmbeddedProvider(): boolean {
-  const info = getEmbeddedModeInfo();
-  return info?.isEmbedded ?? false;
-}
-
-/**
- * Validates that the provided URL is a valid deeplink URL.
- * Rejects http/https/file protocols and ensures the URL is properly formatted.
- *
- * @param url - The URL to validate
- * @returns The validated URL
- * @throws Error if the URL is invalid or uses a disallowed protocol
- *
- * @example
- * ```ts
- * validateDeeplinkUrl('myapp://test'); // Returns 'myapp://test'
- * validateDeeplinkUrl('https://example.com'); // Throws error
- * ```
- */
 /**
  * Triggers a deeplink to the Tauri application for testing protocol handlers.
  *
- * For embedded WebDriver and CrabNebula:
- * - Uses browser.execute() to directly inject the deeplink into the app's JavaScript context
+ * For the embedded provider, and CrabNebula on macOS:
+ * - Has tauri-plugin-wdio emit tauri-plugin-deep-link's `deep-link://new-url` event on the app's
+ *   main thread, so the app's `onOpenUrl` / `on_open_url` handlers receive the URL. It doesn't wait
+ *   for those handlers, and the deep-link plugin's `getCurrent()` doesn't change.
  * - This bypasses platform-specific single-instance IPC mechanisms (D-Bus on Linux,
  *   NSDistributedNotificationCenter on macOS) which don't work reliably with
  *   unbundled binaries or when the app is managed by test-runner-backend.
  *
- * For tauri-driver:
+ * For the external provider, and CrabNebula on Windows and Linux:
  * - Uses platform-specific commands to open the deeplink URL
  * - Windows: Uses `rundll32.exe url.dll,FileProtocolHandler`
- * - macOS: Uses `open` command
  * - Linux: Uses `gio open` command
  *
  * @param this - Service context
@@ -107,51 +50,29 @@ export async function triggerDeeplink(this: TauriServiceContext, url: string): P
 
   const validatedUrl = validateDeeplinkUrl(url);
   const platform = process.platform;
+  const { provider } = this;
 
-  // For embedded or CrabNebula mode, use browser.execute to directly inject the deeplink.
-  // This bypasses platform-specific single-instance IPC mechanisms (D-Bus on Linux,
-  // NSDistributedNotificationCenter on macOS) which don't work reliably with
-  // unbundled binaries or when the app is managed by test-runner-backend.
-  let providerName: string | null = null;
-  if (isEmbeddedProvider()) {
-    providerName = 'embedded';
-  } else if (isCrabnebulaProvider()) {
-    providerName = 'crabnebula';
-  }
-
-  if (providerName) {
-    log.debug(`${providerName} mode: injecting deeplink via browser.execute`);
+  if (provider === 'embedded' || (provider === 'crabnebula' && platform === 'darwin')) {
+    log.debug(`${provider} mode: emitting the deep-link event in the app`);
 
     if (!this.browser) {
-      throw new Error(`${providerName} deeplink injection requires browser context`);
+      throw new Error(`${provider} deeplink injection requires browser context`);
     }
 
-    try {
-      // Build URL using char codes to avoid WebKit parsing the URL string literally.
-      // Use plain statements (not an arrow function) so the script works correctly when
-      // the embedded WebDriver wraps it as a function body: (function() { SCRIPT })().
-      const charCodes = Array.from(validatedUrl)
-        .map((c) => c.charCodeAt(0))
-        .join(',');
-      const script = `
-        try {
-          var charCodes = [${charCodes}];
-          var url = String.fromCharCode.apply(null, charCodes);
-          if (typeof window.receivedDeeplinks === 'undefined') {
-            window.receivedDeeplinks = [];
-          }
-          window.receivedDeeplinks.push(url);
-          if (typeof window.deeplinkCount === 'undefined') {
-            window.deeplinkCount = 0;
-          }
-          window.deeplinkCount++;
-        } catch (e) {
-          console.error('[WDIO Deeplink] Error:', e.message);
-        }
-      `;
-      await this.browser.execute(script);
+    // Normalized like the deep-link plugin's own payload; Rust's url crate follows the same URL standard.
+    const href = new URL(validatedUrl).href;
 
-      log.debug(`Deeplink injected successfully: ${validatedUrl}`);
+    try {
+      // `__TAURI_INTERNALS__` exists in every Tauri 2 webview; `__TAURI__` needs `withGlobalTauri`.
+      await (this.browser as WebdriverIO.Browser).execute((url: string) => {
+        const internals = (globalThis as unknown as { __TAURI_INTERNALS__?: TauriInternals }).__TAURI_INTERNALS__;
+        if (!internals) {
+          throw new Error('Tauri IPC (__TAURI_INTERNALS__) is not available in this window');
+        }
+        return internals.invoke('plugin:wdio|emit_deep_link', { url });
+      }, href);
+
+      log.debug(`Deeplink injected successfully: ${href}`);
       return;
     } catch (error) {
       log.error(`Failed to inject deeplink via browser.execute: ${error}`);
@@ -159,7 +80,6 @@ export async function triggerDeeplink(this: TauriServiceContext, url: string): P
     }
   }
 
-  // Standard approach for tauri-driver: use platform-specific commands
   const { command, args } = getPlatformCommand(validatedUrl, platform);
   const fullCommand = `${command} ${args.join(' ')}`;
   log.debug(`Full deeplink command: "${fullCommand}"`);
