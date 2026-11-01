@@ -18,10 +18,12 @@ vi.mock('@wdio/native-utils', async (importOriginal) => {
   };
 });
 
-vi.mock('../src/commands/mock.js', () => ({
+vi.mock('../src/commands/mock.js', async (importOriginal) => ({
   clearAllMocks: vi.fn().mockResolvedValue(undefined),
   resetAllMocks: vi.fn().mockResolvedValue(undefined),
   restoreAllMocks: vi.fn().mockResolvedValue(undefined),
+  getMockTargets: (await importOriginal<typeof import('../src/commands/mock.js')>()).getMockTargets,
+  runOnMockTargets: vi.fn().mockResolvedValue(undefined),
   isMockFunction: vi.fn(),
   mock: vi.fn(),
 }));
@@ -60,11 +62,11 @@ vi.mock('../src/window.js', async (importOriginal) => {
 
 import { waitUntilWindowAvailable } from '@wdio/native-utils';
 import { execute as executeCommand } from '../src/commands/execute.js';
-import { clearAllMocks, resetAllMocks, restoreAllMocks } from '../src/commands/mock.js';
+import { restoreAllMocks, runOnMockTargets } from '../src/commands/mock.js';
 import { triggerDeeplink } from '../src/commands/triggerDeeplink.js';
 import mockStore from '../src/mockStore.js';
 import TauriWorkerService from '../src/service.js';
-import type { TauriCapabilities } from '../src/types.js';
+import type { TauriCapabilities, TauriServiceOptions } from '../src/types.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
@@ -73,6 +75,7 @@ import {
   suppressActiveWindowFocus,
   withInternalWindowSwitch,
 } from '../src/window.js';
+import { createFakeMultiremote } from './commands/multiremoteFakes.js';
 
 function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO.Browser {
   return {
@@ -1170,64 +1173,59 @@ describe('TauriWorkerService', () => {
   });
 
   describe('beforeTest()', () => {
-    it('should call clearAllMocks when clearMocks option is true', async () => {
+    // What beforeTest asked runOnMockTargets to do: the command, and each target's name and prefix
+    const ranOps = () =>
+      vi
+        .mocked(runOnMockTargets)
+        .mock.calls.map(([commandName, targets]) => [
+          commandName,
+          targets.map(({ name, prefix }) => ({ name, prefix })),
+        ]);
+
+    it.each([
+      { option: 'clearMocks', commandName: 'clearAllMocks' },
+      { option: 'resetMocks', commandName: 'resetAllMocks' },
+      { option: 'restoreMocks', commandName: 'restoreAllMocks' },
+    ] as const)('should run $commandName on the browser with $option', async ({ option, commandName }) => {
       const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({ clearMocks: true }, { 'wdio:tauriServiceOptions': {} });
+      const service = new TauriWorkerService({ [option]: true }, { 'wdio:tauriServiceOptions': {} });
       (service as any).browser = mockBrowser;
 
       await service.beforeTest({}, {});
 
-      expect(clearAllMocks).toHaveBeenCalled();
+      expect(ranOps()).toEqual([[commandName, [{ name: undefined, prefix: undefined }]]]);
+      expect(vi.mocked(runOnMockTargets).mock.calls[0][1][0].resolve()).toEqual({
+        owner: mockBrowser,
+        app: mockBrowser,
+      });
     });
 
-    it('should call resetAllMocks when resetMocks option is true', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({ resetMocks: true }, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = mockBrowser;
-
-      await service.beforeTest({}, {});
-
-      expect(resetAllMocks).toHaveBeenCalled();
-    });
-
-    it('should call restoreAllMocks when restoreMocks option is true', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({ restoreMocks: true }, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = mockBrowser;
-
-      await service.beforeTest({}, {});
-
-      expect(restoreAllMocks).toHaveBeenCalled();
-    });
-
-    it('should not call any mock functions when all options are false', async () => {
-      const mockBrowser = createMockBrowser();
+    it('should not run any op when all options are false', async () => {
       const service = new TauriWorkerService(
         { clearMocks: false, resetMocks: false, restoreMocks: false },
         { 'wdio:tauriServiceOptions': {} },
       );
-      (service as any).browser = mockBrowser;
+      (service as any).browser = createMockBrowser();
 
       await service.beforeTest({}, {});
 
-      expect(clearAllMocks).not.toHaveBeenCalled();
-      expect(resetAllMocks).not.toHaveBeenCalled();
-      expect(restoreAllMocks).not.toHaveBeenCalled();
+      expect(runOnMockTargets).not.toHaveBeenCalled();
     });
 
-    it('should call all mock functions when all options are true', async () => {
-      const mockBrowser = createMockBrowser();
+    it('should run every op, in order, when all options are true', async () => {
       const service = new TauriWorkerService(
         { clearMocks: true, resetMocks: true, restoreMocks: true },
         { 'wdio:tauriServiceOptions': {} },
       );
-      (service as any).browser = mockBrowser;
+      (service as any).browser = createMockBrowser();
 
       await service.beforeTest({}, {});
 
-      expect(clearAllMocks).toHaveBeenCalled();
-      expect(resetAllMocks).toHaveBeenCalled();
-      expect(restoreAllMocks).toHaveBeenCalled();
+      expect(ranOps().map(([commandName]) => commandName)).toEqual([
+        'clearAllMocks',
+        'resetAllMocks',
+        'restoreAllMocks',
+      ]);
     });
 
     it('should still reset and restore when clearing fails, then report every failure', async () => {
@@ -1236,26 +1234,118 @@ describe('TauriWorkerService', () => {
         { 'wdio:tauriServiceOptions': {} },
       );
       (service as any).browser = createMockBrowser();
-      vi.mocked(clearAllMocks).mockRejectedValueOnce(new Error('clear failed'));
-      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore failed'));
+      vi.mocked(runOnMockTargets)
+        .mockRejectedValueOnce(new Error('clear failed'))
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('restore failed'));
 
       await expect(service.beforeTest({}, {})).rejects.toMatchObject({ message: 'clear failed; restore failed' });
 
-      expect(resetAllMocks).toHaveBeenCalled();
-      expect(restoreAllMocks).toHaveBeenCalled();
+      expect(runOnMockTargets).toHaveBeenCalledTimes(3);
     });
 
     it('should pass clearMocksPrefix to clearAllMocks', async () => {
-      const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService(
         { clearMocks: true, clearMocksPrefix: 'plugin:' },
         { 'wdio:tauriServiceOptions': {} },
       );
-      (service as any).browser = mockBrowser;
+      (service as any).browser = createMockBrowser();
 
       await service.beforeTest({}, {});
 
-      expect(clearAllMocks).toHaveBeenCalledWith('plugin:');
+      expect(ranOps()).toEqual([['clearAllMocks', [{ name: undefined, prefix: 'plugin:' }]]]);
+    });
+
+    it('should read the options from wdio:tauriServiceOptions', async () => {
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': { restoreMocks: true } });
+      (service as any).browser = createMockBrowser();
+
+      await service.beforeTest({}, {});
+
+      expect(ranOps()).toEqual([['restoreAllMocks', [{ name: undefined, prefix: undefined }]]]);
+    });
+
+    describe('in multiremote', () => {
+      function setUp(
+        options: TauriServiceOptions = {},
+        instanceOptions: Partial<Record<'browserA' | 'browserB', TauriServiceOptions>> = {},
+      ) {
+        const fakes = createFakeMultiremote();
+        const capabilitiesOf = (name: 'browserA' | 'browserB') => ({
+          capabilities: instanceOptions[name] ? { 'wdio:tauriServiceOptions': instanceOptions[name] } : {},
+        });
+        const service = new TauriWorkerService(options, {
+          browserA: capabilitiesOf('browserA'),
+          browserB: capabilitiesOf('browserB'),
+        } as unknown as TauriCapabilities);
+        (service as any).browser = fakes.root;
+        return { service, fakes };
+      }
+
+      it("should run the service's options on every instance and the root", async () => {
+        const { service } = setUp({ restoreMocks: true, restoreMocksPrefix: 'fs' });
+
+        await service.beforeTest({}, {});
+
+        expect(ranOps()).toEqual([
+          [
+            'restoreAllMocks',
+            [
+              { name: 'browserA', prefix: 'fs' },
+              { name: 'browserB', prefix: 'fs' },
+              { name: 'the multiremote root', prefix: 'fs' },
+            ],
+          ],
+        ]);
+      });
+
+      it("should apply an instance's own option to that instance only", async () => {
+        const { service, fakes } = setUp({}, { browserA: { restoreMocks: true } });
+
+        await service.beforeTest({}, {});
+
+        expect(ranOps()).toEqual([['restoreAllMocks', [{ name: 'browserA', prefix: undefined }]]]);
+        expect(vi.mocked(runOnMockTargets).mock.calls[0][1][0].resolve()).toEqual({
+          owner: fakes.browserA,
+          app: fakes.browserA,
+        });
+      });
+
+      it("should let an instance's false override the service's true", async () => {
+        const { service } = setUp({ resetMocks: true }, { browserB: { resetMocks: false } });
+
+        await service.beforeTest({}, {});
+
+        expect(ranOps()).toEqual([
+          [
+            'resetAllMocks',
+            [
+              { name: 'browserA', prefix: undefined },
+              { name: 'the multiremote root', prefix: undefined },
+            ],
+          ],
+        ]);
+      });
+
+      it("should use an instance's own prefix, and the service's where the instance sets none", async () => {
+        const { service } = setUp(
+          { clearMocks: true, clearMocksPrefix: 'fs' },
+          { browserA: { clearMocksPrefix: 'net' }, browserB: { clearMocks: true } },
+        );
+
+        await service.beforeTest({}, {});
+
+        expect(ranOps()).toEqual([
+          [
+            'clearAllMocks',
+            [
+              { name: 'browserA', prefix: 'net' },
+              { name: 'browserB', prefix: 'fs' },
+              { name: 'the multiremote root', prefix: 'fs' },
+            ],
+          ],
+        ]);
+      });
     });
   });
 
