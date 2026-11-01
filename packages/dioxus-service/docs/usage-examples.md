@@ -275,7 +275,6 @@ describe('Multiremote — Multiple App Instances', () => {
     const mock1 = await app1.dioxus.mock('get_user');
     await mock1.mockReturnValue({ id: 1, name: 'User1' });
 
-    // A separate mock in the second app
     const mock2 = await app2.dioxus.mock('get_user');
     await mock2.mockReturnValue({ id: 2, name: 'User2' });
 
@@ -301,7 +300,6 @@ describe('Multiremote — Multiple App Instances', () => {
     const mock2 = await app2.dioxus.mock('get_config');
     await mock2.mockReturnValue({ version: '2.0.0' });
 
-    // Restore only app1's mocks
     await app1.dioxus.restoreAllMocks();
 
     // app1 now calls the real command, app2 is still mocked

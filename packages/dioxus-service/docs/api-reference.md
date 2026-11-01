@@ -72,7 +72,7 @@ const content = await browser.dioxus.execute(({ invoke }) => invoke('read_file')
 expect(content).toBe('mocked file content');
 ```
 
-**Multiremote:** Each instance has its own mocks. `browser.getInstance('app1').dioxus.mock('read_file')` and `browser.getInstance('app2').dioxus.mock('read_file')` return different mocks, each registered in its own app, and restoring one leaves the other in place. `clearAllMocks()`, `resetAllMocks()`, `restoreAllMocks()` and `isMockFunction('read_file')` on an instance only see that instance's mocks. On the multiremote root, they cover every instance.
+**Multiremote:** Each instance has its own mocks. `browser.getInstance('app1').dioxus.mock('read_file')` and `browser.getInstance('app2').dioxus.mock('read_file')` return different mocks, each registered in its own app. `clearAllMocks()`, `resetAllMocks()`, `restoreAllMocks()` and `isMockFunction('read_file')` on an instance only see that instance's mocks. On the multiremote root, they cover every instance.
 
 ---
 

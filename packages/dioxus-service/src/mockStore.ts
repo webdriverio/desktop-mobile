@@ -1,7 +1,3 @@
-// Per-process registry of all DioxusMocks ever created. Used by the
-// clearAllMocks / resetAllMocks / restoreAllMocks lifecycle helpers and by
-// session cleanup.
-
 import type { DioxusMock } from '@wdio/native-types';
 
 export type MockOwner = WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
