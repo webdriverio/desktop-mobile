@@ -374,8 +374,7 @@ pub async fn send_keys(
   Ok(WebDriverResponse::null())
 }
 
-/// Whether Element Send Keys' start script left the plan's steps to run, or the error its status
-/// reports.
+/// Whether Send Keys' start script left the plan's steps to run, or the error its status reports.
 fn send_keys_started(started: &Value) -> Result<bool, WebDriverErrorResponse> {
   match started.get("status").and_then(Value::as_str) {
     Some("done" | "set") => Ok(false),
