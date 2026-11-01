@@ -11,15 +11,14 @@ export type DriverProvider = 'external' | 'crabnebula' | 'embedded';
 /**
  * Extended Tauri service options with implementation-specific fields
  * Extends the base TauriServiceOptions from native-types with:
- * - env: Environment variables for the driver process
+ * - env: Environment variables for the app
  * - autoInstallTauriDriver: Auto-install driver if not found
- * - autoDownloadEdgeDriver: Auto-download Edge driver on Windows
  * - logDir: Custom log directory for standalone mode
  */
 export interface TauriServiceOptions extends BaseTauriServiceOptions {
   /**
-   * Environment variables to pass to the spawned tauri-driver process
-   * These are merged with process.env when spawning the driver
+   * Environment variables for the app, merged over `process.env`. The service passes them to the
+   * driver or process that launches the app. A capability-level value replaces the service-level one.
    */
   env?: Record<string, string>;
   /**
@@ -28,21 +27,6 @@ export interface TauriServiceOptions extends BaseTauriServiceOptions {
    * @default false
    */
   autoInstallTauriDriver?: boolean;
-  /**
-   * Automatically download and configure matching msedgedriver on Windows
-   * Detects Edge version and ensures WebDriver matches to prevent version mismatch errors
-   * Only applies on Windows platform, ignored on Linux/macOS
-   * @default true
-   */
-  autoDownloadEdgeDriver?: boolean;
-  /**
-   * Pin the exact msedgedriver version to download on Windows (e.g. `'149.0.4022.98'`), bypassing
-   * runtime detection. A CI escape hatch for the next Evergreen WebView2 drift that breaks
-   * automation. Otherwise the runtime version is auto-detected — from a fixed-version runtime folder
-   * when `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, else the machine's Evergreen runtime.
-   * `EDGEDRIVER_VERSION` in the environment does the same. Windows-only.
-   */
-  edgeDriverVersion?: string;
   /**
    * Log directory for standalone mode
    * Full path where log files should be written
@@ -64,7 +48,7 @@ export interface TauriServiceOptions extends BaseTauriServiceOptions {
  */
 export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions {
   /**
-   * Environment variables to pass to the spawned tauri-driver process
+   * Environment variables for the app. See {@link TauriServiceOptions.env}.
    */
   env?: Record<string, string>;
   /**
@@ -74,12 +58,19 @@ export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions
   autoInstallTauriDriver?: boolean;
   /**
    * Automatically download and configure matching msedgedriver on Windows
+   * Detects Edge version and ensures WebDriver matches to prevent version mismatch errors
+   * Only applies on Windows platform, ignored on Linux/macOS
+   * Service-level only, since msedgedriver is machine-wide.
    * @default true
    */
   autoDownloadEdgeDriver?: boolean;
   /**
-   * Pin the exact msedgedriver version to download on Windows, bypassing runtime detection
-   * (also honoured via `EDGEDRIVER_VERSION`). Windows-only. See {@link TauriServiceOptions.edgeDriverVersion}.
+   * Pin the exact msedgedriver version to download on Windows (e.g. `'149.0.4022.98'`), bypassing
+   * runtime detection. A CI escape hatch for the next Evergreen WebView2 drift that breaks
+   * automation. Otherwise the runtime version is auto-detected — from a fixed-version runtime folder
+   * when `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, else the machine's Evergreen runtime.
+   * `EDGEDRIVER_VERSION` in the environment does the same. Windows-only.
+   * Service-level only, since msedgedriver is machine-wide.
    */
   edgeDriverVersion?: string;
   /**

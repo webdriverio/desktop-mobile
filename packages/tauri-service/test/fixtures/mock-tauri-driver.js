@@ -4,7 +4,12 @@
  * Simulates successful driver startup and graceful shutdown
  */
 
+const fs = require('node:fs');
 const http = require('node:http');
+
+if (process.env.WDIO_MOCK_DRIVER_ENV_FILE) {
+  fs.writeFileSync(process.env.WDIO_MOCK_DRIVER_ENV_FILE, JSON.stringify(process.env));
+}
 
 const args = process.argv.slice(2);
 const portIndex = args.indexOf('--port');

@@ -1,8 +1,9 @@
 import type { spawn } from 'node:child_process';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { TauriCapabilities } from '../../src/types.js';
 
 // Mock CrabNebula backend functions
@@ -334,6 +335,36 @@ describe('Multiremote Mode - Integration', () => {
 
       // onComplete should clean up all instances without errors
       await expect((launcher as any).onComplete?.()).resolves.not.toThrow();
+    });
+
+    it("should start each instance's driver with that instance's env", async () => {
+      vi.mocked(ensureTauriDriver).mockResolvedValue({
+        ok: true,
+        value: { path: mockSuccessPath, method: 'found' },
+      });
+      const envDir = await mkdtemp(path.join(tmpdir(), 'wdio-tauri-env-'));
+      onTestFinished(() => rm(envDir, { recursive: true, force: true }));
+      const instanceCaps = (name: string) => ({
+        capabilities: {
+          browserName: 'tauri',
+          'tauri:options': { application: '/app' },
+          'wdio:tauriServiceOptions': {
+            env: { WDIO_MOCK_DRIVER_ENV_FILE: path.join(envDir, `${name}.json`), WDIO_INSTANCE: name },
+          },
+        } as TauriCapabilities,
+      });
+
+      launcher = new TauriLaunchService(
+        { driverProvider: 'external' },
+        { browserName: 'tauri', 'tauri:options': { application: '/app' } },
+        { maxInstances: 1 },
+      );
+      await (launcher as any).onPrepare({}, { browserA: instanceCaps('a'), browserB: instanceCaps('b') });
+
+      for (const name of ['a', 'b']) {
+        const driverEnv = JSON.parse(await readFile(path.join(envDir, `${name}.json`), 'utf8'));
+        expect(driverEnv.WDIO_INSTANCE).toBe(name);
+      }
     });
 
     it("should remove each instance's data directory in onComplete", async () => {

@@ -195,7 +195,6 @@ export function createTauriCapabilities(
   appBinaryPath: string,
   options: {
     appArgs?: string[];
-    tauriDriverPort?: number;
     logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
     startTimeout?: number;
     driverProvider?: 'external' | 'crabnebula' | 'embedded';
@@ -205,12 +204,11 @@ export function createTauriCapabilities(
   return {
     'tauri:options': {
       application: appBinaryPath,
-      args: options.appArgs || [],
+      ...(options.appArgs && { args: options.appArgs }),
     },
     'wdio:tauriServiceOptions': {
       appBinaryPath,
-      appArgs: options.appArgs || [],
-      tauriDriverPort: options.tauriDriverPort,
+      appArgs: options.appArgs,
       logLevel: options.logLevel,
       startTimeout: options.startTimeout,
       driverProvider: options.driverProvider,

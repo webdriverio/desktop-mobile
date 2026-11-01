@@ -99,10 +99,12 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
   return new Promise((resolve, reject) => {
     // Use --port flag with fallback to PORT env var
     const args = ['--port', port.toString()];
+    // On macOS the backend, not tauri-driver, launches the app, so it needs the app's env.
     const proc = spawn(backendPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        ...serviceOptions?.env,
         PORT: port.toString(),
       },
     });

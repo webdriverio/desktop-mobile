@@ -312,10 +312,6 @@ export interface TauriServiceOptions extends BaseServiceOptions, DriverProviderC
    */
   devServerUrl?: string;
   /**
-   * The port for tauri-driver to listen on.
-   */
-  tauriDriverPort?: number;
-  /**
    * The path to the tauri-driver executable.
    */
   tauriDriverPath?: string;
@@ -358,6 +354,10 @@ export interface TauriServiceGlobalOptions extends BaseServiceGlobalOptions, Dri
   mode?: 'native' | 'browser';
   devServerUrl?: string;
   logLevel?: LogLevel;
+  /**
+   * The port for tauri-driver to listen on. Service-level only: one setting covers every driver the service starts.
+   * @default 4444
+   */
   tauriDriverPort?: number;
   nativeDriverPath?: string;
   /**

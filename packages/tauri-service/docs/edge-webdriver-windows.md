@@ -23,6 +23,8 @@ The tauri-service automatically:
 
 ## Configuration
 
+msedgedriver is machine-wide, so `autoDownloadEdgeDriver` and `edgeDriverVersion` are service-level options only. You can't set them in a capability.
+
 ### Auto-Download (Recommended)
 
 By default, auto-download is **enabled**. Just use the service normally:
@@ -92,7 +94,7 @@ Current browser version is 149.0.4022.98 ... tauri-e2e-app.exe
 
 The service resolves the target version in this precedence order:
 1. **Explicit pin** — the `edgeDriverVersion` service option, or the `EDGEDRIVER_VERSION` environment variable, is used as the exact msedgedriver version verbatim (a CI escape hatch for the next Evergreen drift that breaks automation).
-2. **Fixed-version runtime folder** — if `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, the runtime version is read from the `msedgewebview2.exe` in that folder, and the driver is matched to it. This is read from the service `env` option first, then `process.env`, mirroring what the app actually receives.
+2. **Fixed-version runtime folder** — if `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, the runtime version is read from the `msedgewebview2.exe` in that folder, and the driver is matched to it. This is read from the first capability's `env` option (or the service-level one) first, then `process.env`, which is what the app gets.
 3. **Evergreen** — the installed runtime from the registry (the default, and the canary that catches runtime regressions).
 
 ### Pin the exact driver version
@@ -189,8 +191,10 @@ Ensure the correct version appears first
 
 ### Service Options
 
+Both options are service-level only, on `TauriServiceGlobalOptions`.
+
 ```typescript
-interface TauriServiceOptions {
+interface TauriServiceGlobalOptions {
   /**
    * Automatically download and configure matching msedgedriver on Windows
    * @default true

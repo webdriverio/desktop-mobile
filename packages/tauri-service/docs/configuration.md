@@ -48,7 +48,7 @@ appBinaryPath: './target/debug/bundle/macos/My App.app',  // macOS .app bundle
 
 ### `appArgs` (string[], optional)
 
-Command-line arguments to pass to the Tauri application when launching. Each array element is passed as a separate argument — no shell parsing is applied.
+Command-line arguments to pass to the Tauri application when launching. Each array element is passed as a separate argument — no shell parsing is applied. They reach the app with every driver provider.
 
 **Example:**
 ```typescript
@@ -60,6 +60,26 @@ appArgs: ['--window-size=1920,1080']; // Single element with equals
 ```
 
 **Default:** `[]`
+
+**Resolution order:** like the binary path, `tauri:options.args` (capability-level) takes precedence. It counts as set even when it's an empty array. `appArgs` is used when the capability doesn't set `tauri:options.args`. The service writes the list it uses into `tauri:options.args`.
+
+---
+
+### `env` (Record<string, string>, optional)
+
+Environment variables for the app. The service merges them over `process.env` and passes them to whatever launches the app: tauri-driver, the CrabNebula backend on macOS, or the app itself with the embedded provider.
+
+**Example:**
+```typescript
+services: [['@wdio/tauri-service', { env: { ENABLE_SINGLE_INSTANCE: 'true' } }]];
+```
+
+**Default:** `undefined`
+
+**Note:**
+- Set it in a capability's `wdio:tauriServiceOptions` to give that capability or multiremote instance its own. A capability's `env` replaces the service-level one rather than merging with it.
+- With `maxInstances: 1` and the `'external'` or `'crabnebula'` provider, every capability shares one tauri-driver, which gets the first capability's `env`.
+- With the `'external'` and `'crabnebula'` providers, the service sets `XDG_DATA_HOME` on Linux, or `TAURI_DATA_DIR` elsewhere, to a separate data directory for each worker and multiremote instance. That value wins over `env`.
 
 ---
 
@@ -93,7 +113,22 @@ autoDownloadEdgeDriver: true; // Windows only
 
 **Default:** `true`
 
-**Note:** Windows only, ignored on Linux/macOS. See [Edge WebDriver Windows](./edge-webdriver-windows.md).
+**Note:** Windows only, ignored on Linux/macOS. Service-level only: msedgedriver is machine-wide, so one setting covers every capability. See [Edge WebDriver Windows](./edge-webdriver-windows.md).
+
+---
+
+### `edgeDriverVersion` (string, optional)
+
+The exact msedgedriver version to download on Windows, instead of matching it to the WebView2 runtime. The `EDGEDRIVER_VERSION` environment variable does the same.
+
+**Example:**
+```typescript
+edgeDriverVersion: '149.0.4022.98'; // Windows only
+```
+
+**Default:** `undefined`
+
+**Note:** Windows only, ignored on Linux/macOS. Service-level only, like `autoDownloadEdgeDriver`. See [Edge WebDriver Windows](./edge-webdriver-windows.md).
 
 ---
 
@@ -108,7 +143,7 @@ tauriDriverPort: 4444;
 
 **Default:** `4444`
 
-**Note:** Increment for multiremote to avoid port conflicts.
+**Note:** Service-level only. The service finds a free port for each further tauri-driver it starts, including one per multiremote instance.
 
 ---
 
@@ -489,7 +524,9 @@ capabilities: [
       args: ['--debug'],
     },
     // Optional: override service settings per capability
-    // tauriDriverPort: 4445,
+    'wdio:tauriServiceOptions': {
+      env: { MY_APP_MODE: 'test' },
+    },
   },
 ];
 ```

@@ -513,7 +513,7 @@ Create Tauri-specific capabilities for use in WebdriverIO config.
 
 **Parameters:**
 - `appBinaryPath` (string) - Path to the Tauri app binary
-- `options?` (Partial<TauriServiceOptions>) - Optional Tauri service options
+- `options?` - Optional `appArgs`, `logLevel`, `startTimeout`, `driverProvider` and `autoInstallTauriDriver`. `appArgs` goes into `tauri:options.args`.
 
 **Returns:** `TauriCapabilities`
 
@@ -522,7 +522,7 @@ Create Tauri-specific capabilities for use in WebdriverIO config.
 import { createTauriCapabilities } from '@wdio/tauri-service';
 
 const capabilities = createTauriCapabilities('./path/to/app.exe', {
-  captureBackendLogs: true,
+  appArgs: ['--debug'],
 });
 ```
 
@@ -553,7 +553,6 @@ interface TauriCapabilities extends WebdriverIO.Capabilities {
 interface TauriServiceOptions {
   appBinaryPath?: string;
   appArgs?: string[];
-  tauriDriverPort?: number;
   tauriDriverPath?: string;
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
   startTimeout?: number;
@@ -576,14 +575,22 @@ interface TauriServiceOptions {
   restoreMocksPrefix?: string;
   env?: Record<string, string>;
   autoInstallTauriDriver?: boolean;
-  autoDownloadEdgeDriver?: boolean;
   logDir?: string;
 }
 ```
 
 ### `TauriServiceGlobalOptions`
 
-Global options passed at the service level (not per-capability).
+Global options passed at the service level. Besides the `TauriServiceOptions` fields, these are service-level only:
+
+```typescript
+interface TauriServiceGlobalOptions {
+  tauriDriverPort?: number;
+  nativeDriverPath?: string;
+  autoDownloadEdgeDriver?: boolean;
+  edgeDriverVersion?: string;
+}
+```
 
 ### `TauriResult<T>`
 

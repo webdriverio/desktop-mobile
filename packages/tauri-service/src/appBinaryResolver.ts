@@ -55,6 +55,17 @@ export function resolveAppBinaryPath(
 }
 
 /**
+ * Resolve the arguments to launch the app with, with the binary's precedence:
+ * `tauri:options.args` when it's set, even to `[]`, otherwise `appArgs`.
+ */
+export function resolveAppArgs(
+  options: Pick<TauriServiceOptions, 'appArgs'>,
+  tauriOptions: { args?: string[] } | undefined,
+): string[] {
+  return tauriOptions?.args ?? options.appArgs ?? [];
+}
+
+/**
  * Migration guard for users upgrading from v1.0.x: the launcher used to
  * auto-resolve a binary from a project directory by reading
  * `tauri.conf.json`. That resolver was removed because it broke for

@@ -75,12 +75,11 @@ export interface EmbeddedDriverInfo {
  */
 export async function startEmbeddedDriver(
   appBinaryPath: string,
+  appArgs: string[],
   port: number,
   options: TauriServiceOptions,
   instanceId?: string,
 ): Promise<EmbeddedDriverInfo> {
-  const appArgs = options.appArgs || [];
-
   // Set TAURI_WEBDRIVER_PORT env var to configure the embedded server port
   // Set WDIO_EMBEDDED_SERVER to signal the app to load tauri-plugin-wdio-server
   const env = {

@@ -130,6 +130,27 @@ describe('CrabNebula Backend', () => {
       expect(result.port).toBe(3000);
     }, 10000);
 
+    it("should pass the app's env to the backend, which launches the app, and keep its own PORT", async () => {
+      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
+      process.env.CN_API_KEY = 'test-api-key-long-enough';
+      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
+
+      const promise = startTestRunnerBackend({
+        port: 3000,
+        serviceOptions: { env: { APP_FLAG: 'on', PORT: '9999' } },
+      });
+      setImmediate(() => {
+        mockProc.emit('spawn');
+      });
+      await promise;
+
+      expect(vi.mocked(spawn).mock.calls[0][2]?.env).toMatchObject({
+        CN_API_KEY: 'test-api-key-long-enough',
+        APP_FLAG: 'on',
+        PORT: '3000',
+      });
+    }, 10000);
+
     it('should resolve when the process spawns, before any stdout line', async () => {
       vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
       process.env.CN_API_KEY = 'test-api-key-long-enough';
