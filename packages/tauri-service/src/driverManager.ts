@@ -37,7 +37,7 @@ export function findTauriDriver(): string | undefined {
   try {
     const command = isWindows ? 'where tauri-driver' : 'which tauri-driver';
     const result = execSync(command, { encoding: 'utf8', stdio: 'pipe' });
-    let path = result.trim().split('\n')[0]; // 'where' can return multiple paths
+    let path = result.trim().split(/\r?\n/)[0]; // 'where' can return multiple paths, one per CRLF line
 
     // On Windows, convert Git Bash-style paths (/c/...) to Windows paths (C:\...)
     if (isWindows && path?.startsWith('/')) {

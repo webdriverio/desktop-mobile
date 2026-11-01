@@ -51,7 +51,6 @@ async function pollWebDriverStatus(port: number, signal: AbortSignal): Promise<v
  */
 function spawnTauriApp(appBinaryPath: string, args: string[], env: NodeJS.ProcessEnv): ChildProcess {
   log.debug(`Spawning Tauri app: ${appBinaryPath} ${args.join(' ')}`);
-  log.debug(`Environment: ${JSON.stringify(env, null, 2)}`);
 
   const child = spawn(appBinaryPath, args, {
     env,
@@ -83,6 +82,7 @@ export async function startEmbeddedDriver(
   // Set TAURI_WEBDRIVER_PORT env var to configure the embedded server port
   // Set WDIO_EMBEDDED_SERVER to signal the app to load tauri-plugin-wdio-server
   const env = appEnv(options, { TAURI_WEBDRIVER_PORT: String(port), WDIO_EMBEDDED_SERVER: 'true' });
+  log.debug(`App env: ${Object.keys(options.env ?? {}).join(', ') || 'none'}`);
 
   // Spawn the app directly
   const child = spawnTauriApp(appBinaryPath, appArgs, env);

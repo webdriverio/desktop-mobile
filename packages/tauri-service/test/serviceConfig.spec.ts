@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appEnv, mergeServiceOptions, resolveStartTimeout } from '../src/serviceConfig.js';
+import { appEnv, hideEnvValues, mergeServiceOptions, resolveStartTimeout } from '../src/serviceConfig.js';
 
 describe('mergeServiceOptions', () => {
   it('should let capability options override global options', () => {
@@ -90,5 +90,16 @@ describe('appEnv', () => {
 
   it('should return process.env as is without an app env or service vars', () => {
     expect(appEnv(undefined)).toEqual({ ...process.env });
+  });
+});
+
+describe('hideEnvValues', () => {
+  it('should show only the names of an env, at any depth', () => {
+    const logged = JSON.stringify(
+      { env: { CN_API_KEY: 'secret-value' }, services: [['tauri', { env: { TOKEN: 'other-secret' } }]] },
+      hideEnvValues,
+    );
+
+    expect(logged).toBe('{"env":["CN_API_KEY"],"services":[["tauri",{"env":["TOKEN"]}]]}');
   });
 });

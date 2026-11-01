@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
+const mockLog = vi.hoisted(() => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }));
+
 vi.mock('../src/embeddedProvider.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/embeddedProvider.js')>()),
   checkEmbeddedServerAlive: vi.fn(),
@@ -13,7 +15,7 @@ vi.mock('../src/diagnostics.js', () => ({
 
 vi.mock('@wdio/native-utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-utils')>()),
-  createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+  createLogger: () => mockLog,
   formatDiagnosticResults: vi.fn(),
 }));
 
@@ -145,14 +147,26 @@ describe('app args', () => {
     expect(shared).toEqual({ application: APP });
   });
 
-  it('should stop the run with a SevereServiceError when the driver it needs is missing', async () => {
-    vi.mocked(ensureTauriDriver).mockResolvedValueOnce({ ok: false, error: new Error('tauri-driver not found') });
+  it('should stop the run with a SevereServiceError when the driver it needs is missing, logging the original', async () => {
+    const missing = new Error('tauri-driver not found');
+    vi.mocked(ensureTauriDriver).mockResolvedValueOnce({ ok: false, error: missing });
     const launcher = createLauncher({ driverProvider: 'external' });
 
     const prepared = launcher.onPrepare({ maxInstances: 1 }, [appCap()]);
 
     await expect(prepared).rejects.toBeInstanceOf(SevereServiceError);
     await expect(prepared).rejects.toMatchObject({ message: 'tauri-driver not found' });
+    expect(mockLog.error).toHaveBeenCalledWith('Tauri service failed to prepare', missing);
+  });
+
+  it("should keep env values out of its debug logs, showing only the variables' names", async () => {
+    const launcher = createLauncher({ driverProvider: 'external', env: { CN_API_KEY: 'secret-service-value' } });
+
+    await launcher.onPrepare({ maxInstances: 1 }, [appCap({ env: { APP_TOKEN: 'secret-capability-value' } })]);
+
+    const logged = JSON.stringify(mockLog.debug.mock.calls);
+    expect(logged).toContain('APP_TOKEN');
+    expect(logged).not.toContain('secret-');
   });
 
   it('should stop the run with a SevereServiceError for args that are not an array of strings', async () => {

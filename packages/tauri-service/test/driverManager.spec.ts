@@ -152,6 +152,14 @@ describe('findTauriDriver', () => {
     expect(findTauriDriver()).toBe('C:\\Users\\user\\.cargo\\bin\\tauri-driver.exe');
   });
 
+  it("should take the first of several drivers `where` lists, without the line's carriage return", () => {
+    mockPlatform('win32');
+    vi.mocked(execSync).mockReturnValue('C:\\first\\tauri-driver.exe\r\nC:\\second\\tauri-driver.exe\r\n');
+    vi.mocked(existsSync).mockImplementation((path) => path === 'C:\\first\\tauri-driver.exe');
+
+    expect(findTauriDriver()).toBe('C:\\first\\tauri-driver.exe');
+  });
+
   it('should return undefined when command throws and no common paths exist', () => {
     mockPlatform('linux');
     vi.mocked(execSync).mockImplementation(() => {

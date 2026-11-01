@@ -32,6 +32,11 @@ export function appEnv(
   return mergeEnv(process.env, options?.env, serviceEnv);
 }
 
+// A JSON.stringify replacer for debug logs: env values can hold secrets, such as CN_API_KEY, so only their names show
+export function hideEnvValues(key: string, value: unknown): unknown {
+  return key === 'env' && value !== null && typeof value === 'object' ? Object.keys(value) : value;
+}
+
 const EMBEDDED_START_TIMEOUT = 60_000;
 
 // Takes merged options. Only the embedded provider waits for the app to start.

@@ -26,23 +26,11 @@ import type { Interface as ReadlineInterface } from 'node:readline';
 
 import { createLogger, mergeEnv } from '@wdio/native-utils';
 
+import { needsShell, quoteForCmd } from './cmdLine.js';
+
 import { createLogCapture } from './logCapture.js';
 
 const log = createLogger('native-core', 'launcher');
-
-// For a command line cmd.exe runs: quotes an argument with a space or a special character, leaving one the
-// caller already quoted, and doubles a trailing backslash so it doesn't escape the closing quote
-export function quoteForCmd(arg: string): string {
-  if ((arg.length > 1 && arg.startsWith('"') && arg.endsWith('"')) || !/[\s"&()<>^|]/.test(arg)) {
-    return arg;
-  }
-  return `"${arg.replace(/"/g, '""').replace(/(\\+)$/, '$1$1')}"`;
-}
-
-// On Windows only a .exe or .com starts without cmd.exe; a .cmd shim, or a bare name cmd.exe resolves, needs it
-function needsShell(driverPath: string): boolean {
-  return process.platform === 'win32' && !/\.(exe|com)$/i.test(driverPath);
-}
 
 export interface DriverStartOptions {
   mode: 'single' | 'worker' | 'multiremote';

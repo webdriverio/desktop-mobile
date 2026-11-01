@@ -14,7 +14,7 @@ import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
-import { mergeServiceOptions } from './serviceConfig.js';
+import { hideEnvValues, mergeServiceOptions } from './serviceConfig.js';
 import type { TauriCapabilities, TauriServiceGlobalOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'service');
@@ -122,7 +122,7 @@ export async function init(
 
     await launcher.onWorkerStart('standalone', capabilities);
 
-    log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, null, 2));
+    log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, hideEnvValues, 2));
 
     // Browser mode has no Tauri driver: WebdriverIO starts and manages chromedriver itself.
     const remoteOptions = launcher.isBrowserMode

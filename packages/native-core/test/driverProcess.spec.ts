@@ -7,7 +7,8 @@ vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
 
 import { spawn } from 'node:child_process';
 
-import { DriverProcess, quoteForCmd } from '../src/driverProcess.js';
+import { quoteForCmd } from '../src/cmdLine.js';
+import { DriverProcess } from '../src/driverProcess.js';
 
 const NATIVE_DRIVER = 'C:\\Program Files (x86)\\EdgeDriver\\msedgedriver.exe';
 const originalPlatform = process.platform;
