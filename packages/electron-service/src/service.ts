@@ -25,6 +25,7 @@ import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
 import { clearAllMocks } from './commands/clearAllMocks.js';
 import { execute } from './commands/executeCdp.js';
+import { getMockOwners, runMockOp, runOnMockOwners } from './commands/forEachMock.js';
 import { isMockFunction } from './commands/isMockFunction.js';
 import { mock } from './commands/mock.js';
 import { mockAll } from './commands/mockAll.js';
@@ -41,21 +42,6 @@ import { isInternalCommand } from './utils.js';
 import { clearPuppeteerSessions, ensureActiveWindowFocus, getActiveWindowHandle, getPuppeteer } from './window.js';
 
 const browserInterceptor = createIpcInterceptor('electron');
-const browserModeInstanceIds = new WeakMap<WebdriverIO.Browser, number>();
-let browserModeInstanceCount = 0;
-
-function browserModeInstanceId(browser: WebdriverIO.Browser): number {
-  let id = browserModeInstanceIds.get(browser);
-  if (id === undefined) {
-    id = browserModeInstanceCount++;
-    browserModeInstanceIds.set(browser, id);
-  }
-  return id;
-}
-
-export function browserModeStoreKey(browser: WebdriverIO.Browser, channel: string): string {
-  return `electron.${channel}\x00${browserModeInstanceId(browser)}`;
-}
 
 const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
 const pendingRegistrations = new WeakMap<WebdriverIO.Browser, Map<string, Promise<void>>>();
@@ -123,13 +109,8 @@ class MockUpdateScheduler {
 
   async #runOnce(): Promise<void> {
     log.debug('updateAllMocks batch start');
-    // Native-mode mocks (key has no \x00) belong to every scheduler in the
-    // process; browser-mode mocks (key ends with \x00<id>) are owned by a
-    // single browser instance and must only be updated by that browser's
-    // scheduler, otherwise mock.update() runs browser.execute() on the wrong
-    // app context.
-    const suffix = `\x00${browserModeInstanceId(this.#browser)}`;
-    const mocks = mockStore.getMocks().filter(([key]) => !key.includes('\x00') || key.endsWith(suffix));
+    // Only this browser's own mocks: the batch reads their call data from this browser's app.
+    const mocks = mockStore.getMocks(this.#browser);
     log.debug(`Found ${mocks.length} mocks to update`);
     if (mocks.length === 0) {
       return;
@@ -296,9 +277,9 @@ async function batchUpdateNativeMocks(
  * round-trip against window.__wdio_mocks__. Each channel's read script is
  * built by the interceptor (same serialisation contract as per-mock update()),
  * then the batch wrapper invokes them inside one round-trip. Ids and scripts
- * are passed as WebDriver args so null-byte mockStore keys don't ride a
- * source-string boundary. Raw payloads run through parseCallData() per mock
- * to reconstruct Error markers, then go to __applyCalls.
+ * are passed as WebDriver args, not spliced into the script source. Raw
+ * payloads run through parseCallData() per mock to reconstruct Error markers,
+ * then go to __applyCalls.
  */
 async function batchUpdateBrowserModeMocks(
   browser: WebdriverIO.Browser,
@@ -372,6 +353,12 @@ function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateSchedul
 const log = createLogger('electron-service', 'service');
 
 type ElementCommands = 'click' | 'doubleClick' | 'setValue' | 'clearValue';
+
+const MOCK_OPTION_OPS = [
+  ['clearMocks', 'clearAllMocks', 'mockClear'],
+  ['resetMocks', 'resetAllMocks', 'mockReset'],
+  ['restoreMocks', 'restoreAllMocks', 'mockRestore'],
+] as const;
 
 export default class ElectronWorkerService extends ServiceConfig implements Services.ServiceInstance {
   private logCaptureManager?: LogCaptureManager;
@@ -528,23 +515,22 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async beforeTest() {
+    if (!this.browser) {
+      return;
+    }
+    const targets = await getMockOwners(this.browser);
     // Run every configured op so one failure can't skip the others, then report them together.
     const failures: unknown[] = [];
-    const attempt = async (op: () => Promise<void>) => {
+    for (const [option, commandName, op] of MOCK_OPTION_OPS) {
+      const enabled = targets.filter(({ caps }) => this.mockOptions(caps)[option]);
+      if (enabled.length === 0) {
+        continue;
+      }
       try {
-        await op();
+        await runOnMockOwners(commandName, enabled, (owner) => runMockOp(owner, op));
       } catch (error) {
         failures.push(error);
       }
-    };
-    if (this.clearMocks) {
-      await attempt(() => clearAllMocks());
-    }
-    if (this.resetMocks) {
-      await attempt(() => resetAllMocks());
-    }
-    if (this.restoreMocks) {
-      await attempt(() => restoreAllMocks());
     }
     if (failures.length > 0) {
       throw failures.length === 1
@@ -694,10 +680,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
               `Use browser.electron.mock('${channel}') to mock the IPC channel directly.`,
           );
         }
-        const storeKey = browserModeStoreKey(browser, channel);
         let existing: ElectronFunctionMock | undefined;
         try {
-          existing = mockStore.getMock(storeKey);
+          existing = mockStore.getMock(browser, `electron.${channel}`);
         } catch (e) {
           if (!(e instanceof Error && e.message.startsWith('No mock registered for'))) {
             throw e;
@@ -705,7 +690,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         }
         if (!existing) {
           const newMock = await createElectronBrowserModeMock(channel, browser);
-          mockStore.setMockWithKey(storeKey, newMock);
+          mockStore.setMock(browser, newMock);
           return newMock;
         }
         // Concurrent mock(channel) callers after navigation must share a single
@@ -755,9 +740,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             'Use browser.execute() for renderer code or browser.electron.mock() to intercept IPC.',
         );
       },
-      clearAllMocks: async (commandPrefix?: string) => clearAllMocks.call(this, commandPrefix),
-      resetAllMocks: async (commandPrefix?: string) => resetAllMocks.call(this, commandPrefix),
-      restoreAllMocks: async (commandPrefix?: string) => restoreAllMocks.call(this, commandPrefix),
+      clearAllMocks: async (commandPrefix?: string) => clearAllMocks.call({ browser }, commandPrefix),
+      resetAllMocks: async (commandPrefix?: string) => resetAllMocks.call({ browser }, commandPrefix),
+      restoreAllMocks: async (commandPrefix?: string) => restoreAllMocks.call({ browser }, commandPrefix),
       isMockFunction: (fn: unknown) => isMockFunction.call(this, fn),
       triggerDeeplink: async () => {
         throw new Error('browser.electron.triggerDeeplink() is not supported in browser mode.');
@@ -950,16 +935,19 @@ function getElectronAPI(this: ServiceConfig, browser: WebdriverIO.Browser, bridg
     return !cdpBridge && requiresCdp ? disabledApiFunc : impl;
   };
 
+  // Bound to this browser, not the service, so each multiremote instance has its own mocks
+  const mockContext = { browser };
+
   return {
-    clearAllMocks: getMethod(clearAllMocks.bind(this)),
+    clearAllMocks: getMethod((apiName?: string) => clearAllMocks.call(mockContext, apiName)),
     execute: getMethod((script: string | AbstractFn, ...args: unknown[]) =>
       execute.apply(this, [browser, cdpBridge as ElectronCdpBridge, script, ...args]),
     ),
     isMockFunction: getMethod(isMockFunction.bind(this)),
-    mock: getMethod(mock.bind(this)),
-    mockAll: getMethod(mockAll.bind(this)),
-    resetAllMocks: getMethod(resetAllMocks.bind(this)),
-    restoreAllMocks: getMethod(restoreAllMocks.bind(this)),
+    mock: getMethod((apiName: string, funcName?: string) => mock.call(mockContext, apiName, funcName)),
+    mockAll: getMethod((apiName: string) => mockAll.call(mockContext, apiName)),
+    resetAllMocks: getMethod((apiName?: string) => resetAllMocks.call(mockContext, apiName)),
+    restoreAllMocks: getMethod((apiName?: string) => restoreAllMocks.call(mockContext, apiName)),
     triggerDeeplink: getMethod(triggerDeeplink.bind(this), false), // doesn't require CDP
     emitEvent: getMethod(async (channel: string, ...args: unknown[]): Promise<void> => {
       await execute.apply(this, [

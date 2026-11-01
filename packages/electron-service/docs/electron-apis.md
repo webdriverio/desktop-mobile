@@ -210,6 +210,23 @@ export const config = {
 };
 ```
 
+### Mocking in Multiremote
+
+Each multiremote instance has its own mocks. Create a mock on the instance whose app it should apply to:
+
+```ts
+const app1 = browser.getInstance('app1');
+const app2 = browser.getInstance('app2');
+
+const mockGetName = await app1.electron.mock('app', 'getName');
+await mockGetName.mockReturnValue('mocked app name');
+
+expect(await app1.electron.execute((electron) => electron.app.getName())).toBe('mocked app name');
+expect(await app2.electron.execute((electron) => electron.app.getName())).not.toBe('mocked app name');
+```
+
+`clearAllMocks()`, `resetAllMocks()` and `restoreAllMocks()` on an instance only touch that instance's mocks. On the multiremote root, they cover every instance. Set `clearMocks`, `resetMocks` or `restoreMocks` in an instance's `wdio:electronServiceOptions` to apply it to that instance's mocks only.
+
 ---
 
 ## API Reference
