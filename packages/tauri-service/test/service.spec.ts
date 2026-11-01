@@ -374,6 +374,64 @@ describe('TauriWorkerService', () => {
       expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'main');
     });
 
+    it("should take a single session's window label from its alwaysMatch capabilities", async () => {
+      const mockBrowser = createMockBrowser();
+      const capabilities = {
+        alwaysMatch: { 'wdio:tauriServiceOptions': { windowLabel: 'popup' } },
+      } as unknown as TauriCapabilities;
+      const service = new TauriWorkerService({ windowLabel: 'settings' }, capabilities);
+
+      await service.before(capabilities, [], mockBrowser);
+
+      expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'popup');
+    });
+
+    it.each([
+      ['the service-level label', { windowLabel: 'settings' }, 'settings'],
+      ['main', {}, 'main'],
+    ])(
+      'should give each multiremote instance its own window label, or else %s',
+      async (_fallback, serviceOptions, fallbackLabel) => {
+        const instanceA = createMockBrowser({ sessionId: 'session-a' });
+        const instanceB = createMockBrowser({ sessionId: 'session-b' });
+        const mrBrowser = createMockBrowser({
+          isMultiremote: true,
+          instances: ['browserA', 'browserB'],
+          getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+        });
+        const capabilities = {
+          browserA: { capabilities: { 'wdio:tauriServiceOptions': { windowLabel: 'popup' } } },
+          browserB: { capabilities: {} },
+        } as unknown as TauriCapabilities;
+        const service = new TauriWorkerService(serviceOptions, capabilities);
+
+        await service.before(capabilities, [], mrBrowser);
+
+        expect(vi.mocked(setCurrentWindowLabel).mock.calls).toEqual([
+          [instanceA, 'popup'],
+          [instanceB, fallbackLabel],
+        ]);
+      },
+    );
+
+    it("should take a multiremote instance's window label from the capabilities its session requested", async () => {
+      const instanceA = createMockBrowser({
+        sessionId: 'session-a',
+        requestedCapabilities: { alwaysMatch: { 'wdio:tauriServiceOptions': { windowLabel: 'popup' } } },
+      });
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['browserA'],
+        getInstance: () => instanceA,
+      });
+      const capabilities = { browserA: { capabilities: {} } } as unknown as TauriCapabilities;
+      const service = new TauriWorkerService({ windowLabel: 'settings' }, capabilities);
+
+      await service.before(capabilities, [], mrBrowser);
+
+      expect(setCurrentWindowLabel).toHaveBeenCalledWith(instanceA, 'popup');
+    });
+
     it('should call patchBrowserExecute for standard browser', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });

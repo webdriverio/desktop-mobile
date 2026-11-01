@@ -75,6 +75,19 @@ function mergeOptions(
   return mergeServiceOptions(globalOptions, capabilityOptions);
 }
 
+function assertSingleDriverProvider(globalOptions: TauriServiceGlobalOptions, capsList: TauriCapabilities[]): void {
+  const providers = new Set(
+    capsList.map((cap) => mergeOptions(globalOptions, cap['wdio:tauriServiceOptions']).driverProvider ?? 'embedded'),
+  );
+  if (providers.size > 1) {
+    throw new SevereServiceError(
+      `All Tauri capabilities must use the same driverProvider, but found mixed providers: ${[...providers].join(', ')}. ` +
+        "Set driverProvider in the service options, or to the same value in every 'wdio:tauriServiceOptions' entry. " +
+        "An unset driverProvider is 'embedded'.",
+    );
+  }
+}
+
 /**
  * Options for setting up readline-based log handling
  */
@@ -138,6 +151,7 @@ export default class TauriLaunchService {
 
     const instances = normaliseInstanceCaps(capabilities);
     const capsList = instances.map(({ caps }) => caps);
+    assertSingleDriverProvider(this.options, capsList);
 
     // Determine provider type
     const firstCap = capsList[0];

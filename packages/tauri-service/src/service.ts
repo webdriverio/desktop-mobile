@@ -91,7 +91,7 @@ export default class TauriWorkerService {
    * Initialize the service
    */
   async before(
-    _capabilities: TauriCapabilities,
+    capabilities: TauriCapabilities,
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
@@ -121,40 +121,45 @@ export default class TauriWorkerService {
         log.info('Initializing standard browser');
       }
 
-      await forEachInstance(browser, async (instance, { name }) => {
-        stage = `init:${name ?? 'single'}`;
-        if (name !== undefined) {
-          log.info(`Initializing instance: ${name}`);
-        }
-        this.addTauriApi(instance);
-        this.patchBrowserExecute(instance);
-        setCurrentWindowLabel(instance, this.windowLabel);
-        setSessionProvider(instance, this.driverProvider);
-        stage = `waitUntilWindowAvailable:${name ?? 'single'}`;
-        await waitUntilWindowAvailable(instance);
-        log.info(name === undefined ? 'Standard browser window available' : `Instance ${name} window available`);
-
-        // A single session waits for the plugin once, below.
-        // Skip for CrabNebula - browser.execute() not supported
-        if (name !== undefined && this.driverProvider !== 'crabnebula') {
-          stage = `waitForPluginInit:${name}`;
-          log.info(`Waiting for Tauri plugin initialization on ${name}...`);
-          try {
-            await instance.execute(async function checkMultiremotePluginInit() {
-              // @ts-expect-error - window exists in browser context
-              if (typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.waitForInit === 'function') {
-                // @ts-expect-error - window exists in browser context
-                await window.wdioTauri.waitForInit();
-                return true;
-              }
-              return false;
-            });
-            log.info(`Tauri plugin initialization complete for ${name}`);
-          } catch (error) {
-            log.warn(`Failed to wait for plugin initialization on ${name}:`, error);
+      await forEachInstance(
+        browser,
+        async (instance, { name, caps }) => {
+          stage = `init:${name ?? 'single'}`;
+          if (name !== undefined) {
+            log.info(`Initializing instance: ${name}`);
           }
-        }
-      });
+          this.addTauriApi(instance);
+          this.patchBrowserExecute(instance);
+          const instanceOptions = (caps as TauriCapabilities | undefined)?.['wdio:tauriServiceOptions'];
+          setCurrentWindowLabel(instance, instanceOptions?.windowLabel || this.windowLabel);
+          setSessionProvider(instance, this.driverProvider);
+          stage = `waitUntilWindowAvailable:${name ?? 'single'}`;
+          await waitUntilWindowAvailable(instance);
+          log.info(name === undefined ? 'Standard browser window available' : `Instance ${name} window available`);
+
+          // A single session waits for the plugin once, below.
+          // Skip for CrabNebula - browser.execute() not supported
+          if (name !== undefined && this.driverProvider !== 'crabnebula') {
+            stage = `waitForPluginInit:${name}`;
+            log.info(`Waiting for Tauri plugin initialization on ${name}...`);
+            try {
+              await instance.execute(async function checkMultiremotePluginInit() {
+                // @ts-expect-error - window exists in browser context
+                if (typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.waitForInit === 'function') {
+                  // @ts-expect-error - window exists in browser context
+                  await window.wdioTauri.waitForInit();
+                  return true;
+                }
+                return false;
+              });
+              log.info(`Tauri plugin initialization complete for ${name}`);
+            } catch (error) {
+              log.warn(`Failed to wait for plugin initialization on ${name}:`, error);
+            }
+          }
+        },
+        capabilities,
+      );
 
       // Wait for the plugin to fully initialize (specifically attachConsole())
       // This ensures frontend console logs will be captured
