@@ -269,8 +269,9 @@ pub fn build_regular_key_script(key: &str, is_down: bool, modifiers: &ModifierSt
 }
 
 /// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys that don't
-/// share the main key's (Numpad5 is 101, not 53). With Shift held, a main-keyboard key sends and
-/// types its shifted character (`A` for `a`, `:` for `;`), and a numpad key its own.
+/// share the main key's (Numpad5 is 101, not 53). With Shift held, a key with its main-keyboard
+/// `keyCode` sends and types its shifted character, as chromedriver does (`A` for `a`, `:` for
+/// `Key.Semicolon`, `+` for `Key.Equals`), and a numpad key its own.
 pub fn build_printable_key_script(
   key: &str,
   code: &str,
@@ -278,8 +279,8 @@ pub fn build_printable_key_script(
   is_down: bool,
   modifiers: &ModifierState,
 ) -> String {
-  let key =
-    if modifiers.shift && regular_key(key).0 == code { shift_text(key) } else { key.to_string() };
+  let main_keyboard = key_code != 0 && regular_key(key).1 == key_code;
+  let key = if modifiers.shift && main_keyboard { shift_text(key) } else { key.to_string() };
   let key = key.as_str();
   let is_select_all = matches!(key, "a" | "A") && (modifiers.ctrl || modifiers.meta);
   let default_action = if !is_down {
@@ -971,17 +972,20 @@ mod tests {
   }
 
   #[test]
-  fn shift_keeps_control_shortcuts_and_leaves_numpad_keys_alone() {
+  fn shift_keeps_control_shortcuts_and_shifts_only_main_keyboard_keys() {
     let ctrl_shift = mods(true, true, false, false);
     let select_all = build_regular_key_script("a", true, &ctrl_shift);
     assert!(select_all.contains("key: \"A\"") && select_all.contains("activeEl.select()"));
 
     let shift = mods(false, true, false, false);
-    let semicolon = build_printable_key_script(";", "Semicolon", 186, true, &shift);
-    assert!(semicolon.contains("key: \":\"") && semicolon.contains("var insertedText = \":\""));
-    for (key, code, key_code) in
-      [("5", "Numpad5", 101), ("=", "NumpadEqual", 187), (" ", "Space", 32)]
+    for (key, code, key_code, shifted) in
+      [(";", "Semicolon", 186, ":"), ("=", "NumpadEqual", 187, "+")]
     {
+      let script = build_printable_key_script(key, code, key_code, true, &shift);
+      assert!(script.contains(&format!("key: {}", js_string(shifted))), "{script}");
+      assert!(script.contains(&format!("var insertedText = {}", js_string(shifted))), "{script}");
+    }
+    for (key, code, key_code) in [("5", "Numpad5", 101), (" ", "Space", 32), ("e\u{301}", "", 0)] {
       let script = build_printable_key_script(key, code, key_code, true, &shift);
       assert!(script.contains(&format!("key: {}", js_string(key))), "{script}");
       assert!(script.contains(&format!("var insertedText = {}", js_string(key))), "{script}");

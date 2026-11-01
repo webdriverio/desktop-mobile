@@ -4,7 +4,8 @@
 use std::collections::BTreeSet;
 
 use super::actions::{
-  is_skipped_key, map_special_key, regular_key, single_char, Modifiers as ModifierState,
+  is_skipped_key, map_special_key, regular_key, single_char, us_keyboard_key,
+  Modifiers as ModifierState,
 };
 use super::element::ELEMENT_EVENTS_JS;
 
@@ -30,6 +31,25 @@ pub(super) fn key_script(key: &str, is_down: bool, modifiers: &ModifierState) ->
 /// operators.
 fn is_printable_key(js_key: &str) -> bool {
   single_char(js_key).is_some()
+}
+
+/// `text` as a US keyboard types it with Shift held: `a1;` is `A!:`.
+fn shift_text(text: &str) -> String {
+  text.chars().map(shifted_char).collect()
+}
+
+/// The character `ch`'s US-keyboard key types with Shift: the table's shifted row for the same
+/// `code`, or `ch` itself if it already takes Shift or Shift doesn't change its key (Space, `é`).
+/// Every shifted row is printable ASCII.
+fn shifted_char(ch: char) -> char {
+  let Some((code, _, false)) = us_keyboard_key(ch) else {
+    return ch;
+  };
+  (' '..='~')
+    .find(|&other| {
+      us_keyboard_key(other).is_some_and(|(other_code, _, shifted)| shifted && other_code == code)
+    })
+    .unwrap_or(ch)
 }
 
 /// A JS string literal for `text` that is safe to splice into a script.
@@ -107,7 +127,9 @@ fn build_regular_key_script(key: &str, is_down: bool, modifiers: &ModifierState)
 }
 
 /// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys that don't
-/// share the main key's (Numpad5 is 101, not 53).
+/// share the main key's (Numpad5 is 101, not 53). With Shift held, a key with its main-keyboard
+/// `keyCode` sends and types its shifted character, as chromedriver does (`A` for `a`, `:` for
+/// `Key.Semicolon`, `+` for `Key.Equals`), and a numpad key its own.
 fn build_printable_key_script(
   key: &str,
   code: &str,
@@ -115,6 +137,9 @@ fn build_printable_key_script(
   is_down: bool,
   modifiers: &ModifierState,
 ) -> String {
+  let main_keyboard = key_code != 0 && regular_key(key).1 == key_code;
+  let key = if modifiers.shift && main_keyboard { shift_text(key) } else { key.to_string() };
+  let key = key.as_str();
   let is_select_all = matches!(key, "a" | "A") && (modifiers.ctrl || modifiers.meta);
   let default_action = if !is_down {
     String::new()
@@ -423,7 +448,8 @@ pub enum SendKeysStep {
 }
 
 /// Send-keys text as ordered steps: a modifier stays held until it's pressed again, the null key or
-/// the end, and text typed under Control, Alt or Meta is pressed key by key as shortcuts.
+/// the end, text typed under Shift alone is the shifted text, and text typed under Control, Alt or
+/// Meta is pressed key by key as shortcuts.
 pub fn plan_send_keys(text: &str) -> Vec<SendKeysStep> {
   let mut steps = Vec::new();
   let mut held = HeldModifiers::default();
@@ -436,6 +462,7 @@ pub fn plan_send_keys(text: &str) -> Vec<SendKeysStep> {
           push_key_press(&mut steps, &ch.to_string(), modifiers);
         }
       }
+      KeySegment::Text(run) if modifiers.shift => push_text(&mut steps, &shift_text(&run)),
       KeySegment::Text(run) => push_text(&mut steps, &run),
       KeySegment::Special(key) if key == NULL_KEY => {
         release_held_modifiers(&mut steps, &mut held);
@@ -607,10 +634,15 @@ mod tests {
 
   #[test]
   fn keys_type_their_character_after_an_uncanceled_keydown() {
-    for (value, typed) in
-      [("a", "a"), ("A", "A"), ("'", "'"), (" ", " "), ("\u{E00D}", " "), ("\u{E01B}", "1")]
-    {
-      for modifiers in [NONE, SHIFT] {
+    for (value, typed, shifted) in [
+      ("a", "a", "A"),
+      ("A", "A", "A"),
+      ("'", "'", "\""),
+      (" ", " ", " "),
+      ("\u{E00D}", " ", " "),
+      ("\u{E01B}", "1", "1"),
+    ] {
+      for (modifiers, typed) in [(NONE, typed), (SHIFT, shifted)] {
         let script = down(value, modifiers);
         let action = default_action(&script);
         assert!(action.contains(&format!("var insertedText = {};", js_string(typed))), "{script}");
@@ -851,7 +883,7 @@ mod tests {
     let everything: String = ('\u{E000}'..='\u{E05D}').flat_map(|ch| ['x', ch]).collect();
     for step in plan_send_keys(&everything) {
       if let SendKeysStep::Text(run) = step {
-        assert!(run.chars().all(|ch| ch == 'x'), "{run:?}");
+        assert!(run.chars().all(|ch| ch.eq_ignore_ascii_case(&'x')), "{run:?}");
       }
     }
   }
@@ -862,7 +894,7 @@ mod tests {
       plan_send_keys(&format!("{SHIFT_KEY}ab{ENTER_KEY}")),
       vec![
         key(SHIFT_KEY, true, SHIFT),
-        text("ab"),
+        text("AB"),
         key(ENTER_KEY, true, SHIFT),
         key(ENTER_KEY, false, SHIFT),
         key(SHIFT_KEY, false, NONE),
