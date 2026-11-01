@@ -162,8 +162,8 @@ function wdioSpaceUp(el, blocked) {
   }
 }
 
-// Tab's default action, which Control, Alt or Meta blocks. Chrome selects the text field Tab moves to,
-// and past either end of the order hands focus to the browser's own controls.
+// Tab's default action. Chrome selects the text field Tab moves to, and past either end of the order
+// hands focus to the browser's own controls.
 function wdioTabKey(event) {
   if (event.ctrlKey || event.altKey || event.metaKey) {
     return;
@@ -186,7 +186,7 @@ function wdioTabKey(event) {
 }
 
 // From an element Tab skips, Tab goes to the nearest stop after it in tree order, or before it with
-// Shift, and Chrome wraps round to the other end of the order when there's none.
+// Shift, and wraps round to the other end of the order when there's none, as Chrome does.
 function wdioNextTabStop(backward) {
   const current = wdioDeepActiveElement();
   const { stops, treeOrder } = wdioTabStops(current);
@@ -233,7 +233,7 @@ function wdioTabStops(current) {
         }
         return;
       }
-      // A host or slot without a valid tabindex takes its place in tree order.
+      // A host or slot without a valid tabindex sorts as tabindex 0.
       const parsed = Number.parseInt(el.getAttribute('tabindex'), 10);
       const index = Number.isNaN(parsed) ? 0 : parsed;
       if (index >= 0) {
@@ -316,7 +316,7 @@ function wdioSlotted(slot) {
 }
 
 // A radio group is one stop: its checked radio, or if Tab can't stop on that, whichever radio Tab
-// reaches first. Tab doesn't stop on another radio of the group that has focus.
+// reaches first. From a radio in the group, Tab skips the group's other radios.
 function wdioRadioStop(el, current, stops) {
   if (el === current || !wdioNamedRadio(el)) {
     return true;

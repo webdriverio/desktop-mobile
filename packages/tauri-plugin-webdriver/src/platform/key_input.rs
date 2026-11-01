@@ -8,8 +8,8 @@ use super::executor::ModifierState;
 pub const NULL_KEY: &str = "\u{E000}";
 
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
-/// tables and a US keyboard, so none is ever typed as text. A newline, a tab and a backspace character
-/// are the Enter, Tab and Backspace keys, as chromedriver sends them.
+/// tables and a US keyboard, so none is ever typed as text. A newline, a tab and a backspace
+/// character are the Enter, Tab and Backspace keys, as chromedriver sends them.
 pub fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
   let mapped = match single_char(key)? {
     '\n' => ("Enter", "Enter", 13),
@@ -728,7 +728,7 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
 }
 
 /// JS inserting a printable run at the focused element's selection, as typing does, so text follows
-/// focus when a key moves it. The field the text goes to owes a `change`, as the one Send Keys
+/// focus when a key moves it. The field the text goes to owes a `change`, as the field Send Keys
 /// focused does.
 pub fn build_insert_run_script(run: &str) -> String {
   let active_element = deep_active_element_js("activeEl");

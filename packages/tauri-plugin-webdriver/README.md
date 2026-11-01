@@ -336,7 +336,7 @@ Unless a `keydown` handler cancels it, Tab moves focus to the next element and S
 - Tab starts from the element focused after the `keydown`. From an element Tab skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order.
 - Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls. The next Tab comes back in at the start, and Shift+Tab at the end.
 
-Tab selects the value of a text, search, URL, telephone, email, password or number input it moves to, so text typed next replaces it. The field focus leaves fires the `change` it owes, and a field that Element Send Keys types into after a Tab owes one too, so `setValue('user\tpass')` fills two fields and fires the first one's `change`.
+Tab selects the value of a text, search, URL, telephone, email, password or number input it moves to, so text typed next replaces it. The field focus leaves fires the `change` it owes. So `setValue('user\tpass')` fills two fields and fires the first one's `change`, and the second owes one until focus leaves it.
 
 Unlike in Chrome, Tab:
 - Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.
