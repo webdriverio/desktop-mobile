@@ -315,6 +315,25 @@ describe('Dioxus element events (embedded)', () => {
     expect(await focusedId()).toBe('fresh-a');
   });
 
+  it("should type after a tab in the next field, replacing its value, and fire each field's change, as Chrome does", async () => {
+    await fillFormScratch(
+      '<input id="fresh-a"><input id="fresh-b" value="old"><button type="button" id="fresh-other">other</button>',
+    );
+    await browser.$('#fresh-a').setValue('a\tb');
+    expect([await browser.$('#fresh-a').getValue(), await browser.$('#fresh-b').getValue()]).toEqual(['a', 'b']);
+    expect(await fieldEvents()).toEqual(['keydown Tab', 'change a', 'keyup Tab']);
+    await browser.execute('window.__fieldEvents = [];');
+    await browser.keys([Key.Shift, Key.Tab]);
+    expect(await focusedId()).toBe('fresh-a');
+    expect(await fieldEvents()).toEqual([
+      'keydown ShiftLeft',
+      'keydown Tab',
+      'change b',
+      'keyup ShiftLeft',
+      'keyup Tab',
+    ]);
+  });
+
   it('should move focus into and out of a shadow root on Tab', async () => {
     await fillChangeScratch();
     await browser.execute(

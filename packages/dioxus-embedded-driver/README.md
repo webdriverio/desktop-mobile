@@ -90,7 +90,7 @@ Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser send
 
 Key events go to the focused element, even one inside an open shadow root. Unless a `keydown` handler cancels it, a key types its character into a text field or contenteditable, Backspace and Delete delete in a text field, Control+A or Meta+A selects all, and the arrow keys check the next or previous radio button in a group. With Control, Alt or Meta held, a key types nothing. A read-only or disabled field keeps its value. Edits in a text field fire `input` but no `beforeinput`. [#927](https://github.com/webdriverio/desktop-mobile/issues/927) lists where typing still differs from Chrome, such as not deleting in a contenteditable and no `change` on blur.
 
-Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines and backspace characters, and for text typed while Control, Alt or Meta is held, so `addValue('x' + Key.Enter)` types `x`, then presses Enter. Element Send Keys types only into a text field or contenteditable, and refuses a file input.
+Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held, so `addValue('x' + Key.Enter)` types `x`, then presses Enter. Element Send Keys types only into a text field or contenteditable, and refuses a file input.
 
 Unless a `keydown` handler cancels it, Enter acts as in Chrome, on the element focused after the `keydown`:
 - In a textarea or contenteditable, it breaks the line.
@@ -112,7 +112,7 @@ Unlike in Chrome, Enter and Space send only their key events in these cases:
 
 The driver also sends no `keypress` events, so a `keypress` handler can't cancel a key's default action.
 
-Unless a `keydown` handler cancels it, Tab in a key action moves focus to the next element and Shift+Tab to the previous one, as in Chrome:
+Unless a `keydown` handler cancels it, Tab moves focus to the next element and Shift+Tab to the previous one, as in Chrome:
 - Elements with a positive `tabindex` come first, in ascending order, then those with `tabindex="0"` and those focusable by default, such as links, buttons and form fields, in tree order.
 - Tab skips disabled, `inert` and hidden elements, and everything outside an open modal `<dialog>`.
 - Tab goes through open shadow roots and slots.
@@ -120,7 +120,7 @@ Unless a `keydown` handler cancels it, Tab in a key action moves focus to the ne
 - Tab starts from the element focused after the `keydown`. From an element Tab skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order.
 - Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls. The next Tab comes back in at the start, and Shift+Tab at the end.
 
-Tab selects the value of a text, search, URL, telephone, email, password or number input it moves to. The field focus leaves fires any `change` that Element Send Keys left pending.
+Tab selects the value of a text, search, URL, telephone, email, password or number input it moves to, so text typed next replaces it. The field focus leaves fires the `change` it owes. So `setValue('user\tpass')` fills two fields and fires the first one's `change`, and the second owes one until focus leaves it.
 
 Unlike in Chrome, Tab:
 - Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.

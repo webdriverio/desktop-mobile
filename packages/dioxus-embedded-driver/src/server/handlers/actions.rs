@@ -1108,6 +1108,7 @@ mod tests {
     assert_eq!(map_special_key("\t"), map_special_key("\u{E004}"));
     let tab = key_script("\t", true, &m);
     assert!(event_init(&tab).starts_with(r#"key: "Tab", code: "Tab", keyCode: 9,"#), "{tab}");
+    assert!(tab.contains("wdioTabKey(keyEvent);"), "{tab}");
   }
 
   #[test]
