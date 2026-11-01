@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { runBulkMockOp } from '../src/mockLifecycle.js';
+import { runBulkMockOp, runThenSync } from '../src/mockLifecycle.js';
 
 function fakeMock() {
   return {
@@ -93,5 +93,43 @@ describe('runBulkMockOp', () => {
     });
     expect(a.mockRestore).toHaveBeenCalledOnce();
     expect(b.mockRestore).toHaveBeenCalledOnce();
+  });
+});
+
+describe('runThenSync', () => {
+  it('should sync after the run and resolve with its result', async () => {
+    const order: string[] = [];
+    const mock = { update: vi.fn(async () => order.push('update')) };
+
+    const run = async () => {
+      order.push('run');
+      return 'result';
+    };
+
+    await expect(runThenSync(mock, run)).resolves.toBe('result');
+    expect(order).toEqual(['run', 'update']);
+  });
+
+  it('should sync, then reject with the error, when the run rejects', async () => {
+    const mock = { update: vi.fn().mockResolvedValue(undefined) };
+
+    await expect(runThenSync(mock, () => Promise.reject(new Error('run failed')))).rejects.toMatchObject({
+      message: 'run failed',
+    });
+    expect(mock.update).toHaveBeenCalledOnce();
+  });
+
+  it("should reject with the run's error when the sync fails too", async () => {
+    const mock = { update: vi.fn().mockRejectedValue(new Error('sync failed')) };
+
+    await expect(runThenSync(mock, () => Promise.reject(new Error('run failed')))).rejects.toMatchObject({
+      message: 'run failed',
+    });
+  });
+
+  it('should reject with the sync error when only the sync fails', async () => {
+    const mock = { update: vi.fn().mockRejectedValue(new Error('sync failed')) };
+
+    await expect(runThenSync(mock, async () => 'result')).rejects.toMatchObject({ message: 'sync failed' });
   });
 });
