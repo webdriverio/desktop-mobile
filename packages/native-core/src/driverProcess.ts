@@ -24,7 +24,9 @@ import http from 'node:http';
 import net from 'node:net';
 import type { Interface as ReadlineInterface } from 'node:readline';
 
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, mergeEnv } from '@wdio/native-utils';
+
+import { needsShell, quoteForCmd } from './cmdLine.js';
 
 import { createLogCapture } from './logCapture.js';
 
@@ -151,14 +153,15 @@ export class DriverProcess {
       };
 
       try {
-        const spawnEnv = env ? { ...process.env, ...env } : process.env;
-
-        this._proc = spawn(driverPath, args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
+        const spawnOptions = {
+          stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
           detached: false,
-          env: spawnEnv,
-          shell: process.platform === 'win32',
-        });
+          env: env ? mergeEnv(process.env, env) : process.env,
+        };
+        // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted
+        this._proc = needsShell(driverPath)
+          ? spawn([driverPath, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true })
+          : spawn(driverPath, args, spawnOptions);
 
         log.info(`[${identifier}] Spawned process with PID: ${this._proc.pid ?? 'unknown'}`);
 
