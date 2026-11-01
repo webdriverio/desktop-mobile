@@ -147,6 +147,20 @@
         "@wdio/tauri-service#build"
       ]
     },
+    // e2e links the services with link:, which Turbo doesn't treat as workspace deps,
+    // so ^build skips them and their changes don't reach this task's hash.
+    "@repo/e2e#typecheck": {
+      "dependsOn": [
+        "^build",
+        "@wdio/dioxus-service#build",
+        "@wdio/electrobun-service#build",
+        "@wdio/electron-service#build",
+        "@wdio/flutter-service#build",
+        "@wdio/react-native-service#build",
+        "@wdio/tauri-service#build"
+      ],
+      "outputs": []
+    },
     "@repo/e2e#protocol-install:electron-builder": {
       "cache": false
     },
