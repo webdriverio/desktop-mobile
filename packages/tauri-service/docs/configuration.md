@@ -511,9 +511,9 @@ With the `'external'` provider on Windows, tauri-driver passes `'tauri:options'.
 
 | Field                        | Type                     | Description                                                                               |
 | ---------------------------- | ------------------------ | ----------------------------------------------------------------------------------------- |
-| `browserExecutableFolder`    | string                   | Folder of a fixed-version WebView2 runtime to use. The service matches msedgedriver to it |
-| `userDataFolder`             | string                   | WebView2 user data folder. msedgedriver creates a temporary one when unset                |
-| `additionalBrowserArguments` | string[]                 | Arguments for the WebView2 browser process. Arguments for the app go in `args`            |
+| `browserExecutableFolder`    | string                   | Folder of a fixed-version WebView2 runtime to use; the service matches msedgedriver to it |
+| `userDataFolder`             | string                   | WebView2 user data folder; msedgedriver creates a temporary one when unset                |
+| `additionalBrowserArguments` | string[]                 | Arguments for the WebView2 browser process; arguments for the app go in `args`            |
 | `releaseChannelPreference`   | `'stable'` \| `'canary'` | Preferred evergreen WebView2 runtime channel                                              |
 
 See [msedgedriver's `webviewOptions`](https://learn.microsoft.com/en-us/microsoft-edge/webdriver/capabilities-edge-options#webviewoptions-object) for details.
