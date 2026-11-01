@@ -189,22 +189,32 @@ function wdioTabKey(event) {
   const start = wdioDeepActiveElement();
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
     // Chrome selects a text field's value as Tab focuses it: after the field focus leaves fires its
-    // events, which may change the value, and before the new field's focus handlers, which may place
-    // the caret. Once the field has focus, select() doesn't focus it again.
+    // events, which may change the value, and before any focus listener, which may place the caret or
+    // move focus on. A capture listener on the window runs before the page's; one on the stop also sees
+    // a move within one shadow tree, which never reaches the window.
     const isTextField = candidate.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(candidate.type);
-    const select = () => HTMLInputElement.prototype.select.call(candidate);
-    let focused = false;
-    const onFocus = () => {
-      focused = true;
-      if (isTextField) {
-        select();
+    // Only while the field has focus, as select() focuses it again in Chromium.
+    const select = () => {
+      if (wdioDeepActiveElement() === candidate) {
+        HTMLInputElement.prototype.select.call(candidate);
       }
     };
+    let focused = false;
+    const onFocus = (focusEvent) => {
+      if (!focused && focusEvent.composedPath()[0] === candidate) {
+        focused = true;
+        if (isTextField) {
+          select();
+        }
+      }
+    };
+    window.addEventListener('focus', onFocus, true);
     candidate.addEventListener('focus', onFocus, true);
     wdioFocus(candidate, wdioNativeMethod(candidate, 'focus'));
+    window.removeEventListener('focus', onFocus, true);
     candidate.removeEventListener('focus', onFocus, true);
     // A window without focus may fire no focus event, so the field is selected once it has focus.
-    if (isTextField && !focused && wdioDeepActiveElement() === candidate) {
+    if (isTextField && !focused) {
       select();
     }
     return focused || wdioDeepActiveElement() !== start;

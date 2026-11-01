@@ -761,6 +761,51 @@ describe('Tab', () => {
     expect(tabs(3)).toEqual(['host', 'inner', 'z']);
   });
 
+  describe('with focus listeners the page registers in the capture phase', () => {
+    let removeListener = () => {};
+    const listen = (target: EventTarget, handler: (event: FocusEvent) => void) => {
+      target.addEventListener('focus', handler as EventListener, true);
+      removeListener = () => target.removeEventListener('focus', handler as EventListener, true);
+    };
+    afterEach(() => removeListener());
+
+    it("should leave a document focus trap's redirect alone, though select() focuses in Chromium", () => {
+      const select = HTMLInputElement.prototype.select;
+      vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
+        select.call(this);
+        this.focus();
+      });
+      render('<div id="modal"><button id="first">first</button><button id="last">last</button></div><input id="out">');
+      listen(document, (event) => {
+        if (!$('#modal').contains(event.target as Node)) {
+          $('#first').focus();
+        }
+      });
+      $('#last').focus();
+      expect(tab()).toBe('first');
+    });
+
+    it('should leave a focus trap that stops the focus event holding focus', () => {
+      render('<div id="modal"><button id="only">only</button></div><input id="out">');
+      listen(document, (event) => {
+        if (!$('#modal').contains(event.target as Node)) {
+          event.stopImmediatePropagation();
+          $('#only').focus();
+        }
+      });
+      $('#only').focus();
+      expect(tab()).toBe('only');
+    });
+
+    it("should leave the caret where an ancestor's focus listener puts it", () => {
+      render('<input id="a"><form id="f"><input id="ph" value="+1 555"></form>');
+      listen($('#f'), (event) => (event.target as HTMLInputElement).setSelectionRange(3, 3));
+      $('#a').focus();
+      tab();
+      expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
+    });
+  });
+
   it('should leave the page through the built-in blur(), never one the page defines', () => {
     render('<input id="a"><input id="z">');
     $('#z').blur = () => {};
