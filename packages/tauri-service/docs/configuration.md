@@ -370,7 +370,9 @@ Select which driver provider to use for WebDriver communication.
 - `'external'`: Use the cargo-installed tauri-driver (supports Windows/Linux)
 - `'crabnebula'`: Use @crabnebula/tauri-driver from npm (supports Windows/Linux/macOS; CN_API_KEY required for macOS only)
 
-**Default:** `'embedded'` on every platform when `driverProvider` is unset. The embedded provider requires `tauri-plugin-wdio-webdriver` in your app — if the plugin is missing, the embedded server never comes up and the session times out, so add the plugin or select another provider explicitly.
+**Default:** `'embedded'` on every platform when `driverProvider` is unset. The embedded provider requires [`tauri-plugin-wdio-webdriver`](./plugin-setup.md) in your app — if the plugin is missing, the embedded server never comes up and the session times out, so add the plugin or select another provider explicitly.
+
+Every capability and multiremote instance in a run must end up with the same `driverProvider`: its own, else the service-level one, else `'embedded'`. Mixing them throws a `SevereServiceError` at startup.
 
 **Example:**
 ```typescript
@@ -383,10 +385,6 @@ driverProvider: 'crabnebula';
 // Drive the external tauri-driver instead of the embedded server
 driverProvider: 'external';
 ```
-
-**Note:** Install `tauri-plugin-wdio-webdriver` in your Tauri app to use the embedded provider. See [Plugin Setup](./plugin-setup.md) for details.
-
-> **Note:** All capabilities and multiremote instances in a run must use the same `driverProvider`, and an unset one counts as `'embedded'`. Mixing providers throws a `SevereServiceError` at startup.
 
 ---
 
