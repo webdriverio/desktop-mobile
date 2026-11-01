@@ -12,7 +12,7 @@ Guidance for coding agents working in this repo: the commands to run, the checks
 
 ## Before you push
 
-Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and `test` for every package when you push. The push hook doesn't type-check `e2e/`, so after editing it run `pnpm turbo run typecheck --filter=./e2e`. If you skip the hooks, run those checks yourself for what you changed. New logic needs unit tests.
+Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and `test` for every package when you push. The push hook doesn't type-check `e2e/`: run `pnpm turbo run typecheck --filter=./e2e` after changing it, a service's types or `@wdio/native-types`. If you skip the hooks, run those checks yourself for what you changed. New logic needs unit tests.
 
 ## Gotchas
 
