@@ -38,9 +38,9 @@ fn shift_text(text: &str) -> String {
   text.chars().map(shifted_char).collect()
 }
 
-/// The character `ch`'s US-keyboard key types with Shift: the table's shifted row for the same
-/// `code`, or `ch` itself if it already takes Shift or Shift doesn't change its key (Space, `é`).
-/// Every shifted row is printable ASCII.
+/// What `ch`'s key types with Shift on a US keyboard: the shifted row with the same `code`, or `ch`
+/// itself if it already takes Shift, Shift doesn't change it (Space) or it has no key (`é`). The
+/// search covers printable ASCII, where every shifted row is.
 fn shifted_char(ch: char) -> char {
   let Some((code, _, false)) = us_keyboard_key(ch) else {
     return ch;
@@ -128,8 +128,8 @@ fn build_regular_key_script(key: &str, is_down: bool, modifiers: &ModifierState)
 
 /// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys that don't
 /// share the main key's (Numpad5 is 101, not 53). With Shift held, a key with its main-keyboard
-/// `keyCode` sends and types its shifted character, as chromedriver does (`A` for `a`, `:` for
-/// `Key.Semicolon`, `+` for `Key.Equals`), and a numpad key its own.
+/// `keyCode` sends and types its shifted character, as chromedriver does (`A` for `a`, `+` for
+/// `Key.Equals`). A numpad key keeps its own character.
 fn build_printable_key_script(
   key: &str,
   code: &str,
@@ -448,8 +448,8 @@ pub enum SendKeysStep {
 }
 
 /// Send-keys text as ordered steps: a modifier stays held until it's pressed again, the null key or
-/// the end, text typed under Shift alone is the shifted text, and text typed under Control, Alt or
-/// Meta is pressed key by key as shortcuts.
+/// the end, text typed under Shift alone goes in shifted, and text typed under Control, Alt or Meta
+/// is pressed key by key as shortcuts.
 pub fn plan_send_keys(text: &str) -> Vec<SendKeysStep> {
   let mut steps = Vec::new();
   let mut held = HeldModifiers::default();
