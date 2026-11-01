@@ -40,6 +40,7 @@ vi.mock('../src/webdriverEval.js', async (importOriginal) => {
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import ElectrobunWorkerService from '../src/service.js';
+import type { ElectrobunServiceOptions } from '../src/types.js';
 import { createWebDriverEvalBridge, WebDriverEvalBridge } from '../src/webdriverEval.js';
 
 type Installed = { electrobun: ElectrobunServiceAPI };
@@ -417,6 +418,164 @@ describe('ElectrobunWorkerService', () => {
     });
   });
 
+  describe('beforeTest mock options', () => {
+    async function spyOnLifecycle(electrobun: ElectrobunServiceAPI, target: string) {
+      const mock = await electrobun.mock(target);
+      return {
+        mockClear: vi.spyOn(mock, 'mockClear').mockResolvedValue(mock),
+        mockReset: vi.spyOn(mock, 'mockReset').mockResolvedValue(mock),
+        mockRestore: vi.spyOn(mock, 'mockRestore').mockResolvedValue(mock),
+      };
+    }
+
+    function optionsCap(port: number, options: ElectrobunServiceOptions): Record<string, unknown> {
+      return { ...nativeCap(port), 'wdio:electrobunServiceOptions': options };
+    }
+
+    async function setUpMultiremote(
+      serviceOptions: ElectrobunServiceOptions,
+      instanceOptions: { browserA?: ElectrobunServiceOptions; browserB?: ElectrobunServiceOptions },
+    ) {
+      const instanceA = {} as WebdriverIO.Browser;
+      const instanceB = {} as WebdriverIO.Browser;
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const caps = {
+        browserA: { capabilities: optionsCap(9381, instanceOptions.browserA ?? {}) },
+        browserB: { capabilities: optionsCap(9382, instanceOptions.browserB ?? {}) },
+      };
+      const service = new ElectrobunWorkerService(serviceOptions, caps);
+      await service.before(caps, [], mrBrowser);
+      return {
+        service,
+        mockA: await spyOnLifecycle((instanceA as unknown as Installed).electrobun, 'api.a'),
+        mockB: await spyOnLifecycle((instanceB as unknown as Installed).electrobun, 'api.b'),
+      };
+    }
+
+    it('should run each enabled service-level option on the mocks before each test', async () => {
+      const browser = makeBrowser();
+      const service = new ElectrobunWorkerService({ clearMocks: true, restoreMocks: true }, {});
+      await service.before(nativeCap(), [], browser);
+      const mock = await spyOnLifecycle((browser as unknown as Installed).electrobun, 'api.fetchData');
+
+      await service.beforeTest();
+
+      expect(mock.mockClear).toHaveBeenCalledOnce();
+      expect(mock.mockReset).not.toHaveBeenCalled();
+      expect(mock.mockRestore).toHaveBeenCalledOnce();
+    });
+
+    it('should leave the mocks alone when no option is set', async () => {
+      const browser = makeBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(nativeCap(), [], browser);
+      const mock = await spyOnLifecycle((browser as unknown as Installed).electrobun, 'api.fetchData');
+
+      await service.beforeTest();
+
+      expect(mock.mockClear).not.toHaveBeenCalled();
+      expect(mock.mockReset).not.toHaveBeenCalled();
+      expect(mock.mockRestore).not.toHaveBeenCalled();
+    });
+
+    it('should read the options and prefix from the capability', async () => {
+      const browser = makeBrowser();
+      const cap = optionsCap(9333, { resetMocks: true, resetMocksPrefix: 'api' });
+      const service = new ElectrobunWorkerService({}, cap);
+      await service.before(cap, [], browser);
+      const { electrobun } = browser as unknown as Installed;
+      const apiMock = await spyOnLifecycle(electrobun, 'api.fetchData');
+      const otherMock = await spyOnLifecycle(electrobun, 'apiAuth.login');
+
+      await service.beforeTest();
+
+      expect(apiMock.mockReset).toHaveBeenCalledOnce();
+      expect(otherMock.mockReset).not.toHaveBeenCalled();
+    });
+
+    it('should do nothing in browser mode', async () => {
+      const service = new ElectrobunWorkerService({ mode: 'browser', restoreMocks: true }, {});
+      await service.before({}, [], makeBrowser());
+
+      await expect(service.beforeTest()).resolves.toBeUndefined();
+    });
+
+    it('should run every enabled option when an earlier one fails', async () => {
+      const browser = makeBrowser();
+      const service = new ElectrobunWorkerService({ clearMocks: true, restoreMocks: true }, {});
+      await service.before(nativeCap(), [], browser);
+      const mock = await spyOnLifecycle((browser as unknown as Installed).electrobun, 'api.fetchData');
+      mock.mockClear.mockRejectedValueOnce(new Error('app gone'));
+
+      await expect(service.beforeTest()).rejects.toMatchObject({
+        message: 'mockClear failed: api.fetchData: app gone',
+      });
+      expect(mock.mockRestore).toHaveBeenCalledOnce();
+    });
+
+    describe('in multiremote', () => {
+      it("should apply an instance's own option to that instance's mocks only", async () => {
+        const { service, mockA, mockB } = await setUpMultiremote({}, { browserA: { restoreMocks: true } });
+
+        await service.beforeTest();
+
+        expect(mockA.mockRestore).toHaveBeenCalledOnce();
+        expect(mockB.mockRestore).not.toHaveBeenCalled();
+      });
+
+      it("should let an instance's false override the service-level true", async () => {
+        const { service, mockA, mockB } = await setUpMultiremote(
+          { clearMocks: true },
+          { browserB: { clearMocks: false } },
+        );
+
+        await service.beforeTest();
+
+        expect(mockA.mockClear).toHaveBeenCalledOnce();
+        expect(mockB.mockClear).not.toHaveBeenCalled();
+      });
+
+      it("should use an instance's own prefix, or else the service-level one", async () => {
+        const { service, mockA, mockB } = await setUpMultiremote(
+          { clearMocks: true, clearMocksPrefix: 'api' },
+          { browserB: { clearMocksPrefix: 'other' } },
+        );
+
+        await service.beforeTest();
+
+        expect(mockA.mockClear).toHaveBeenCalledOnce();
+        expect(mockB.mockClear).not.toHaveBeenCalled();
+      });
+
+      it('should finish the other instances before naming the one that failed', async () => {
+        const { service, mockA, mockB } = await setUpMultiremote({ resetMocks: true }, {});
+        mockA.mockReset.mockRejectedValueOnce(new Error('app gone'));
+
+        await expect(service.beforeTest()).rejects.toMatchObject({
+          message: 'resetAllMocks failed on browserA: mockReset failed: api.a: app gone',
+        });
+        expect(mockB.mockReset).toHaveBeenCalledOnce();
+      });
+
+      it('should report every instance that failed', async () => {
+        const { service, mockA, mockB } = await setUpMultiremote({ resetMocks: true }, {});
+        mockA.mockReset.mockRejectedValueOnce(new Error('a gone'));
+        mockB.mockReset.mockRejectedValueOnce(new Error('b gone'));
+
+        await expect(service.beforeTest()).rejects.toMatchObject({
+          message:
+            'resetAllMocks failed on browserA: mockReset failed: api.a: a gone; ' +
+            'browserB: mockReset failed: api.b: b gone',
+          errors: [{ message: 'mockReset failed: api.a: a gone' }, { message: 'mockReset failed: api.b: b gone' }],
+        });
+      });
+    });
+  });
+
   describe('W3C (WebKitGTK) mode', () => {
     const w3cCap = { 'webkitgtk:browserOptions': { binary: '/app/bin/launcher', args: ['--automation'] } };
 
@@ -663,6 +822,18 @@ describe('ElectrobunWorkerService', () => {
       expect(mock).toBeDefined();
       expect(poster).toHaveBeenCalled();
       expect(cdpBridgeCtor).not.toHaveBeenCalled();
+    });
+
+    it("should apply the mock options to a W3C instance's mocks before each test", async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({ clearMocks: true }, {});
+      await service.before(w3cCap, [], browser);
+      const mock = await (browser as unknown as Installed).electrobun.mock('api.fetchData');
+      const mockClear = vi.spyOn(mock, 'mockClear').mockResolvedValue(mock);
+
+      await service.beforeTest();
+
+      expect(mockClear).toHaveBeenCalledOnce();
     });
   });
 });

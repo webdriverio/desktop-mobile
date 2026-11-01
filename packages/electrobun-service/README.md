@@ -112,6 +112,8 @@ expect(title).toBe('My App');
 
 Browser mode also supports the optional **`devServer`** service option — the launcher spawns your dev server in `onPrepare`, waits until `devServerUrl` is reachable, and tears it down afterwards (and on a startup failure). It accepts a shell command (`'pnpm dev'`), a config object (`{ command, cwd, env, timeoutMs, reuseExistingServer }`), or an `async () => ({ url, close })` function; `reuseExistingServer` defaults to reusing a running server locally and always spawning fresh in CI. In standalone mode, a dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
 
+The **`clearMocks`**, **`resetMocks`** and **`restoreMocks`** service options clear, reset or restore every mock before each test, as calling `browser.electrobun.clearAllMocks()` and the others in a `beforeEach` would. Each has a prefix option (`clearMocksPrefix`, `resetMocksPrefix`, `restoreMocksPrefix`) that limits it to the mocks under a target path, e.g. `'api'` for `api.*`. In multiremote, each instance applies these options from its own `wdio:electrobunServiceOptions` to its own mocks, and an instance that doesn't set one uses the service-level value.
+
 ## Known limitations
 
 Most of these are **upstream Electrobun/CEF limitations**, not service bugs — the service code
