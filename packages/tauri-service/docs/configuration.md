@@ -153,7 +153,7 @@ windowLabel: 'settings'; // Target the settings window by default
 **Default:** `'main'`
 
 **Note:**
-- Each browser instance (including multiremote) can have its own default windowLabel
+- Each capability or multiremote instance can set its own `windowLabel` in `wdio:tauriServiceOptions`. An instance that doesn't set one uses the service-level value.
 - Override at runtime with `browser.tauri.switchWindow(label)`
 - Per-call override with `browser.tauri.execute(fn, withExecuteOptions({ windowLabel: 'x' }))` is supported
 
@@ -385,6 +385,8 @@ driverProvider: 'external';
 ```
 
 **Note:** Install `tauri-plugin-wdio-webdriver` in your Tauri app to use the embedded provider. See [Plugin Setup](./plugin-setup.md) for details.
+
+> **Note:** All capabilities and multiremote instances in a run must use the same `driverProvider`, and an unset one counts as `'embedded'`. Mixing providers throws a `SevereServiceError` at startup.
 
 ---
 
