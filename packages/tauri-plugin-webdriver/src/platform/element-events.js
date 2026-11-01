@@ -70,10 +70,20 @@ function wdioFlushPendingChange() {
   }
 }
 
-function wdioFocus(el) {
+function wdioFocus(el, focus = el.focus) {
   wdioFlushPendingChange();
-  el.focus();
+  focus.call(el);
   wdioFlushPendingChange();
+}
+
+// The browser's own focus() for `el`: the one furthest up its prototype chain, past any that a page or
+// component defines.
+function wdioNativeFocus(el) {
+  let focus;
+  for (let proto = Object.getPrototypeOf(el); proto; proto = Object.getPrototypeOf(proto)) {
+    focus = Object.getOwnPropertyDescriptor(proto, 'focus')?.value ?? focus;
+  }
+  return focus;
 }
 
 // A field the page has removed fires nothing, as its component may be gone.
@@ -174,18 +184,19 @@ function wdioTabKey(event) {
     return;
   }
   // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on to the next.
-  // A focus event counts as taking focus, even when a handler, like a focus trap's, sends it back.
+  // A focus event on the stop counts as taking focus, even when a handler, like a focus trap's, sends
+  // it back. As in a browser, Tab never calls a focus() the page defines.
   const start = wdioDeepActiveElement();
-  let moved = false;
-  const onFocus = () => {
-    moved = true;
-  };
-  document.addEventListener('focus', onFocus, true);
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
-    wdioFocus(candidate);
-    return moved || wdioDeepActiveElement() !== start;
+    let focused = false;
+    const onFocus = () => {
+      focused = true;
+    };
+    candidate.addEventListener('focus', onFocus, true);
+    wdioFocus(candidate, wdioNativeFocus(candidate));
+    candidate.removeEventListener('focus', onFocus, true);
+    return focused || wdioDeepActiveElement() !== start;
   });
-  document.removeEventListener('focus', onFocus, true);
   if (!next) {
     wdioDeepActiveElement().blur();
     wdioFlushPendingChange();
@@ -202,12 +213,16 @@ function wdioTabKey(event) {
 function wdioTabCandidates(backward, current) {
   const { stops, treeOrder } = wdioTabStops(current);
   const order = backward ? [...stops].reverse() : stops;
+  // With nothing focused, the active element is the body, and Tab starts at the first stop. A body the
+  // page focused matches :focus, but only while its window has focus.
+  if (current === document.body && !current.matches(':focus')) {
+    return order;
+  }
   const at = order.indexOf(current);
   if (at !== -1) {
     return order.slice(at + 1);
   }
-  // A body the page focused matches :focus, and Tab goes on from it as from an element it skips.
-  const position = current === document.body && !current.matches(':focus') ? undefined : treeOrder.get(current);
+  const position = treeOrder.get(current);
   if (position === undefined) {
     return order;
   }

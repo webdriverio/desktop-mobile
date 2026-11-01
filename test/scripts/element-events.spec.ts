@@ -20,6 +20,7 @@ type ElementEvents = {
   wdioSpaceDown(el: HTMLElement, blocked: boolean): void;
   wdioSpaceUp(el: HTMLElement, blocked: boolean): void;
   wdioTabKey(event: KeyboardEvent): void;
+  wdioTabStops(current: Element): { stops: Element[] };
   wdioPress(el: HTMLElement): void;
   wdioRelease(el: HTMLElement): void;
   wdioFocusForClick(el: HTMLElement): void;
@@ -30,7 +31,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -507,6 +508,18 @@ describe('Tab', () => {
     expect(tabs(5)).toEqual(['vv', 'sum', 'sum2', 'open', 'z']);
   });
 
+  it('should stop on an editing host, media with controls and slot fallback content, but not in a slot with tabindex -1', () => {
+    render(`<div id="ed" contenteditable="true"><p id="ed-p">x</p></div><audio id="au" controls></audio>
+      <video id="vid"></video><div id="h1"></div><div id="h2"><input id="h2-slotted"></div>`);
+    // jsdom has no isContentEditable.
+    for (const id of ['ed', 'ed-p']) {
+      Object.defineProperty($(`#${id}`), 'isContentEditable', { value: true });
+    }
+    $('#h1').attachShadow({ mode: 'open' }).innerHTML = '<slot><input id="fallback"></slot>';
+    $('#h2').attachShadow({ mode: 'open' }).innerHTML = '<input id="h2-a"><slot tabindex="-1"></slot>';
+    expect(events.wdioTabStops(document.body).stops.map((stop) => stop.id)).toEqual(['ed', 'au', 'fallback', 'h2-a']);
+  });
+
   it('should go through open shadow roots and slots, with focus-delegating hosts no stop themselves', () => {
     render(`<input id="a"><div id="h1"><input id="h1-slotted"></div><div id="h2" tabindex="0"></div>
       <div id="h3" tabindex="-1"></div><div id="h4" tabindex="0"></div><input id="z">`);
@@ -616,6 +629,22 @@ describe('Tab', () => {
     expect([forward, backward]).toEqual(['a', 'body']);
   });
 
+  it('should start at the first stop with nothing focused, even when the body is a stop', () => {
+    render('<input id="p" tabindex="1"><input id="a"><input id="b">');
+    document.body.tabIndex = 0;
+    // jsdom has a focusable body match :focus when nothing else has focus, unlike browsers.
+    Object.defineProperty(document.body, 'matches', {
+      configurable: true,
+      value: (selector: string) => selector !== ':focus' && Element.prototype.matches.call(document.body, selector),
+    });
+    const forward = tab();
+    $('#p').blur();
+    const backward = tab({ shiftKey: true });
+    Reflect.deleteProperty(document.body, 'matches');
+    document.body.removeAttribute('tabindex');
+    expect([forward, backward]).toEqual(['p', 'b']);
+  });
+
   it('should keep focus within a modal dialog', () => {
     render('<input id="a"><dialog id="d" open><input id="d1"><input id="d2"></dialog><input id="z">');
     // jsdom has no showModal.
@@ -648,6 +677,27 @@ describe('Tab', () => {
     }
     $('#only').focus();
     expect([tab(), tab({ shiftKey: true })]).toEqual(['only', 'only']);
+  });
+
+  it('should leave focus where a focus trap in a shadow root sends it back', () => {
+    render('<input id="o1"><div id="host"></div><input id="o2">');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<button id="g1">g1</button><button id="only">only</button><button id="g2">g2</button>';
+    const only = root.querySelector('#only') as HTMLElement;
+    for (const id of ['#g1', '#g2']) {
+      root.querySelector(id)?.addEventListener('focus', () => only.focus());
+    }
+    only.focus();
+    expect([tab(), tab({ shiftKey: true })]).toEqual(['only', 'only']);
+  });
+
+  it('should focus each stop itself, never through a focus() the page defines', () => {
+    render('<input id="a"><div id="host" tabindex="0"></div><input id="z">');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<input id="inner">';
+    $('#host').focus = () => (root.querySelector('#inner') as HTMLElement).focus();
+    $('#a').focus();
+    expect(tabs(3)).toEqual(['host', 'inner', 'z']);
   });
 
   it("should pass Tab on from a stop the page won't focus", () => {
