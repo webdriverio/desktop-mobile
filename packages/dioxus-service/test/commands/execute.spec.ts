@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { execute, markAsEmbedded, runInterceptorScript } from '../../src/commands/execute.js';
 import { makeWebviewBrowser } from '../fakeWebview.js';
+import { createFakeMultiremote } from './multiremoteFakes.js';
 
 function browserStub(returnValue: unknown = undefined): WebdriverIO.Browser {
   const execute = vi.fn().mockResolvedValue(returnValue);
@@ -108,6 +109,42 @@ describe('execute command', () => {
       /\[wdio-dioxus-service\].*argument at index 1 is not JSON-serialisable/,
     );
     expect(browser.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe('execute on the multiremote root', () => {
+  it("should run a function script in each instance and unwrap each instance's result", async () => {
+    const { root, browserA, browserB } = createFakeMultiremote();
+    markAsEmbedded(browserA);
+    markAsEmbedded(browserB);
+    vi.mocked(browserA.execute).mockResolvedValue({ __wdio_value__: { id: 'a' } });
+    vi.mocked(browserB.execute).mockResolvedValue({});
+
+    const result = await execute(root as unknown as WebdriverIO.Browser, (_dx, n: number) => n, 1);
+
+    expect(result).toEqual([{ id: 'a' }, undefined]);
+    expect(root.execute).not.toHaveBeenCalled();
+    expect(vi.mocked(browserB.execute).mock.calls[0][0]).toContain('userFn(dx, 1)');
+  });
+
+  it('should pass a string script to each instance', async () => {
+    const { root, browserA, browserB } = createFakeMultiremote();
+    vi.mocked(browserA.execute).mockResolvedValue('a');
+    vi.mocked(browserB.execute).mockResolvedValue('b');
+
+    await expect(execute(root as unknown as WebdriverIO.Browser, 'return 1', 'arg')).resolves.toEqual(['a', 'b']);
+    expect(browserA.execute).toHaveBeenCalledWith('return 1', 'arg');
+    expect(browserB.execute).toHaveBeenCalledWith('return 1', 'arg');
+  });
+
+  it('should reject when the script fails in an instance', async () => {
+    const { root, browserA, browserB } = createFakeMultiremote();
+    vi.mocked(browserA.execute).mockResolvedValue('a');
+    vi.mocked(browserB.execute).mockRejectedValue(new Error('script error'));
+
+    await expect(execute(root as unknown as WebdriverIO.Browser, 'return 1')).rejects.toMatchObject({
+      message: 'script error',
+    });
   });
 });
 

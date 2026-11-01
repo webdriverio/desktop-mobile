@@ -142,6 +142,7 @@ export type {
   TauriServiceCustomCapability,
   TauriServiceGlobalOptions,
   TauriServiceOptions,
+  TauriWebviewOptions,
   WdioTauriConfig,
 } from './tauri.js';
 

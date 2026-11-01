@@ -1,7 +1,7 @@
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { AbstractFn, TauriAPIs, TauriMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, runThenSync } from '@wdio/native-utils';
 import { execute as tauriExecute } from './commands/execute.js';
 import mockStore from './mockStore.js';
 
@@ -14,21 +14,6 @@ function isBrowserMode(browser: WebdriverIO.Browser): boolean {
 
 async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
   return browser.execute(`return (${script})()`) as Promise<T>;
-}
-
-// Syncs even when `run` rejects, so the mock records the calls made before the failure.
-async function runThenSync<T>(mock: TauriMock, run: () => Promise<T>): Promise<T> {
-  let result: T;
-  try {
-    result = await run();
-  } catch (error) {
-    await mock
-      .update()
-      .catch((syncError: unknown) => log.warn('Mock sync failed after withImplementation rejected:', syncError));
-    throw error;
-  }
-  await mock.update();
-  return result;
 }
 
 export async function createMock(command: string, browserContext?: WebdriverIO.Browser): Promise<TauriMock> {

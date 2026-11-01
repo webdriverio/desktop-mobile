@@ -134,6 +134,37 @@ describe('TauriLaunchService — appBinaryPath resolution', () => {
     expect(capabilities.instanceB.capabilities['tauri:options']?.application).toBe('/bin/app-b');
   });
 
+  it("should match msedgedriver to the first capability's webviewOptions runtime folder on Windows", async () => {
+    mockPlatform('win32');
+    const { isEmbeddedProvider } = await import('../src/embeddedProvider.js');
+    const { ensureMsEdgeDriver } = await import('../src/edgeDriverManager.js');
+    vi.mocked(isEmbeddedProvider).mockReturnValueOnce(false);
+    const launcher = createLauncher();
+    const caps: any[] = [
+      {
+        'tauri:options': {
+          application: APP_BINARY,
+          webviewOptions: { browserExecutableFolder: 'C:\\FirstRuntime' },
+        },
+        'wdio:tauriServiceOptions': { driverProvider: 'external' },
+      },
+      {
+        'tauri:options': {
+          application: APP_BINARY,
+          webviewOptions: { browserExecutableFolder: 'C:\\SecondRuntime' },
+        },
+        'wdio:tauriServiceOptions': { driverProvider: 'external' },
+      },
+    ];
+
+    await launcher.onPrepare({ maxInstances: 1 } as any, caps);
+
+    expect(ensureMsEdgeDriver).toHaveBeenCalledOnce();
+    expect(vi.mocked(ensureMsEdgeDriver).mock.calls[0][2]).toMatchObject({
+      browserExecutableFolder: 'C:\\FirstRuntime',
+    });
+  });
+
   it('should prefer capability-level application over service-level appBinaryPath', async () => {
     mockPlatform('linux');
     const launcher = createLauncher();

@@ -48,3 +48,25 @@ export function createFakeBrowser(): FakeBrowser {
   };
   return browser;
 }
+
+export function createFakeMultiremoteBrowser(instanceNames: string[]): {
+  root: FakeBrowser;
+  instances: Map<string, FakeBrowser>;
+} {
+  const instances = new Map<string, FakeBrowser>();
+  for (const name of instanceNames) {
+    instances.set(name, createFakeBrowser());
+  }
+  const root = Object.assign(createFakeBrowser(), {
+    isMultiremote: true,
+    instances: instanceNames,
+    getInstance: (name: string) => {
+      const instance = instances.get(name);
+      if (!instance) {
+        throw new Error(`No multiremote instance "${name}"`);
+      }
+      return instance;
+    },
+  });
+  return { root, instances };
+}

@@ -3,9 +3,15 @@
 // multi-suite run can isolate e.g. all 'api.*' mocks. isMockFunction is a
 // structural check used by callers to branch on mock-vs-plain functions.
 
-import { type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
+import { errorMessage, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
 
 import type { ElectrobunMockStore } from '../mockStore.js';
+
+export interface MockStoreTarget {
+  name?: string;
+  store: ElectrobunMockStore;
+  prefix?: string;
+}
 
 function matchesPrefix(target: string, prefix?: string): boolean {
   if (!prefix) {
@@ -34,6 +40,33 @@ export async function resetAllMocks(store: ElectrobunMockStore, prefix?: string)
 
 export async function restoreAllMocks(store: ElectrobunMockStore, prefix?: string): Promise<void> {
   await forEachMock(store, prefix, 'mockRestore');
+}
+
+export async function runOnMockStores(
+  commandName: string,
+  targets: MockStoreTarget[],
+  op: MockLifecycleOp,
+): Promise<void> {
+  const results = await Promise.allSettled(targets.map(({ store, prefix }) => forEachMock(store, prefix, op)));
+  const failures = results.flatMap((result, i) =>
+    result.status === 'rejected' ? [{ name: targets[i].name, error: result.reason as unknown }] : [],
+  );
+  if (failures.length === 0) {
+    return;
+  }
+  // A single session has no instance name to add
+  if (failures.length === 1 && failures[0].name === undefined) {
+    throw failures[0].error;
+  }
+  const message = `${commandName} failed on ${failures
+    .map(({ name, error }) => `${name}: ${errorMessage(error)}`)
+    .join('; ')}`;
+  throw failures.length === 1
+    ? new Error(message, { cause: failures[0].error })
+    : new AggregateError(
+        failures.map(({ error }) => error),
+        message,
+      );
 }
 
 /**

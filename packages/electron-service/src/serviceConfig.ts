@@ -3,6 +3,8 @@ import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
 import type { ElectronServiceGlobalOptions } from '@wdio/native-types';
 import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 
+export type MockOptionName = 'clearMocks' | 'resetMocks' | 'restoreMocks';
+
 export abstract class ServiceConfig {
   #globalOptions: ElectronServiceGlobalOptions;
   #cdpOptions: CdpBridgeOptions;
@@ -43,7 +45,7 @@ export abstract class ServiceConfig {
    * @param capabilities - WebDriver capabilities
    * @returns The user data directory path, or undefined if not found
    */
-  private extractUserDataDir(capabilities: WebdriverIO.Capabilities): string | undefined {
+  protected extractUserDataDir(capabilities: WebdriverIO.Capabilities): string | undefined {
     const chromeOptions = capabilities['goog:chromeOptions'];
     if (!chromeOptions || typeof chromeOptions !== 'object') {
       return undefined;
@@ -65,6 +67,14 @@ export abstract class ServiceConfig {
 
   get globalOptions(): ElectronServiceGlobalOptions {
     return this.#globalOptions;
+  }
+
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  protected instanceOptions(instanceCaps?: WebdriverIO.Capabilities): ElectronServiceGlobalOptions {
+    const instanceOptions = Object.fromEntries(
+      Object.entries(instanceCaps?.[CUSTOM_CAPABILITY_NAME] ?? {}).filter(([, value]) => value !== undefined),
+    );
+    return { ...this.#globalOptions, ...instanceOptions };
   }
 
   get browser(): WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser | undefined {
@@ -89,6 +99,11 @@ export abstract class ServiceConfig {
 
   protected get restoreMocks() {
     return this.#restoreMocks;
+  }
+
+  protected mockOptions(instanceCaps?: WebdriverIO.Capabilities): Record<MockOptionName, boolean> {
+    const { clearMocks = false, resetMocks = false, restoreMocks = false } = this.instanceOptions(instanceCaps);
+    return { clearMocks, resetMocks, restoreMocks };
   }
 
   /**

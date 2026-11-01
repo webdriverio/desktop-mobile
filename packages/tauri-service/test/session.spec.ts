@@ -289,20 +289,14 @@ describe('session', () => {
       await expect(init(capabilities)).rejects.toThrow('Tauri driver port was not set on capabilities by onPrepare');
     });
 
-    it('should create launcher with global options containing rootDir', async () => {
-      mockOnPrepare.mockImplementation(async () => {
-        // Simulate launcher setting port on capabilities
-      });
+    it('should create launcher with the given global options', async () => {
       const capabilities: TauriCapabilities = {
         'tauri:options': { application: '/app' },
       };
 
-      await expect(init(capabilities, { rootDir: '/my/project' })).rejects.toThrow('Tauri driver port was not set');
+      await expect(init(capabilities, { tauriDriverPort: 5555 })).rejects.toThrow('Tauri driver port was not set');
 
-      expect(TauriLaunchService).toHaveBeenCalledWith({ rootDir: '/my/project' }, capabilities, {
-        rootDir: '/my/project',
-        capabilities: [],
-      });
+      expect(TauriLaunchService).toHaveBeenCalledWith({ tauriDriverPort: 5555 }, capabilities, { capabilities: [] });
     });
 
     it('should create launcher with empty global options when not provided', async () => {

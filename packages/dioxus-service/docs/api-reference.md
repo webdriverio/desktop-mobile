@@ -51,6 +51,8 @@ const href = await browser.dioxus.execute('window.location.href');
 
 **Note:** Requires the bridge, which `wdio_dioxus::install(config)` installs in the app. See [App Setup](./app-setup.md).
 
+**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. It rejects if any instance fails. To run it in one app, call it on that instance: `browser.getInstance('app1').dioxus.execute(...)`.
+
 ---
 
 ### `browser.dioxus.mock(command)`
@@ -71,6 +73,8 @@ await mock.mockReturnValue('mocked file content');
 const content = await browser.dioxus.execute(({ invoke }) => invoke('read_file'));
 expect(content).toBe('mocked file content');
 ```
+
+**Multiremote:** Each instance has its own mocks. `browser.getInstance('app1').dioxus.mock('read_file')` and `browser.getInstance('app2').dioxus.mock('read_file')` return different mocks, each registered in its own app. `clearAllMocks()`, `resetAllMocks()`, `restoreAllMocks()` and `isMockFunction('read_file')` on an instance only see that instance's mocks. On the multiremote root, they cover every instance.
 
 ---
 
@@ -96,7 +100,7 @@ if (browser.dioxus.isMockFunction(mock)) {
 
 ### `browser.dioxus.clearAllMocks(commandPrefix?)`
 
-Clear all mock call history and reset results, but keep the mock implementations in place.
+Clear all mock call history and reset results, but keep the mock implementations in place. In multiremote, an instance clears only its own mocks, and the root clears every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with command names starting with this prefix will be cleared
@@ -116,7 +120,7 @@ await browser.dioxus.clearAllMocks('clipboard');
 
 ### `browser.dioxus.resetAllMocks(commandPrefix?)`
 
-Reset all mocks to their initial state (clears implementations and call history).
+Reset all mocks to their initial state (clears implementations and call history). In multiremote, an instance resets only its own mocks, and the root resets every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are reset
@@ -127,7 +131,7 @@ Reset all mocks to their initial state (clears implementations and call history)
 
 ### `browser.dioxus.restoreAllMocks(commandPrefix?)`
 
-Remove all mocks and restore original command implementations.
+Remove all mocks and restore original command implementations. In multiremote, an instance restores only its own mocks, and the root restores every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are restored
@@ -431,10 +435,6 @@ interface DioxusCapabilities extends WebdriverIO.Capabilities {
   'dioxus:options'?: {
     application: string;
     args?: string[];
-    webviewOptions?: {
-      width?: number;
-      height?: number;
-    };
   };
   'wdio:dioxusServiceOptions'?: DioxusServiceOptions;
 }
