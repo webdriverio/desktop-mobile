@@ -240,7 +240,7 @@ If set, only mocks whose command name starts with this prefix are cleared. Only 
 
 ### `resetMocks` (boolean, optional)
 
-If `true`, all mocks are reset (implementation + history) before each test.
+If `true`, all mocks are reset (implementation + history) before each test. Equivalent to `browser.dioxus.resetAllMocks()` in a `beforeEach`.
 
 **Default:** `false`
 
@@ -256,7 +256,7 @@ If set, only mocks whose command name starts with this prefix are reset. Only us
 
 ### `restoreMocks` (boolean, optional)
 
-If `true`, all mocks are restored to their original implementations before each test.
+If `true`, all mocks are restored to their original implementations before each test. Equivalent to `browser.dioxus.restoreAllMocks()` in a `beforeEach`.
 
 **Default:** `false`
 
@@ -267,6 +267,8 @@ If `true`, all mocks are restored to their original implementations before each 
 If set, only mocks whose command name starts with this prefix are restored. Only used when `restoreMocks: true`.
 
 **Default:** `undefined`
+
+**Multiremote:** each instance applies the `clearMocks`, `resetMocks` and `restoreMocks` options, and their prefixes, from its own `wdio:dioxusServiceOptions` to its own mocks. An instance that doesn't set an option uses the service-level value, which also applies to mocks created on the multiremote root.
 
 ---
 
