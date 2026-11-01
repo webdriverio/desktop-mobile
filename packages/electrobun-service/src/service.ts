@@ -87,11 +87,8 @@ export default class ElectrobunWorkerService {
     await forEachInstance(
       browser,
       (instance, context) => {
-        // Browser mode: the frontend runs in a plain Chrome session against a dev
-        // server — no CEF, no CDP side-channel. The electrobun surface is not
-        // installed (execute/mock have no in-app target to drive). Keyed on `mode`,
-        // the same criterion the launcher uses — a stray devServerUrl without
-        // mode: 'browser' must not skip the attach while the launcher spawns natively.
+        // Browser mode runs the frontend in plain Chrome, with no CDP side-channel or in-app target to attach to.
+        // Keyed on `mode`, as the launcher is, so a stray devServerUrl can't skip a native launch's attach.
         if (this.instanceOptions(context).mode === 'browser') {
           log.info('Browser mode — skipping CDP bridge attach');
           return;
@@ -102,8 +99,7 @@ export default class ElectrobunWorkerService {
       capabilities,
     );
     if (attached && isMultiremote(browser)) {
-      // Root fan-out isn't wired yet — install a guided-error stub so `browser.electrobun.*` on the
-      // multiremote root fails with direction to per-instance access, not a raw TypeError.
+      // In browser mode no instance attached, so there's no per-instance API for the root's stub to point at
       installRootMultiremoteGuard(browser);
     }
   }
