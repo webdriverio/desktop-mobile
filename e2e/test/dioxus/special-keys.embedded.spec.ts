@@ -12,6 +12,24 @@ async function keyTargetEvents() {
   return (await browser.execute('return window.__keyTargetEvents || []')) as unknown as KeyEvent[];
 }
 
+const NEWLINE = String.fromCharCode(10);
+
+async function fillScratch(html: string) {
+  await browser.execute(
+    `var scratch = document.querySelector("#keys-scratch");
+    if (!scratch) {
+      scratch = document.createElement("div");
+      scratch.id = "keys-scratch";
+      document.body.appendChild(scratch);
+    }
+    scratch.innerHTML = '${html}';`,
+  );
+}
+
+async function fieldValue(selector: string) {
+  return browser.$(selector).getValue();
+}
+
 describe('Dioxus special keys (embedded)', () => {
   beforeEach(async () => {
     await browser.execute(
@@ -31,7 +49,9 @@ describe('Dioxus special keys (embedded)', () => {
   });
 
   after(async () => {
-    await browser.execute('document.querySelector("#key-target").remove()');
+    await browser.execute(
+      'document.querySelector("#key-target").remove(); document.querySelector("#keys-scratch")?.remove();',
+    );
   });
 
   it('should send the code and keyCode of special keys', async () => {
@@ -68,5 +88,71 @@ describe('Dioxus special keys (embedded)', () => {
       { key: 'Backspace', code: 'Backspace', keyCode: 8 },
       { key: '\t', code: 'Tab', keyCode: 9 },
     ]);
+  });
+
+  it('should type and delete text in the focused field, firing input for each edit', async () => {
+    await fillScratch('<input id="fresh-input" value="old">');
+    await browser.execute(
+      `window.__inputEvents = [];
+      document.querySelector("#fresh-input").addEventListener("input", function (ev) {
+        window.__inputEvents.push(ev.inputType + " " + ev.target.value);
+      });`,
+    );
+    await browser.$('#fresh-input').click();
+    await browser.keys(['a', 'B', Key.Backspace, '!']);
+    expect(await fieldValue('#fresh-input')).toBe('olda!');
+    expect(await browser.execute('return window.__inputEvents')).toEqual([
+      'insertText olda',
+      'insertText oldaB',
+      'deleteContentBackward olda',
+      'insertText olda!',
+    ]);
+  });
+
+  it('should break lines on Enter in a textarea and a contenteditable only', async () => {
+    await fillScratch(
+      '<textarea id="fresh-textarea"></textarea><div id="fresh-editor" contenteditable="true"></div><input id="fresh-input">',
+    );
+    await browser.$('#fresh-textarea').click();
+    await browser.keys(['a', Key.Enter, 'b']);
+    expect(await fieldValue('#fresh-textarea')).toBe(`a${NEWLINE}b`);
+
+    await browser.$('#fresh-editor').addValue('a');
+    await browser.keys([Key.Enter, 'b']);
+    const editorLines = (await browser.execute('return document.querySelector("#fresh-editor").innerText')) as string;
+    expect(editorLines.split(NEWLINE).filter(Boolean)).toEqual(['a', 'b']);
+
+    await browser.$('#fresh-input').click();
+    await browser.keys(['a', Key.Enter, 'b']);
+    expect(await fieldValue('#fresh-input')).toBe('ab');
+  });
+
+  it('should neither type nor delete when a keydown handler cancels the key', async () => {
+    await fillScratch('<input id="fresh-input" value="ab">');
+    await browser.execute(
+      `document.querySelector("#fresh-input").addEventListener("keydown", function (ev) {
+        if (ev.key !== "y") { ev.preventDefault(); }
+      });`,
+    );
+    await browser.$('#fresh-input').click();
+    await browser.keys(['x', Key.Backspace, 'y']);
+    expect(await fieldValue('#fresh-input')).toBe('aby');
+  });
+
+  it('should replace the text Control+A selects', async () => {
+    await fillScratch('<input id="fresh-input" value="old">');
+    await browser.$('#fresh-input').click();
+    await browser.keys([Key.Control, 'a']);
+    await browser.keys('n');
+    expect(await fieldValue('#fresh-input')).toBe('n');
+  });
+
+  it('should move between radio buttons on the arrow keys', async () => {
+    await fillScratch(
+      '<input type="radio" name="fresh-group" id="fresh-radio-1"><input type="radio" name="fresh-group" id="fresh-radio-2">',
+    );
+    await browser.$('#fresh-radio-1').click();
+    await browser.keys(Key.ArrowDown);
+    expect(await browser.$('#fresh-radio-2').isSelected()).toBe(true);
   });
 });
