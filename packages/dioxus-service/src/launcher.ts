@@ -92,7 +92,7 @@ export default class DioxusLaunchService extends BaseLauncher {
       // is up must stop it, because WDIO does not call onComplete after an onPrepare throw.
       try {
         // Auto-manage the dev server once for the run if requested; the managed readiness wait
-        // supersedes the per-cap preflight, and a devServer function may supply the URL.
+        // supersedes the per-capability preflight, and a devServer function may supply the URL.
         let managedUrl: string | undefined;
         if (devServer) {
           // Only a devServer *function* can supply the URL; a string/object form needs devServerUrl

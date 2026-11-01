@@ -172,8 +172,8 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
       // is up must stop it, because WDIO does not call onComplete after an onPrepare throw.
       try {
         // Auto-manage the dev server once for the run if requested; the managed readiness wait
-        // supersedes the per-cap preflight below, and a devServer function may supply the URL. A
-        // managed server serves one URL for every cap.
+        // supersedes the per-capability preflight below, and a devServer function may supply the
+        // URL. A managed server serves one URL for every capability.
         let managedUrl: string | undefined;
         if (this.#globalOptions.devServer) {
           // Only a devServer *function* can supply the URL; a string/object form needs devServerUrl
@@ -191,8 +191,8 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           this.#stopDevServer = managed.stop;
           managedUrl = managed.url;
         }
-        // Stamp each cap's resolved URL back onto it so the worker navigates to it (a devServer
-        // function may have overridden it).
+        // Write each capability's resolved URL back into it for the worker; a devServer function may
+        // have replaced it.
         const capOptsList = caps.map(
           (cap) => ((cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] ?? {}) as ElectronServiceGlobalOptions,
         );

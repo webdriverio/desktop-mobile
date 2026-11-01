@@ -271,7 +271,7 @@ devServerUrl: 'http://localhost:1420'; // Tauri Vite default
 
 **Default:** `undefined`
 
-**Note:** Only used when `mode: 'browser'`. Has no effect in native mode. Set it per capability to open a different URL in each instance. With the service-level `devServer` option, every capability opens the managed dev server's URL instead. See [Browser Mode](./browser-mode.md).
+**Note:** Only used in browser mode. Set it per capability to open a different URL in each instance. With the service-level `devServer` option, every capability opens the managed dev server's URL instead. See [Browser Mode](./browser-mode.md).
 
 ---
 

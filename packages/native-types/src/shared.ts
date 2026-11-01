@@ -244,7 +244,7 @@ export interface BaseServiceGlobalOptions extends LogCaptureConfig, MockLifecycl
   /**
    * Auto-manage the dev server in browser mode (spawn in `onPrepare`, wait for `devServerUrl`,
    * tear down on completion). Ignored outside browser mode. Service-level only: one dev server
-   * serves every capability, which all open its URL.
+   * serves every capability, and they all open its URL.
    */
   devServer?: DevServer;
 }

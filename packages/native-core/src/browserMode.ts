@@ -86,11 +86,10 @@ export async function probeDevServerReachable(
 /**
  * Resolve the dev server URL each browser-mode capability opens, in the order given.
  *
- * `managedUrl`, the URL of the dev server the launcher started, applies to every capability, since
- * one server runs per run. Without it, each capability opens its own URL (the caller merges a
- * capability's `devServerUrl` over the service-level one), and each distinct URL is preflighted
- * once with {@link probeDevServerReachable}. Fails when a capability has no URL or an invalid one,
- * or when a dev server is unreachable.
+ * `managedUrl`, from the dev server the launcher started, applies to every capability. Without it,
+ * each capability opens its own URL (the caller merges a capability's `devServerUrl` over the
+ * service-level one), and each distinct URL is preflighted once with {@link probeDevServerReachable}.
+ * Fails when a capability has no URL or an invalid one, or when a dev server is unreachable.
  */
 export async function resolveDevServerUrls(
   capabilityUrls: readonly (string | undefined)[],
