@@ -9,7 +9,6 @@ import { spawn } from 'node:child_process';
 
 import { DriverProcess, quoteForCmd } from '../src/driverProcess.js';
 
-const DRIVER = 'C:\\Users\\Jane Smith\\.cargo\\bin\\tauri-driver.exe';
 const NATIVE_DRIVER = 'C:\\Program Files (x86)\\EdgeDriver\\msedgedriver.exe';
 const originalPlatform = process.platform;
 
@@ -29,7 +28,7 @@ function exitedProcess() {
   });
 }
 
-async function startWith(driverPath: string, nativeDriverPath: string) {
+async function startWith(driverPath: string, env?: NodeJS.ProcessEnv) {
   vi.mocked(spawn).mockReturnValue(exitedProcess() as never);
   await expect(
     new DriverProcess().start({
@@ -38,21 +37,26 @@ async function startWith(driverPath: string, nativeDriverPath: string) {
       port: 4444,
       nativePort: 4445,
       driverPath,
-      nativeDriverPath,
+      nativeDriverPath: NATIVE_DRIVER,
+      env,
     }),
   ).rejects.toMatchObject({ message: 'driver [driver] process died during startup' });
-  return vi.mocked(spawn).mock.calls[0];
+  return vi.mocked(spawn).mock.calls[0] as unknown[];
 }
 
 describe('quoteForCmd', () => {
   it('should quote an argument with a space or a cmd.exe special character', () => {
-    expect(quoteForCmd(DRIVER)).toBe(`"${DRIVER}"`);
-    expect(quoteForCmd('C:\\a&b\\driver.exe')).toBe('"C:\\a&b\\driver.exe"');
+    expect(quoteForCmd('C:\\Users\\Jane Smith\\driver.cmd')).toBe('"C:\\Users\\Jane Smith\\driver.cmd"');
+    expect(quoteForCmd('C:\\a&b\\driver.cmd')).toBe('"C:\\a&b\\driver.cmd"');
   });
 
-  it('should leave a plain argument alone', () => {
-    expect(quoteForCmd('C:\\drivers\\msedgedriver.exe')).toBe('C:\\drivers\\msedgedriver.exe');
+  it('should leave a plain or already quoted argument alone', () => {
     expect(quoteForCmd('--port')).toBe('--port');
+    expect(quoteForCmd('"C:\\Program Files\\driver.exe"')).toBe('"C:\\Program Files\\driver.exe"');
+  });
+
+  it("should double a trailing backslash so it doesn't escape the closing quote", () => {
+    expect(quoteForCmd('C:\\My Drivers\\')).toBe('"C:\\My Drivers\\\\"');
   });
 });
 
@@ -62,23 +66,46 @@ describe('DriverProcess.start', () => {
     vi.clearAllMocks();
   });
 
-  it('should quote the driver and native driver paths for cmd.exe on Windows', async () => {
+  it('should start a Windows .exe driver directly, with its arguments as they are', async () => {
     setPlatform('win32');
 
-    const [command, args, options] = await startWith(DRIVER, NATIVE_DRIVER);
+    const [command, args, options] = await startWith('C:\\Users\\Jane Smith\\.cargo\\bin\\tauri-driver.exe');
 
-    expect(command).toBe(`"${DRIVER}"`);
-    expect(args).toEqual(['--port', '4444', '--native-port', '4445', '--native-driver', `"${NATIVE_DRIVER}"`]);
+    expect(command).toBe('C:\\Users\\Jane Smith\\.cargo\\bin\\tauri-driver.exe');
+    expect(args).toEqual(['--port', '4444', '--native-port', '4445', '--native-driver', NATIVE_DRIVER]);
+    expect(options).not.toHaveProperty('shell', true);
+  });
+
+  it('should run a Windows .cmd driver through cmd.exe as one quoted command line', async () => {
+    setPlatform('win32');
+
+    const [command, options] = await startWith('C:\\Users\\Jane Smith\\app\\node_modules\\.bin\\tauri-driver.cmd');
+
+    expect(command).toBe(
+      `"C:\\Users\\Jane Smith\\app\\node_modules\\.bin\\tauri-driver.cmd" --port 4444 --native-port 4445 --native-driver "${NATIVE_DRIVER}"`,
+    );
     expect(options).toMatchObject({ shell: true });
   });
 
-  it('should pass the paths as they are, without a shell, elsewhere', async () => {
+  it('should start the driver directly elsewhere', async () => {
     setPlatform('linux');
 
-    const [command, args, options] = await startWith('/opt/my drivers/tauri-driver', '/usr/bin/WebKitWebDriver');
+    const [command, args, options] = await startWith('/opt/my drivers/tauri-driver');
 
     expect(command).toBe('/opt/my drivers/tauri-driver');
-    expect(args).toEqual(['--port', '4444', '--native-port', '4445', '--native-driver', '/usr/bin/WebKitWebDriver']);
-    expect(options).toMatchObject({ shell: false });
+    expect(args).toContain(NATIVE_DRIVER);
+    expect(options).not.toHaveProperty('shell', true);
+  });
+
+  it("should set the driver's env over process.env, replacing a variable whatever its case on Windows", async () => {
+    setPlatform('win32');
+    const pathKey = Object.keys(process.env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
+    const userKey = pathKey === 'PATH' ? 'Path' : 'PATH';
+
+    const [, , options] = await startWith('C:\\drivers\\tauri-driver.exe', { [userKey]: 'C:\\tools', APP_FLAG: 'on' });
+
+    const { env } = options as { env: NodeJS.ProcessEnv };
+    expect(env).toMatchObject({ [userKey]: 'C:\\tools', APP_FLAG: 'on' });
+    expect(env).not.toHaveProperty(pathKey);
   });
 });

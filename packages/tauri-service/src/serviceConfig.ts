@@ -1,4 +1,5 @@
 import type { LogLevel } from '@wdio/native-types';
+import { mergeEnv } from '@wdio/native-utils';
 
 import type { TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
@@ -28,7 +29,7 @@ export function appEnv(
   options: Pick<TauriServiceOptions, 'env'> | undefined,
   serviceEnv?: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
-  return { ...process.env, ...options?.env, ...serviceEnv };
+  return mergeEnv(process.env, options?.env, serviceEnv);
 }
 
 const EMBEDDED_START_TIMEOUT = 60_000;

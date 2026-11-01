@@ -279,7 +279,7 @@ export async function findMsEdgeDriver(): Promise<{ path?: string; version?: str
     const { stdout: pathResult } = await execAsync('where msedgedriver.exe 2>nul', {
       encoding: 'utf8',
     });
-    const driverPath = pathResult.trim().split('\n')[0];
+    const driverPath = pathResult.trim().split(/\r?\n/)[0];
 
     if (driverPath && existsSync(driverPath)) {
       // Get version

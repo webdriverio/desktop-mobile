@@ -72,6 +72,22 @@ describe('appEnv', () => {
     expect(env).toMatchObject({ WDIO_APP_ENV_KEPT: 'process', WDIO_APP_ENV_FLAG: 'app', WDIO_APP_ENV_DIR: 'service' });
   });
 
+  it("should replace a variable whatever its case on Windows, so the app's PATH isn't dropped", () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    try {
+      const pathKey = Object.keys(process.env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
+      const appKey = pathKey === 'PATH' ? 'Path' : 'PATH';
+
+      const env = appEnv({ env: { [appKey]: 'C:\\tools' } });
+
+      expect(env[appKey]).toBe('C:\\tools');
+      expect(env).not.toHaveProperty(pathKey);
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    }
+  });
+
   it('should return process.env as is without an app env or service vars', () => {
     expect(appEnv(undefined)).toEqual({ ...process.env });
   });

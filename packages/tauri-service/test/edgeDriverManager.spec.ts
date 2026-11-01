@@ -161,6 +161,28 @@ describe('Edge Driver Manager', () => {
       const result = await findMsEdgeDriver();
       expect(result).toEqual({});
     });
+
+    it("should take the first of several drivers `where` lists, without the line's carriage return", async () => {
+      const { exec } = await import('node:child_process');
+      const { existsSync } = await import('node:fs');
+      vi.mocked(exec as any).mockImplementation(((cmd: string, _opts: any, callback: any) => {
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        if (cmd.includes('where msedgedriver')) {
+          callback?.(null, 'C:\\new\\msedgedriver.exe\r\nC:\\old\\msedgedriver.exe\r\n', '');
+        } else {
+          callback?.(null, 'MSEdgeDriver 149.0.4022.150\n', '');
+        }
+        return {} as any;
+      }) as any);
+      vi.mocked(existsSync).mockImplementation((path) => path === 'C:\\new\\msedgedriver.exe');
+
+      await expect(findMsEdgeDriver()).resolves.toEqual({
+        path: 'C:\\new\\msedgedriver.exe',
+        version: '149.0.4022.150',
+      });
+    });
   });
 
   describe('ensureMsEdgeDriver', () => {

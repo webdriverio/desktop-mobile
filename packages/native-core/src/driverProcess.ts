@@ -24,15 +24,24 @@ import http from 'node:http';
 import net from 'node:net';
 import type { Interface as ReadlineInterface } from 'node:readline';
 
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, mergeEnv } from '@wdio/native-utils';
 
 import { createLogCapture } from './logCapture.js';
 
 const log = createLogger('native-core', 'launcher');
 
-// spawn's shell mode hands cmd.exe the command and arguments unquoted, so a path with a space would split
+// For a command line cmd.exe runs: quotes an argument with a space or a special character, leaving one the
+// caller already quoted, and doubles a trailing backslash so it doesn't escape the closing quote
 export function quoteForCmd(arg: string): string {
-  return /[\s"&()<>^|]/.test(arg) ? `"${arg.replace(/"/g, '""')}"` : arg;
+  if ((arg.length > 1 && arg.startsWith('"') && arg.endsWith('"')) || !/[\s"&()<>^|]/.test(arg)) {
+    return arg;
+  }
+  return `"${arg.replace(/"/g, '""').replace(/(\\+)$/, '$1$1')}"`;
+}
+
+// On Windows only a .exe or .com starts without cmd.exe; a .cmd shim, or a bare name cmd.exe resolves, needs it
+function needsShell(driverPath: string): boolean {
+  return process.platform === 'win32' && !/\.(exe|com)$/i.test(driverPath);
 }
 
 export interface DriverStartOptions {
@@ -156,16 +165,15 @@ export class DriverProcess {
       };
 
       try {
-        const spawnEnv = env ? { ...process.env, ...env } : process.env;
-
-        // A shell on Windows, so a driver installed as a .cmd shim starts
-        const useShell = process.platform === 'win32';
-        this._proc = spawn(useShell ? quoteForCmd(driverPath) : driverPath, useShell ? args.map(quoteForCmd) : args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
+        const spawnOptions = {
+          stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
           detached: false,
-          env: spawnEnv,
-          shell: useShell,
-        });
+          env: env ? mergeEnv(process.env, env) : process.env,
+        };
+        // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted
+        this._proc = needsShell(driverPath)
+          ? spawn([driverPath, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true })
+          : spawn(driverPath, args, spawnOptions);
 
         log.info(`[${identifier}] Spawned process with PID: ${this._proc.pid ?? 'unknown'}`);
 

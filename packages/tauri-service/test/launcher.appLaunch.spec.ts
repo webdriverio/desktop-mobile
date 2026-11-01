@@ -69,6 +69,7 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { SevereServiceError } from 'webdriverio';
 import { startTestRunnerBackend } from '../src/crabnebulaBackend.js';
+import { ensureTauriDriver } from '../src/driverManager.js';
 import { ensureMsEdgeDriver } from '../src/edgeDriverManager.js';
 import { checkEmbeddedServerAlive, startEmbeddedDriver } from '../src/embeddedProvider.js';
 import TauriLaunchService from '../src/launcher.js';
@@ -142,6 +143,16 @@ describe('app args', () => {
 
     expect([capA, capB].map((cap) => cap['tauri:options']?.args)).toEqual([['--a'], ['--b']]);
     expect(shared).toEqual({ application: APP });
+  });
+
+  it('should stop the run with a SevereServiceError when the driver it needs is missing', async () => {
+    vi.mocked(ensureTauriDriver).mockResolvedValueOnce({ ok: false, error: new Error('tauri-driver not found') });
+    const launcher = createLauncher({ driverProvider: 'external' });
+
+    const prepared = launcher.onPrepare({ maxInstances: 1 }, [appCap()]);
+
+    await expect(prepared).rejects.toBeInstanceOf(SevereServiceError);
+    await expect(prepared).rejects.toMatchObject({ message: 'tauri-driver not found' });
   });
 
   it('should stop the run with a SevereServiceError for args that are not an array of strings', async () => {
@@ -266,6 +277,25 @@ describe('app env', () => {
         'http://127.0.0.1:3000',
         'http://127.0.0.1:3000',
       ]);
+      expect(process.env.REMOTE_WEBDRIVER_URL).toBeUndefined();
+    });
+
+    it("should leave the shared driver and the user's own backend alone between workers", async () => {
+      const cap = appCap();
+      const launcher = createLauncher({ driverProvider: 'crabnebula', crabnebulaManageBackend: false });
+      await launcher.onPrepare({ maxInstances: 1 }, [cap]);
+
+      await launcher.onWorkerEnd('0-0');
+
+      expect(startTestRunnerBackend).not.toHaveBeenCalled();
+      expect(driverStarts(launcher)).toHaveLength(1);
+    });
+
+    it('should accept a CN_API_KEY from env, which the backend gets', async () => {
+      vi.stubEnv('CN_API_KEY', undefined);
+      const launcher = createLauncher({ driverProvider: 'crabnebula', env: { CN_API_KEY: 'from-env' } });
+
+      await expect(launcher.onPrepare({ maxInstances: 1 }, [appCap()])).resolves.toBeUndefined();
     });
 
     it("should give a worker's backend, which launches the app, the same data directory as its driver", async () => {

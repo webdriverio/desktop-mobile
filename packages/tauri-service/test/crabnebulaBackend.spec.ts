@@ -102,6 +102,28 @@ describe('CrabNebula Backend', () => {
       );
     });
 
+    it("should check the CN_API_KEY the backend gets, which the app's env can set", async () => {
+      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
+      process.env.CN_API_KEY = 'test-api-key-long-enough';
+
+      await expect(
+        startTestRunnerBackend({ port: 3000, serviceOptions: { env: { CN_API_KEY: '   ' } } }),
+      ).rejects.toMatchObject({ message: expect.stringContaining('CN_API_KEY environment variable is set but empty') });
+
+      delete process.env.CN_API_KEY;
+      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
+      const started = startTestRunnerBackend({
+        port: 3000,
+        serviceOptions: { env: { CN_API_KEY: 'key-from-app-env-1234' } },
+      });
+      setImmediate(() => {
+        mockProc.emit('spawn');
+      });
+      await started;
+
+      expect(vi.mocked(spawn).mock.calls.at(-1)?.[2]?.env).toMatchObject({ CN_API_KEY: 'key-from-app-env-1234' });
+    }, 10000);
+
     it('should start backend with correct environment', async () => {
       vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
       process.env.CN_API_KEY = 'test-api-key-long-enough';
