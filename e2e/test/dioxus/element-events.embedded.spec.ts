@@ -18,7 +18,7 @@ async function fieldEvents() {
 
 async function focusedId() {
   return browser.execute(
-    'var el = document.activeElement; while (el && el.shadowRoot && el.shadowRoot.activeElement) { el = el.shadowRoot.activeElement; } return el ? el.id : null;',
+    'var el = document.activeElement; while (el && el.shadowRoot && el.shadowRoot.activeElement) { el = el.shadowRoot.activeElement; } return el ? el.id : undefined;',
   );
 }
 

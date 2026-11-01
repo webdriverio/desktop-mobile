@@ -590,7 +590,7 @@ describe('Tab', () => {
     expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
   });
 
-  it('should go from an element Tab skips to the nearest stop in tree order, or round to the other end', () => {
+  it('should go from an element Tab skips to the nearest stop in tree order, or leave the page when there is none', () => {
     render(`<div id="t1" tabindex="-1">t</div><input id="a"><div id="t2" tabindex="-1">t</div><input id="b">
       <div id="t3" tabindex="-1">t</div>`);
     const from = (id: string, init: KeyboardEventInit = {}) => {
@@ -600,8 +600,8 @@ describe('Tab', () => {
     expect([from('t2'), from('t2', { shiftKey: true }), from('t3'), from('t1', { shiftKey: true })]).toEqual([
       'b',
       'a',
-      'a',
-      'b',
+      'body',
+      'body',
     ]);
   });
 

@@ -198,7 +198,7 @@ function wdioTabKey(event) {
 
 // The stops Tab tries from `current`, in turn: from a stop, those after it, or before it with Shift.
 // From an element Tab skips, Tab goes to the nearest stop after it in tree order, or before it with
-// Shift, and wraps round to the other end of the order when there's none, as Chrome does.
+// Shift, and leaves the page when there's none.
 function wdioTabCandidates(backward, current) {
   const { stops, treeOrder } = wdioTabStops(current);
   const order = backward ? [...stops].reverse() : stops;
@@ -207,15 +207,15 @@ function wdioTabCandidates(backward, current) {
     return order.slice(at + 1);
   }
   const position = current === document.body ? undefined : treeOrder.get(current);
+  if (position === undefined) {
+    return order;
+  }
   const distance = (stop) => (backward ? position - treeOrder.get(stop) : treeOrder.get(stop) - position);
-  const nearest =
-    position === undefined
-      ? undefined
-      : order.reduce(
-          (best, stop) => (distance(stop) > 0 && (best === undefined || distance(stop) < distance(best)) ? stop : best),
-          undefined,
-        );
-  return nearest === undefined ? order : order.slice(order.indexOf(nearest));
+  const nearest = order.reduce(
+    (best, stop) => (distance(stop) > 0 && (best === undefined || distance(stop) < distance(best)) ? stop : best),
+    undefined,
+  );
+  return nearest === undefined ? [] : order.slice(order.indexOf(nearest));
 }
 
 // The elements Tab stops on, in order, and each visited element's position in the rendered tree. The
@@ -228,14 +228,15 @@ function wdioTabStops(current) {
     const entries = [];
     const visit = (el) => {
       treeOrder.set(el, treeOrder.size);
-      if (el.hasAttribute('inert') || getComputedStyle(el).display === 'none') {
+      const style = getComputedStyle(el);
+      if (el.hasAttribute('inert') || style.display === 'none') {
         return;
       }
       if (wdioModal(el)) {
         modal = el;
       }
       const tabIndex = wdioTabIndex(el);
-      const isStop = tabIndex >= 0 && wdioVisible(el);
+      const isStop = tabIndex >= 0 && style.visibility === 'visible';
       const scope = el.shadowRoot ? el.shadowRoot.children : el.localName === 'slot' ? wdioSlotted(el) : undefined;
       if (!scope) {
         if (isStop) {
@@ -294,10 +295,6 @@ function wdioTabIndex(el) {
     default:
       return el.isContentEditable && !el.parentElement?.isContentEditable ? 0 : -1;
   }
-}
-
-function wdioVisible(el) {
-  return getComputedStyle(el).visibility === 'visible';
 }
 
 // `:modal` is a syntax error in engines that don't support it.
