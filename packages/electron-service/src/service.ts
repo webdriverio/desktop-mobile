@@ -386,7 +386,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     instance: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
     const electronInstances = isMultiremote(instance) ? await this.getElectronInstances(instance, capabilities) : [];
-    // The launcher rejects mixed modes, so every instance has the first one's
+    // The launcher rejects mixed modes, so the first instance's mode is every instance's
     if (electronInstances.length > 0) {
       this.#mode = electronInstances[0].options.mode;
     }

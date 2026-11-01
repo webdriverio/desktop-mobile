@@ -297,7 +297,7 @@ Triggers a deeplink to the Electron application for testing protocol handlers.
 
 On Windows and Linux, this automatically appends the test instance's `userData` directory to ensure the deeplink reaches the correct instance. On macOS, it works transparently without modification.
 
-**Multiremote:** each instance uses its own `appBinaryPath` and user data directory. On the multiremote root, it triggers the deeplink for every instance in turn. See [Deeplink Testing](./deeplink-testing.md#multiremote).
+**Multiremote:** Each instance uses its own `appBinaryPath` and user data directory. On the multiremote root, it triggers the deeplink for every instance in turn. See [Deeplink Testing](./deeplink-testing.md#multiremote).
 
 **Signature:**
 ```ts

@@ -177,9 +177,9 @@ await browser.getInstance('browserA').electron.triggerDeeplink('myapp://open?fil
 await browser.electron.triggerDeeplink('myapp://refresh');
 ```
 
-On the multiremote root, `triggerDeeplink()` triggers the deeplink for each Electron instance in turn. If it fails for an instance, the error names that instance.
+If the root's call fails for an instance, the error names it.
 
-On macOS the URL has no `userData` parameter, so the OS decides which running instance receives the deeplink.
+On macOS the service doesn't add `userData`, so the OS picks which running instance gets the deeplink.
 
 ## Setup Requirements
 
