@@ -44,6 +44,8 @@ appBinaryPath: './target/dx/my_app/release/linux/app/my_app',  // release build 
 
 Command-line arguments to pass to the Dioxus application when launching. Each array element is a separate argument — no shell parsing is applied.
 
+A capability's `'dioxus:options'.args` replaces this list for that capability. The two lists are not merged.
+
 **Example:**
 ```typescript
 appArgs: ['--debug', '--log-level', 'debug'];
@@ -298,10 +300,6 @@ capabilities: [
     'dioxus:options': {
       application: './target/debug/my_app',
       args: ['--debug'],
-      webviewOptions: {
-        width: 1280,
-        height: 800,
-      },
     },
     'wdio:dioxusServiceOptions': {
       windowLabel: 'main',
@@ -313,12 +311,10 @@ capabilities: [
 
 ### `dioxus:options` Fields
 
-| Field                   | Type     | Required | Description                     |
-| ----------------------- | -------- | -------- | ------------------------------- |
-| `application`           | string   | Yes      | Path to the Dioxus app binary   |
-| `args`                  | string[] | No       | Arguments passed to the app     |
-| `webviewOptions.width`  | number   | No       | Initial window width in pixels  |
-| `webviewOptions.height` | number   | No       | Initial window height in pixels |
+| Field         | Type     | Required | Description                                               |
+| ------------- | -------- | -------- | --------------------------------------------------------- |
+| `application` | string   | Yes      | Path to the Dioxus app binary                             |
+| `args`        | string[] | No       | Arguments passed to the app. Replaces `appArgs` when set. |
 
 ### Multiremote Configuration
 

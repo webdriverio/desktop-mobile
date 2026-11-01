@@ -195,7 +195,13 @@ export default class DioxusLaunchService extends BaseLauncher {
         log.info(`Starting embedded WebDriver for ${instanceLabel} on port ${embeddedPort}`);
 
         const instanceId = name ?? String(i);
-        const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, instanceId);
+        const appArgs = cap['dioxus:options']?.args ?? instanceOptions.appArgs;
+        const driverInfo = await startEmbeddedDriver(
+          appBinaryPath,
+          embeddedPort,
+          { ...instanceOptions, appArgs },
+          instanceId,
+        );
         this.embeddedProcesses.set(instanceId, driverInfo);
 
         connectionTarget.port = embeddedPort;
