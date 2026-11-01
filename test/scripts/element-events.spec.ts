@@ -628,6 +628,17 @@ describe('Tab', () => {
     expect(tabs(4)).toEqual(['s2', 'body', 's1', 's2']);
   });
 
+  it('should leave focus where a focus trap sends it back', () => {
+    render(
+      '<input id="o1"><button id="g1">g1</button><button id="only">only</button><button id="g2">g2</button><input id="o2">',
+    );
+    for (const id of ['g1', 'g2']) {
+      $(`#${id}`).addEventListener('focus', () => $('#only').focus());
+    }
+    $('#only').focus();
+    expect([tab(), tab({ shiftKey: true })]).toEqual(['only', 'only']);
+  });
+
   it("should pass Tab on from a stop the page won't focus", () => {
     render('<input id="x"><a id="bad" tabindex="foo">bad</a><input id="y">');
     $('#x').focus();

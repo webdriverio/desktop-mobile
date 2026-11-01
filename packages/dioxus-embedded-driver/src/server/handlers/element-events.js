@@ -174,15 +174,18 @@ function wdioTabKey(event) {
     return;
   }
   // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on to the next.
+  // A focus event counts as taking focus, even when a handler, like a focus trap's, sends it back.
   const start = wdioDeepActiveElement();
-  let next = wdioNextTabStop(event.shiftKey, start);
-  while (next) {
-    wdioFocus(next);
-    if (wdioDeepActiveElement() !== start) {
-      break;
-    }
-    next = wdioNextTabStop(event.shiftKey, next);
-  }
+  let moved = false;
+  const onFocus = () => {
+    moved = true;
+  };
+  document.addEventListener('focus', onFocus, true);
+  const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
+    wdioFocus(candidate);
+    return moved || wdioDeepActiveElement() !== start;
+  });
+  document.removeEventListener('focus', onFocus, true);
   if (!next) {
     wdioDeepActiveElement().blur();
     wdioFlushPendingChange();
@@ -193,23 +196,26 @@ function wdioTabKey(event) {
   }
 }
 
+// The stops Tab tries from `current`, in turn: from a stop, those after it, or before it with Shift.
 // From an element Tab skips, Tab goes to the nearest stop after it in tree order, or before it with
 // Shift, and wraps round to the other end of the order when there's none, as Chrome does.
-function wdioNextTabStop(backward, current) {
+function wdioTabCandidates(backward, current) {
   const { stops, treeOrder } = wdioTabStops(current);
-  const at = stops.indexOf(current);
+  const order = backward ? [...stops].reverse() : stops;
+  const at = order.indexOf(current);
   if (at !== -1) {
-    return stops[backward ? at - 1 : at + 1];
+    return order.slice(at + 1);
   }
   const position = current === document.body ? undefined : treeOrder.get(current);
-  const nearer =
+  const distance = (stop) => (backward ? position - treeOrder.get(stop) : treeOrder.get(stop) - position);
+  const nearest =
     position === undefined
-      ? []
-      : stops
-          .filter((stop) => (backward ? treeOrder.get(stop) < position : treeOrder.get(stop) > position))
-          .sort((a, b) => treeOrder.get(a) - treeOrder.get(b));
-  const candidates = nearer.length > 0 ? nearer : stops;
-  return backward ? candidates[candidates.length - 1] : candidates[0];
+      ? undefined
+      : order.reduce(
+          (best, stop) => (distance(stop) > 0 && (best === undefined || distance(stop) < distance(best)) ? stop : best),
+          undefined,
+        );
+  return nearest === undefined ? order : order.slice(order.indexOf(nearest));
 }
 
 // The elements Tab stops on, in order, and each visited element's position in the rendered tree. The
