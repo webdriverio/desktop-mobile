@@ -395,6 +395,8 @@ Output:
 [Electron:MainProcess:app2] App 2 started
 ```
 
+Each instance applies `captureMainProcessLogs`, `captureRendererLogs`, `mainProcessLogLevel` and `rendererLogLevel` from its own `wdio:electronServiceOptions`. An instance that doesn't set one uses the service-level value, so service-level capture covers every instance.
+
 ## Log Capture Requirements
 
 **Main Process Logs:**

@@ -45,7 +45,7 @@ export abstract class ServiceConfig {
    * @param capabilities - WebDriver capabilities
    * @returns The user data directory path, or undefined if not found
    */
-  private extractUserDataDir(capabilities: WebdriverIO.Capabilities): string | undefined {
+  protected extractUserDataDir(capabilities: WebdriverIO.Capabilities): string | undefined {
     const chromeOptions = capabilities['goog:chromeOptions'];
     if (!chromeOptions || typeof chromeOptions !== 'object') {
       return undefined;
@@ -67,6 +67,14 @@ export abstract class ServiceConfig {
 
   get globalOptions(): ElectronServiceGlobalOptions {
     return this.#globalOptions;
+  }
+
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  protected instanceOptions(instanceCaps?: WebdriverIO.Capabilities): ElectronServiceGlobalOptions {
+    const instanceOptions = Object.fromEntries(
+      Object.entries(instanceCaps?.[CUSTOM_CAPABILITY_NAME] ?? {}).filter(([, value]) => value !== undefined),
+    );
+    return { ...this.#globalOptions, ...instanceOptions };
   }
 
   get browser(): WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser | undefined {
@@ -93,14 +101,9 @@ export abstract class ServiceConfig {
     return this.#restoreMocks;
   }
 
-  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
   protected mockOptions(instanceCaps?: WebdriverIO.Capabilities): Record<MockOptionName, boolean> {
-    const instanceOptions = instanceCaps?.[CUSTOM_CAPABILITY_NAME];
-    return {
-      clearMocks: instanceOptions?.clearMocks ?? this.clearMocks,
-      resetMocks: instanceOptions?.resetMocks ?? this.resetMocks,
-      restoreMocks: instanceOptions?.restoreMocks ?? this.restoreMocks,
-    };
+    const { clearMocks = false, resetMocks = false, restoreMocks = false } = this.instanceOptions(instanceCaps);
+    return { clearMocks, resetMocks, restoreMocks };
   }
 
   /**

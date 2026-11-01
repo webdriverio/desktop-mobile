@@ -138,6 +138,49 @@ On Windows, when a protocol URL is opened, the OS launches the registered applic
 
 Similar to Windows, Linux requires the userData parameter to ensure the deeplink-triggered instance uses the same user data directory as the test instance, enabling Electron's single-instance lock to route the deeplink correctly.
 
+## Multiremote
+
+Each instance's `triggerDeeplink()` uses that instance's own options: its `appBinaryPath` and the `--user-data-dir` in its `appArgs`. If an instance has no `--user-data-dir`, the service reads the user data directory from that instance's app.
+
+_`wdio.conf.ts`_
+
+```typescript
+export const config = {
+  capabilities: {
+    browserA: {
+      capabilities: {
+        browserName: 'electron',
+        'wdio:electronServiceOptions': {
+          appBinaryPath: './dist/win-unpacked/MyApp.exe',
+          appArgs: ['--user-data-dir=/tmp/test-user-data-a'],
+        },
+      },
+    },
+    browserB: {
+      capabilities: {
+        browserName: 'electron',
+        'wdio:electronServiceOptions': {
+          appBinaryPath: './dist/win-unpacked/MyApp.exe',
+          appArgs: ['--user-data-dir=/tmp/test-user-data-b'],
+        },
+      },
+    },
+  },
+};
+```
+
+```typescript
+// Sends the deeplink with browserA's user data directory
+await browser.getInstance('browserA').electron.triggerDeeplink('myapp://open?file=a.txt');
+
+// Sends the deeplink once for each instance, one after another
+await browser.electron.triggerDeeplink('myapp://refresh');
+```
+
+If the root's call fails for an instance, the error names it.
+
+On macOS the service doesn't add `userData`, so the OS picks which running instance gets the deeplink.
+
 ## Setup Requirements
 
 ### 1. Service Configuration

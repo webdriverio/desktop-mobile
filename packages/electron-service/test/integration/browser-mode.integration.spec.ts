@@ -529,3 +529,40 @@ describe('browser mode — multiremote mocks', () => {
     expect(fakeB.update).not.toHaveBeenCalled();
   });
 });
+
+describe('browser mode — set per multiremote instance', () => {
+  afterEach(() => {
+    mockStore.clear();
+  });
+
+  it('should navigate each instance to its dev server and intercept its IPC', async () => {
+    const caps: Record<string, WebdriverIO.Capabilities> = {
+      browserA: { 'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:5173' } },
+      browserB: { 'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:5174' } },
+    };
+    const { root, instances } = createFakeMultiremoteBrowser(caps);
+    const browserA = instances.get('browserA') as FakeBrowser;
+    const browserB = instances.get('browserB') as FakeBrowser;
+    const capabilities = {
+      browserA: { capabilities: caps.browserA },
+      browserB: { capabilities: caps.browserB },
+    } as unknown as WebdriverIO.Capabilities;
+    const service = new ElectronWorkerService({}, capabilities);
+
+    await service.before(capabilities, [], root as unknown as WebdriverIO.MultiRemoteBrowser);
+
+    const injectionScript = createIpcInterceptor('electron').buildBrowserIpcInjectionScript();
+    expect(browserA.url).toHaveBeenCalledWith('http://localhost:5173');
+    expect(browserB.url).toHaveBeenCalledWith('http://localhost:5174');
+    expect(browserA.execute).toHaveBeenCalledWith(injectionScript);
+    expect(browserB.execute).toHaveBeenCalledWith(injectionScript);
+
+    browserA.execute.mockClear();
+    browserB.execute.mockClear();
+    const mock = await (browserA.electron as unknown as ElectronServiceAPI).mock('appInfo:get');
+
+    expect(mock.getMockName()).toBe('electron.appInfo:get');
+    expect(browserA.execute).toHaveBeenCalled();
+    expect(browserB.execute).not.toHaveBeenCalled();
+  });
+});
