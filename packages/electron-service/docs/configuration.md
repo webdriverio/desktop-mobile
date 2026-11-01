@@ -126,6 +126,13 @@ When this option is provided, the service will load this specific configuration 
 Type: `string`
 Example: `'config/electron-builder-staging.config.js'`
 
+### `rootDir`:
+
+Where the service looks for your app's `package.json`, searching upward from it. It reads the `electron` dependency there to choose the Chromedriver version, and the Electron Forge or electron-builder config to [find your app binary](#automatic-detection-of-app-binary). Set it when your WebdriverIO config isn't next to your app's `package.json`, as in a monorepo, or in [standalone mode](./standalone-mode.md), which has no WebdriverIO config.
+
+Type: `string`
+Default: WebdriverIO's `rootDir`, else the current working directory
+
 ### `devServerUrl`:
 
 The URL of the Vite (or webpack) dev server to navigate to when `mode` is `'browser'`. Must be a valid URL; the service throws a `SevereServiceError` at startup if the value is missing or malformed.
