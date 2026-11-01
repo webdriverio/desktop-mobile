@@ -248,6 +248,20 @@ describe('DioxusLaunchService', () => {
       expect(startEmbeddedDriver).not.toHaveBeenCalled();
     });
 
+    it('should reject an unknown driverProvider on a later capability before starting any driver', async () => {
+      const launcher = new DioxusLaunchService(
+        { appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {},
+        baseConfig,
+      );
+      const caps = [{}, { 'wdio:dioxusServiceOptions': { driverProvider: 'crabnebula' } }] as DioxusCapabilities[];
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toMatchObject({
+        message: `driverProvider must be 'embedded' or 'external', not "crabnebula".`,
+      });
+      expect(startEmbeddedDriver).not.toHaveBeenCalled();
+    });
+
     it("should reject 'external' on a later multiremote instance before starting any driver", async () => {
       mockPlatform('darwin');
       const launcher = new DioxusLaunchService(
