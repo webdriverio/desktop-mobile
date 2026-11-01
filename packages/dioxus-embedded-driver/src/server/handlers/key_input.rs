@@ -103,7 +103,9 @@ fn build_special_key_script(
 ) -> String {
   let default_action = match js_key {
     _ if !is_down => String::new(),
-    "Backspace" | "Delete" => delete_js(js_key == "Backspace"),
+    "Backspace" | "Delete" => {
+      format!("{}\n{}", record_change_js(), delete_js(js_key == "Backspace"))
+    }
     "ArrowDown" | "ArrowRight" => radio_step_js(true),
     "ArrowUp" | "ArrowLeft" => radio_step_js(false),
     _ => String::new(),
@@ -153,7 +155,7 @@ fn build_printable_key_script(
   } else if modifiers.ctrl || modifiers.meta || modifiers.alt {
     String::new()
   } else {
-    insert_text_js("activeEl", &js_string(key))
+    format!("{}\n{}", record_change_js(), insert_text_js("activeEl", &js_string(key)))
   };
   let after_dispatch = if key == " " { space_js(is_down, modifiers) } else { String::new() };
   key_event_script(key, code, key_code, is_down, modifiers, &after_dispatch, &default_action)
@@ -297,12 +299,27 @@ fn enter_js(shift: bool) -> String {
                 if (!canceled) {{
                     activeEl = wdioDeepActiveElement();
                     if (activeEl.tagName === 'TEXTAREA') {{
+                        wdioRecordPendingChange(activeEl, activeEl.value);
                         {insert_newline}
                     }} else if (activeEl.isContentEditable) {{
                         document.execCommand('{command}', false, null);
                     }} else {{
                         wdioEnterKey();
                     }}
+                }}
+                }}"
+  )
+}
+
+/// JS recording the `change` the focused text field owes before a key edits it, so the field fires
+/// `change` when focus leaves it, as in Chrome.
+fn record_change_js() -> String {
+  let editable = is_editable_text_field_js("activeEl");
+  format!(
+    r"{{
+                {ELEMENT_EVENTS_JS}
+                if ({editable}) {{
+                    wdioRecordPendingChange(activeEl, activeEl.value);
                 }}
                 }}"
   )
@@ -606,15 +623,12 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
 /// `change` when focus leaves it.
 pub fn build_insert_run_script(run: &str) -> String {
   let active_element = deep_active_element_js("activeEl");
-  let editable = is_editable_text_field_js("activeEl");
+  let record_change = record_change_js();
   let insert_text = insert_text_js("activeEl", &js_string(run));
   format!(
     r"(function() {{
-                {ELEMENT_EVENTS_JS}
                 {active_element}
-                if ({editable}) {{
-                    wdioRecordPendingChange(activeEl, activeEl.value);
-                }}
+                {record_change}
                 {insert_text}
                 return true;
             }})()"
@@ -774,7 +788,7 @@ mod tests {
         assert!(script.contains(&format!("{call}(activeEl, canceled || true);")), "{script}");
       }
     }
-    assert!(!down("x", NONE).contains("wdioSpace"));
+    assert!(!down("x", NONE).contains("wdioSpaceDown(activeEl"));
   }
 
   #[test]
@@ -799,7 +813,7 @@ mod tests {
   fn key_and_input_events_go_to_the_deep_focused_element_and_cross_shadow_boundaries() {
     for script in [down("\u{E003}", NONE), down("x", NONE), down(" ", NONE)] {
       assert!(script.contains("activeEl.shadowRoot.activeElement"), "{script}");
-      let script = script.replacen(ELEMENT_EVENTS_JS, "", 1);
+      let script = script.replace(ELEMENT_EVENTS_JS, "");
       let keyboard = script.find("new KeyboardEvent(").unwrap();
       let input = script.find("new InputEvent('input'").unwrap();
       assert!(script[keyboard..].contains("composed: true"));
@@ -1025,11 +1039,34 @@ mod tests {
   #[test]
   fn send_keys_text_run_records_the_change_its_field_owes_before_typing() {
     let script = build_insert_run_script("hi");
-    let body = after_helpers(&script);
-    let focused = body.find("var activeEl = document.activeElement || document.body;").unwrap();
-    let record = body.find("wdioRecordPendingChange(activeEl, activeEl.value);").unwrap();
-    let insert = body.find("var insertedText = \"hi\"").unwrap();
-    assert!(focused < record && record < insert, "{body}");
-    assert!(body[focused..record].contains(&is_editable_text_field_js("activeEl")), "{body}");
+    let focused = script.find("var activeEl = document.activeElement || document.body;").unwrap();
+    let record = script.find(&record_change_js()).unwrap();
+    let insert = script.find("var insertedText = \"hi\"").unwrap();
+    assert!(focused < record && record < insert, "{script}");
+  }
+
+  #[test]
+  fn key_actions_record_the_change_a_field_owes_before_editing_it() {
+    let record = record_change_js();
+    assert!(record.contains(&format!("if ({})", is_editable_text_field_js("activeEl"))));
+    assert!(record.contains("wdioRecordPendingChange(activeEl, activeEl.value);"));
+    for (key, edit) in [
+      ("x", "var insertedText"),
+      ("\u{E003}", "var currentValue"),
+      ("\u{E017}", "var currentValue"),
+    ] {
+      let script = down(key, NONE);
+      let guard = script.find(GUARD).unwrap();
+      let recorded = script.find(&record).unwrap();
+      assert!(guard < recorded && script[recorded + record.len()..].contains(edit), "{script}");
+    }
+    let enter = down("\u{E007}", NONE);
+    let textarea =
+      after_helpers(&enter).split("if (activeEl.tagName === 'TEXTAREA') {").nth(1).unwrap();
+    let newline = textarea.find("var insertedText").unwrap();
+    assert!(textarea[..newline].contains("wdioRecordPendingChange(activeEl, activeEl.value);"));
+    for script in [key_script("x", false, &NONE), down("x", CTRL), down("a", CTRL)] {
+      assert!(!script.contains(&record), "{script}");
+    }
   }
 }

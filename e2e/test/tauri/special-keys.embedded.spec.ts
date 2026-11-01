@@ -401,6 +401,14 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input ab', 'input abc', 'change abc', 'blur abc']);
   });
 
+  it('should fire change before blur once focus leaves a field key actions edited, as Chrome does', async () => {
+    await fillChangeScratch({ initialValue: 'ab' });
+    await browser.$('#fresh-field').click();
+    await browser.keys(['c', Key.Backspace, Key.Backspace]);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input abc', 'input ab', 'input a', 'change a', 'blur a']);
+  });
+
   it('should fire change before blur when the page moves focus', async () => {
     await fillChangeScratch();
     await browser.$('#fresh-field').addValue('x');

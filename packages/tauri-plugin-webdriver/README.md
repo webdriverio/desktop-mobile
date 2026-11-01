@@ -338,7 +338,7 @@ Unless a `keydown` handler cancels it, Tab moves focus to the next element and S
 - Tab starts from the element focused after the `keydown`. From an element Tab skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order, or leaves the page if there's none.
 - Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls. The next Tab comes back in at the start, and Shift+Tab at the end.
 
-Tab selects the text of a single-line text input it moves to, so key actions, and the rest of the same Element Send Keys, replace it. In an email or number input, or with a later `addValue()`, the text goes at the end instead ([#927](https://github.com/webdriverio/desktop-mobile/issues/927)). The field Tab leaves fires `change` if Element Send Keys changed it, though not yet if key actions did. So `setValue('user\tpass')` fills two fields and fires `change` on the first, and the second fires its `change` when focus leaves it.
+Tab selects the text of a single-line text input it moves to, so key actions, and the rest of the same Element Send Keys, replace it. In an email or number input, or with a later `addValue()`, the text goes at the end instead ([#927](https://github.com/webdriverio/desktop-mobile/issues/927)). The field Tab leaves fires `change` if its value changed. So `setValue('user\tpass')` fills two fields and fires `change` on the first, and the second fires its `change` when focus leaves it.
 
 Unlike in Chrome, Tab:
 - Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.

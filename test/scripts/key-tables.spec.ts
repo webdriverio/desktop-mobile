@@ -29,6 +29,7 @@ const DIOXUS_COPIES = {
     'fn delete_js',
     'fn radio_step_js',
     'fn enter_js',
+    'fn record_change_js',
     'fn select_all_js',
     'fn insert_text_js',
     'const NULL_KEY',
