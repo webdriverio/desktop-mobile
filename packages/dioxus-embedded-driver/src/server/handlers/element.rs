@@ -15,7 +15,10 @@ use serde_json::{json, Value};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-use super::key_input::js_string;
+use super::key_input::{
+  build_insert_run_script, build_send_keys_start_script, key_script, plain_text, plan_send_keys,
+  typed_text, SendKeysStep,
+};
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::element::ELEMENT_KEY;
@@ -356,20 +359,39 @@ pub async fn send_keys(
   Json(req): Json<SendKeysRequest>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result =
-    eval_for_element(&var, format!("return {}", send_keys_script(&var, &req.text)), timeout)
-      .await?;
-  match result.as_str() {
+  let steps = plan_send_keys(&req.text);
+  let start = build_send_keys_start_script(&var, &typed_text(&steps), plain_text(&steps));
+  let started = eval_for_element(&var, format!("return {start}"), timeout).await?;
+  if send_keys_started(&started)? {
+    for step in &steps {
+      let script = match step {
+        SendKeysStep::Text(run) => build_insert_run_script(run),
+        SendKeysStep::Key { value, is_down, modifiers } => key_script(value, *is_down, modifiers),
+      };
+      eval(script, timeout).await?;
+    }
+  }
+  Ok(WebDriverResponse::null())
+}
+
+/// Whether Send Keys' start script left the plan's steps to run, or the error its status reports.
+fn send_keys_started(started: &Value) -> Result<bool, WebDriverErrorResponse> {
+  match started.get("status").and_then(Value::as_str) {
+    Some("done" | "set") => Ok(false),
+    Some("focused") => Ok(true),
+    Some("stale") => Err(WebDriverErrorResponse::stale_element_reference()),
     Some("immutable") => Err(WebDriverErrorResponse::element_not_interactable(
       "form control is read-only or disabled, so its value cannot be set",
     )),
     Some("invalid") => Err(WebDriverErrorResponse::invalid_argument(
       "text is not a valid value for this form control",
     )),
-    Some("unfocused") => Err(WebDriverErrorResponse::element_not_interactable(
+    Some("file") => Err(WebDriverErrorResponse::invalid_argument(
+      "sending keys to a file input (file upload) is not supported",
+    )),
+    _ => Err(WebDriverErrorResponse::element_not_interactable(
       "element did not take keyboard focus, so keys cannot be sent to it",
     )),
-    _ => Ok(WebDriverResponse::null()),
   }
 }
 
@@ -547,66 +569,6 @@ fn clear_element_script(js_var: &str) -> String {
   )
 }
 
-/// JS for Element Send Keys. A date, colour or similar input gets `text` as its value at once;
-/// otherwise the element takes focus, and whatever receives it takes the text. A text field owes
-/// a `change` until focus leaves it. Returns 'immutable', 'invalid' or 'unfocused' on error.
-fn send_keys_script(js_var: &str, text: &str) -> String {
-  let text = js_string(text);
-  format!(
-    r"(function() {{
-              {ELEMENT_EVENTS_JS}
-              var el = window.{js_var};
-              if (!el || !el.isConnected) {{
-                  throw '__wdio_stale__';
-              }}
-              var text = {text};
-              var valueControlStatus = wdioSetValueControl(el, text);
-              if (valueControlStatus) {{
-                  return valueControlStatus;
-              }}
-              var wasFocused = wdioDeepActiveElement() === el;
-              // Text inside a contenteditable is focused through its editing host.
-              var focusTarget = el;
-              while (focusTarget.isContentEditable && focusTarget.parentElement
-                  && focusTarget.parentElement.isContentEditable) {{
-                  focusTarget = focusTarget.parentElement;
-              }}
-              wdioFocus(focusTarget);
-              var receiver = wdioDeepActiveElement();
-              // The body, focus-delegating hosts and an editing host holding the element count as focus.
-              var focused = el === document.body || el === document.documentElement || receiver === focusTarget
-                  || wdioContains(el, receiver);
-              if (!focused) {{
-                  return 'unfocused';
-              }}
-              var textField = receiver.tagName === 'TEXTAREA' || (receiver.tagName === 'INPUT' &&
-                  WDIO_TEXT_FIELD_TYPES.includes(receiver.type));
-              if (receiver.isContentEditable) {{
-                  if (!wasFocused) {{
-                      var range = document.createRange();
-                      range.selectNodeContents(el);
-                      range.collapse(false);
-                      var selection = window.getSelection();
-                      selection.removeAllRanges();
-                      selection.addRange(range);
-                  }}
-                  if (text !== '') {{
-                      document.execCommand('insertText', false, text);
-                  }}
-              }} else if (!textField) {{
-                  receiver.value += text;
-                  receiver.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                  receiver.dispatchEvent(new Event('change', {{ bubbles: true }}));
-              }} else if (!receiver.readOnly && text !== '') {{
-                  wdioRecordPendingChange(receiver, receiver.value);
-                  receiver.value += text;
-                  receiver.dispatchEvent(new Event('input', {{ bubbles: true }}));
-              }}
-              return 'done';
-          }})()"
-  )
-}
-
 async fn element_var(
   state: &Arc<AppState>,
   session_id: &str,
@@ -652,29 +614,19 @@ mod tests {
   }
 
   #[test]
-  fn send_keys_sets_value_controls_and_records_a_text_fields_change_before_typing() {
-    let script = send_keys_script("__wdio_elem_abc", "it's\n");
-    let body = body(&script);
-    assert!(body.contains(&format!("var text = {};", js_string("it's\n"))));
-    let set = body.find("wdioSetValueControl(el, text);").unwrap();
-    let focus = body.find("wdioFocus(focusTarget);").unwrap();
-    let unfocused = body.find("return 'unfocused';").unwrap();
-    let text_field = body.find("} else if (!receiver.readOnly && text !== '') {").unwrap();
-    let record = body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap();
-    let typed = text_field + body[text_field..].find("receiver.value += text;").unwrap();
-    assert!(set < focus && focus < unfocused && unfocused < text_field);
-    assert!(text_field < record && record < typed);
-    assert!(!body[text_field..].contains("new Event('change'"));
-  }
-
-  #[test]
-  fn send_keys_types_into_the_field_or_editor_that_takes_focus() {
-    let script = send_keys_script("__wdio_elem_abc", "x");
-    let body = body(&script);
-    assert!(body.contains("focusTarget = focusTarget.parentElement;"));
-    assert!(body.contains("|| wdioContains(el, receiver);"));
-    let editor = body.find("if (receiver.isContentEditable) {").unwrap();
-    let insert = body.find("document.execCommand('insertText', false, text);").unwrap();
-    assert!(body.find("return 'unfocused';").unwrap() < editor && editor < insert);
+  fn send_keys_runs_the_plan_only_after_the_start_script_focused_the_element() {
+    for (status, run_steps) in [("focused", true), ("done", false), ("set", false)] {
+      assert_eq!(send_keys_started(&json!({ "status": status })).ok(), Some(run_steps), "{status}");
+    }
+    for (status, error) in [
+      ("stale", "stale element reference"),
+      ("immutable", "element not interactable"),
+      ("invalid", "invalid argument"),
+      ("file", "invalid argument"),
+      ("unfocused", "element not interactable"),
+    ] {
+      let started = send_keys_started(&json!({ "status": status }));
+      assert_eq!(started.err().map(|e| e.error), Some(error.to_string()), "{status}");
+    }
   }
 }

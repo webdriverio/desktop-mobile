@@ -155,4 +155,24 @@ describe('Dioxus special keys (embedded)', () => {
     await browser.keys(Key.ArrowDown);
     expect(await browser.$('#fresh-radio-2').isSelected()).toBe(true);
   });
+
+  it('should press special keys inside addValue instead of typing them', async () => {
+    await fillScratch('<input id="fresh-input"><input type="email" id="fresh-email">');
+    await browser.$('#fresh-input').addValue(`abc${Key.Backspace}d${Key.PageDown}`);
+    expect(await fieldValue('#fresh-input')).toBe('abd');
+    await browser.$('#fresh-email').addValue(`ab${Key.Backspace}c`);
+    expect(await fieldValue('#fresh-email')).toBe('ac');
+  });
+
+  it('should break lines on Enter inside addValue in a textarea', async () => {
+    await fillScratch('<textarea id="fresh-textarea"></textarea>');
+    await browser.$('#fresh-textarea').addValue(`a${Key.Enter}b`);
+    expect(await fieldValue('#fresh-textarea')).toBe(`a${NEWLINE}b`);
+  });
+
+  it('should replace a selection made with Control+A inside addValue', async () => {
+    await fillScratch('<input id="fresh-input" value="old">');
+    await browser.$('#fresh-input').addValue(`${Key.Control}a${Key.NULL}new`);
+    expect(await fieldValue('#fresh-input')).toBe('new');
+  });
 });

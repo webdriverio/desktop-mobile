@@ -241,6 +241,46 @@ describe('Dioxus element events (embedded)', () => {
     expect(await fieldEvents()).toEqual(['keydown Enter', 'change x', 'click fresh-other', 'keyup Enter']);
   });
 
+  it("should commit the change and click the form's default button on Enter in addValue, as Chrome does", async () => {
+    await fillFormScratch('<input id="fresh-field"><button id="fresh-submit">go</button>');
+    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+    expect(await fieldEvents()).toEqual([
+      'keydown Enter',
+      'change x',
+      'click fresh-submit',
+      'submit fresh-submit',
+      'keyup Enter',
+    ]);
+  });
+
+  it('should click a button on Enter and Space in addValue, leaving its value alone', async () => {
+    await fillFormScratch('<button id="fresh-submit" value="v">go</button>');
+    const button = browser.$('#fresh-submit');
+    await button.addValue(Key.Enter);
+    expect(await fieldEvents()).toEqual(['keydown Enter', 'click fresh-submit', 'submit fresh-submit', 'keyup Enter']);
+    await browser.execute('window.__fieldEvents = [];');
+    await button.addValue(Key.Space);
+    expect(await fieldEvents()).toEqual(['keydown Space', 'keyup Space', 'click fresh-submit', 'submit fresh-submit']);
+    expect(await button.getProperty('value')).toBe('v');
+  });
+
+  it('should send no text to an element that is not a text field, and refuse a file input', async () => {
+    await fillChangeScratch();
+    await addToScratch('<input id="fresh-box" type="checkbox"><input id="fresh-file" type="file">');
+    await browser.execute(
+      `window.__boxEvents = [];
+      for (var type of ["input", "change"]) {
+        document.querySelector("#fresh-box").addEventListener(type, function (ev) {
+          window.__boxEvents.push(ev.type);
+        });
+      }`,
+    );
+    await browser.$('#fresh-box').addValue('x');
+    expect(await browser.$('#fresh-box').getValue()).toBe('on');
+    expect(await browser.execute('return window.__boxEvents')).toEqual([]);
+    expect((await errorOf(browser.$('#fresh-file').addValue('/tmp/upload.txt')))?.message).toMatch(/file/);
+  });
+
   it('should release held keys in reverse press order, so Space clicks once Control is up', async () => {
     await fillFormScratch('<button id="fresh-submit">go</button>');
     await browser.execute('document.querySelector("#fresh-submit").focus();');
