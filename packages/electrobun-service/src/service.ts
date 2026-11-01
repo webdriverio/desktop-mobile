@@ -2,21 +2,34 @@ import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
-import { forEachInstance } from '@wdio/native-core';
+import { forEachInstance, type InstanceContext } from '@wdio/native-core';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import { createLogger, errorMessage, isMultiremote, runBounded } from '@wdio/native-utils';
 
 import { classifyTarget } from './cefClassifier.js';
-import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
+import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks, runOnMockStores } from './commands/allMocks.js';
 import { execute } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
 import { ElectrobunMockStore } from './mockStore.js';
-import type { ElectrobunServiceOptions } from './types.js';
+import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
+import type { ElectrobunCapabilities, ElectrobunServiceOptions } from './types.js';
 import { createWebDriverEvalBridge, installConsoleShim, type WebDriverEvalBridge } from './webdriverEval.js';
 
 const log = createLogger(SERVICE_NAME, 'service');
+
+const MOCK_OPTION_OPS = [
+  ['clearMocks', 'clearMocksPrefix', 'clearAllMocks', 'mockClear'],
+  ['resetMocks', 'resetMocksPrefix', 'resetAllMocks', 'mockReset'],
+  ['restoreMocks', 'restoreMocksPrefix', 'restoreAllMocks', 'mockRestore'],
+] as const;
+
+interface MockOwner {
+  name?: string;
+  store: ElectrobunMockStore;
+  options: ElectrobunServiceOptions;
+}
 
 const CONSOLE_DRAIN_TIMEOUT_MS = 2_000;
 
@@ -40,7 +53,7 @@ function parseDebuggerAddress(address: string): { host: string; port: number } {
 export default class ElectrobunWorkerService {
   private options: ElectrobunServiceOptions;
   private bridges: CdpBridge[] = [];
-  private mockStores: ElectrobunMockStore[] = [];
+  private mockOwners: MockOwner[] = [];
   private consoleDrains: Array<() => Promise<void>> = [];
   private w3cAppBinaries: string[] = [];
 
@@ -73,7 +86,7 @@ export default class ElectrobunWorkerService {
       return;
     }
 
-    await forEachInstance(browser, (instance, { caps }) => this.attachInstance(instance, caps), capabilities);
+    await forEachInstance(browser, (instance, context) => this.attachInstance(instance, context), capabilities);
     if (isMultiremote(browser)) {
       // Root fan-out isn't wired yet — install a guided-error stub so `browser.electrobun.*` on the
       // multiremote root fails with direction to per-instance access, not a raw TypeError.
@@ -81,7 +94,8 @@ export default class ElectrobunWorkerService {
     }
   }
 
-  private async attachInstance(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
+  private async attachInstance(browser: WebdriverIO.Browser, context: InstanceContext): Promise<void> {
+    const capabilities = context.caps;
     // Linux/W3C: no CDP side-channel — the WDIO session IS the WebKitWebDriver session, flagged
     // by the launcher's `webkitgtk:browserOptions` cap.
     const w3cOptions = (capabilities as { 'webkitgtk:browserOptions'?: { binary?: string } } | undefined)?.[
@@ -91,7 +105,7 @@ export default class ElectrobunWorkerService {
       if (w3cOptions.binary) {
         this.w3cAppBinaries.push(w3cOptions.binary);
       }
-      await this.attachW3CInstance(browser);
+      await this.attachW3CInstance(browser, context);
       return;
     }
 
@@ -139,21 +153,52 @@ export default class ElectrobunWorkerService {
     }
     this.bridges.push(bridge);
 
-    const mockStore = new ElectrobunMockStore();
-    this.mockStores.push(mockStore);
-    installApi(browser, bridge, mockStore);
+    installApi(browser, bridge, this.addMockStore(context));
 
     await syncWebDriverWindow(browser, bridge);
   }
 
-  private async attachW3CInstance(browser: WebdriverIO.Browser): Promise<void> {
+  private async attachW3CInstance(browser: WebdriverIO.Browser, context: InstanceContext): Promise<void> {
     log.info('Installing browser.electrobun.* over W3C WebDriver (WebKitGTK)');
     const evalBridge = createWebDriverEvalBridge(browser);
-    const mockStore = new ElectrobunMockStore();
-    this.mockStores.push(mockStore);
+    const mockStore = this.addMockStore(context);
     const drain = await installConsoleShim(browser);
     this.consoleDrains.push(drain);
     installApiW3C(browser, evalBridge, mockStore);
+  }
+
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  private addMockStore({ name, caps }: InstanceContext): ElectrobunMockStore {
+    const store = new ElectrobunMockStore();
+    const options = mergeServiceOptions(
+      this.options,
+      getServiceOptionsFromCapability(caps as ElectrobunCapabilities | undefined),
+    );
+    this.mockOwners.push({ name, store, options });
+    return store;
+  }
+
+  async beforeTest(): Promise<void> {
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    for (const [option, prefixOption, commandName, op] of MOCK_OPTION_OPS) {
+      const targets = this.mockOwners.flatMap(({ name, store, options }) =>
+        options[option] ? [{ name, store, prefix: options[prefixOption] }] : [],
+      );
+      if (targets.length === 0) {
+        continue;
+      }
+      try {
+        await runOnMockStores(commandName, targets, op);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
+    }
   }
 
   async after(): Promise<void> {
@@ -213,10 +258,10 @@ export default class ElectrobunWorkerService {
       });
     }
     this.bridges = [];
-    for (const store of this.mockStores) {
+    for (const { store } of this.mockOwners) {
       store.clear();
     }
-    this.mockStores = [];
+    this.mockOwners = [];
   }
 }
 

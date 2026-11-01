@@ -438,6 +438,8 @@ expect(mockGetUser).toHaveBeenCalledTimes(1);
 
 See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 
+**Multiremote:** Each instance has its own mocks. `browser.getInstance('app1').electron.mock('app', 'getName')` and `browser.getInstance('app2').electron.mock('app', 'getName')` return different mocks, each created in its own app. `mockAll()` and class mocks work the same way. `clearAllMocks()`, `resetAllMocks()` and `restoreAllMocks()` on an instance only touch that instance's mocks. On the multiremote root, they cover every instance.
+
 **See Also:**
 - [Electron APIs Guide](./electron-apis.md#mocking-electron-apis)
 - [Browser Mode Guide](./browser-mode.md)
@@ -480,7 +482,7 @@ await showMessageBox.mockReturnValue('I opened a message box!');
 
 ### `clearAllMocks()`
 
-Calls [`mockClear()`](#mockclear) on all active mocks, or on mocks of a specific API if `apiName` is provided.
+Calls [`mockClear()`](#mockclear) on all active mocks, or on mocks of a specific API if `apiName` is provided. In multiremote, an instance clears only its own mocks, and the root clears every instance's.
 
 **Signature:**
 ```ts
@@ -522,7 +524,7 @@ expect(mockWriteText.mock.calls).toStrictEqual([['text to be written']]);
 
 ### `resetAllMocks()`
 
-Calls [`mockReset()`](#mockreset) on all active mocks, or on mocks of a specific API if `apiName` is provided.
+Calls [`mockReset()`](#mockreset) on all active mocks, or on mocks of a specific API if `apiName` is provided. In multiremote, an instance resets only its own mocks, and the root resets every instance's.
 
 **Signature:**
 ```ts
@@ -559,7 +561,7 @@ expect(clipboardText).toBeUndefined();
 
 ### `restoreAllMocks()`
 
-Calls [`mockRestore()`](#mockrestore) on all active mocks, or on mocks of a specific API if `apiName` is provided.
+Calls [`mockRestore()`](#mockrestore) on all active mocks, or on mocks of a specific API if `apiName` is provided. In multiremote, an instance restores only its own mocks, and the root restores every instance's.
 
 **Signature:**
 ```ts

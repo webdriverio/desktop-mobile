@@ -1,14 +1,16 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { ElectronMock } from '@wdio/native-types';
+import type { ElectronFunctionMock, ElectronServiceAPI, ElectronServiceGlobalOptions } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../../src/mockStore.js';
-import ElectronWorkerService, { browserModeStoreKey } from '../../src/service.js';
+import ElectronWorkerService from '../../src/service.js';
 import {
   createFakeBrowser,
   createFakeMock,
+  createFakeMultiremoteBrowser,
   defer,
   type FakeBrowser,
   type FakeMock,
+  type FakeMultiremoteBrowser,
   flushMicrotasks,
 } from './helpers.js';
 
@@ -41,8 +43,7 @@ describe('browser mode — MockUpdateScheduler', () => {
 
   function seedMock(channel: string): FakeMock {
     const fake = createFakeMock(`electron.${channel}`);
-    const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, channel);
-    mockStore.setMockWithKey(key, fake.mock);
+    mockStore.setMock(browser as unknown as WebdriverIO.Browser, fake.mock);
     return fake;
   }
 
@@ -86,12 +87,10 @@ describe('browser mode — MockUpdateScheduler', () => {
     const serviceB = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5174' }, {});
     await serviceB.before({}, [], browserB as unknown as WebdriverIO.Browser);
 
-    const keyA = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, 'a');
-    const keyB = browserModeStoreKey(browserB as unknown as WebdriverIO.Browser, 'b');
     const fakeA = createFakeMock('electron.a');
     const fakeB = createFakeMock('electron.b');
-    mockStore.setMockWithKey(keyA, fakeA.mock);
-    mockStore.setMockWithKey(keyB, fakeB.mock);
+    mockStore.setMock(browser as unknown as WebdriverIO.Browser, fakeA.mock);
+    mockStore.setMock(browserB as unknown as WebdriverIO.Browser, fakeB.mock);
 
     const aHeld = defer<void>();
     fakeA.update.mockImplementationOnce(() => aHeld.promise);
@@ -155,8 +154,7 @@ describe('browser mode — MockUpdateScheduler', () => {
     // session that owns its own mocks.
     const instanceBrowser = createFakeBrowser();
     const fake = createFakeMock('electron.instance-channel');
-    const key = browserModeStoreKey(instanceBrowser as unknown as WebdriverIO.Browser, 'instance-channel');
-    mockStore.setMockWithKey(key, fake.mock);
+    mockStore.setMock(instanceBrowser as unknown as WebdriverIO.Browser, fake.mock);
 
     // Trigger the override registered on `browser` but pass instanceBrowser as
     // the per-instance owner — the override should route through the
@@ -192,8 +190,7 @@ describe('browser mode — registration gate', () => {
       getMockName: () => `electron.${channel}`,
       update: vi.fn().mockResolvedValue(undefined),
     };
-    const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, channel);
-    mockStore.setMockWithKey(key, existing as unknown as ElectronMock);
+    mockStore.setMock(browser as unknown as WebdriverIO.Browser, existing as unknown as ElectronFunctionMock);
     return { existing, mockClear, replayBrowserImpl };
   }
 
@@ -340,8 +337,7 @@ describe('browser mode — navigation lifecycle', () => {
       getMockName: () => 'electron.appInfo:get',
       update,
     };
-    const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, 'appInfo:get');
-    mockStore.setMockWithKey(key, existing as unknown as ElectronMock);
+    mockStore.setMock(browser as unknown as WebdriverIO.Browser, existing as unknown as ElectronFunctionMock);
 
     await browser.triggerCommand('click');
     expect(update).toHaveBeenCalledTimes(1);
@@ -380,8 +376,7 @@ describe('browser mode — navigation lifecycle', () => {
       getMockName: () => 'electron.appInfo:get',
       update: vi.fn().mockResolvedValue(undefined),
     };
-    const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, 'appInfo:get');
-    mockStore.setMockWithKey(key, existing as unknown as ElectronMock);
+    mockStore.setMock(browser as unknown as WebdriverIO.Browser, existing as unknown as ElectronFunctionMock);
     browser.execute.mockResolvedValue(false);
 
     const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
@@ -400,8 +395,7 @@ describe('browser mode — navigation lifecycle', () => {
       const fake = createFakeMock('electron.appInfo:get');
       const held = defer<void>();
       fake.update.mockImplementationOnce(() => held.promise);
-      const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, 'appInfo:get');
-      mockStore.setMockWithKey(key, fake.mock);
+      mockStore.setMock(browser as unknown as WebdriverIO.Browser, fake.mock);
 
       const click = browser.triggerCommand('click');
 
@@ -419,28 +413,139 @@ describe('browser mode — navigation lifecycle', () => {
   });
 });
 
+describe('browser mode — multiremote mocks', () => {
+  const DEV_SERVER = 'http://localhost:5173';
+  const interceptor = createIpcInterceptor('electron');
+  const inApp = (script: string) => `return (${script})()`;
+  let root: FakeMultiremoteBrowser;
+  let instances: Map<string, FakeBrowser>;
+
+  async function setUp(
+    serviceOptions: ElectronServiceGlobalOptions = {},
+    instanceOptions: Record<'browserA' | 'browserB', ElectronServiceGlobalOptions> = { browserA: {}, browserB: {} },
+  ): Promise<ElectronWorkerService> {
+    ({ root, instances } = createFakeMultiremoteBrowser({
+      browserA: { 'wdio:electronServiceOptions': instanceOptions.browserA },
+      browserB: { 'wdio:electronServiceOptions': instanceOptions.browserB },
+    }));
+    const service = new ElectronWorkerService({ mode: 'browser', devServerUrl: DEV_SERVER, ...serviceOptions }, {
+      browserA: { capabilities: {} },
+      browserB: { capabilities: {} },
+    } as never);
+    await service.before({}, [], root as unknown as WebdriverIO.Browser);
+    globalThis.browser = root as unknown as WebdriverIO.Browser;
+    return service;
+  }
+
+  const instance = (name: string) => instances.get(name) as FakeBrowser;
+  const electronOf = (name: string) => instance(name).electron as unknown as ElectronServiceAPI;
+  const clearExecuteCalls = () => {
+    for (const fake of [root, ...instances.values()]) {
+      fake.execute.mockClear();
+    }
+  };
+  const resetScript = (channel: string) => inApp(interceptor.buildInnerInvocationScript(channel, 'mockReset'));
+
+  beforeEach(() => mockStore.clear());
+  afterEach(() => {
+    mockStore.clear();
+    delete (globalThis as { browser?: unknown }).browser;
+  });
+
+  it('should give each instance its own mock of a channel, registered in its own app', async () => {
+    await setUp();
+
+    const mockA = await electronOf('browserA').mock('get-user');
+    const mockB = await electronOf('browserB').mock('get-user');
+
+    expect(mockB).not.toBe(mockA);
+    for (const name of ['browserA', 'browserB']) {
+      expect(instance(name).execute).toHaveBeenCalledWith(inApp(interceptor.buildRegistrationScript('get-user')));
+    }
+    expect(root.execute).not.toHaveBeenCalledWith(inApp(interceptor.buildRegistrationScript('get-user')));
+    expect(await electronOf('browserA').mock('get-user')).toBe(mockA);
+  });
+
+  it("should leave the other instance's mocks alone when one instance restores", async () => {
+    await setUp();
+    await electronOf('browserA').mock('get-user');
+    await electronOf('browserB').mock('get-user');
+    clearExecuteCalls();
+
+    await electronOf('browserA').restoreAllMocks();
+
+    expect(instance('browserA').execute).toHaveBeenCalledWith(resetScript('get-user'));
+    expect(instance('browserB').execute).not.toHaveBeenCalled();
+  });
+
+  it("should restore every instance's mocks from the root", async () => {
+    await setUp();
+    await electronOf('browserA').mock('get-user');
+    await electronOf('browserB').mock('get-user');
+    clearExecuteCalls();
+
+    await (root.electron as unknown as ElectronServiceAPI).restoreAllMocks();
+
+    for (const name of ['browserA', 'browserB']) {
+      expect(instance(name).execute).toHaveBeenCalledWith(resetScript('get-user'));
+    }
+  });
+
+  it('should restore before each test only the instances whose capabilities set restoreMocks', async () => {
+    const service = await setUp({}, { browserA: { restoreMocks: true }, browserB: {} });
+    await electronOf('browserA').mock('get-user');
+    await electronOf('browserB').mock('get-user');
+    clearExecuteCalls();
+
+    await expect(service.beforeTest()).resolves.toBeUndefined();
+
+    expect(instance('browserA').execute).toHaveBeenCalledWith(resetScript('get-user'));
+    expect(instance('browserB').execute).not.toHaveBeenCalled();
+  });
+
+  it('should restore every instance before each test when the service sets restoreMocks', async () => {
+    const service = await setUp({ restoreMocks: true });
+    await electronOf('browserA').mock('get-user');
+    await electronOf('browserB').mock('get-user');
+    clearExecuteCalls();
+
+    await expect(service.beforeTest()).resolves.toBeUndefined();
+
+    for (const name of ['browserA', 'browserB']) {
+      expect(instance(name).execute).toHaveBeenCalledWith(resetScript('get-user'));
+    }
+  });
+
+  it("should sync only the instance's own mocks after it emits an event", async () => {
+    await setUp();
+    const fakeA = createFakeMock('electron.get-user');
+    const fakeB = createFakeMock('electron.get-user');
+    mockStore.setMock(instance('browserA') as unknown as WebdriverIO.Browser, fakeA.mock);
+    mockStore.setMock(instance('browserB') as unknown as WebdriverIO.Browser, fakeB.mock);
+
+    await electronOf('browserA').emitEvent('ping');
+
+    expect(fakeA.update).toHaveBeenCalledOnce();
+    expect(fakeB.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('browser mode — set per multiremote instance', () => {
   afterEach(() => {
     mockStore.clear();
   });
 
-  function createInstance(devServerUrl: string) {
-    const caps = { browserName: 'chrome', 'wdio:electronServiceOptions': { mode: 'browser' as const, devServerUrl } };
-    return Object.assign(createFakeBrowser(), { requestedCapabilities: caps });
-  }
-
   it('should navigate each instance to its dev server and intercept its IPC', async () => {
-    const browserA = createInstance('http://localhost:5173');
-    const browserB = createInstance('http://localhost:5174');
-    const instances = { browserA, browserB };
-    const root = Object.assign(createFakeBrowser(), {
-      isMultiremote: true,
-      instances: Object.keys(instances),
-      getInstance: (name: keyof typeof instances) => instances[name],
-    });
+    const caps: Record<string, WebdriverIO.Capabilities> = {
+      browserA: { 'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:5173' } },
+      browserB: { 'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:5174' } },
+    };
+    const { root, instances } = createFakeMultiremoteBrowser(caps);
+    const browserA = instances.get('browserA') as FakeBrowser;
+    const browserB = instances.get('browserB') as FakeBrowser;
     const capabilities = {
-      browserA: { capabilities: browserA.requestedCapabilities },
-      browserB: { capabilities: browserB.requestedCapabilities },
+      browserA: { capabilities: caps.browserA },
+      browserB: { capabilities: caps.browserB },
     } as unknown as WebdriverIO.Capabilities;
     const service = new ElectronWorkerService({}, capabilities);
 
@@ -454,7 +559,7 @@ describe('browser mode — set per multiremote instance', () => {
 
     browserA.execute.mockClear();
     browserB.execute.mockClear();
-    const mock = await (browserA as unknown as WebdriverIO.Browser).electron.mock('appInfo:get');
+    const mock = await (browserA.electron as unknown as ElectronServiceAPI).mock('appInfo:get');
 
     expect(mock.getMockName()).toBe('electron.appInfo:get');
     expect(browserA.execute).toHaveBeenCalled();

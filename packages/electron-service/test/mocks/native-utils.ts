@@ -48,6 +48,8 @@ export const validateBinaryPaths = vi.fn();
 // (they capture and invoke the registered override) — re-export the real source.
 export { installMockSyncOverride } from '../../../native-utils/src/commandOverride.js';
 export { errorMessage } from '../../../native-utils/src/errors.js';
+// beforeTest runs the real bulk mock ops against the mock store.
+export { runBulkMockOp } from '../../../native-utils/src/mockLifecycle.js';
 export { isMultiremote } from '../../../native-utils/src/multiremote.js';
 export { standaloneRequestTimeout } from '../../../native-utils/src/standalone.js';
 // Teardown helpers are pure utilities the service depends on for real behavior

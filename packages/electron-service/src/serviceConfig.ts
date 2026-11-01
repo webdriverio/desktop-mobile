@@ -3,6 +3,8 @@ import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
 import type { ElectronServiceGlobalOptions } from '@wdio/native-types';
 import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 
+export type MockOptionName = 'clearMocks' | 'resetMocks' | 'restoreMocks';
+
 export abstract class ServiceConfig {
   #globalOptions: ElectronServiceGlobalOptions;
   #cdpOptions: CdpBridgeOptions;
@@ -94,6 +96,11 @@ export abstract class ServiceConfig {
 
   protected get restoreMocks() {
     return this.#restoreMocks;
+  }
+
+  protected mockOptions(instanceCaps?: WebdriverIO.Capabilities): Record<MockOptionName, boolean> {
+    const { clearMocks = false, resetMocks = false, restoreMocks = false } = this.instanceOptions(instanceCaps);
+    return { clearMocks, resetMocks, restoreMocks };
   }
 
   /**
