@@ -10,7 +10,7 @@ export function quoteForCmd(arg: string): string {
   if (!/[\s"&()<>^|,;=]/.test(bare)) {
     return bare;
   }
-  return `"${bare.replace(/"/g, '""')}"`;
+  return `"${bare}"`;
 }
 
 // On Windows only a .exe or .com starts without cmd.exe; a .cmd shim, or a bare name cmd.exe resolves, needs it
