@@ -59,6 +59,8 @@ The embedded driver works on all three platforms:
 | Linux    | ✅     |
 | macOS    | ✅     |
 
+On Windows, the driver turns on WebView2's focus emulation, so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front.
+
 ## Limitations
 
 Page and element screenshots fail with `unsupported operation`, so `takeScreenshot()`, `saveScreenshot()` and the visual service throw rather than get a blank image. Native screenshots are tracked in [#741](https://github.com/webdriverio/desktop-mobile/issues/741).

@@ -49,9 +49,7 @@ pub fn install(config: Config) -> Config {
 /// ```
 #[must_use]
 pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, register: F) -> Config {
-  let external_provider =
-    std::env::var(PROVIDER_ENV_VAR).is_ok_and(|provider| provider == "external");
-  match mode(automation::is_requested(), external_provider) {
+  match mode(automation::is_requested(), external_provider()) {
     Mode::Off => config,
     Mode::Embedded => install_embedded(config, register),
     Mode::BridgeOnly => install_bridge(config, register),
@@ -69,11 +67,18 @@ pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, regist
 /// });
 /// ```
 pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
-  // Unused for now; it's in the signature so native webview calls can use it without an API change.
-  let _ = dom;
   if automation::is_requested() {
     wdio_dioxus_bridge::window_state::register_window(window);
   }
+  if cfg!(feature = "embedded")
+    && mode(automation::is_requested(), external_provider()) == Mode::Embedded
+  {
+    wdio_dioxus_bridge::focus::emulate_page_focus(dom);
+  }
+}
+
+fn external_provider() -> bool {
+  std::env::var(PROVIDER_ENV_VAR).is_ok_and(|provider| provider == "external")
 }
 
 #[derive(Debug, PartialEq, Eq)]

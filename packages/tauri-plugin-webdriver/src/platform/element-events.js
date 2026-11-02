@@ -60,22 +60,6 @@ function wdioRecordPendingChange(el, value) {
   window.__wdio_pending_change = { el, value, root, onBlur };
 }
 
-// WebView2 skips `blur` on scripted focus moves while its window isn't focused, so the driver
-// calls this around its own focus moves, and a field that lost focus without a `blur` fires the
-// `change` it owes. Workaround for #886; drop once the drivers emulate focus.
-function wdioFlushPendingChange() {
-  const record = window.__wdio_pending_change;
-  if (record && record.root.activeElement !== record.el) {
-    wdioFirePendingChange();
-  }
-}
-
-function wdioFocus(el, focus = el.focus) {
-  wdioFlushPendingChange();
-  focus.call(el);
-  wdioFlushPendingChange();
-}
-
 // The built-in focus() for `el`, such as HTMLElement's or SVGElement's. A native Tab never calls a
 // focus() a component overrides, so neither does the drivers' Tab.
 function wdioNativeFocus(el) {
@@ -149,9 +133,8 @@ function wdioKeyClick(el) {
 }
 
 // Enter's default action. It goes to the element focused after the keydown, as a browser's keypress
-// does, after any `change` owed by a field that a keydown handler moved focus from.
+// does.
 function wdioEnterKey() {
-  wdioFlushPendingChange();
   const el = wdioDeepActiveElement();
   wdioCommitOnEnter(el);
   wdioSubmitOnEnter(el);
@@ -178,9 +161,6 @@ function wdioTabKey(event) {
   if (event.ctrlKey || event.altKey || event.metaKey) {
     return;
   }
-  // Fire the owed change even if a handler cancelled Tab, as a focus trap that cancels it may have
-  // moved focus itself.
-  wdioFlushPendingChange();
   if (event.defaultPrevented) {
     return;
   }
@@ -212,7 +192,7 @@ function wdioTabKey(event) {
       }
     };
     candidate.addEventListener('focus', onFocus, true);
-    wdioFocus(candidate, wdioNativeFocus(candidate));
+    wdioNativeFocus(candidate).call(candidate);
     candidate.removeEventListener('focus', onFocus, true);
     // In a window without focus, no focus event fires, so select here instead.
     if (isTextField && !focused) {
@@ -223,7 +203,6 @@ function wdioTabKey(event) {
   start.removeEventListener('blur', onBlur, true);
   if (!next) {
     wdioDeepActiveElement().blur();
-    wdioFlushPendingChange();
   }
 }
 
@@ -456,7 +435,6 @@ function wdioMouseDown(el, init) {
 // Moves focus as a mousedown on `el` does: to `el` or its nearest ancestor a click can focus, or off
 // the focused element when there is none.
 function wdioFocusForClick(el) {
-  wdioFlushPendingChange();
   const previous = wdioDeepActiveElement();
   let moved = false;
   const onFocus = () => {
@@ -499,7 +477,6 @@ function wdioFocusForClick(el) {
       active.blur();
     }
   }
-  wdioFlushPendingChange();
 }
 
 // A label's focus() focuses its field, and Chromium's focuses a scrolling box, which no mousedown does.
@@ -560,7 +537,7 @@ function wdioClearElement(el) {
   if (field ? el.value === '' : el.innerHTML === '') {
     return 'empty';
   }
-  wdioFocus(el);
+  el.focus();
   const record = wdioTakePendingChange(el);
   const committedValue = record ? record.value : el.value;
   if (field) {
@@ -589,7 +566,7 @@ function wdioSetValueControl(el, typed) {
   if (el.readOnly || el.matches(':disabled')) {
     return 'immutable';
   }
-  wdioFocus(el);
+  el.focus();
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
   const previousValue = el.value;
   setValue.call(el, typed);

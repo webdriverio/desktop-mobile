@@ -60,18 +60,6 @@ function type(el: HTMLInputElement, text: string) {
   log = [];
 }
 
-// Stops `blur` reaching the page, as Chromium does on scripted focus moves while the window isn't
-// focused.
-function withoutBlur(run: () => void) {
-  const stop = (event: Event) => event.stopImmediatePropagation();
-  window.addEventListener('blur', stop, true);
-  try {
-    run();
-  } finally {
-    window.removeEventListener('blur', stop, true);
-  }
-}
-
 // Element Click: the driver runs the press and the release as separate scripts.
 function click(el: HTMLElement) {
   events.wdioPress(el);
@@ -119,30 +107,6 @@ describe('pending change', () => {
     $('#a').focus();
     $('#a').blur();
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus a=x', 'blur a=x']);
-  });
-
-  it('should fire it when the driver next moves focus, if focus left the field without a blur', () => {
-    $('#a').value = 'x';
-    events.wdioRecordPendingChange($('#a'), '');
-    events.wdioFocusForClick($('#b'));
-    expect(log).toEqual(['change a=x', 'focus b=']);
-  });
-
-  it('should fire it before the driver focuses the field again, if focus left it without a blur', () => {
-    $('#a').value = 'x';
-    events.wdioRecordPendingChange($('#a'), '');
-    events.wdioClearElement($('#a'));
-    expect(log).toEqual(['change a=x', 'focus a=x', 'input a=', 'change a=', 'blur a=']);
-  });
-
-  it.each([
-    ['a click', () => events.wdioFocusForClick($('#b'))],
-    ['a clear', () => events.wdioClearElement($('#b'))],
-  ])('should fire it when %s moves focus without a blur', (_, run) => {
-    $('#b').value = 'y';
-    type($('#a'), 'x');
-    withoutBlur(run);
-    expect(log.filter((entry) => entry.startsWith('change a'))).toEqual(['change a=x']);
   });
 
   it('should fire nothing on a field the page has removed', () => {
@@ -444,21 +408,12 @@ describe('Enter and Space on a button', () => {
     expect(log).toEqual(expected);
   });
 
-  it.each([
-    ['', ['change i=x', 'blur i=x', 'focus b=', 'click b']],
-    // WebView2 skips the blur while its window isn't focused.
-    [' without a blur', ['focus b=', 'change i=x', 'click b']],
-  ])("should click the button a keydown handler moved focus to%s, after the field's change", (noBlur, expected) => {
+  it("should click the button a keydown handler moved focus to, after the field's change", () => {
     render('<form id="f"><input id="i"><button type="button" id="b">go</button><button id="s">go</button></form>');
     type($('#i'), 'x');
-    const keydownHandler = () => $('#b').focus();
-    if (noBlur) {
-      withoutBlur(keydownHandler);
-    } else {
-      keydownHandler();
-    }
+    $('#b').focus();
     events.wdioEnterKey();
-    expect(log).toEqual(expected);
+    expect(log).toEqual(['change i=x', 'blur i=x', 'focus b=', 'click b']);
   });
 });
 
@@ -631,28 +586,6 @@ describe('Tab', () => {
     $('#a').focus();
     tab();
     expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
-  });
-
-  it.each([
-    ['moving focus', '<input id="a"><input id="b">'],
-    ['leaving the page', '<input id="a">'],
-  ])("should fire the field's change when %s skips the blur", (_, html) => {
-    render(html);
-    type($('#a'), 'x');
-    withoutBlur(() => tab());
-    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
-  });
-
-  it("should fire the field's change when a handler cancels Tab and moves focus without a blur", () => {
-    render('<input id="a"><input id="b"><input id="c">');
-    type($('#a'), 'x');
-    const trap = (event: Event) => {
-      event.preventDefault();
-      withoutBlur(() => $('#c').focus());
-    };
-    $('#a').addEventListener('keydown', trap, { once: true });
-    expect(tab()).toBe('c');
-    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
   });
 
   it('should go from an element Tab skips to the nearest stop in tree order, or leave the page when there is none', () => {
