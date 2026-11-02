@@ -15,7 +15,7 @@ spawn(driverPath, args, {
 - `stdin` ignored, `stdout`/`stderr` piped for log forwarding
 - Never use `detached: true` — driver must die with parent
 - Merge the environment with `mergeEnv` from `@wdio/native-utils`, not `{ ...process.env, ...customEnv }`. Windows variable names ignore case, and a spread keeps both `PATH` and `Path`, so a child process can drop the override.
-- On Windows, start a `.exe` (or `.com`) directly, with its path and arguments as they are. Only a `.cmd` or `.bat` shim, or a bare name, needs `cmd.exe` (`shell: true`). Pass it one command line with each argument quoted, because spawn's shell mode joins the arguments unquoted and a path with a space would split.
+- On Windows, start a `.exe` (or `.com`) directly, with its path and arguments unquoted. Only a `.cmd` or `.bat` shim, or a bare name, needs `cmd.exe` (`shell: true`). Pass it one command line with each argument quoted, because spawn's shell mode joins the arguments unquoted and a path with a space would split.
 
 ## Readiness Detection
 
@@ -39,6 +39,7 @@ Approach depends on what the driver supports:
 4. Wait 500ms after exit for port release
 
 ```typescript
+// On Windows, run taskkill /pid <pid> /T /F in place of each signal for a driver started through cmd.exe
 process.kill('SIGTERM');
 await waitForExit(process.env.CI ? 10000 : 5000);
 process.kill('SIGKILL'); // if still alive

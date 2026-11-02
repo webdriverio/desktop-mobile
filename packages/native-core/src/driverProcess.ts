@@ -16,8 +16,8 @@
 //     own (we used to hardcode Tauri's strings).
 //
 // The poll-for-readiness behaviour (TCP open + HTTP /status reachable),
-// SIGTERM-then-SIGKILL shutdown sequence, and CI-aware timeouts all
-// transfer unchanged — they're generic.
+// shutdown sequence, and CI-aware timeouts all transfer unchanged — they're
+// generic.
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import http from 'node:http';
@@ -370,12 +370,7 @@ export class DriverProcess {
     }
 
     log.debug(`Stopping ${driverName}...`);
-    if (this.viaShell) {
-      // Killing cmd.exe alone would leave the driver it started running and holding its port
-      killWindowsProcessTree(this._proc);
-    } else {
-      this._proc.kill('SIGTERM');
-    }
+    this.kill('SIGTERM');
 
     await this.waitForExit(driverName);
     this.cleanup();
@@ -396,6 +391,18 @@ export class DriverProcess {
       return false;
     }
     return !this._proc.killed;
+  }
+
+  private kill(signal: NodeJS.Signals): void {
+    if (!this._proc) {
+      return;
+    }
+    if (this.viaShell) {
+      // Killing cmd.exe alone would leave the driver it started running and holding its port
+      killWindowsProcessTree(this._proc);
+    } else {
+      this._proc.kill(signal);
+    }
   }
 
   private async waitForExit(driverName: string): Promise<void> {
@@ -424,11 +431,7 @@ export class DriverProcess {
 
       shutdownTimeout = setTimeout(() => {
         log.warn(`${driverName} did not stop gracefully after ${stopTimeout}ms, forcing kill`);
-        if (this.viaShell && this._proc) {
-          killWindowsProcessTree(this._proc);
-        } else {
-          this._proc?.kill('SIGKILL');
-        }
+        this.kill('SIGKILL');
 
         killTimeout = setTimeout(() => {
           log.warn(`${driverName} force kill timeout, giving up`);
