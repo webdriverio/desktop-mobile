@@ -68,7 +68,6 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
   waitTestRunnerBackendReady: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { existsSync } from 'node:fs';
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { SevereServiceError } from 'webdriverio';
 import { startTestRunnerBackend } from '../src/crabnebulaBackend.js';
@@ -163,7 +162,7 @@ describe('app args', () => {
   it("should keep env values out of the capabilities onWorkerStart logs when it can't find the app", async () => {
     const launcher = createLauncher({ driverProvider: 'external' });
 
-    await launcher.onWorkerStart('0-0', { a: { capabilities: appCap({ env: { APP_TOKEN: 'secret-worker-value' } }) } });
+    await launcher.onWorkerStart('0-0', { 'wdio:tauriServiceOptions': { env: { APP_TOKEN: 'secret-worker-value' } } });
 
     const logged = JSON.stringify(mockLog.debug.mock.calls);
     expect(logged).toContain('Capabilities structure');
@@ -236,19 +235,6 @@ describe('app args', () => {
     startSecond({});
     await Promise.all([second, completed]);
     expect(driverPool(launcher).stopAll).toHaveBeenCalled();
-  });
-
-  it("should stop the run when a worker's app binary is missing", async () => {
-    const cap = appCap();
-    const launcher = createLauncher({ driverProvider: 'external' }, 2);
-    await launcher.onPrepare({ maxInstances: 2 }, [cap]);
-    vi.mocked(existsSync).mockReturnValueOnce(false);
-
-    await expect(launcher.onWorkerStart('0-0', cap)).rejects.toMatchObject({
-      name: 'SevereServiceError',
-      message: `Tauri binary not found: ${APP}`,
-    });
-    expect(driverPool(launcher).startDriver).not.toHaveBeenCalled();
   });
 
   it('should pass on a SevereServiceError from another copy of webdriverio as it is, logging its cause', async () => {

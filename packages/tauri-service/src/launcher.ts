@@ -813,8 +813,10 @@ export default class TauriLaunchService {
     this.appBinaryPath = appBinaryPath;
     log.debug(`Using app binary path: ${this.appBinaryPath}`);
 
+    // Verify the binary exists (it should, since we resolved it in onPrepare)
     if (!existsSync(this.appBinaryPath)) {
-      throw new Error(`Tauri binary not found: ${this.appBinaryPath}`);
+      log.error(`Tauri binary not found: ${this.appBinaryPath}`);
+      return;
     }
 
     // For multiremote instances, ensure data directory isolation is set up

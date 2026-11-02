@@ -57,7 +57,6 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
     );
   }
 
-  // Log API key with redaction (show first 4 and last 4 chars)
   const redactedKey =
     apiKey.length > 12
       ? `${apiKey.slice(0, 4)}${'*'.repeat(Math.min(apiKey.length - 8, 20))}${apiKey.slice(-4)}`
