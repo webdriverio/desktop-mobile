@@ -102,6 +102,41 @@ describe('CrabNebula Backend', () => {
       );
     });
 
+    it('should start with a short CN_API_KEY rather than fail to redact it', async () => {
+      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
+      process.env.CN_API_KEY = 'abc';
+      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
+
+      const started = startTestRunnerBackend({ port: 3000 });
+      setImmediate(() => {
+        mockProc.emit('spawn');
+      });
+
+      await expect(started).resolves.toBeDefined();
+    }, 10000);
+
+    it("should check the CN_API_KEY the backend gets, which the app's env can set", async () => {
+      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
+      process.env.CN_API_KEY = 'test-api-key-long-enough';
+
+      await expect(
+        startTestRunnerBackend({ port: 3000, serviceOptions: { env: { CN_API_KEY: '   ' } } }),
+      ).rejects.toMatchObject({ message: expect.stringContaining('CN_API_KEY environment variable is set but empty') });
+
+      delete process.env.CN_API_KEY;
+      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
+      const started = startTestRunnerBackend({
+        port: 3000,
+        serviceOptions: { env: { CN_API_KEY: 'key-from-app-env-1234' } },
+      });
+      setImmediate(() => {
+        mockProc.emit('spawn');
+      });
+      await started;
+
+      expect(vi.mocked(spawn).mock.calls.at(-1)?.[2]?.env).toMatchObject({ CN_API_KEY: 'key-from-app-env-1234' });
+    }, 10000);
+
     it('should start backend with correct environment', async () => {
       vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
       process.env.CN_API_KEY = 'test-api-key-long-enough';
@@ -128,6 +163,49 @@ describe('CrabNebula Backend', () => {
       );
       expect(result.proc).toBe(mockProc);
       expect(result.port).toBe(3000);
+    }, 10000);
+
+    it("should pass the app's env to the backend, which launches the app, and keep its own PORT", async () => {
+      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
+      process.env.CN_API_KEY = 'test-api-key-long-enough';
+      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
+
+      const promise = startTestRunnerBackend({
+        port: 3000,
+        serviceOptions: { env: { APP_FLAG: 'on', PORT: '9999' } },
+      });
+      setImmediate(() => {
+        mockProc.emit('spawn');
+      });
+      await promise;
+
+      expect(vi.mocked(spawn).mock.calls[0][2]?.env).toMatchObject({
+        CN_API_KEY: 'test-api-key-long-enough',
+        APP_FLAG: 'on',
+        PORT: '3000',
+      });
+    }, 10000);
+
+    it("should set the env it's given, such as the data directory, over the app's env", async () => {
+      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
+      process.env.CN_API_KEY = 'test-api-key-long-enough';
+      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
+
+      const promise = startTestRunnerBackend({
+        port: 3000,
+        serviceOptions: { env: { APP_FLAG: 'on', TAURI_DATA_DIR: '/user/data' } },
+        env: { TAURI_DATA_DIR: '/isolated', PORT: '9999' },
+      });
+      setImmediate(() => {
+        mockProc.emit('spawn');
+      });
+      await promise;
+
+      expect(vi.mocked(spawn).mock.calls[0][2]?.env).toMatchObject({
+        APP_FLAG: 'on',
+        TAURI_DATA_DIR: '/isolated',
+        PORT: '3000',
+      });
     }, 10000);
 
     it('should resolve when the process spawns, before any stdout line', async () => {

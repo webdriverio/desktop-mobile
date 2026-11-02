@@ -37,7 +37,7 @@ describe('embedded process and HTTP lifecycle', () => {
   });
 
   function start(script = "console.log('started'); setInterval(() => {}, 1000)") {
-    const result = startEmbeddedDriver(process.execPath, port, { appArgs: ['-e', script] });
+    const result = startEmbeddedDriver(process.execPath, ['-e', script], port, {});
     child = vi.mocked(spawn).mock.results.at(-1)?.value as ChildProcess;
     return result;
   }
@@ -76,7 +76,7 @@ describe('embedded process and HTTP lifecycle', () => {
   });
 
   it('preserves the OS spawn error without waiting for the startup timeout', async () => {
-    const result = startEmbeddedDriver('/nonexistent-wdio-tauri-app', port, {});
+    const result = startEmbeddedDriver('/nonexistent-wdio-tauri-app', [], port, {});
     child = vi.mocked(spawn).mock.results.at(-1)?.value as ChildProcess;
     await expect(result).rejects.toMatchObject({ cause: { code: 'ENOENT' } });
   });

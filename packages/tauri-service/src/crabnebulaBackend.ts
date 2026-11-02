@@ -3,6 +3,7 @@ import { createLogger, errorMessage } from '@wdio/native-utils';
 import { findTestRunnerBackend } from './driverManager.js';
 import { createLogCapture } from './logCapture.js';
 import { signalAndWaitForExit } from './processExit.js';
+import { appEnv } from './serviceConfig.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service');
@@ -15,6 +16,8 @@ export interface BackendProcessInfo {
 export interface StartBackendOptions {
   port: number;
   serviceOptions?: TauriServiceOptions;
+  // Set over the app's `env` from `serviceOptions`, e.g. the instance's data directory
+  env?: NodeJS.ProcessEnv;
   instanceId?: string;
 }
 
@@ -37,26 +40,28 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
 
   log.info(`Found test-runner-backend at: ${backendPath}`);
 
-  // Validate CN_API_KEY
-  if (!process.env.CN_API_KEY) {
+  // On macOS the backend, not tauri-driver, launches the app, so it needs the app's env, and the key is checked
+  // in that env, which a CN_API_KEY in the app's env would override.
+  const env: NodeJS.ProcessEnv = { ...appEnv(serviceOptions, options.env), PORT: port.toString() };
+  if (!env.CN_API_KEY) {
     throw new Error(
       'CN_API_KEY environment variable is required for CrabNebula macOS testing. ' +
         'Contact CrabNebula (https://crabnebula.dev) to obtain an API key.',
     );
   }
 
-  const apiKey = process.env.CN_API_KEY;
+  const apiKey = env.CN_API_KEY;
   if (apiKey.trim() === '') {
     throw new Error(
       'CN_API_KEY environment variable is set but empty. ' + 'Please provide a valid CrabNebula API key.',
     );
   }
 
-  // Log API key with redaction (show first 4 and last 4 chars)
+  // Log API key with redaction (show first 4 and last 4 chars); a short key shows nothing
   const redactedKey =
     apiKey.length > 12
       ? `${apiKey.slice(0, 4)}${'*'.repeat(Math.min(apiKey.length - 8, 20))}${apiKey.slice(-4)}`
-      : `${apiKey.slice(0, 2)}${'*'.repeat(apiKey.length - 4)}${apiKey.slice(-2)}`;
+      : '*'.repeat(apiKey.length);
   log.info(`CN_API_KEY detected: ${redactedKey} (${apiKey.length} chars)`);
 
   log.info(`Starting test-runner-backend on port ${port}`);
@@ -101,10 +106,7 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
     const args = ['--port', port.toString()];
     const proc = spawn(backendPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        PORT: port.toString(),
-      },
+      env,
     });
 
     let settled = false;

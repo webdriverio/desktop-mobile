@@ -23,6 +23,7 @@ interface FakeDriverInfo {
 }
 
 const driverState = new Map<string, FakeDriverInfo>();
+const coreStartConfigs: Array<{ env?: NodeJS.ProcessEnv; nativeDriverPath?: string }> = [];
 
 vi.mock('@wdio/native-core', async (importActual) => {
   const actual = await importActual<typeof import('@wdio/native-core')>();
@@ -34,7 +35,10 @@ vi.mock('@wdio/native-core', async (importActual) => {
         identifier: string;
         port: number;
         nativePort: number;
+        env?: NodeJS.ProcessEnv;
+        nativeDriverPath?: string;
       }): Promise<FakeDriverInfo> {
+        coreStartConfigs.push(config);
         const info: FakeDriverInfo = {
           process: {
             stop: mockStop,
@@ -120,6 +124,7 @@ describe('DriverPool', () => {
     mockIsRunning.mockClear().mockReturnValue(true);
     mockProcPid = 12345;
     driverState.clear();
+    coreStartConfigs.length = 0;
 
     const driverManagerMod = await import('../src/driverManager.js');
     ensureTauriDriver = driverManagerMod.ensureTauriDriver;
@@ -218,6 +223,50 @@ describe('DriverPool', () => {
           nativePort: 4445,
         }),
       ).rejects.toThrow('tauri-driver not found');
+    });
+  });
+
+  describe("the app's env", () => {
+    it("should give the driver the app's env from its options, under the env it's given", async () => {
+      await pool.startDriver({
+        mode: 'worker',
+        identifier: 'worker-0',
+        port: 4500,
+        nativePort: 4501,
+        options: { env: { APP_FLAG: 'on', XDG_DATA_HOME: '/user/data' } },
+        env: { XDG_DATA_HOME: '/isolated' },
+      });
+
+      expect(coreStartConfigs.at(-1)?.env).toMatchObject({ APP_FLAG: 'on', XDG_DATA_HOME: '/isolated' });
+    });
+
+    it("should take the app's env from the pool's options when the driver has none", async () => {
+      const { DriverPool } = await import('../src/driverPool.js');
+      const servicePool = new DriverPool({ env: { APP_FLAG: 'service' } });
+
+      await servicePool.startDriver({ mode: 'single', identifier: 'tauri-driver', port: 4444, nativePort: 4445 });
+
+      expect(coreStartConfigs.at(-1)?.env).toMatchObject({ APP_FLAG: 'service' });
+    });
+  });
+
+  describe('useNativeDriver', () => {
+    it('should start drivers with the given native driver when none was configured', async () => {
+      const { DriverPool } = await import('../src/driverPool.js');
+      const unconfigured = new DriverPool({});
+      unconfigured.useNativeDriver('C:\\drivers\\msedgedriver.exe');
+
+      await unconfigured.startDriver({ mode: 'single', identifier: 'tauri-driver', port: 4444, nativePort: 4445 });
+
+      expect(coreStartConfigs.at(-1)?.nativeDriverPath).toBe('C:\\drivers\\msedgedriver.exe');
+    });
+
+    it('should keep a configured native driver', async () => {
+      pool.useNativeDriver('C:\\drivers\\msedgedriver.exe');
+
+      await pool.startDriver({ mode: 'single', identifier: 'tauri-driver', port: 4444, nativePort: 4445 });
+
+      expect(coreStartConfigs.at(-1)?.nativeDriverPath).toBe('/mock/native-driver');
     });
   });
 

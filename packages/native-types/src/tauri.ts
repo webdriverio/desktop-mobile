@@ -312,10 +312,6 @@ export interface TauriServiceOptions extends BaseServiceOptions, DriverProviderC
    */
   devServerUrl?: string;
   /**
-   * The port for tauri-driver to listen on.
-   */
-  tauriDriverPort?: number;
-  /**
    * The path to the tauri-driver executable.
    */
   tauriDriverPath?: string;
@@ -348,41 +344,61 @@ export interface TauriServiceOptions extends BaseServiceOptions, DriverProviderC
    * @default 'main'
    */
   windowLabel?: string;
+  /**
+   * Environment variables for the app, merged over `process.env`. The service passes them to the
+   * driver or process that launches the app. A capability-level value replaces the service-level one.
+   */
+  env?: Record<string, string>;
+  /**
+   * Automatically install tauri-driver if not found
+   * Requires Rust toolchain (cargo) to be installed
+   * @default false
+   */
+  autoInstallTauriDriver?: boolean;
+  /**
+   * Log directory for standalone mode
+   * Full path where log files should be written
+   * If not specified, uses `logs/` in the current working directory
+   * @default undefined
+   */
+  logDir?: string;
+  /**
+   * Timeout in milliseconds for the /status endpoint poll during embedded server startup
+   * In slow CI environments (containerised Windows runners), a healthy-but-busy WebDriver server
+   * may miss the default 2000ms deadline, causing false-positive restarts
+   * @default 2000
+   */
+  statusPollTimeout?: number;
 }
 
 /**
- * Tauri service global options
- * Extends base global options with Tauri-specific configuration
+ * Tauri service global options: every per-capability option, which a capability's
+ * `wdio:tauriServiceOptions` overrides, plus the options only the service level takes.
  */
-export interface TauriServiceGlobalOptions extends BaseServiceGlobalOptions, DriverProviderConfig {
-  mode?: 'native' | 'browser';
-  devServerUrl?: string;
-  logLevel?: LogLevel;
+export interface TauriServiceGlobalOptions extends TauriServiceOptions, BaseServiceGlobalOptions {
+  /**
+   * The port for tauri-driver to listen on. Service-level only: one setting covers every driver the service starts.
+   * @default 4444
+   */
   tauriDriverPort?: number;
   nativeDriverPath?: string;
   /**
-   * Path to @crabnebula/tauri-driver executable
-   * If not provided, will be auto-detected from node_modules
+   * Automatically download and configure matching msedgedriver on Windows
+   * Detects Edge version and ensures WebDriver matches to prevent version mismatch errors
+   * Only applies on Windows platform, ignored on Linux/macOS
+   * Service-level only, since msedgedriver is machine-wide.
+   * @default true
    */
-  crabnebulaDriverPath?: string;
+  autoDownloadEdgeDriver?: boolean;
   /**
-   * Auto-manage test-runner-backend process (macOS only)
-   * Required for macOS testing with CrabNebula
-   * @default true when driverProvider is 'crabnebula' and platform is darwin
+   * Pin the exact msedgedriver version to download on Windows (e.g. `'149.0.4022.98'`), bypassing
+   * runtime detection. A CI escape hatch for the next Evergreen WebView2 drift that breaks
+   * automation. Otherwise the runtime version is auto-detected — from a fixed-version runtime folder
+   * when `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, else the machine's Evergreen runtime.
+   * `EDGEDRIVER_VERSION` in the environment does the same. Windows-only.
+   * Service-level only, since msedgedriver is machine-wide.
    */
-  crabnebulaManageBackend?: boolean;
-  /**
-   * Port for test-runner-backend (macOS only)
-   * @default 3000
-   */
-  crabnebulaBackendPort?: number;
-  /**
-   * Default window label for Tauri operations.
-   * @default 'main'
-   */
-  windowLabel?: string;
-  /** Timeout for app startup in ms. A capability-level value takes precedence. */
-  startTimeout?: number;
+  edgeDriverVersion?: string;
 }
 
 /**

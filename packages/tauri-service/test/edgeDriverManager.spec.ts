@@ -49,6 +49,7 @@ describe('Edge Driver Manager', () => {
 
   beforeEach(async () => {
     const module = await import('../src/edgeDriverManager.js');
+    module.clearDownloadedMsEdgeDrivers();
     detectEdgeVersion = module.detectEdgeVersion;
     detectWebView2Version = module.detectWebView2Version;
     getMajorVersion = module.getMajorVersion;
@@ -159,6 +160,28 @@ describe('Edge Driver Manager', () => {
 
       const result = await findMsEdgeDriver();
       expect(result).toEqual({});
+    });
+
+    it("should take the first of several drivers `where` lists, without the line's carriage return", async () => {
+      const { exec } = await import('node:child_process');
+      const { existsSync } = await import('node:fs');
+      vi.mocked(exec as any).mockImplementation(((cmd: string, _opts: any, callback: any) => {
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        if (cmd.includes('where msedgedriver')) {
+          callback?.(null, 'C:\\new\\msedgedriver.exe\r\nC:\\old\\msedgedriver.exe\r\n', '');
+        } else {
+          callback?.(null, 'MSEdgeDriver 149.0.4022.150\n', '');
+        }
+        return {} as any;
+      }) as any);
+      vi.mocked(existsSync).mockImplementation((path) => path === 'C:\\new\\msedgedriver.exe');
+
+      await expect(findMsEdgeDriver()).resolves.toEqual({
+        path: 'C:\\new\\msedgedriver.exe',
+        version: '149.0.4022.150',
+      });
     });
   });
 
@@ -401,6 +424,16 @@ describe('Edge Driver Manager', () => {
       ).toEqual({ version: '149.0.4022.98', source: 'fixed-runtime' });
     });
 
+    it("should find the runtime folder in options.env whatever its name's case, as the app does", async () => {
+      const { existsSync } = await import('node:fs');
+      vi.mocked(existsSync).mockImplementation((p: any) => String(p).endsWith('msedgewebview2.exe'));
+      await mockVersionInfo('149.0.4022.98');
+
+      expect(
+        await resolveTargetEdgeVersion({ env: { WebView2_Browser_Executable_Folder: 'C:\\FixedRuntime' } }),
+      ).toEqual({ version: '149.0.4022.98', source: 'fixed-runtime' });
+    });
+
     it('should read the folder from process.env when options.env is absent', async () => {
       process.env.WEBVIEW2_BROWSER_EXECUTABLE_FOLDER = 'C:\\FixedRuntime';
       const { existsSync } = await import('node:fs');
@@ -581,6 +614,41 @@ describe('Edge Driver Manager', () => {
       assert(result.ok);
       expect(result.value.method).toBe('downloaded');
       expect(result.value.driverVersion).toBe('149.0.4022.150');
+    });
+
+    it('should reuse a driver it downloaded earlier in the process, without downloading again or changing PATH', async () => {
+      const { exec, execFile } = await import('node:child_process');
+      const { existsSync } = await import('node:fs');
+      vi.mocked(exec as any).mockImplementation(((_cmd: string, _opts: any, callback: any) => {
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        callback?.(new Error('Not found'), '', '');
+        return {} as any;
+      }) as any);
+      vi.mocked(execFile as any).mockImplementation(((_cmd: string, _args: string[], _opts: any, callback: any) => {
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        callback?.(null, 'SUCCESS', '');
+        return {} as any;
+      }) as any);
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.stubEnv('PATH', 'C:\\Windows');
+
+      try {
+        const first = await ensureMsEdgeDriver(undefined, true, { edgeDriverVersion: '149.0.4022.150' });
+        const downloads = vi.mocked(execFile).mock.calls.length;
+        const second = await ensureMsEdgeDriver(undefined, true, { edgeDriverVersion: '149.0.4022.150' });
+
+        assert(first.ok && second.ok);
+        expect(first.value).toMatchObject({ method: 'downloaded' });
+        expect(second.value).toMatchObject({ method: 'found', driverPath: first.value.driverPath });
+        expect(vi.mocked(execFile).mock.calls).toHaveLength(downloads);
+        expect(process.env.PATH).toBe('C:\\Windows');
+      } finally {
+        vi.unstubAllEnvs();
+      }
     });
 
     it('should reuse an on-PATH driver that already matches the exact pin', async () => {

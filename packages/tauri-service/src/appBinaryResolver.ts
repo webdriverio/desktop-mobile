@@ -54,6 +54,20 @@ export function resolveAppBinaryPath(
   );
 }
 
+// The binary's precedence: tauri:options.args when it's set, even to [], otherwise appArgs
+export function resolveAppArgs(
+  options: Pick<TauriServiceOptions, 'appArgs'>,
+  tauriOptions: { args?: string[] } | undefined,
+): string[] {
+  const args: unknown = tauriOptions?.args ?? options.appArgs ?? [];
+  if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string')) {
+    throw new Error(
+      `appArgs and 'tauri:options'.args must be arrays of strings, e.g. ['--debug'], but got ${JSON.stringify(args)}`,
+    );
+  }
+  return [...args];
+}
+
 /**
  * Migration guard for users upgrading from v1.0.x: the launcher used to
  * auto-resolve a binary from a project directory by reading

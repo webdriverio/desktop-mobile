@@ -152,6 +152,55 @@ describe('findTauriDriver', () => {
     expect(findTauriDriver()).toBe('C:\\Users\\user\\.cargo\\bin\\tauri-driver.exe');
   });
 
+  it("should prefer cargo's tauri-driver.exe over the npm shims `where` lists first on Windows", () => {
+    mockPlatform('win32');
+    vi.mocked(execSync).mockReturnValue(
+      'C:\\app\\node_modules\\.bin\\tauri-driver\r\n' +
+        'C:\\app\\node_modules\\.bin\\tauri-driver.CMD\r\n' +
+        'C:\\Users\\u\\.cargo\\bin\\tauri-driver.exe\r\n',
+    );
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    expect(findTauriDriver()).toBe('C:\\Users\\u\\.cargo\\bin\\tauri-driver.exe');
+  });
+
+  it("should list every match with which -a, and take cargo's install over an npm shim found first", () => {
+    mockPlatform('linux');
+    vi.mocked(execSync).mockReturnValue('/app/node_modules/.bin/tauri-driver\n');
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    expect(findTauriDriver()).toBe('/usr/local/bin/tauri-driver');
+    expect(execSync).toHaveBeenCalledWith('which -a tauri-driver', expect.anything());
+  });
+
+  it('should fall back to an npm shim when no other tauri-driver is installed', () => {
+    mockPlatform('win32');
+    vi.mocked(execSync).mockReturnValue(
+      'C:\\app\\node_modules\\.bin\\tauri-driver\r\nC:\\app\\node_modules\\.bin\\tauri-driver.CMD\r\n',
+    );
+    vi.mocked(existsSync).mockImplementation((path) => String(path).includes('node_modules'));
+
+    expect(findTauriDriver()).toBe('C:\\app\\node_modules\\.bin\\tauri-driver');
+  });
+
+  it('should keep PATH order for anything but npm shims, such as a wrapper the user put first', () => {
+    mockPlatform('win32');
+    vi.mocked(execSync).mockReturnValue(
+      'C:\\tools\\tauri-driver.cmd\r\nC:\\Users\\u\\.cargo\\bin\\tauri-driver.exe\r\n',
+    );
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    expect(findTauriDriver()).toBe('C:\\tools\\tauri-driver.cmd');
+  });
+
+  it("should take the first of several drivers `where` lists, without the line's carriage return", () => {
+    mockPlatform('win32');
+    vi.mocked(execSync).mockReturnValue('C:\\first\\tauri-driver.exe\r\nC:\\second\\tauri-driver.exe\r\n');
+    vi.mocked(existsSync).mockImplementation((path) => path === 'C:\\first\\tauri-driver.exe');
+
+    expect(findTauriDriver()).toBe('C:\\first\\tauri-driver.exe');
+  });
+
   it('should return undefined when command throws and no common paths exist', () => {
     mockPlatform('linux');
     vi.mocked(execSync).mockImplementation(() => {

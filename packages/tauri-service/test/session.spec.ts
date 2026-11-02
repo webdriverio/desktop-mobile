@@ -136,12 +136,10 @@ describe('session', () => {
       expect(caps).toEqual({
         'tauri:options': {
           application: '/path/to/app',
-          args: [],
         },
         'wdio:tauriServiceOptions': {
           appBinaryPath: '/path/to/app',
-          appArgs: [],
-          tauriDriverPort: undefined,
+          appArgs: undefined,
           logLevel: undefined,
           startTimeout: undefined,
           driverProvider: undefined,
@@ -156,7 +154,8 @@ describe('session', () => {
 
       expect(serviceOpts?.logLevel).toBeUndefined();
       expect(serviceOpts?.startTimeout).toBeUndefined();
-      expect(serviceOpts?.appArgs).toEqual([]);
+      expect(serviceOpts?.appArgs).toBeUndefined();
+      expect(caps['tauri:options']).not.toHaveProperty('args');
     });
 
     it('should set custom appArgs', () => {
@@ -168,12 +167,10 @@ describe('session', () => {
       expect(caps['wdio:tauriServiceOptions']?.appArgs).toEqual(['--verbose', '--port=3000']);
     });
 
-    it('should set custom tauriDriverPort', () => {
-      const caps = createTauriCapabilities('/app', {
-        tauriDriverPort: 9515,
-      });
+    it('should not write tauriDriverPort into the capability, where it does nothing', () => {
+      const caps = createTauriCapabilities('/app', { tauriDriverPort: 9515 } as never);
 
-      expect(caps['wdio:tauriServiceOptions']?.tauriDriverPort).toBe(9515);
+      expect(caps['wdio:tauriServiceOptions']).not.toHaveProperty('tauriDriverPort');
     });
 
     it('should set custom logLevel', () => {
@@ -224,7 +221,6 @@ describe('session', () => {
     it('should set all options at once', () => {
       const caps = createTauriCapabilities('/my/app', {
         appArgs: ['--dev'],
-        tauriDriverPort: 4444,
         logLevel: 'warn',
         startTimeout: 45000,
         driverProvider: 'crabnebula',
@@ -239,7 +235,6 @@ describe('session', () => {
         'wdio:tauriServiceOptions': {
           appBinaryPath: '/my/app',
           appArgs: ['--dev'],
-          tauriDriverPort: 4444,
           logLevel: 'warn',
           startTimeout: 45000,
           driverProvider: 'crabnebula',

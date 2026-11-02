@@ -14,7 +14,7 @@ vi.mock('@wdio/native-utils', () => ({
 }));
 
 import { statSync } from 'node:fs';
-import { resolveAppBinaryPath } from '../src/appBinaryResolver.js';
+import { resolveAppArgs, resolveAppBinaryPath } from '../src/appBinaryResolver.js';
 
 const stat = (overrides: { isDirectory?: boolean; isFile?: boolean }) =>
   ({
@@ -84,5 +84,26 @@ describe('resolveAppBinaryPath', () => {
     vi.mocked(statSync).mockReturnValue(stat({ isDirectory: true }));
     const result = resolveAppBinaryPath({}, { application: 'target/release/bundle/macos/My App.app' });
     expect(result).toBe('target/release/bundle/macos/My App.app');
+  });
+});
+
+describe('resolveAppArgs', () => {
+  it("should return a copy, so changing it can't change the configured list", () => {
+    const appArgs = ['--a'];
+
+    const args = resolveAppArgs({ appArgs }, undefined);
+    args.push('--b');
+
+    expect(appArgs).toEqual(['--a']);
+  });
+
+  it('should reject args that are not an array, rather than split a string into characters', () => {
+    expect(() => resolveAppArgs({ appArgs: '--debug' as unknown as string[] }, undefined)).toThrow(
+      `appArgs and 'tauri:options'.args must be arrays of strings, e.g. ['--debug'], but got "--debug"`,
+    );
+    expect(() => resolveAppArgs({}, { args: '--debug' as unknown as string[] })).toThrow(/must be arrays of strings/);
+    expect(() => resolveAppArgs({ appArgs: ['--port', 8080] as unknown as string[] }, undefined)).toThrow(
+      /must be arrays of strings/,
+    );
   });
 });
