@@ -4,8 +4,7 @@
  * pick whichever sorts first.
  */
 export function mergeEnv(...layers: Array<Record<string, string | undefined> | undefined>): NodeJS.ProcessEnv {
-  // No prototype, so a variable named __proto__ is kept like any other
-  const env: NodeJS.ProcessEnv = Object.create(null);
+  const env: NodeJS.ProcessEnv = {};
   const keys = new Map<string, string>();
   const ignoreCase = process.platform === 'win32';
   for (const layer of layers) {
