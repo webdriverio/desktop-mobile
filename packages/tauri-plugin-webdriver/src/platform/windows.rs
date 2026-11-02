@@ -267,7 +267,7 @@ pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
 }
 
 /// Makes `WebView2` treat the page as focused even while its window is in the background, where
-/// scripted focus moves otherwise fire no `focus` or `blur`. Playwright does the same for Chromium.
+/// scripted focus moves otherwise fire no `focus` or `blur`.
 unsafe fn emulate_page_focus(webview2: &ICoreWebView2) {
   let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {
     if let Err(e) = result {

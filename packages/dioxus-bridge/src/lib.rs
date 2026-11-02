@@ -17,7 +17,7 @@
 pub mod automation;
 pub mod deeplink;
 pub mod embedded;
-pub mod focus;
+mod focus;
 pub mod invoke;
 pub mod log_bridge;
 pub mod window_state;
@@ -96,13 +96,11 @@ fn install_with_registry_and_config(
   register_window_commands(&registry);
   if embedded_port.is_some() {
     register_embedded_commands(&registry);
+    // Never cleared, so a later bridge-only install doesn't turn emulation off under the driver.
+    EMBEDDED.store(true, Ordering::SeqCst);
   }
 
   let registry_for_handler = registry;
-  // Never cleared, so a later bridge-only install doesn't turn emulation off under the driver.
-  if embedded_port.is_some() {
-    EMBEDDED.store(true, Ordering::SeqCst);
-  }
 
   // On Windows, Wry serves custom protocols as `http://{scheme}.*`, and
   // WebView2 rejects a `fetch('wdio://invoke')`, so guest-js reads the URL

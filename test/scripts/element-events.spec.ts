@@ -571,6 +571,25 @@ describe('Tab', () => {
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
   });
 
+  it("should fire the field's change when Tab leaves the page", () => {
+    render('<input id="a">');
+    type($('#a'), 'x');
+    expect(tab()).toBe('body');
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
+
+  it("should fire the field's change when a handler cancels Tab and moves focus itself", () => {
+    render('<input id="a"><input id="b"><input id="c">');
+    type($('#a'), 'x');
+    const trap = (event: Event) => {
+      event.preventDefault();
+      $('#c').focus();
+    };
+    $('#a').addEventListener('keydown', trap, { once: true });
+    expect(tab()).toBe('c');
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
+
   it('should focus a text field once, though select() focuses it in Chromium', () => {
     const select = HTMLInputElement.prototype.select;
     vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
