@@ -253,7 +253,7 @@ fn delete_js(backward: bool) -> String {
                         removeEnd = {edge_check} ? {removed_end} : selStart;
                     }}
                     if (removeStart !== removeEnd) {{
-                        wdioRecordPendingChange(activeEl, activeEl.value);
+                        wdioRecordPendingChange(activeEl, currentValue);
                         var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                             activeEl.tagName === 'INPUT'
                                 ? window.HTMLInputElement.prototype
@@ -334,13 +334,13 @@ fn select_all_js() -> String {
 
 /// JS inserting the string expression `text_js` at `el`'s selection, replacing any selected range,
 /// and firing `input` if the value changed. Only editable text fields and contenteditable take text.
-/// A text field first records the `change` it owes, so this needs `element-events.js` in scope.
+/// A text field whose value changes records the `change` it owes, so this needs `element-events.js`
+/// in scope.
 fn insert_text_js(el: &str, text_js: &str) -> String {
   let text_field = is_editable_text_field_js(el);
   format!(
     r"var insertedText = {text_js};
                 if ({text_field}) {{
-                    wdioRecordPendingChange({el}, {el}.value);
                     var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                         {el}.tagName === 'INPUT'
                             ? window.HTMLInputElement.prototype
@@ -365,6 +365,7 @@ fn insert_text_js(el: &str, text_js: &str) -> String {
                         nativeInputValueSetter.call({el}, currentValue + insertedText);
                     }}
                     if ({el}.value !== currentValue) {{
+                        wdioRecordPendingChange({el}, currentValue);
                         {el}.dispatchEvent(new InputEvent('input', {{
                             bubbles: true,
                             composed: true,
@@ -628,6 +629,12 @@ pub fn build_insert_run_script(run: &str) -> String {
   )
 }
 
+/// The script after the shared helpers, so a test can't match their definitions.
+#[cfg(test)]
+pub(crate) fn after_helpers(script: &str) -> &str {
+  &script[script.find(ELEMENT_EVENTS_JS).unwrap() + ELEMENT_EVENTS_JS.len()..]
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -857,11 +864,6 @@ mod tests {
     SendKeysStep::Text(run.to_string())
   }
 
-  /// The script after the shared helpers, so a test can't match their definitions.
-  fn after_helpers(script: &str) -> &str {
-    &script[script.find(ELEMENT_EVENTS_JS).unwrap() + ELEMENT_EVENTS_JS.len()..]
-  }
-
   #[test]
   fn send_keys_types_plain_text_in_one_step() {
     assert_eq!(plan_send_keys("hello"), vec![text("hello")]);
@@ -983,7 +985,7 @@ mod tests {
     let insert = body.find("var insertedText = \"x\";").unwrap();
     assert!(focus < unfocused && unfocused < insert, "{body}");
     let typed = &body[insert..];
-    assert!(typed.contains("wdioRecordPendingChange(receiver, receiver.value);"));
+    assert!(typed.contains("wdioRecordPendingChange(receiver, currentValue);"));
     let focused = build_send_keys_start_script("__wdio_elem_abc", "x", None);
     assert!(!after_helpers(&focused).contains("wdioRecordPendingChange("), "{focused}");
     assert!(typed.contains(&format!("if ({}) {{", is_editable_text_field_js("receiver"))));
@@ -1041,18 +1043,15 @@ mod tests {
   }
 
   #[test]
-  fn edits_record_the_change_a_text_field_owes_before_changing_it() {
-    let record = "wdioRecordPendingChange(activeEl, activeEl.value);";
-    let editable = format!("if ({}) {{", is_editable_text_field_js("activeEl"));
-    for edit in [insert_text_js("activeEl", &js_string("x")), delete_js(true), delete_js(false)] {
-      let guard = edit.find(&editable).unwrap();
-      let recorded = edit.find(record).unwrap();
-      let changed = edit.find("nativeInputValueSetter.call(").unwrap();
-      assert!(guard < recorded && recorded < changed, "{edit}");
+  fn edits_that_change_a_text_field_record_the_change_it_owes() {
+    let record = "wdioRecordPendingChange(activeEl, currentValue);";
+    for (edit, changes) in [
+      (insert_text_js("activeEl", &js_string("x")), "if (activeEl.value !== currentValue) {"),
+      (delete_js(true), "if (removeStart !== removeEnd) {"),
+      (delete_js(false), "if (removeStart !== removeEnd) {"),
+    ] {
+      assert!(edit.find(changes).unwrap() < edit.find(record).unwrap(), "{edit}");
     }
-    let delete = delete_js(true);
-    let deletes = delete.find("if (removeStart !== removeEnd) {").unwrap();
-    assert!(deletes < delete.find(record).unwrap(), "{delete}");
     for script in [
       down("x", NONE),
       down("\u{E003}", NONE),
@@ -1070,9 +1069,15 @@ mod tests {
   #[test]
   fn typing_deleting_and_select_all_act_on_the_element_focused_after_the_keydown() {
     let lookup = deep_active_element_js("activeEl");
-    for script in [down("x", NONE), down("a", CTRL), down("\u{E003}", NONE), down("\u{E017}", NONE)]
-    {
-      assert!(default_action(&script).contains(&lookup), "{script}");
+    for (script, action) in [
+      (down("x", NONE), "var insertedText ="),
+      (down("a", CTRL), "activeEl.select();"),
+      (down("\u{E003}", NONE), "var removeStart ="),
+      (down("\u{E017}", NONE), "var removeStart ="),
+    ] {
+      let default_action = default_action(&script);
+      let acts = default_action.find(action).unwrap();
+      assert!(default_action[..acts].contains(&lookup), "{script}");
     }
     for script in [down("\u{E015}", NONE), key_script("x", false, &NONE)] {
       assert_eq!(script.matches(&lookup).count(), 1, "{script}");

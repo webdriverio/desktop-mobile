@@ -394,7 +394,7 @@ fn delete_js(backward: bool) -> String {
                         removeEnd = {edge_check} ? {removed_end} : selStart;
                     }}
                     if (removeStart !== removeEnd) {{
-                        wdioRecordPendingChange(activeEl, activeEl.value);
+                        wdioRecordPendingChange(activeEl, currentValue);
                         var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                             activeEl.tagName === 'INPUT'
                                 ? window.HTMLInputElement.prototype
@@ -475,13 +475,13 @@ fn select_all_js() -> String {
 
 /// JS inserting the string expression `text_js` at `el`'s selection, replacing any selected range,
 /// and firing `input` if the value changed. Only editable text fields and contenteditable take text.
-/// A text field first records the `change` it owes, so this needs `element-events.js` in scope.
+/// A text field whose value changes records the `change` it owes, so this needs `element-events.js`
+/// in scope.
 fn insert_text_js(el: &str, text_js: &str) -> String {
   let text_field = is_editable_text_field_js(el);
   format!(
     r"var insertedText = {text_js};
                 if ({text_field}) {{
-                    wdioRecordPendingChange({el}, {el}.value);
                     var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                         {el}.tagName === 'INPUT'
                             ? window.HTMLInputElement.prototype
@@ -506,6 +506,7 @@ fn insert_text_js(el: &str, text_js: &str) -> String {
                         nativeInputValueSetter.call({el}, currentValue + insertedText);
                     }}
                     if ({el}.value !== currentValue) {{
+                        wdioRecordPendingChange({el}, currentValue);
                         {el}.dispatchEvent(new InputEvent('input', {{
                             bubbles: true,
                             composed: true,
@@ -1251,7 +1252,7 @@ mod tests {
     let fallback = backspace.find("if (!hasSelectionApi) {").unwrap();
     let to_end = backspace.find("selStart = selEnd = currentValue.length;").unwrap();
     assert!(fallback < to_end);
-    assert!(backspace.contains("deleteContentBackward"));
+    assert!(after_helpers(&backspace).contains("deleteContentBackward"));
     let delete = build_special_key_script("Delete", "Delete", 46, true, &none);
     assert!(delete.contains("deleteContentForward"));
   }
@@ -1485,7 +1486,7 @@ mod tests {
     let focus = plain.find("wdioFocus(focusTarget)").unwrap();
     let insert = plain.find("var insertedText = \"hi\"").unwrap();
     assert!(focus < insert);
-    assert!(plain[insert..].contains("wdioRecordPendingChange(receiver, receiver.value);"));
+    assert!(plain[insert..].contains("wdioRecordPendingChange(receiver, currentValue);"));
     assert!(plain.contains("return { status: 'done' };"));
     let empty = build_send_keys_start_script("__wd_el_abc", "", Some(""));
     assert!(!empty.contains("insertedText") && empty.contains("return { status: 'done' };"));
@@ -1558,18 +1559,15 @@ mod tests {
   }
 
   #[test]
-  fn edits_record_the_change_a_text_field_owes_before_changing_it() {
-    let record = "wdioRecordPendingChange(activeEl, activeEl.value);";
-    let editable = format!("if ({}) {{", is_editable_text_field_js("activeEl"));
-    for edit in [insert_text_js("activeEl", &js_string("x")), delete_js(true), delete_js(false)] {
-      let guard = edit.find(&editable).unwrap();
-      let recorded = edit.find(record).unwrap();
-      let changed = edit.find("nativeInputValueSetter.call(").unwrap();
-      assert!(guard < recorded && recorded < changed, "{edit}");
+  fn edits_that_change_a_text_field_record_the_change_it_owes() {
+    let record = "wdioRecordPendingChange(activeEl, currentValue);";
+    for (edit, changes) in [
+      (insert_text_js("activeEl", &js_string("x")), "if (activeEl.value !== currentValue) {"),
+      (delete_js(true), "if (removeStart !== removeEnd) {"),
+      (delete_js(false), "if (removeStart !== removeEnd) {"),
+    ] {
+      assert!(edit.find(changes).unwrap() < edit.find(record).unwrap(), "{edit}");
     }
-    let delete = delete_js(true);
-    let deletes = delete.find("if (removeStart !== removeEnd) {").unwrap();
-    assert!(deletes < delete.find(record).unwrap(), "{delete}");
     let none = mods(false, false, false, false);
     let ctrl = mods(true, false, false, false);
     for script in [
@@ -1595,14 +1593,15 @@ mod tests {
     let none = mods(false, false, false, false);
     let ctrl = mods(true, false, false, false);
     let lookup = deep_active_element_js("activeEl");
-    for script in [
-      build_printable_key_script("x", "KeyX", 88, true, &none),
-      build_printable_key_script("a", "KeyA", 65, true, &ctrl),
-      build_special_key_script("Backspace", "Backspace", 8, true, &none),
-      build_special_key_script("Delete", "Delete", 46, true, &none),
+    for (script, action) in [
+      (build_printable_key_script("x", "KeyX", 88, true, &none), "var insertedText ="),
+      (build_printable_key_script("a", "KeyA", 65, true, &ctrl), "activeEl.select();"),
+      (build_special_key_script("Backspace", "Backspace", 8, true, &none), "var removeStart ="),
+      (build_special_key_script("Delete", "Delete", 46, true, &none), "var removeStart ="),
     ] {
       let guard = script.find("if (canceled) {").unwrap();
-      assert!(script[guard..].contains(&lookup), "{script}");
+      let acts = script.find(action).unwrap();
+      assert!(guard < acts && script[guard..acts].contains(&lookup), "{script}");
     }
     for script in [
       build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none),
@@ -1637,7 +1636,7 @@ mod tests {
     let typed = build_send_keys_start_script("__wd_el_abc", "x", Some("x"));
     let body = after_helpers(&typed);
     let focus = body.find("wdioFocus(focusTarget);").unwrap();
-    assert!(focus < body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap());
+    assert!(focus < body.find("wdioRecordPendingChange(receiver, currentValue);").unwrap());
     assert!(!body.contains("new Event('change'"));
   }
 
