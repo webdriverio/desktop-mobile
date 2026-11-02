@@ -29,7 +29,8 @@ features = [ "derive" ]
 version = "1"
 features = [ "sync" ]
 
-# The versions wry uses, so the WebView2 types match its controller's.
+# Any version works, as the bridge rebinds wry's controller onto its own types. These are wry's, so
+# apps build one copy.
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = "0.38"
 windows-core = "0.61"

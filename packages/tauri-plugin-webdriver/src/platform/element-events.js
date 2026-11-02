@@ -194,10 +194,6 @@ function wdioTabKey(event) {
     candidate.addEventListener('focus', onFocus, true);
     wdioNativeFocus(candidate).call(candidate);
     candidate.removeEventListener('focus', onFocus, true);
-    // In a window without focus, no focus event fires, so select here instead.
-    if (isTextField && !focused) {
-      select();
-    }
     return focused || left || wdioDeepActiveElement() !== start;
   });
   start.removeEventListener('blur', onBlur, true);

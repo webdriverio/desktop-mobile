@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /// <reference lib="dom" />
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -70,6 +70,20 @@ describe('element-events.js', () => {
   it('should be the same in both embedded driver crates', () => {
     expect(readFileSync(join(REPO_ROOT, DIOXUS_COPY), 'utf8'), `copy ${TAURI_COPY} over ${DIOXUS_COPY}`).toBe(source);
   });
+
+  it.each(['packages/tauri-plugin-webdriver/src', 'packages/dioxus-embedded-driver/src'])(
+    'should define every helper the Rust code in %s calls',
+    (dir) => {
+      const defined = new Set(Array.from(source.matchAll(/^function (wdio\w+)/gm), (match) => match[1]));
+      const called = readdirSync(join(REPO_ROOT, dir), { recursive: true, encoding: 'utf8' })
+        .filter((file) => file.endsWith('.rs'))
+        .flatMap((file) =>
+          Array.from(readFileSync(join(REPO_ROOT, dir, file), 'utf8').matchAll(/\b(wdio[A-Z]\w*)\(/g), (m) => m[1]),
+        );
+      expect(called.length).toBeGreaterThan(0);
+      expect([...new Set(called)].filter((name) => !defined.has(name))).toEqual([]);
+    },
+  );
 });
 
 beforeEach(() => {

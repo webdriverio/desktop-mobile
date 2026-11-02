@@ -212,7 +212,10 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
     if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
-      emulate_page_focus(&webview2);
+      // Only under WebdriverIO, which sets the port, so an ordinary debug run keeps real focus.
+      if std::env::var_os(crate::PORT_ENV_VAR).is_some() {
+        emulate_page_focus(&webview2);
+      }
 
       // Disable default script dialogs so ScriptDialogOpening event fires
       if let Ok(settings) = webview2.Settings() {
@@ -244,9 +247,9 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
 /// Makes `WebView2` treat the page as focused even while its window is in the background, where
 /// scripted focus moves otherwise fire no `focus` or `blur`. Playwright does the same for Chromium.
 unsafe fn emulate_page_focus(webview2: &ICoreWebView2) {
-  let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, _| {
+  let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {
     if let Err(e) = result {
-      tracing::error!("Failed to turn on focus emulation: {e:?}");
+      tracing::error!("Failed to turn on focus emulation: {e:?} {json}");
     }
     Ok(())
   }));

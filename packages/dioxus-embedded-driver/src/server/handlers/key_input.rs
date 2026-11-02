@@ -586,7 +586,7 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                     focusTarget = focusTarget.parentElement;
                 }}
                 wdioCaretToEnd(el);
-                wdioFocus(focusTarget);
+                focusTarget.focus();
                 if (!wasFocused && el.isContentEditable) {{
                     try {{
                         var range = document.createRange();
@@ -974,7 +974,7 @@ mod tests {
     let stale = body.find("return { status: 'stale' };").unwrap();
     let file = body.find("el.type === 'file'").unwrap();
     let set = body.find(&format!("wdioSetValueControl(el, {});", js_string("2026-10-21"))).unwrap();
-    let focus = body.find("wdioFocus(focusTarget);").unwrap();
+    let focus = body.find("focusTarget.focus();").unwrap();
     assert!(stale < file && file < set && set < focus, "{body}");
     assert!(!body.contains("throw"));
   }
@@ -983,7 +983,7 @@ mod tests {
   fn send_keys_start_script_types_only_into_an_editable_text_field_or_editor() {
     let script = build_send_keys_start_script("__wdio_elem_abc", "x", Some("x"));
     let body = after_helpers(&script);
-    let focus = body.find("wdioFocus(focusTarget);").unwrap();
+    let focus = body.find("focusTarget.focus();").unwrap();
     let unfocused = body.find("return { status: 'unfocused' };").unwrap();
     let record = body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap();
     let insert = body.find("var insertedText = \"x\";").unwrap();

@@ -737,7 +737,7 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                     focusTarget = focusTarget.parentElement;
                 }}
                 wdioCaretToEnd(el);
-                wdioFocus(focusTarget);
+                focusTarget.focus();
                 if (!wasFocused && el.isContentEditable) {{
                     try {{
                         var range = document.createRange();
@@ -1457,7 +1457,7 @@ mod tests {
     let script = build_send_keys_start_script("__wd_el_abc", "", None);
     let body = after_helpers(&script);
     let field_caret = body.find("wdioCaretToEnd(el);").unwrap();
-    let focus = body.find("wdioFocus(focusTarget)").unwrap();
+    let focus = body.find("focusTarget.focus()").unwrap();
     let editor_caret = body.find("range.collapse(false)").unwrap();
     let delegated_caret = body.find("wdioCaretToEnd(receiver);").unwrap();
     assert!(field_caret < focus && focus < editor_caret && editor_caret < delegated_caret);
@@ -1489,7 +1489,7 @@ mod tests {
   #[test]
   fn build_send_keys_start_script_types_plain_text_in_the_same_script() {
     let plain = build_send_keys_start_script("__wd_el_abc", "hi", Some("hi"));
-    let focus = plain.find("wdioFocus(focusTarget)").unwrap();
+    let focus = plain.find("focusTarget.focus()").unwrap();
     let record = plain.find("wdioRecordPendingChange(receiver").unwrap();
     let insert = plain.find("var insertedText = \"hi\"").unwrap();
     assert!(focus < record && record < insert);
@@ -1617,7 +1617,7 @@ mod tests {
     for plain in [None, Some("x")] {
       let script = build_send_keys_start_script("__wd_el_abc", "x", plain);
       let body = after_helpers(&script);
-      let focus = body.find("wdioFocus(focusTarget);").unwrap();
+      let focus = body.find("focusTarget.focus();").unwrap();
       assert!(focus < body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap());
       assert!(!body.contains("new Event('change'"));
     }
@@ -1671,7 +1671,7 @@ mod tests {
       .unwrap();
     let returned = script.find("return { status: valueControlStatus };").unwrap();
     assert!(
-      file < set && set < returned && returned < script.find("wdioFocus(focusTarget);").unwrap()
+      file < set && set < returned && returned < script.find("focusTarget.focus();").unwrap()
     );
   }
 

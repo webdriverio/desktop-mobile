@@ -59,7 +59,7 @@ The embedded driver works on all three platforms:
 | Linux    | ✅     |
 | macOS    | ✅     |
 
-On Windows, the driver turns on WebView2's focus emulation, so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front.
+When WebdriverIO launches the app on Windows, the driver turns on WebView2's focus emulation, so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front. The page also counts as visible, so a minimized window fires no `visibilitychange`, and its timers aren't slowed.
 
 ## Limitations
 
