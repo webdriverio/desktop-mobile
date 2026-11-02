@@ -212,7 +212,7 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     let webview2 = match core_webview2(&webview) {
       Ok(webview2) => webview2,
       Err(e) => {
-        tracing::error!("Failed to get the webview's ICoreWebView2: {e:?}");
+        tracing::warn!("Failed to get the webview's ICoreWebView2: {e:?}");
         return;
       }
     };

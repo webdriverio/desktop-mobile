@@ -62,13 +62,13 @@ function type(el: HTMLInputElement, text: string) {
 
 // Runs `run` with `type` events stopped at the window, before the page's listeners, as WebKit sends
 // no `blur` or `focus` while its window isn't focused.
-function withStopped(type: string, run: () => void) {
+function withStopped(eventType: string, run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
-  window.addEventListener(type, stop, true);
+  window.addEventListener(eventType, stop, true);
   try {
     run();
   } finally {
-    window.removeEventListener(type, stop, true);
+    window.removeEventListener(eventType, stop, true);
   }
 }
 
@@ -616,17 +616,29 @@ describe('Tab', () => {
     expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
   });
 
-  it("should fire the field's change when a handler cancels Tab and moves focus itself", () => {
-    render('<input id="a"><input id="b"><input id="c">');
-    type($('#a'), 'x');
-    const trap = (event: Event) => {
-      event.preventDefault();
-      $('#c').focus();
-    };
-    $('#a').addEventListener('keydown', trap, { once: true });
-    expect(tab()).toBe('c');
-    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
-  });
+  it.each(['', ', on focusout if no blur arrives'])(
+    "should fire the field's change when a handler cancels Tab and moves focus itself%s",
+    (stopped) => {
+      render('<input id="a"><input id="b"><input id="c">');
+      type($('#a'), 'x');
+      const trap = (event: Event) => {
+        event.preventDefault();
+        $('#c').focus();
+      };
+      $('#a').addEventListener('keydown', trap, { once: true });
+      let landed: string | undefined;
+      const press = () => {
+        landed = tab();
+      };
+      if (stopped) {
+        withStopped('blur', press);
+      } else {
+        press();
+      }
+      expect(landed).toBe('c');
+      expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+    },
+  );
 
   it('should focus a text field once, though select() focuses it in Chromium', () => {
     const select = HTMLInputElement.prototype.select;
@@ -786,7 +798,7 @@ describe('Tab', () => {
     vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
       if (this.id === 'name') {
         for (const eventType of eventTypes) {
-          $('#qty').dispatchEvent(new FocusEvent(eventType));
+          $('#qty').dispatchEvent(new FocusEvent(eventType, { bubbles: eventType === 'focusout', composed: true }));
         }
       } else {
         focus.call(this);
