@@ -148,7 +148,46 @@ describe('ElectrobunLaunchService', () => {
         { 'wdio:electrobunServiceOptions': { mode: 'native' } },
       ];
 
-      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow(/Mixed browser-mode and native-mode/);
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toMatchObject({
+        message: expect.stringContaining('All Electrobun capabilities must use the same mode'),
+      });
+    });
+
+    it('should keep each capability its own devServerUrl and probe each one', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+      const launcher = makeLauncher({ mode: 'browser', devServerUrl: 'http://localhost:3000' });
+      const caps: ElectrobunCapabilities[] = [
+        { 'wdio:electrobunServiceOptions': { devServerUrl: 'http://localhost:3001' } },
+        {},
+      ];
+
+      await launcher.onPrepare(baseConfig, { appA: { capabilities: caps[0] }, appB: { capabilities: caps[1] } });
+
+      expect(caps[0]['wdio:electrobunServiceOptions']?.devServerUrl).toBe('http://localhost:3001');
+      expect(caps[1]['wdio:electrobunServiceOptions']?.devServerUrl).toBe('http://localhost:3000');
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['http://localhost:3001', 'http://localhost:3000']);
+    });
+
+    it('should name the unreachable dev server of a later capability', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          if (url === 'http://localhost:3001') {
+            throw new Error('ECONNREFUSED');
+          }
+          return new Response(null, { status: 200 });
+        }),
+      );
+      const launcher = makeLauncher({ mode: 'browser', devServerUrl: 'http://localhost:3000' });
+      const caps: ElectrobunCapabilities[] = [
+        {},
+        { 'wdio:electrobunServiceOptions': { devServerUrl: 'http://localhost:3001' } },
+      ];
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toMatchObject({
+        message: expect.stringContaining('Dev server not reachable at http://localhost:3001'),
+      });
     });
 
     it('should NOT apply the native-mode macOS guard in browser mode on Linux', async () => {
@@ -699,6 +738,28 @@ describe('ElectrobunLaunchService — devServer management', () => {
     const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER } as never);
     await launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never);
     expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should ignore a devServer set on a capability', async () => {
+    const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    const caps = [{ 'wdio:electrobunServiceOptions': { devServer: 'pnpm dev' } }];
+
+    await launcher.onPrepare(baseConfig, caps as never);
+
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should give every capability the managed dev server URL over its own devServerUrl', async () => {
+    const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    const caps: ElectrobunCapabilities[] = [
+      { 'wdio:electrobunServiceOptions': { devServerUrl: 'http://localhost:3001' } },
+      {},
+    ];
+
+    await launcher.onPrepare(baseConfig, caps);
+
+    expect(startManagedDevServer).toHaveBeenCalledOnce();
+    expect(caps.map((cap) => cap['wdio:electrobunServiceOptions']?.devServerUrl)).toEqual([DEV_SERVER, DEV_SERVER]);
   });
 
   it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {

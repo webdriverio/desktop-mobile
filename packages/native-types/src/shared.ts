@@ -223,11 +223,6 @@ export type DevServer = string | DevServerObject | (() => Promise<{ url: string;
  */
 export interface BaseServiceOptions extends LogCaptureConfig, MockLifecycleConfig {
   /**
-   * Auto-manage the dev server in browser mode (spawn in `onPrepare`, wait for `devServerUrl`,
-   * tear down on completion). Ignored outside browser mode.
-   */
-  devServer?: DevServer;
-  /**
    * The path to the application binary for testing
    */
   appBinaryPath?: string;
@@ -248,7 +243,8 @@ export interface BaseServiceOptions extends LogCaptureConfig, MockLifecycleConfi
 export interface BaseServiceGlobalOptions extends LogCaptureConfig, MockLifecycleConfig {
   /**
    * Auto-manage the dev server in browser mode (spawn in `onPrepare`, wait for `devServerUrl`,
-   * tear down on completion). Ignored outside browser mode.
+   * tear down on completion). Ignored outside browser mode. Service-level only: one dev server
+   * serves every capability, and they all open its URL.
    */
   devServer?: DevServer;
 }

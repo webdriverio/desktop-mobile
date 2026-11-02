@@ -256,6 +256,12 @@ describe('browser mode — multiremote mocks', () => {
   beforeEach(() => mockStore.clear());
   afterEach(() => mockStore.clear());
 
+  it('should name the multiremote instance that has no devServerUrl', async () => {
+    await expect(setUp({}, { browserB: { devServerUrl: undefined } })).rejects.toMatchObject({
+      message: 'devServerUrl is required for browser mode but was not set for multiremote instance "browserB"',
+    });
+  });
+
   it('should give each instance its own mock of a command, registered in its own app', async () => {
     await setUp();
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFakeBrowser } from './helpers.js';
+import { createFakeBrowser, createFakeMultiremoteBrowser } from './helpers.js';
 
 // Embedded-driver setup — none of these should run when mode is 'browser'.
 vi.mock('../../src/providers/embedded.js', () => ({
@@ -15,12 +15,14 @@ vi.mock('@wdio/native-utils', async (importOriginal) => ({
   createLogger: vi.fn(() => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), trace: vi.fn() })),
 }));
 
+import { SevereServiceError } from 'webdriverio';
 import DioxusLaunchService from '../../src/launcher.js';
 import { startEmbeddedDriver } from '../../src/providers/embedded.js';
 import DioxusWorkerService from '../../src/service.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../../src/types.js';
 
 const DEV_SERVER = 'http://localhost:8080';
+const OTHER_DEV_SERVER = 'http://localhost:8081';
 const baseConfig = {} as Parameters<DioxusLaunchService['onPrepare']>[0];
 
 function createLauncher(globalOpts: Partial<DioxusServiceGlobalOptions> = {}): DioxusLaunchService {
@@ -67,18 +69,22 @@ describe('launcher → worker handshake (browser mode)', () => {
     expect(startEmbeddedDriver).not.toHaveBeenCalled();
   });
 
-  it('should detect browser mode set on a non-first capability', async () => {
+  it('should reject capabilities that mix native and browser modes', async () => {
     const launcher = createLauncher();
     const caps: Array<Record<string, unknown>> = [
       { 'wdio:dioxusServiceOptions': {} },
       { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
     ];
 
-    await launcher.onPrepare(baseConfig, caps as never);
+    const error = await launcher.onPrepare(baseConfig, caps as never).catch((e: unknown) => e);
 
-    // Every capability is rewritten to chrome when any one requests browser mode.
-    expect(caps[0].browserName).toBe('chrome');
-    expect(caps[1].browserName).toBe('chrome');
+    expect(error).toBeInstanceOf(SevereServiceError);
+    expect(error).toMatchObject({
+      message: expect.stringContaining(
+        'All Dioxus capabilities must use the same mode, but found mixed modes: native, browser',
+      ),
+    });
+    expect(caps[0].browserName).toBeUndefined();
     expect(startEmbeddedDriver).not.toHaveBeenCalled();
   });
 
@@ -137,28 +143,28 @@ describe('launcher → worker handshake (browser mode)', () => {
     expect(startEmbeddedDriver).not.toHaveBeenCalled();
   });
 
-  it('should enter browser mode in a multiremote worker', async () => {
-    const launcher = createLauncher();
+  it('should navigate each multiremote instance to its own devServerUrl', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
     const caps = {
-      browserA: { capabilities: { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } } },
+      browserA: { capabilities: { 'wdio:dioxusServiceOptions': { devServerUrl: OTHER_DEV_SERVER } } },
       browserB: { capabilities: {} },
     };
     await launcher.onPrepare(baseConfig, caps as never);
 
+    // Built without service options, so each instance's URL can only come from its own capability.
     const worker = new DioxusWorkerService({}, caps as never);
-    const instances = new Map([
-      ['browserA', createFakeBrowser()],
-      ['browserB', createFakeBrowser()],
-    ]);
-    const browser = Object.assign(createFakeBrowser(), {
-      isMultiremote: true,
-      instances: [...instances.keys()],
-      getInstance: (name: string) => instances.get(name),
-    });
-    const urlSpy = browser.url;
-    await worker.before({}, [], browser as unknown as WebdriverIO.Browser);
+    const { root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB']);
+    const rootUrl = root.url;
+    await worker.before({}, [], root as unknown as WebdriverIO.Browser);
 
-    expect(urlSpy).toHaveBeenCalledWith(DEV_SERVER);
+    expect(instances.get('browserA')?.url).toHaveBeenCalledExactlyOnceWith(OTHER_DEV_SERVER);
+    expect(instances.get('browserB')?.url).toHaveBeenCalledExactlyOnceWith(DEV_SERVER);
+    expect(rootUrl).not.toHaveBeenCalled();
+    for (const instance of instances.values()) {
+      expect(instance.execute.mock.calls.some(([script]) => String(script).includes('__wdio_original_invoke__'))).toBe(
+        true,
+      );
+    }
     expect(instances.get('browserA')?.dioxus).toHaveProperty('execute');
     expect(instances.get('browserB')?.dioxus).toHaveProperty('execute');
   });

@@ -76,6 +76,8 @@ export const config = {
 
 Capability-level options take precedence over service-level ones. All capabilities in a session must use the same mode; mixing `'native'` and `'browser'` across capabilities throws a `SevereServiceError` at startup.
 
+Each capability opens its own `devServerUrl`, or the service-level one if it sets none. The service checks that each URL is reachable before the tests start.
+
 ## Auto-managing the dev server
 
 By default you start the dev server yourself. The optional `devServer` service option makes the service **spawn it in `onPrepare`, wait until `devServerUrl` is reachable, and tear it down on completion** (and on a startup failure). It takes three forms:
@@ -103,8 +105,9 @@ devServer: async () => {
 ```
 
 Notes:
-- `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode.
-- In standalone mode, a dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
+- `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode. The service ignores a `devServer` set in a capability.
+- Every capability opens the managed server's URL, in place of its own `devServerUrl`. With the string or object form, set `devServerUrl` in the service options: it is the URL the service waits for.
+- In standalone mode, pass `devServer` in the global options, `startWdioSession()`'s second argument. A dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
 - With `reuseExistingServer` (default off in CI, on locally), if `devServerUrl` is already reachable the spawn is skipped — handy when you already have `pnpm dev` running during local iteration.
 - The command form spawns in a shell and tears down the whole process tree (so `pnpm dev → vite → esbuild` grandchildren don't orphan); the function form avoids subprocesses entirely.
 - The same option is available on the Tauri, Electron, and Electrobun services.
@@ -210,7 +213,7 @@ describe('File panel', () => {
 
 ## Multiremote
 
-Each named multiremote instance gets its own isolated mock registry.
+Each named multiremote instance gets its own isolated mock registry, and opens its own `devServerUrl`.
 
 ```ts
 export const config = {
@@ -225,12 +228,14 @@ export const config = {
     app2: {
       capabilities: {
         browserName: 'dioxus',
-        'wdio:dioxusServiceOptions': { devServerUrl: 'http://localhost:8080' },
+        'wdio:dioxusServiceOptions': { devServerUrl: 'http://localhost:8081' },
       },
     },
   },
 };
 ```
+
+Each instance's `devServerUrl` sets only its first page. Afterwards, `browser.url(href)` on the root navigates every instance to `href`. To navigate one instance, call `url()` on it: `browser.getInstance('app1').url(href)`.
 
 ```ts
 const mock1 = await browser.getInstance('app1').dioxus.mock('read_file');
