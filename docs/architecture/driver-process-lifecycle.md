@@ -35,7 +35,7 @@ Approach depends on what the driver supports:
 
 1. Send `SIGTERM`. A driver started through `cmd.exe` on Windows needs `taskkill /pid <pid> /T /F` instead: killing `cmd.exe` alone leaves the driver it started running and holding its port.
 2. Wait for exit (5s local, 10s CI — CI environments are slower)
-3. If still running, send `SIGKILL`
+3. If still running, send `SIGKILL`, or run `taskkill` again for a driver started through `cmd.exe`
 4. Wait 500ms after exit for port release
 
 ```typescript
