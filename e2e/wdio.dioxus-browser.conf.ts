@@ -58,8 +58,6 @@ export const config: Options.Testrunner = {
       browserName: 'dioxus',
       'wdio:dioxusServiceOptions': {
         mode: 'browser',
-        devServerUrl,
-        devServer,
       },
     },
   ] as unknown as Options.Testrunner['capabilities'],
@@ -70,7 +68,7 @@ export const config: Options.Testrunner = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  services: ['@wdio/dioxus-service'],
+  services: [['@wdio/dioxus-service', { devServerUrl, devServer }]],
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: {

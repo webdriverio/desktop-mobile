@@ -1,4 +1,9 @@
-import { nonChromeBrowserNameError, probeDevServerReachable, startManagedDevServer } from '@wdio/native-core';
+import {
+  mixedModesError,
+  nonChromeBrowserNameError,
+  resolveDevServerUrls,
+  startManagedDevServer,
+} from '@wdio/native-core';
 import type {
   AppBuildInfo,
   BinaryPathResult,
@@ -148,12 +153,9 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
       const capOpts = ((cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] ?? {}) as ElectronServiceGlobalOptions;
       return capOpts.mode ?? this.#globalOptions.mode ?? 'native';
     });
-    const uniqueModes = new Set(modes);
-    if (uniqueModes.size > 1) {
-      throw new SevereServiceError(
-        `All Electron capabilities must use the same mode, but found mixed modes: ${[...uniqueModes].join(', ')}. ` +
-          "Set mode consistently across all 'wdio:electronServiceOptions' entries.",
-      );
+    const modesError = mixedModesError(modes, 'Electron', CUSTOM_CAPABILITY_NAME);
+    if (modesError) {
+      throw new SevereServiceError(modesError);
     }
     const mode = modes[0] ?? 'native';
 
@@ -170,8 +172,8 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
       // is up must stop it, because WDIO does not call onComplete after an onPrepare throw.
       try {
         // Auto-manage the dev server once for the run if requested; the managed readiness wait
-        // supersedes the per-cap preflight below, and a devServer function may supply the URL. A
-        // managed server serves one URL for every cap.
+        // supersedes the per-capability preflight below, and a devServer function may supply the
+        // URL. A managed server serves one URL for every capability.
         let managedUrl: string | undefined;
         if (this.#globalOptions.devServer) {
           // Only a devServer *function* can supply the URL; a string/object form needs devServerUrl
@@ -189,32 +191,24 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           this.#stopDevServer = managed.stop;
           managedUrl = managed.url;
         }
-        // Validate (+ preflight each distinct URL once when unmanaged) and stamp the resolved URL
-        // back onto every cap so the worker navigates to it (a devServer function may have overridden it).
-        const probedUrls = new Set<string>();
-        for (const cap of caps) {
-          const capRecord = cap as Record<string, unknown>;
-          const capOpts = (capRecord[CUSTOM_CAPABILITY_NAME] ?? {}) as ElectronServiceGlobalOptions;
-          const devServerUrl = managedUrl ?? capOpts.devServerUrl ?? this.#globalOptions.devServerUrl;
-          if (!devServerUrl) {
-            throw new SevereServiceError(
-              'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
-            );
-          }
-          try {
-            new URL(devServerUrl);
-          } catch {
-            throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
-          }
-          if (!this.#globalOptions.devServer && !probedUrls.has(devServerUrl)) {
-            const reachable = await probeDevServerReachable(devServerUrl);
-            if (isErr(reachable)) {
-              throw severeServiceError(reachable.error);
-            }
-            probedUrls.add(devServerUrl);
-          }
-          capRecord[CUSTOM_CAPABILITY_NAME] = { ...capOpts, devServerUrl };
+        // Write each capability's resolved URL back into it for the worker; a devServer function may
+        // have replaced it.
+        const capOptsList = caps.map(
+          (cap) => ((cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] ?? {}) as ElectronServiceGlobalOptions,
+        );
+        const devServerUrls = await resolveDevServerUrls(
+          capOptsList.map((capOpts) => capOpts.devServerUrl ?? this.#globalOptions.devServerUrl),
+          managedUrl,
+        );
+        if (isErr(devServerUrls)) {
+          throw severeServiceError(devServerUrls.error);
         }
+        caps.forEach((cap, index) => {
+          (cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] = {
+            ...capOptsList[index],
+            devServerUrl: devServerUrls.value[index],
+          };
+        });
         // Rewrite every cap to a system-Chrome session.
         for (const cap of caps) {
           cap.browserName = 'chrome';

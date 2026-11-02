@@ -54,8 +54,8 @@ describe('standalone init()', () => {
     function browserModeCapabilities(): DioxusCapabilities {
       return {
         browserName: 'dioxus',
-        'wdio:dioxusServiceOptions': { mode: 'browser', devServer },
-      } as DioxusCapabilities;
+        'wdio:dioxusServiceOptions': { mode: 'browser' },
+      };
     }
 
     it('should open a Chrome session without a driver port and load the managed dev server', async () => {
@@ -63,7 +63,7 @@ describe('standalone init()', () => {
       const initialUrl = sessionBrowser.url;
       remoteMock.mockResolvedValue(sessionBrowser);
 
-      const browser = await init(browserModeCapabilities());
+      const browser = await init(browserModeCapabilities(), { devServer });
 
       expect(devServer).toHaveBeenCalledOnce();
       expect(startEmbeddedDriver).not.toHaveBeenCalled();
@@ -81,7 +81,7 @@ describe('standalone init()', () => {
       remoteMock.mockResolvedValue(createSessionBrowser());
       const capabilities = browserModeCapabilities();
 
-      const browser = await init(capabilities);
+      const browser = await init(capabilities, { devServer });
 
       expect(remoteMock.mock.calls[0][0].capabilities).toMatchObject({
         browserName: 'chrome',
@@ -108,7 +108,7 @@ describe('standalone init()', () => {
     it('should delete the session and stop the managed dev server on cleanup', async () => {
       const sessionBrowser = createSessionBrowser();
       remoteMock.mockResolvedValue(sessionBrowser);
-      const browser = await init(browserModeCapabilities());
+      const browser = await init(browserModeCapabilities(), { devServer });
       expect(closeDevServer).not.toHaveBeenCalled();
 
       await cleanup(browser);
@@ -121,7 +121,7 @@ describe('standalone init()', () => {
       const error = new Error('chromedriver failed to start');
       remoteMock.mockRejectedValueOnce(error);
 
-      await expect(init(browserModeCapabilities())).rejects.toBe(error);
+      await expect(init(browserModeCapabilities(), { devServer })).rejects.toBe(error);
       expect(closeDevServer).toHaveBeenCalledOnce();
     });
   });
@@ -166,10 +166,10 @@ describe('standalone init()', () => {
     it('should reject with the unsupported-provider error before starting a driver or dev server', async () => {
       const capabilities = {
         'dioxus:options': { application: '/app/dioxus-app' },
-        'wdio:dioxusServiceOptions': { driverProvider: 'external', devServer },
+        'wdio:dioxusServiceOptions': { driverProvider: 'external' },
       } as DioxusCapabilities;
 
-      const error = await init(capabilities).catch((e: unknown) => e);
+      const error = await init(capabilities, { devServer }).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(SevereServiceError);
       expect(error).toMatchObject({ message: expect.stringContaining("driverProvider: 'external' is not supported") });

@@ -112,7 +112,14 @@ expect(title).toBe('My App');
 
 The **`clearMocks`**, **`resetMocks`** and **`restoreMocks`** service options clear, reset or restore every mock before each test, like calling `clearAllMocks()`, `resetAllMocks()` or `restoreAllMocks()` in a `beforeEach`. Their prefix options (`clearMocksPrefix`, `resetMocksPrefix` and `restoreMocksPrefix`) limit each to the mocks under a target path: `'api'` covers `api.*`. In multiremote, each instance applies the three options, and their prefixes, from its own `wdio:electrobunServiceOptions` to its own mocks. An instance that doesn't set an option uses the service-level value.
 
-Browser mode also supports the optional **`devServer`** service option — the launcher spawns your dev server in `onPrepare`, waits until `devServerUrl` is reachable, and tears it down afterwards (and on a startup failure). It accepts a shell command (`'pnpm dev'`), a config object (`{ command, cwd, env, timeoutMs, reuseExistingServer }`), or an `async () => ({ url, close })` function; `reuseExistingServer` defaults to reusing a running server locally and always spawning fresh in CI. In standalone mode, a dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
+All capabilities in a run must use the same `mode`; mixing `'native'` and `'browser'` throws a `SevereServiceError`. In browser mode, each capability opens its own `devServerUrl`, or the service-level one if it sets none.
+
+Browser mode also supports the optional **`devServer`** service option — the launcher spawns your dev server in `onPrepare`, waits until `devServerUrl` is reachable, and tears it down afterwards (and on a startup failure). It accepts a shell command (`'pnpm dev'`), a config object (`{ command, cwd, env, timeoutMs, reuseExistingServer }`), or an `async () => ({ url, close })` function.
+
+- `devServer` is service-level only: the service ignores it in a capability.
+- Every capability opens the managed server's URL, in place of its own `devServerUrl`. With the string or object form, set `devServerUrl` in the service options: it is the URL the service waits for.
+- `reuseExistingServer` defaults to reusing a running server locally and always spawning fresh in CI.
+- In standalone mode, pass `devServer` in the global options, `startWdioSession()`'s second argument. A dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
 
 ## Known limitations
 

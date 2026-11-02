@@ -51,6 +51,8 @@ const href = await browser.dioxus.execute('window.location.href');
 
 **Note:** Requires the bridge, which `wdio_dioxus::install(config)` installs in the app. See [App Setup](./app-setup.md).
 
+**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. It rejects if any instance fails. To run it in one app, call it on that instance: `browser.getInstance('app1').dioxus.execute(...)`.
+
 ---
 
 ### `browser.dioxus.mock(command)`

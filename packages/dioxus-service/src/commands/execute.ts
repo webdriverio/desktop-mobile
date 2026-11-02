@@ -14,7 +14,9 @@
 //
 // No per-call windowLabel option yet (#722): scripts run in the current window.
 
+import { requireInstance } from '@wdio/native-core';
 import type { DioxusAPIs } from '@wdio/native-types';
+import { isMultiremote } from '@wdio/native-utils';
 
 // Sessions on the embedded driver, where function-form execute() results come back in the envelope.
 const embeddedBrowsers = new WeakSet<WebdriverIO.Browser>();
@@ -28,6 +30,14 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   script: string | ((dx: DioxusAPIs, ...args: InnerArguments) => ReturnValue),
   ...args: InnerArguments
 ): Promise<Awaited<ReturnValue>> {
+  // The root's own execute would return every instance's envelope unopened, so each instance runs it instead
+  if (isMultiremote(browser)) {
+    const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+    return (await Promise.all(
+      mrBrowser.instances.map((name) => execute(requireInstance(mrBrowser, name), script, ...args)),
+    )) as Awaited<ReturnValue>;
+  }
+
   if (typeof script === 'function') {
     const fnSource = script.toString();
     // Inline the args as JSON literals rather than relying on `arguments`.
