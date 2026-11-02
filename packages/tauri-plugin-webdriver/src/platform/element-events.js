@@ -204,7 +204,8 @@ function wdioTabKey(event) {
     wdioNativeFocus(candidate).call(candidate);
     candidate.removeEventListener('focus', onFocus, true);
     candidate.removeEventListener('focusin', onFocus, true);
-    // No focus event reaches the field when a capture listener stops it, so select here instead.
+    // Neither event reaches the field when WebView2 runs without focus emulation, or a capture
+    // listener stops both, so select here instead.
     if (isTextField && !focused) {
       select();
     }
@@ -451,8 +452,8 @@ function wdioFocusForClick(el) {
   const onFocus = () => {
     moved = true;
   };
-  // WebKit sends only `focusin` and `focusout` while its window isn't focused.
-  const focusEvents = ['focus', 'focusin', 'focusout'];
+  // Not `focus`, which WebKit doesn't send while its window isn't focused: `focusin` follows it.
+  const focusEvents = ['focusin', 'focusout'];
   for (const type of focusEvents) {
     document.addEventListener(type, onFocus, true);
   }

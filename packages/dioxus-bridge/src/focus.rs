@@ -19,7 +19,7 @@ pub(crate) fn emulate_page_focus(dom: &mut VirtualDom) {
 mod webview2 {
   use dioxus_desktop::wry::WebViewExtWindows;
   use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
-  use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller;
+  use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2;
   use windows_core::{HSTRING, PCWSTR};
 
   pub(super) fn emulate_page_focus() {
@@ -30,21 +30,18 @@ mod webview2 {
     // SAFETY: both types are #[repr(transparent)] pointers to the same WebView2 COM object, whose
     // layout is fixed by WebView2, not by the crate version, so the bridge needn't match wry's.
     #[allow(clippy::useless_transmute)]
-    let controller: ICoreWebView2Controller =
-      unsafe { std::mem::transmute(desktop.webview.controller()) };
-    // SAFETY: COM calls on the webview's own UI thread, where Dioxus runs its tasks.
+    let webview: ICoreWebView2 = unsafe { std::mem::transmute(desktop.webview.webview()) };
+    let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {
+      if let Err(e) = result {
+        tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: {e:?} {json}");
+      }
+      Ok(())
+    }));
+    let method = HSTRING::from("Emulation.setFocusEmulationEnabled");
+    let params = HSTRING::from(r#"{"enabled":true}"#);
+    // SAFETY: a COM call on the webview's own UI thread, where Dioxus runs its tasks.
     let result = unsafe {
-      controller.CoreWebView2().and_then(|webview| {
-        let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {
-          if let Err(e) = result {
-            tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: {e:?} {json}");
-          }
-          Ok(())
-        }));
-        let method = HSTRING::from("Emulation.setFocusEmulationEnabled");
-        let params = HSTRING::from(r#"{"enabled":true}"#);
-        webview.CallDevToolsProtocolMethod(PCWSTR(method.as_ptr()), PCWSTR(params.as_ptr()), &handler)
-      })
+      webview.CallDevToolsProtocolMethod(PCWSTR(method.as_ptr()), PCWSTR(params.as_ptr()), &handler)
     };
     if let Err(e) = result {
       tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: {e:?}");

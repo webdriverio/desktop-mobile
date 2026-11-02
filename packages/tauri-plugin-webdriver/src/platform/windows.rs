@@ -238,6 +238,8 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
 
       // Prevent handler from being dropped - leak it to keep the COM ref alive
       std::mem::forget(handler);
+    } else {
+      tracing::error!("Failed to get the webview's ICoreWebView2");
     }
   });
 }

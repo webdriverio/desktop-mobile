@@ -625,6 +625,17 @@ describe('Tab', () => {
     expect([$('#city').selectionStart, $('#city').selectionEnd]).toEqual([0, 11]);
   });
 
+  it("should select a text field before its focusin handlers when only focusin arrives, as in WebKit's unfocused windows", () => {
+    render('<input id="a"><input id="ph" value="+1 ">');
+    $('#ph').addEventListener('focusin', () => $('#ph').setSelectionRange(3, 3));
+    const stopFocus = (event: Event) => event.stopImmediatePropagation();
+    window.addEventListener('focus', stopFocus, true);
+    $('#a').focus();
+    tab();
+    window.removeEventListener('focus', stopFocus, true);
+    expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
+  });
+
   it('should leave the caret where the focus handler of the text field Tab moves to puts it', () => {
     render('<input id="a"><input id="ph" value="+1 ">');
     $('#ph').addEventListener('focus', () => $('#ph').setSelectionRange(3, 3));
@@ -743,14 +754,14 @@ describe('Tab', () => {
   // WebKit sends only focusout while its window isn't focused.
   it.each(['blur', 'focusout'])(
     'should stay on a field whose blur or change handler sends focus back to it, on its %s',
-    (type) => {
+    (eventType) => {
       render('<input id="qty"><input id="name"><input id="email">');
       // In Chrome and WebKit, a handler that refocuses the field cancels the move, so focus stays.
       // jsdom moves focus anyway, so this fakes the engine.
       const focus = HTMLElement.prototype.focus;
       vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
         if (this.id === 'name') {
-          $('#qty').dispatchEvent(new FocusEvent(type));
+          $('#qty').dispatchEvent(new FocusEvent(eventType));
         } else {
           focus.call(this);
         }
@@ -906,6 +917,10 @@ describe('wdioPress and wdioRelease', () => {
 });
 
 describe('wdioFocusForClick', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() =>
     render(`<input id="a"><button id="b"><span id="inner">b</span></button><div id="plain">plain</div>
       <label id="label" for="a">A</label><div id="box" tabindex="-1"><span id="text">text</span></div>`),
@@ -920,11 +935,11 @@ describe('wdioFocusForClick', () => {
   it("should stop where a change handler sends focus back, when only focusout arrives, as in WebKit's unfocused windows", () => {
     type($('#a'), 'x');
     // WebKit cancels a focus move that a focusout handler undoes; jsdom doesn't, so this fakes it.
-    const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
+    vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {
       $('#a').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
     });
     events.wdioFocusForClick($('#b'));
-    focus.mockRestore();
+    vi.restoreAllMocks();
     expect(document.activeElement?.id).toBe('a');
     expect(log).toEqual(['change a=x']);
   });
