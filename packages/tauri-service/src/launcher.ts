@@ -145,6 +145,8 @@ export default class TauriLaunchService {
   // Teardown for a service-managed dev server (browser mode). Called on an onPrepare failure and again from
   // onComplete, which WDIO and standalone sessions still run after one, so it's idempotent.
   #stopDevServer?: () => Promise<void>;
+  // A worker that fails to start ends the run while WebdriverIO's other workers may still be starting theirs
+  #workerStarts = new Set<Promise<void>>();
   private embeddedProcesses: Map<string, EmbeddedDriverInfo> = new Map();
   private embeddedConfigs: Map<string, EmbeddedLaunchConfig> = new Map();
   private isEmbeddedMode: boolean = false;
@@ -714,10 +716,14 @@ export default class TauriLaunchService {
     cid: string,
     caps: TauriCapabilities | TauriCapabilities[] | Record<string, { capabilities?: TauriCapabilities }> | undefined,
   ): Promise<void> {
+    const start = this.startWorker(cid, caps);
+    this.#workerStarts.add(start);
     try {
-      await this.startWorker(cid, caps);
+      await start;
     } catch (error) {
       throw stopTheRun(error, `Tauri service failed to start worker ${cid}`);
+    } finally {
+      this.#workerStarts.delete(start);
     }
   }
 
@@ -807,10 +813,8 @@ export default class TauriLaunchService {
     this.appBinaryPath = appBinaryPath;
     log.debug(`Using app binary path: ${this.appBinaryPath}`);
 
-    // Verify the binary exists (it should, since we resolved it in onPrepare)
     if (!existsSync(this.appBinaryPath)) {
-      log.error(`Tauri binary not found: ${this.appBinaryPath}`);
-      return;
+      throw new Error(`Tauri binary not found: ${this.appBinaryPath}`);
     }
 
     // For multiremote instances, ensure data directory isolation is set up
@@ -1108,6 +1112,7 @@ export default class TauriLaunchService {
     _capabilities?: TauriCapabilities[],
   ): Promise<void> {
     log.debug('Completing Tauri service...');
+    await Promise.allSettled(this.#workerStarts);
 
     try {
       await this.#stopDevServer?.();
