@@ -68,6 +68,7 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
   waitTestRunnerBackendReady: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { existsSync } from 'node:fs';
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { SevereServiceError } from 'webdriverio';
 import { startTestRunnerBackend } from '../src/crabnebulaBackend.js';
@@ -235,6 +236,17 @@ describe('app args', () => {
     startSecond({});
     await Promise.all([second, completed]);
     expect(driverPool(launcher).stopAll).toHaveBeenCalled();
+  });
+
+  it("should still start a worker's driver when its app binary isn't on this machine", async () => {
+    const cap = appCap();
+    const launcher = createLauncher({ driverProvider: 'external' }, 2);
+    await launcher.onPrepare({ maxInstances: 2 }, [cap]);
+    vi.mocked(existsSync).mockReturnValueOnce(false);
+
+    await launcher.onWorkerStart('0-0', cap);
+
+    expect(driverStarts(launcher).map(({ identifier }) => identifier)).toEqual(['0-0']);
   });
 
   it('should pass on a SevereServiceError from another copy of webdriverio as it is, logging its cause', async () => {

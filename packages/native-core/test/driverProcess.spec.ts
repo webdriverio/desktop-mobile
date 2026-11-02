@@ -93,9 +93,11 @@ async function startRunning(driverPath: string, taskkillExitCode = 0) {
 }
 
 describe('quoteForCmd', () => {
-  it('should quote an argument with a space or a cmd.exe special character', () => {
+  it('should quote an argument with a space, a cmd.exe special character or a delimiter', () => {
     expect(quoteForCmd('C:\\Users\\Jane Smith\\driver.cmd')).toBe('"C:\\Users\\Jane Smith\\driver.cmd"');
     expect(quoteForCmd('C:\\a&b\\driver.cmd')).toBe('"C:\\a&b\\driver.cmd"');
+    expect(quoteForCmd('C:\\Smith, Jane\\driver.cmd')).toBe('"C:\\Smith, Jane\\driver.cmd"');
+    expect(quoteForCmd('C:\\a,b;c=d\\driver.cmd')).toBe('"C:\\a,b;c=d\\driver.cmd"');
   });
 
   it('should leave a plain argument alone, and keep an empty one as ""', () => {

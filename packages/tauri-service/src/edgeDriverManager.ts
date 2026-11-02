@@ -167,8 +167,8 @@ const EDGEDRIVER_VERSION_ENV = 'EDGEDRIVER_VERSION';
  *      `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`) — the app renders with that runtime, not the machine's
  *      Evergreen, so its version is what the driver must match;
  *   3. the Evergreen runtime from the registry (the default).
- * The folder env is read with the app's own precedence — `options.env` over `process.env`
- * (`{ ...process.env, ...options.env }`) — so the resolver sees the folder the app actually uses.
+ * The folder env is read with the app's own precedence, `options.env` over `process.env`, so the resolver sees the
+ * folder the app actually uses.
  */
 export async function resolveTargetEdgeVersion(
   options: ResolveEdgeVersionOptions = {},

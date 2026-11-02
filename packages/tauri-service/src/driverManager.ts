@@ -1,6 +1,6 @@
 import { exec, execSync, spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, win32 } from 'node:path';
 import { promisify } from 'node:util';
 import { createLogger, Err, getWebKitWebDriverInstallCommand, Ok, type Result } from '@wdio/native-utils';
 import type { TauriServiceOptions } from './types.js';
@@ -43,7 +43,8 @@ export function findTauriDriver(): string | undefined {
       .split(/\r?\n/)
       // On Windows, convert Git Bash-style paths (/c/...) to Windows paths (C:\...)
       .map((path) => (isWindows && path.startsWith('/') ? convertGitBashPathToWindows(path) : path))
-      .filter((path) => path !== '' && existsSync(path));
+      // `where` also lists an npm shim's extensionless shell script, which Windows can't run
+      .filter((path) => path !== '' && existsSync(path) && (!isWindows || win32.extname(path) !== ''));
   } catch {
     // Not found in PATH
   }

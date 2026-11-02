@@ -813,10 +813,9 @@ export default class TauriLaunchService {
     this.appBinaryPath = appBinaryPath;
     log.debug(`Using app binary path: ${this.appBinaryPath}`);
 
-    // Verify the binary exists (it should, since we resolved it in onPrepare)
+    // The resolver also accepts a path only the driver can find, e.g. on a remote CrabNebula backend
     if (!existsSync(this.appBinaryPath)) {
-      log.error(`Tauri binary not found: ${this.appBinaryPath}`);
-      return;
+      log.warn(`Tauri binary not found on this machine, leaving it to the driver: ${this.appBinaryPath}`);
     }
 
     // For multiremote instances, ensure data directory isolation is set up
