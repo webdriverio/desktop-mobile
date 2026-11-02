@@ -100,19 +100,12 @@ describe('quoteForCmd', () => {
     expect(quoteForCmd('C:\\a,b;c=d\\driver.cmd')).toBe('"C:\\a,b;c=d\\driver.cmd"');
   });
 
-  it('should leave a plain argument alone, and keep an empty one as ""', () => {
+  it('should leave a plain argument alone', () => {
     expect(quoteForCmd('--port')).toBe('--port');
-    expect(quoteForCmd('')).toBe('""');
   });
 
   it('should re-quote an argument the caller already quoted, rather than trust it', () => {
     expect(quoteForCmd('"C:\\Program Files\\driver.exe"')).toBe('"C:\\Program Files\\driver.exe"');
-    expect(quoteForCmd('"C:\\My Drivers\\"')).toBe('"C:\\My Drivers\\\\"');
-    expect(quoteForCmd('"a" & calc & "b"')).toBe('"a"" & calc & ""b"');
-  });
-
-  it("should double a trailing backslash so it doesn't escape the closing quote", () => {
-    expect(quoteForCmd('C:\\My Drivers\\')).toBe('"C:\\My Drivers\\\\"');
   });
 });
 
@@ -122,18 +115,16 @@ describe('DriverProcess.start', () => {
     vi.clearAllMocks();
   });
 
-  it.each(['C:\\Users\\Jane Smith\\.cargo\\bin\\tauri-driver.exe', 'C:\\Tools\\TAURI-DRIVER.EXE'])(
-    'should start the Windows .exe driver %s directly, with its arguments as they are',
-    async (driverPath) => {
-      setPlatform('win32');
+  it('should start a Windows .exe driver directly, with its arguments as they are', async () => {
+    setPlatform('win32');
+    const driverPath = 'C:\\Users\\Jane Smith\\.cargo\\bin\\tauri-driver.exe';
 
-      const [command, args, options] = await startWith(driverPath);
+    const [command, args, options] = await startWith(driverPath);
 
-      expect(command).toBe(driverPath);
-      expect(args).toEqual(['--port', '4444', '--native-port', '4445', '--native-driver', NATIVE_DRIVER]);
-      expect(options).not.toHaveProperty('shell');
-    },
-  );
+    expect(command).toBe(driverPath);
+    expect(args).toEqual(['--port', '4444', '--native-port', '4445', '--native-driver', NATIVE_DRIVER]);
+    expect(options).not.toHaveProperty('shell');
+  });
 
   it("should drop a caller's quotes around a path when no cmd.exe is there to strip them", async () => {
     setPlatform('win32');

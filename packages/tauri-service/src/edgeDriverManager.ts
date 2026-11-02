@@ -153,11 +153,6 @@ export interface ResolvedEdgeVersion {
 }
 
 const WEBVIEW2_FOLDER_ENV = 'WEBVIEW2_BROWSER_EXECUTABLE_FOLDER';
-
-// Windows variable names ignore case, as they do for the app that gets this env
-function envVar(env: Record<string, string> | undefined, name: string): string | undefined {
-  return Object.entries(env ?? {}).find(([key]) => key.toUpperCase() === name)?.[1];
-}
 const EDGEDRIVER_VERSION_ENV = 'EDGEDRIVER_VERSION';
 
 /**
@@ -184,7 +179,7 @@ export async function resolveTargetEdgeVersion(
   }
 
   const fixedFolder =
-    options.browserExecutableFolder ?? envVar(options.env, WEBVIEW2_FOLDER_ENV) ?? process.env[WEBVIEW2_FOLDER_ENV];
+    options.browserExecutableFolder ?? options.env?.[WEBVIEW2_FOLDER_ENV] ?? process.env[WEBVIEW2_FOLDER_ENV];
   if (fixedFolder) {
     const version = await detectFixedRuntimeVersion(fixedFolder);
     if (version) {

@@ -424,16 +424,6 @@ describe('Edge Driver Manager', () => {
       ).toEqual({ version: '149.0.4022.98', source: 'fixed-runtime' });
     });
 
-    it("should find the runtime folder in options.env whatever its name's case, as the app does", async () => {
-      const { existsSync } = await import('node:fs');
-      vi.mocked(existsSync).mockImplementation((p: any) => String(p).endsWith('msedgewebview2.exe'));
-      await mockVersionInfo('149.0.4022.98');
-
-      expect(
-        await resolveTargetEdgeVersion({ env: { WebView2_Browser_Executable_Folder: 'C:\\FixedRuntime' } }),
-      ).toEqual({ version: '149.0.4022.98', source: 'fixed-runtime' });
-    });
-
     it('should read the folder from process.env when options.env is absent', async () => {
       process.env.WEBVIEW2_BROWSER_EXECUTABLE_FOLDER = 'C:\\FixedRuntime';
       const { existsSync } = await import('node:fs');

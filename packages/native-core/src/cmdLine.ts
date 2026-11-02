@@ -5,13 +5,12 @@ export function unquote(arg: string): string {
   return arg.length > 1 && arg.startsWith('"') && arg.endsWith('"') ? arg.slice(1, -1) : arg;
 }
 
-// A trailing backslash is doubled so it doesn't escape the closing quote
 export function quoteForCmd(arg: string): string {
   const bare = unquote(arg);
-  if (bare !== '' && !/[\s"&()<>^|,;=]/.test(bare)) {
+  if (!/[\s"&()<>^|,;=]/.test(bare)) {
     return bare;
   }
-  return `"${bare.replace(/"/g, '""').replace(/(\\+)$/, '$1$1')}"`;
+  return `"${bare.replace(/"/g, '""')}"`;
 }
 
 // On Windows only a .exe or .com starts without cmd.exe; a .cmd shim, or a bare name cmd.exe resolves, needs it

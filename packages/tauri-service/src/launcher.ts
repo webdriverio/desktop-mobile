@@ -60,8 +60,7 @@ function generateDataDirectory(instanceId: string): string {
 // WebdriverIO stops the run only for a SevereServiceError, logging any other launcher error and carrying on, and
 // prints only its stack, so the error it wraps is logged here with its own
 function stopTheRun(error: unknown, failure: string): Error {
-  // By name too: a SevereServiceError from another copy of webdriverio fails instanceof
-  const severe = error instanceof SevereServiceError || (error instanceof Error && error.name === 'SevereServiceError');
+  const severe = error instanceof SevereServiceError;
   const cause = severe ? (error as Error).cause : error;
   if (cause !== undefined) {
     log.error(failure, cause);

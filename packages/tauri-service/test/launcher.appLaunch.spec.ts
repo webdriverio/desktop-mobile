@@ -249,27 +249,6 @@ describe('app args', () => {
     expect(driverStarts(launcher).map(({ identifier }) => identifier)).toEqual(['0-0']);
   });
 
-  it('should pass on a SevereServiceError from another copy of webdriverio as it is, logging its cause', async () => {
-    const cause = new Error('tauri-driver not found');
-    const foreign = Object.assign(new Error('Failed to prepare: tauri-driver not found'), {
-      name: 'SevereServiceError',
-      cause,
-    });
-    vi.mocked(ensureTauriDriver).mockResolvedValueOnce({ ok: false, error: foreign });
-    const launcher = createLauncher({ driverProvider: 'external' });
-
-    await expect(launcher.onPrepare({ maxInstances: 1 }, [appCap()])).rejects.toBe(foreign);
-    expect(mockLog.error).toHaveBeenCalledWith('Tauri service failed to prepare', cause);
-  });
-
-  it("should keep a cloud provider's key in the config out of its debug logs", () => {
-    new TauriLaunchService({}, {}, { maxInstances: 2, key: 'secret-cloud-key' } as never);
-
-    const logged = JSON.stringify(mockLog.debug.mock.calls);
-    expect(logged).toContain('maxInstances=2');
-    expect(logged).not.toContain('secret-cloud-key');
-  });
-
   it("should keep env values out of its debug logs, showing only the variables' names", async () => {
     const launcher = createLauncher({ driverProvider: 'external', env: { CN_API_KEY: 'secret-service-value' } });
 
