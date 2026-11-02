@@ -24,9 +24,11 @@ import http from 'node:http';
 import net from 'node:net';
 import type { Interface as ReadlineInterface } from 'node:readline';
 
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, mergeEnv } from '@wdio/native-utils';
 
+import { needsShell, quoteForCmd, unquote } from './cmdLine.js';
 import { createLogCapture } from './logCapture.js';
+import { killWindowsProcessTree } from './processTree.js';
 
 const log = createLogger('native-core', 'launcher');
 
@@ -78,6 +80,7 @@ export interface DriverProcessInfo {
  */
 export class DriverProcess {
   private _proc?: ChildProcess;
+  private viaShell = false;
   private streamHandlers: ReadlineInterface[] = [];
   private startupTimeout?: ReturnType<typeof setTimeout>;
   private pollTimer?: ReturnType<typeof setTimeout>;
@@ -151,14 +154,19 @@ export class DriverProcess {
       };
 
       try {
-        const spawnEnv = env ? { ...process.env, ...env } : process.env;
-
-        this._proc = spawn(driverPath, args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
+        const spawnOptions = {
+          stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
           detached: false,
-          env: spawnEnv,
-          shell: process.platform === 'win32',
-        });
+          env: env ? mergeEnv(process.env, env) : process.env,
+        };
+        this.viaShell = needsShell(driverPath);
+        if (this.viaShell) {
+          // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted
+          this._proc = spawn([driverPath, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true });
+        } else {
+          const plain = process.platform === 'win32' ? unquote : (arg: string) => arg;
+          this._proc = spawn(plain(driverPath), args.map(plain), spawnOptions);
+        }
 
         log.info(`[${identifier}] Spawned process with PID: ${this._proc.pid ?? 'unknown'}`);
 
@@ -362,7 +370,12 @@ export class DriverProcess {
     }
 
     log.debug(`Stopping ${driverName}...`);
-    this._proc.kill('SIGTERM');
+    if (this.viaShell && process.platform === 'win32') {
+      // Killing cmd.exe alone would leave the driver it started running and holding its port
+      killWindowsProcessTree(this._proc);
+    } else {
+      this._proc.kill('SIGTERM');
+    }
 
     await this.waitForExit(driverName);
     this.cleanup();

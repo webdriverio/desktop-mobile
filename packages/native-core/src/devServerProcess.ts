@@ -8,6 +8,8 @@
 import { type ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { createLogger } from '@wdio/native-utils';
 
+import { killWindowsProcessTree } from './processTree.js';
+
 const log = createLogger('native-core', 'launcher');
 
 const isWindows = process.platform === 'win32';
@@ -61,7 +63,7 @@ const defaultKill: DevServerKill = (proc, signal) => {
     return;
   }
   if (isWindows) {
-    nodeSpawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' }).on('error', () => {});
+    killWindowsProcessTree(proc);
     return;
   }
   try {
