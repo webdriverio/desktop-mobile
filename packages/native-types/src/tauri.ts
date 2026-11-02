@@ -346,7 +346,8 @@ export interface TauriServiceOptions extends BaseServiceOptions, DriverProviderC
   windowLabel?: string;
   /**
    * Environment variables for the app, merged over `process.env`. The service passes them to the
-   * driver or process that launches the app. A capability-level value replaces the service-level one.
+   * driver or process that launches the app. A capability-level value replaces the service-level one,
+   * except where capabilities share one tauri-driver, which gets the first capability's.
    */
   env?: Record<string, string>;
   /**

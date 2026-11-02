@@ -136,7 +136,6 @@ function assertSingleDriverProvider(globalOptions: TauriServiceGlobalOptions, ca
  */
 export default class TauriLaunchService {
   private testRunnerBackend?: ChildProcess;
-  private appBinaryPath?: string;
   private perWorkerMode: boolean = false;
   private portManager: PortManager;
   private backendPortManager: PortManager;
@@ -810,12 +809,11 @@ export default class TauriLaunchService {
       return;
     }
 
-    this.appBinaryPath = appBinaryPath;
-    log.debug(`Using app binary path: ${this.appBinaryPath}`);
+    log.debug(`Using app binary path: ${appBinaryPath}`);
 
     // The resolver also accepts a path only the driver can find, e.g. on a remote CrabNebula backend
-    if (!existsSync(this.appBinaryPath)) {
-      log.warn(`Tauri binary not found on this machine, leaving it to the driver: ${this.appBinaryPath}`);
+    if (!existsSync(appBinaryPath)) {
+      log.warn(`Tauri binary not found on this machine, leaving it to the driver: ${appBinaryPath}`);
     }
 
     // For multiremote instances, ensure data directory isolation is set up
@@ -887,10 +885,7 @@ export default class TauriLaunchService {
     }
 
     if (!this.isEmbeddedMode) {
-      await this.diagnoseEnvironment(
-        this.appBinaryPath,
-        mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']),
-      );
+      await this.diagnoseEnvironment(appBinaryPath, mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']));
     }
 
     log.debug(`Tauri worker session started: ${cid}`);
