@@ -27,9 +27,9 @@ mod webview2 {
       tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: no desktop window");
       return;
     };
-    // SAFETY: wry's interface is a #[repr(transparent)] COM pointer, and every COM interface starts
-    // with IUnknown, so the bridge needn't match wry's crate versions. QueryInterface then checks it
-    // really is an ICoreWebView2.
+    // SAFETY: wry's `webview()` returns a #[repr(transparent)] COM interface pointer, and every COM
+    // interface starts with IUnknown, so the bridge needn't match wry's crate versions. QueryInterface
+    // catches another interface; a return type that isn't a COM pointer would need this changed.
     let unknown: IUnknown = unsafe { std::mem::transmute(desktop.webview.webview()) };
     let webview = match unknown.cast::<ICoreWebView2>() {
       Ok(webview) => webview,

@@ -128,7 +128,8 @@ fn install_with_registry_and_config(
 }
 
 /// Registers a window with WDIO and, for the embedded driver, turns on focus emulation. The bridge
-/// installs it as the `with_on_window` callback; an app with its own calls it from that.
+/// installs it as the `with_on_window` callback. An app with its own calls `wdio_dioxus::on_window`,
+/// which calls this only when the service launched the app.
 pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
   let label = window_state::register_window(window);
   tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");

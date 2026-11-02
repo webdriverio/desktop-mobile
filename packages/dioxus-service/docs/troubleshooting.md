@@ -29,7 +29,7 @@ fn main() {
 }
 ```
 
-If your app sets its own `with_on_window` callback after `install()`, call `wdio_dioxus::on_window` from it, or the window never registers and the service times out. On Windows it also turns on focus emulation, without which a field in a background window fires no `change` when focus leaves it. See [App Setup](./app-setup.md#apps-with-their-own-window-callback).
+If your app sets its own `with_on_window` callback after `install()`, call `wdio_dioxus::on_window` from it, or the window never registers and the service times out. With the embedded driver on Windows, it also turns on focus emulation, without which a field in a background window fires no `change` when focus leaves it. See [App Setup](./app-setup.md#apps-with-their-own-window-callback).
 
 **Check 3: Debug build used for testing**
 

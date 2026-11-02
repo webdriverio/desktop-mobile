@@ -169,14 +169,13 @@ function wdioTabKey(event) {
   }
   const start = wdioDeepActiveElement();
   // When a blur or change handler sends focus back to the field Tab is leaving, the move is cancelled
-  // and Tab ends there, as in Chrome. The field's blur, or in a WebKit window without focus its
-  // focusout, tells this apart from a stop refusing focus.
+  // and Tab ends there, as in Chrome. The field's focusout, which WebKit sends even where it skips
+  // blur, tells this apart from a stop refusing focus.
   let left = false;
-  const onBlur = () => {
+  const onFocusOut = () => {
     left = true;
   };
-  start.addEventListener('blur', onBlur, true);
-  start.addEventListener('focusout', onBlur, true);
+  start.addEventListener('focusout', onFocusOut, true);
   // The engine won't focus some stops, such as a link with an invalid tabindex, so Tab tries each in
   // turn until one takes focus, even if a focus trap then sends it straight back.
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
@@ -211,8 +210,7 @@ function wdioTabKey(event) {
     }
     return focused || left || wdioDeepActiveElement() !== start;
   });
-  start.removeEventListener('blur', onBlur, true);
-  start.removeEventListener('focusout', onBlur, true);
+  start.removeEventListener('focusout', onFocusOut, true);
   if (!next) {
     wdioDeepActiveElement().blur();
   }

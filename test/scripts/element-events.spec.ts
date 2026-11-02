@@ -445,12 +445,19 @@ describe('Enter and Space on a button', () => {
     expect(log).toEqual(expected);
   });
 
-  it("should click the button a keydown handler moved focus to, after the field's change", () => {
+  it.each([
+    ['', ['change i=x', 'blur i=x', 'focus b=', 'click b']],
+    [', on focusout if no blur arrives', ['change i=x', 'focus b=', 'click b']],
+  ])("should click the button a keydown handler moved focus to, after the field's change%s", (stopped, expected) => {
     render('<form id="f"><input id="i"><button type="button" id="b">go</button><button id="s">go</button></form>');
     type($('#i'), 'x');
-    $('#b').focus();
+    if (stopped) {
+      withStopped('blur', () => $('#b').focus());
+    } else {
+      $('#b').focus();
+    }
     events.wdioEnterKey();
-    expect(log).toEqual(['change i=x', 'blur i=x', 'focus b=', 'click b']);
+    expect(log).toEqual(expected);
   });
 });
 
@@ -595,13 +602,17 @@ describe('Tab', () => {
   });
 
   it.each([
-    ['', (run: () => void) => run()],
-    [', on focusout if no blur arrives', (run: () => void) => withStopped('blur', run)],
-  ])("should fire the field's change when Tab leaves the page%s", (_, around) => {
-    render('<input id="a">');
+    ['leaves the page', '<input id="a">', ''],
+    ['leaves the page, on focusout if no blur arrives', '<input id="a">', 'blur'],
+    ['moves to the next field, on focusout if no blur arrives', '<input id="a"><input id="b">', 'blur'],
+  ])("should fire the field's change when Tab %s", (_, html, stopped) => {
+    render(html);
     type($('#a'), 'x');
-    around(() => tab());
-    expect(focused()).toBe(document.body);
+    if (stopped) {
+      withStopped(stopped, () => tab());
+    } else {
+      tab();
+    }
     expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
   });
 
@@ -763,25 +774,27 @@ describe('Tab', () => {
     });
   });
 
-  // WebKit sends only focusout while its window isn't focused.
-  it.each(['blur', 'focusout'])(
-    'should stay on a field whose blur or change handler sends focus back to it, on its %s',
-    (eventType) => {
-      render('<input id="qty"><input id="name"><input id="email">');
-      // In Chrome and WebKit, a handler that refocuses the field cancels the move, so focus stays.
-      // jsdom moves focus anyway, so this fakes the engine.
-      const focus = HTMLElement.prototype.focus;
-      vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
-        if (this.id === 'name') {
+  it.each([
+    ['a window in front', ['blur', 'focusout']],
+    // WebKit sends no blur while its window isn't focused.
+    ["WebKit's window without focus", ['focusout']],
+  ])('should stay on a field whose blur or change handler sends focus back to it, in %s', (_, eventTypes) => {
+    render('<input id="qty"><input id="name"><input id="email">');
+    // In Chrome and WebKit, a handler that refocuses the field cancels the move, so focus stays.
+    // jsdom moves focus anyway, so this fakes the engine.
+    const focus = HTMLElement.prototype.focus;
+    vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
+      if (this.id === 'name') {
+        for (const eventType of eventTypes) {
           $('#qty').dispatchEvent(new FocusEvent(eventType));
-        } else {
-          focus.call(this);
         }
-      });
-      $('#qty').focus();
-      expect(tab()).toBe('qty');
-    },
-  );
+      } else {
+        focus.call(this);
+      }
+    });
+    $('#qty').focus();
+    expect(tab()).toBe('qty');
+  });
 
   it("should pass Tab on from a stop the page won't focus", () => {
     render('<input id="x"><a id="bad" tabindex="foo">bad</a><input id="y">');
