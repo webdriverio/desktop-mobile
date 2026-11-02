@@ -54,15 +54,15 @@ function wdioRecordPendingChange(el, value) {
   const root = el.getRootNode();
   // Capturing on the field's root runs before the field's own listeners, so `change` precedes
   // `blur` however focus leaves, as in a browser. Whichever event arrives first fires it.
-  const onBlur = (event) => {
+  const onFocusLoss = (event) => {
     if (event.target === el) {
       wdioFirePendingChange(el);
     }
   };
   for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-    root.addEventListener(type, onBlur, true);
+    root.addEventListener(type, onFocusLoss, true);
   }
-  window.__wdio_pending_change = { el, value, root, onBlur };
+  window.__wdio_pending_change = { el, value, root, onFocusLoss };
 }
 
 // The built-in focus() for `el`, such as HTMLElement's or SVGElement's. A native Tab never calls a
@@ -90,7 +90,7 @@ function wdioTakePendingChange(el) {
     return undefined;
   }
   for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-    record.root.removeEventListener(type, record.onBlur, true);
+    record.root.removeEventListener(type, record.onFocusLoss, true);
   }
   window.__wdio_pending_change = undefined;
   return record;
@@ -173,13 +173,14 @@ function wdioTabKey(event) {
   }
   const start = wdioDeepActiveElement();
   // When a blur or change handler sends focus back to the field Tab is leaving, the move is cancelled
-  // and Tab ends there, as in Chrome. The field's focusout, which WebKit sends even where it skips
-  // blur, tells this apart from a stop refusing focus.
+  // and Tab ends there, as in Chrome. The field losing focus tells this apart from a stop refusing it.
   let left = false;
-  const onFocusOut = () => {
+  const onFocusLoss = () => {
     left = true;
   };
-  start.addEventListener('focusout', onFocusOut, true);
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    start.addEventListener(type, onFocusLoss, true);
+  }
   // The engine won't focus some stops, such as a link with an invalid tabindex, so Tab tries each in
   // turn until one takes focus, even if a focus trap then sends it straight back.
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
@@ -214,7 +215,9 @@ function wdioTabKey(event) {
     }
     return focused || left || wdioDeepActiveElement() !== start;
   });
-  start.removeEventListener('focusout', onFocusOut, true);
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    start.removeEventListener(type, onFocusLoss, true);
+  }
   if (!next) {
     wdioDeepActiveElement().blur();
   }
@@ -454,9 +457,9 @@ function wdioFocusForClick(el) {
   const onFocusChange = () => {
     moved = true;
   };
-  // Either a field gaining focus or one losing it, even to a handler that takes it back. Not `focus`,
-  // which WebKit doesn't send while its window isn't focused: `focusin` follows it.
-  const focusEvents = ['focusin', 'focusout'];
+  // Either a field gaining focus or one losing it, even to a handler that takes it back. WebKit sends
+  // only `focusin` and `focusout` while its window isn't focused.
+  const focusEvents = ['focus', 'focusin', 'focusout'];
   for (const type of focusEvents) {
     document.addEventListener(type, onFocusChange, true);
   }

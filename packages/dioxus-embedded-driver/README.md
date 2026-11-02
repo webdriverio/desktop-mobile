@@ -59,7 +59,7 @@ The embedded driver works on all three platforms:
 | Linux    | ✅     |
 | macOS    | ✅     |
 
-When WebdriverIO launches the app on Windows, the driver turns on WebView2's focus emulation, so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front. The page also stays focused and visible whatever the window does: switching windows fires no window `focus` or `blur`, a minimized window fires no `visibilitychange`, and its timers aren't slowed.
+When WebdriverIO launches the app on Windows, the bridge's `with_on_window` callback turns on WebView2's focus emulation, which the driver relies on (an app with its own callback calls `wdio_dioxus::on_window` from it), so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front. The page also stays focused and visible whatever the window does: switching windows fires no window `focus` or `blur`, a minimized window fires no `visibilitychange`, and its timers aren't slowed.
 
 ## Limitations
 
