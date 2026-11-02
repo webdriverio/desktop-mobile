@@ -152,6 +152,18 @@ describe('findTauriDriver', () => {
     expect(findTauriDriver()).toBe('C:\\Users\\user\\.cargo\\bin\\tauri-driver.exe');
   });
 
+  it("should prefer cargo's tauri-driver.exe over the npm shims `where` lists first on Windows", () => {
+    mockPlatform('win32');
+    vi.mocked(execSync).mockReturnValue(
+      'C:\\app\\node_modules\\.bin\\tauri-driver\r\n' +
+        'C:\\app\\node_modules\\.bin\\tauri-driver.CMD\r\n' +
+        'C:\\Users\\u\\.cargo\\bin\\tauri-driver.exe\r\n',
+    );
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    expect(findTauriDriver()).toBe('C:\\Users\\u\\.cargo\\bin\\tauri-driver.exe');
+  });
+
   it("should take the first of several drivers `where` lists, without the line's carriage return", () => {
     mockPlatform('win32');
     vi.mocked(execSync).mockReturnValue('C:\\first\\tauri-driver.exe\r\nC:\\second\\tauri-driver.exe\r\n');

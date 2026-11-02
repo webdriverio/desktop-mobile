@@ -780,7 +780,7 @@ export default class TauriLaunchService {
     const appBinaryPath = firstCap?.['tauri:options']?.application;
     if (!appBinaryPath) {
       log.warn('Tauri application path not found in capabilities, skipping diagnostics');
-      log.debug(`Capabilities structure: ${JSON.stringify(firstCap, null, 2)}`);
+      log.debug(`Capabilities structure: ${JSON.stringify(firstCap, hideEnvValues, 2)}`);
       return;
     }
 

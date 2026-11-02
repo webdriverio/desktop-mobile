@@ -26,6 +26,18 @@ describe('mergeEnv', () => {
     });
   });
 
+  it('should fold names to upper case, as Node does, so ß and SS count as one name', () => {
+    setPlatform('win32');
+
+    expect(mergeEnv({ STRASSE: 'old' }, { straße: 'new' })).toEqual({ straße: 'new' });
+  });
+
+  it('should keep a variable named __proto__', () => {
+    const layer = JSON.parse('{"__proto__": "kept"}') as Record<string, string>;
+
+    expect(Object.entries(mergeEnv(layer))).toEqual([['__proto__', 'kept']]);
+  });
+
   it('should keep differently cased names apart elsewhere', () => {
     setPlatform('linux');
 

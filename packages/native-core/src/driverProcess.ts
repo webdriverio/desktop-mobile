@@ -26,7 +26,7 @@ import type { Interface as ReadlineInterface } from 'node:readline';
 
 import { createLogger, mergeEnv } from '@wdio/native-utils';
 
-import { needsShell, quoteForCmd } from './cmdLine.js';
+import { needsShell, quoteForCmd, unquote } from './cmdLine.js';
 
 import { createLogCapture } from './logCapture.js';
 
@@ -80,6 +80,7 @@ export interface DriverProcessInfo {
  */
 export class DriverProcess {
   private _proc?: ChildProcess;
+  private viaShell = false;
   private streamHandlers: ReadlineInterface[] = [];
   private startupTimeout?: ReturnType<typeof setTimeout>;
   private pollTimer?: ReturnType<typeof setTimeout>;
@@ -158,10 +159,14 @@ export class DriverProcess {
           detached: false,
           env: env ? mergeEnv(process.env, env) : process.env,
         };
-        // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted
-        this._proc = needsShell(driverPath)
-          ? spawn([driverPath, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true })
-          : spawn(driverPath, args, spawnOptions);
+        this.viaShell = needsShell(driverPath);
+        if (this.viaShell) {
+          // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted
+          this._proc = spawn([driverPath, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true });
+        } else {
+          const plain = process.platform === 'win32' ? unquote : (arg: string) => arg;
+          this._proc = spawn(plain(driverPath), args.map(plain), spawnOptions);
+        }
 
         log.info(`[${identifier}] Spawned process with PID: ${this._proc.pid ?? 'unknown'}`);
 
@@ -365,7 +370,13 @@ export class DriverProcess {
     }
 
     log.debug(`Stopping ${driverName}...`);
-    this._proc.kill('SIGTERM');
+    const proc = this._proc;
+    if (this.viaShell && process.platform === 'win32' && proc.pid !== undefined) {
+      // Killing cmd.exe alone would leave the driver it started running and holding its port
+      spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }).on('error', () => proc.kill());
+    } else {
+      proc.kill('SIGTERM');
+    }
 
     await this.waitForExit(driverName);
     this.cleanup();

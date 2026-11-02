@@ -57,11 +57,11 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
     );
   }
 
-  // Log API key with redaction (show first 4 and last 4 chars)
+  // Log API key with redaction (show first 4 and last 4 chars); a short key shows nothing
   const redactedKey =
     apiKey.length > 12
       ? `${apiKey.slice(0, 4)}${'*'.repeat(Math.min(apiKey.length - 8, 20))}${apiKey.slice(-4)}`
-      : `${apiKey.slice(0, 2)}${'*'.repeat(apiKey.length - 4)}${apiKey.slice(-2)}`;
+      : '*'.repeat(apiKey.length);
   log.info(`CN_API_KEY detected: ${redactedKey} (${apiKey.length} chars)`);
 
   log.info(`Starting test-runner-backend on port ${port}`);

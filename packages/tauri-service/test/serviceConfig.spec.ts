@@ -96,10 +96,14 @@ describe('appEnv', () => {
 describe('hideEnvValues', () => {
   it('should show only the names of an env, at any depth', () => {
     const logged = JSON.stringify(
-      { env: { CN_API_KEY: 'secret-value' }, services: [['tauri', { env: { TOKEN: 'other-secret' } }]] },
+      {
+        env: { CN_API_KEY: 'secret-value' },
+        runnerEnv: { RUNNER_TOKEN: 'runner-secret' },
+        services: [['tauri', { env: { TOKEN: 'other-secret' } }]],
+      },
       hideEnvValues,
     );
 
-    expect(logged).toBe('{"env":["CN_API_KEY"],"services":[["tauri",{"env":["TOKEN"]}]]}');
+    expect(logged).toBe('{"env":["CN_API_KEY"],"runnerEnv":["RUNNER_TOKEN"],"services":[["tauri",{"env":["TOKEN"]}]]}');
   });
 });

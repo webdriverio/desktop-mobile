@@ -159,6 +159,17 @@ describe('app args', () => {
     expect(mockLog.error).toHaveBeenCalledWith('Tauri service failed to prepare', missing);
   });
 
+  it("should keep env values out of the capabilities onWorkerStart logs when it can't find the app", async () => {
+    const launcher = createLauncher({ driverProvider: 'external' });
+
+    await launcher.onWorkerStart('0-0', { a: { capabilities: appCap({ env: { APP_TOKEN: 'secret-worker-value' } }) } });
+
+    const logged = JSON.stringify(mockLog.debug.mock.calls);
+    expect(logged).toContain('Capabilities structure');
+    expect(logged).toContain('APP_TOKEN');
+    expect(logged).not.toContain('secret-');
+  });
+
   it("should keep env values out of its debug logs, showing only the variables' names", async () => {
     const launcher = createLauncher({ driverProvider: 'external', env: { CN_API_KEY: 'secret-service-value' } });
 

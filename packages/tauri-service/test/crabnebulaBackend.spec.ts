@@ -102,6 +102,19 @@ describe('CrabNebula Backend', () => {
       );
     });
 
+    it('should start with a short CN_API_KEY rather than fail to redact it', async () => {
+      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
+      process.env.CN_API_KEY = 'abc';
+      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
+
+      const started = startTestRunnerBackend({ port: 3000 });
+      setImmediate(() => {
+        mockProc.emit('spawn');
+      });
+
+      await expect(started).resolves.toBeDefined();
+    }, 10000);
+
     it("should check the CN_API_KEY the backend gets, which the app's env can set", async () => {
       vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
       process.env.CN_API_KEY = 'test-api-key-long-enough';
