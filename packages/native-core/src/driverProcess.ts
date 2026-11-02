@@ -160,10 +160,8 @@ export class DriverProcess {
         };
         this.viaShell = needsShell(driverPath);
         if (this.viaShell) {
-          // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted. cmd.exe also
-          // splits a command at a forward slash.
-          const command = driverPath.replaceAll('/', '\\');
-          this._proc = spawn([command, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true });
+          // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted
+          this._proc = spawn([driverPath, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true });
         } else {
           const plain = process.platform === 'win32' ? unquote : (arg: string) => arg;
           this._proc = spawn(plain(driverPath), args.map(plain), spawnOptions);

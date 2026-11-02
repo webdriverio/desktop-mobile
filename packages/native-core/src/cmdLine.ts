@@ -7,7 +7,7 @@ export function unquote(arg: string): string {
 
 export function quoteForCmd(arg: string): string {
   const bare = unquote(arg);
-  if (!/[\s"&()<>^|,;=]/.test(bare)) {
+  if (!/[\s&()<>^|]/.test(bare)) {
     return bare;
   }
   return `"${bare}"`;

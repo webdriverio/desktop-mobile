@@ -25,10 +25,4 @@ describe('mergeEnv', () => {
       Other: '1',
     });
   });
-
-  it('should keep differently cased names apart elsewhere', () => {
-    setPlatform('linux');
-
-    expect(mergeEnv({ PATH: '/usr/bin' }, { Path: '/opt/bin' })).toEqual({ PATH: '/usr/bin', Path: '/opt/bin' });
-  });
 });

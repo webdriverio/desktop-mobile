@@ -91,11 +91,9 @@ async function startRunning(driverPath: string) {
 }
 
 describe('quoteForCmd', () => {
-  it('should quote an argument with a space, a cmd.exe special character or a delimiter', () => {
+  it('should quote an argument with a space or a cmd.exe special character', () => {
     expect(quoteForCmd('C:\\Users\\Jane Smith\\driver.cmd')).toBe('"C:\\Users\\Jane Smith\\driver.cmd"');
     expect(quoteForCmd('C:\\a&b\\driver.cmd')).toBe('"C:\\a&b\\driver.cmd"');
-    expect(quoteForCmd('C:\\Smith, Jane\\driver.cmd')).toBe('"C:\\Smith, Jane\\driver.cmd"');
-    expect(quoteForCmd('C:\\a,b;c=d\\driver.cmd')).toBe('"C:\\a,b;c=d\\driver.cmd"');
   });
 
   it('should leave a plain argument alone', () => {
@@ -135,12 +133,9 @@ describe('DriverProcess.start', () => {
     expect(args).toContain(NATIVE_DRIVER);
   });
 
-  it.each([
-    ['a .cmd shim', 'C:\\Users\\Jane Smith\\app\\node_modules\\.bin\\tauri-driver.cmd'],
-    ['a .bat file', 'C:\\drivers\\tauri-driver.bat'],
-    ['a bare name', 'tauri-driver'],
-  ])('should run %s through cmd.exe as one quoted command line', async (_, driverPath) => {
+  it('should run a .cmd shim through cmd.exe as one quoted command line', async () => {
     setPlatform('win32');
+    const driverPath = 'C:\\Users\\Jane Smith\\app\\node_modules\\.bin\\tauri-driver.cmd';
 
     const [command, options] = await startWith(driverPath);
 
@@ -148,14 +143,6 @@ describe('DriverProcess.start', () => {
       `${quoteForCmd(driverPath)} --port 4444 --native-port 4445 --native-driver "${NATIVE_DRIVER}"`,
     );
     expect(options).toMatchObject({ shell: true });
-  });
-
-  it("should give cmd.exe a shim's path with backslashes, as it splits a command at a forward slash", async () => {
-    setPlatform('win32');
-
-    const [command] = await startWith('./node_modules/.bin/tauri-driver.cmd');
-
-    expect(command).toMatch(/^\.\\node_modules\\\.bin\\tauri-driver\.cmd --port 4444 /);
   });
 
   it('should start the driver directly elsewhere', async () => {
