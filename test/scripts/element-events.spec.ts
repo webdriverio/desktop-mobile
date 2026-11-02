@@ -123,6 +123,18 @@ describe('pending change', () => {
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus a=x', 'blur a=x']);
   });
 
+  it("should fire it on focusout when no blur arrives, as WebKit sends while its window isn't focused", () => {
+    type($('#a'), 'x');
+    const stopBlur = (event: Event) => event.stopImmediatePropagation();
+    window.addEventListener('blur', stopBlur, true);
+    try {
+      $('#b').focus();
+    } finally {
+      window.removeEventListener('blur', stopBlur, true);
+    }
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
+
   it('should fire nothing on a field the page has removed', () => {
     type($('#a'), 'x');
     $('#a').remove();

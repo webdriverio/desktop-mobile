@@ -49,14 +49,16 @@ function wdioRecordPendingChange(el, value) {
   }
   wdioFirePendingChange();
   const root = el.getRootNode();
-  // Capturing on the field's root runs before the field's own blur listeners, so `change` precedes
-  // `blur` however focus leaves, as in a browser.
+  // Capturing on the field's root runs before the field's own listeners, so `change` precedes
+  // `blur` however focus leaves, as in a browser. WebKit sends no `blur` while its window isn't
+  // focused, only `focusout`, so whichever arrives first fires it.
   const onBlur = (event) => {
     if (event.target === el) {
       wdioFirePendingChange(el);
     }
   };
   root.addEventListener('blur', onBlur, true);
+  root.addEventListener('focusout', onBlur, true);
   window.__wdio_pending_change = { el, value, root, onBlur };
 }
 
@@ -85,6 +87,7 @@ function wdioTakePendingChange(el) {
     return undefined;
   }
   record.root.removeEventListener('blur', record.onBlur, true);
+  record.root.removeEventListener('focusout', record.onBlur, true);
   window.__wdio_pending_change = undefined;
   return record;
 }
@@ -194,7 +197,8 @@ function wdioTabKey(event) {
     candidate.addEventListener('focus', onFocus, true);
     wdioNativeFocus(candidate).call(candidate);
     candidate.removeEventListener('focus', onFocus, true);
-    // A capture listener that stops the focus event keeps it from the field, so select here instead.
+    // No focus event reaches the field when a capture listener stops it, or WebKit's window isn't
+    // focused, so select here instead.
     if (isTextField && !focused) {
       select();
     }
