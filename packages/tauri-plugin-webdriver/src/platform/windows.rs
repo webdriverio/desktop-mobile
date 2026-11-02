@@ -199,16 +199,17 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
   }
 }
 
-/// Register `WebView2` handlers at webview creation time.
-/// This is called from the plugin's `on_webview_ready` hook to ensure
-/// the script dialog handler is registered before any navigation completes.
+/// Register `WebView2` handlers at webview creation time, and focus emulation once a WebDriver session
+/// has started. This is called from the plugin's `on_webview_ready` hook to ensure the script dialog
+/// handler is registered before any navigation completes.
 pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   // Get per-window alert state from the manager
   let manager = webview.app_handle().state::<AlertStateManager>();
   let alert_state = manager.get_or_create(webview.label());
   let label = webview.label().to_string();
 
-  let _ = webview.with_webview(move |webview| unsafe {
+  let dispatch_label = label.clone();
+  let result = webview.with_webview(move |webview| unsafe {
     let webview2 = match core_webview2(&webview) {
       Ok(webview2) => webview2,
       Err(e) => {
@@ -245,6 +246,9 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     // Prevent handler from being dropped - leak it to keep the COM ref alive
     std::mem::forget(handler);
   });
+  if let Err(e) = result {
+    tracing::warn!("Failed to set up the WebView2 handlers of {dispatch_label}: {e}");
+  }
 }
 
 /// The `ICoreWebView2` behind a webview, from inside `with_webview`.

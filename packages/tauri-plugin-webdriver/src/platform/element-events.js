@@ -41,7 +41,7 @@ function wdioDeepActiveElement() {
   return el;
 }
 
-// The events a field's owed `change` follows: WebKit sends only `focusout` while its window isn't focused.
+// The events a field's owed `change` follows: current WebKit sends only `focusout` while its window isn't focused.
 const WDIO_FOCUS_LOSS_EVENTS = ['blur', 'focusout'];
 
 // Records that `el` owes a `change` once it loses focus, unless its value is `value` again by then.
@@ -194,7 +194,7 @@ function wdioTabKey(event) {
       }
     };
     let focused = false;
-    // On the first of `focus` and `focusin`: WebKit sends only `focusin` while its window isn't focused.
+    // On the first of `focus` and `focusin`: current WebKit sends only `focusin` while its window isn't focused.
     const onFocus = () => {
       if (!focused) {
         focused = true;
@@ -457,7 +457,7 @@ function wdioFocusForClick(el) {
   const onFocusChange = () => {
     moved = true;
   };
-  // Either a field gaining focus or one losing it, even to a handler that takes it back. WebKit sends
+  // Either a field gaining focus or one losing it, even to a handler that takes it back. Current WebKit sends
   // only `focusin` and `focusout` while its window isn't focused.
   const focusEvents = ['focus', 'focusin', 'focusout'];
   for (const type of focusEvents) {
