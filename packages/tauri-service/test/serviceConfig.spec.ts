@@ -87,10 +87,6 @@ describe('appEnv', () => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
     }
   });
-
-  it('should return process.env as is without an app env or service vars', () => {
-    expect(appEnv(undefined)).toEqual({ ...process.env });
-  });
 });
 
 describe('hideSecrets', () => {

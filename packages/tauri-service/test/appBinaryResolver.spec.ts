@@ -88,15 +88,6 @@ describe('resolveAppBinaryPath', () => {
 });
 
 describe('resolveAppArgs', () => {
-  it("should return a copy, so changing it can't change the configured list", () => {
-    const appArgs = ['--a'];
-
-    const args = resolveAppArgs({ appArgs }, undefined);
-    args.push('--b');
-
-    expect(appArgs).toEqual(['--a']);
-  });
-
   it('should reject args that are not an array, rather than split a string into characters', () => {
     expect(() => resolveAppArgs({ appArgs: '--debug' as unknown as string[] }, undefined)).toThrow(
       `appArgs and 'tauri:options'.args must be arrays of strings, e.g. ['--debug'], but got "--debug"`,

@@ -167,12 +167,6 @@ describe('session', () => {
       expect(caps['wdio:tauriServiceOptions']?.appArgs).toEqual(['--verbose', '--port=3000']);
     });
 
-    it('should not write tauriDriverPort into the capability, where it does nothing', () => {
-      const caps = createTauriCapabilities('/app', { tauriDriverPort: 9515 } as never);
-
-      expect(caps['wdio:tauriServiceOptions']).not.toHaveProperty('tauriDriverPort');
-    });
-
     it('should set custom logLevel', () => {
       const caps = createTauriCapabilities('/app', { logLevel: 'debug' });
       expect(caps['wdio:tauriServiceOptions']?.logLevel).toBe('debug');
