@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appEnv, hideEnvValues, mergeServiceOptions, resolveStartTimeout } from '../src/serviceConfig.js';
+import { appEnv, hideSecrets, mergeServiceOptions, resolveStartTimeout } from '../src/serviceConfig.js';
 
 describe('mergeServiceOptions', () => {
   it('should let capability options override global options', () => {
@@ -93,17 +93,29 @@ describe('appEnv', () => {
   });
 });
 
-describe('hideEnvValues', () => {
+describe('hideSecrets', () => {
   it('should show only the names of an env, at any depth', () => {
     const logged = JSON.stringify(
-      {
-        env: { CN_API_KEY: 'secret-value' },
-        runnerEnv: { RUNNER_TOKEN: 'runner-secret' },
-        services: [['tauri', { env: { TOKEN: 'other-secret' } }]],
-      },
-      hideEnvValues,
+      { env: { CN_API_KEY: 'secret-value' }, services: [['tauri', { env: { TOKEN: 'other-secret' } }]] },
+      hideSecrets,
     );
 
-    expect(logged).toBe('{"env":["CN_API_KEY"],"runnerEnv":["RUNNER_TOKEN"],"services":[["tauri",{"env":["TOKEN"]}]]}');
+    expect(logged).toBe('{"env":["CN_API_KEY"],"services":[["tauri",{"env":["TOKEN"]}]]}');
+  });
+
+  it('should mask a value under a key named like a credential, and keep the rest', () => {
+    const logged = JSON.stringify(
+      {
+        key: 'cloud-key',
+        'bstack:options': { accessKey: 'access', authToken: 'token', password: 'pass' },
+        appArgs: ['--debug'],
+        windowLabel: 'main',
+      },
+      hideSecrets,
+    );
+
+    expect(logged).toBe(
+      '{"key":"***","bstack:options":{"accessKey":"***","authToken":"***","password":"***"},"appArgs":["--debug"],"windowLabel":"main"}',
+    );
   });
 });

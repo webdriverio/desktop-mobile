@@ -34,27 +34,21 @@ export function isCargoAvailable(): boolean {
 export function findTauriDriver(): string | undefined {
   const isWindows = process.platform === 'win32';
 
+  // Every match on PATH, in order, so an npm shim found first can be passed over
+  let onPath: string[] = [];
   try {
-    const command = isWindows ? 'where tauri-driver' : 'which tauri-driver';
-    const result = execSync(command, { encoding: 'utf8', stdio: 'pipe' });
-    const paths = result.trim().split(/\r?\n/);
-    // npm shims in node_modules/.bin, e.g. @crabnebula/tauri-driver's, aren't the external provider's driver;
-    // otherwise the first match on PATH wins, as it would in a shell
-    let path = paths.find((candidate) => !/[\\/]node_modules[\\/]\.bin[\\/]/i.test(candidate)) ?? paths[0];
-
-    // On Windows, convert Git Bash-style paths (/c/...) to Windows paths (C:\...)
-    if (isWindows && path?.startsWith('/')) {
-      path = convertGitBashPathToWindows(path);
-    }
-
-    if (path && existsSync(path)) {
-      return path;
-    }
+    const command = isWindows ? 'where tauri-driver' : 'which -a tauri-driver';
+    onPath = execSync(command, { encoding: 'utf8', stdio: 'pipe' })
+      .trim()
+      .split(/\r?\n/)
+      // On Windows, convert Git Bash-style paths (/c/...) to Windows paths (C:\...)
+      .map((path) => (isWindows && path.startsWith('/') ? convertGitBashPathToWindows(path) : path))
+      .filter((path) => path !== '' && existsSync(path));
   } catch {
     // Not found in PATH
   }
 
-  // Check common installation paths
+  // Common installation paths
   const commonPaths = isWindows
     ? [
         join(process.env.USERPROFILE || 'C:\\Users\\Default', '.cargo', 'bin', 'tauri-driver.exe'),
@@ -66,13 +60,10 @@ export function findTauriDriver(): string | undefined {
         join(process.env.HOME || '~', '.cargo/bin/tauri-driver'),
       ];
 
-  for (const path of commonPaths) {
-    if (existsSync(path)) {
-      return path;
-    }
-  }
-
-  return undefined;
+  // An npm shim in node_modules/.bin, e.g. @crabnebula/tauri-driver's, isn't the external provider's driver, so it
+  // comes last: after the rest of PATH, in order, and after cargo's usual install paths
+  const isNpmShim = (path: string) => /[\\/]node_modules[\\/]\.bin[\\/]/i.test(path);
+  return onPath.find((path) => !isNpmShim(path)) ?? commonPaths.find((path) => existsSync(path)) ?? onPath[0];
 }
 
 /**

@@ -164,6 +164,25 @@ describe('findTauriDriver', () => {
     expect(findTauriDriver()).toBe('C:\\Users\\u\\.cargo\\bin\\tauri-driver.exe');
   });
 
+  it("should list every match with which -a, and take cargo's install over an npm shim found first", () => {
+    mockPlatform('linux');
+    vi.mocked(execSync).mockReturnValue('/app/node_modules/.bin/tauri-driver\n');
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    expect(findTauriDriver()).toBe('/usr/local/bin/tauri-driver');
+    expect(execSync).toHaveBeenCalledWith('which -a tauri-driver', expect.anything());
+  });
+
+  it('should fall back to an npm shim when no other tauri-driver is installed', () => {
+    mockPlatform('win32');
+    vi.mocked(execSync).mockReturnValue(
+      'C:\\app\\node_modules\\.bin\\tauri-driver\r\nC:\\app\\node_modules\\.bin\\tauri-driver.CMD\r\n',
+    );
+    vi.mocked(existsSync).mockImplementation((path) => String(path).includes('node_modules'));
+
+    expect(findTauriDriver()).toBe('C:\\app\\node_modules\\.bin\\tauri-driver');
+  });
+
   it('should keep PATH order for anything but npm shims, such as a wrapper the user put first', () => {
     mockPlatform('win32');
     vi.mocked(execSync).mockReturnValue(

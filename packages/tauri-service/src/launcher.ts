@@ -37,7 +37,7 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
-import { appEnv, hideEnvValues, mergeServiceOptions } from './serviceConfig.js';
+import { appEnv, hideSecrets, mergeServiceOptions } from './serviceConfig.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
@@ -54,6 +54,18 @@ function generateDataDirectory(instanceId: string): string {
 
   log.debug(`Generated data directory for ${instanceId}: ${dataDir}`);
   return dataDir;
+}
+
+// WebdriverIO stops the run only for a SevereServiceError, logging any other launcher error and carrying on, and
+// prints only its stack, so the error it wraps is logged here with its own
+function stopTheRun(error: unknown, failure: string): Error {
+  // By name too: a SevereServiceError from another copy of webdriverio fails instanceof
+  const severe = error instanceof SevereServiceError || (error instanceof Error && error.name === 'SevereServiceError');
+  const cause = severe ? (error as Error).cause : error;
+  if (cause !== undefined) {
+    log.error(failure, cause);
+  }
+  return severe ? (error as Error) : severeServiceError(error);
 }
 
 function dataDirEnv(dataDir: string): NodeJS.ProcessEnv {
@@ -124,7 +136,6 @@ function assertSingleDriverProvider(globalOptions: TauriServiceGlobalOptions, ca
 export default class TauriLaunchService {
   private testRunnerBackend?: ChildProcess;
   private appBinaryPath?: string;
-  private instanceOptions: Map<string, TauriServiceOptions> = new Map();
   private perWorkerMode: boolean = false;
   private portManager: PortManager;
   private backendPortManager: PortManager;
@@ -146,7 +157,7 @@ export default class TauriLaunchService {
     config: Options.Testrunner,
   ) {
     log.debug('TauriLaunchService initialized');
-    log.debug('Capabilities:', JSON.stringify(capabilities, hideEnvValues, 2));
+    log.debug('Capabilities:', JSON.stringify(capabilities, hideSecrets, 2));
     // Not the whole config, which can hold credentials such as a cloud provider's key
     log.debug(`Config: maxInstances=${config.maxInstances}, outputDir=${config.outputDir}`);
 
@@ -167,16 +178,10 @@ export default class TauriLaunchService {
     config: Options.Testrunner,
     capabilities: TauriCapabilities[] | Record<string, { capabilities: TauriCapabilities }>,
   ): Promise<void> {
-    // WebdriverIO stops the run only for a SevereServiceError: it logs any other launcher error and carries on
     try {
       await this.prepare(config, capabilities);
     } catch (error) {
-      // WebdriverIO prints only the SevereServiceError's stack, so this keeps where the failure came from
-      const cause = error instanceof SevereServiceError ? error.cause : error;
-      if (cause !== undefined) {
-        log.error('Tauri service failed to prepare', cause);
-      }
-      throw error instanceof SevereServiceError ? error : severeServiceError(error);
+      throw stopTheRun(error, 'Tauri service failed to prepare');
     }
   }
 
@@ -399,7 +404,6 @@ export default class TauriLaunchService {
           const { name, caps: cap, connectionTarget } = instances[i];
           const instanceId = name ?? String(i);
           const instanceOptions = apps[i].options;
-          this.instanceOptions.set(instanceId, instanceOptions);
 
           const embeddedPort = await this.allocateEmbeddedPort(cap, instanceOptions, i);
           const { appBinaryPath, appArgs } = apps[i];
@@ -461,7 +465,6 @@ export default class TauriLaunchService {
           const { name, connectionTarget } = instances[i];
           const instanceId = name ?? String(i);
           const instanceOptions = apps[i].options;
-          this.instanceOptions.set(instanceId, instanceOptions);
 
           const instanceEnv = dataDirEnv(this.allocateDataDirectory(instanceId));
           let env = instanceEnv;
@@ -532,7 +535,6 @@ export default class TauriLaunchService {
         const instanceConfigs = instances.map(({ name, connectionTarget }, i) => {
           const instanceId = name ?? String(i);
           const instanceOptions = apps[i].options;
-          this.instanceOptions.set(instanceId, instanceOptions);
 
           const env = dataDirEnv(this.allocateDataDirectory(instanceId));
 
@@ -706,6 +708,17 @@ export default class TauriLaunchService {
     cid: string,
     caps: TauriCapabilities | TauriCapabilities[] | Record<string, { capabilities?: TauriCapabilities }> | undefined,
   ): Promise<void> {
+    try {
+      await this.startWorker(cid, caps);
+    } catch (error) {
+      throw stopTheRun(error, `Tauri service failed to start worker ${cid}`);
+    }
+  }
+
+  private async startWorker(
+    cid: string,
+    caps: TauriCapabilities | TauriCapabilities[] | Record<string, { capabilities?: TauriCapabilities }> | undefined,
+  ): Promise<void> {
     log.debug(`Starting Tauri worker session: ${cid}`);
 
     if (this.browserMode) {
@@ -781,7 +794,7 @@ export default class TauriLaunchService {
     const appBinaryPath = firstCap?.['tauri:options']?.application;
     if (!appBinaryPath) {
       log.warn('Tauri application path not found in capabilities, skipping diagnostics');
-      log.debug(`Capabilities structure: ${JSON.stringify(firstCap, hideEnvValues, 2)}`);
+      log.debug(`Capabilities structure: ${JSON.stringify(firstCap, hideSecrets, 2)}`);
       return;
     }
 
@@ -1134,7 +1147,6 @@ export default class TauriLaunchService {
         log.warn(`Failed to stop driver processes: ${errorMessage(error)}`);
         driverCleanupErrors.push(error);
       } finally {
-        this.instanceOptions.clear();
         this.embeddedConfigs.clear();
         this.portManager.clear();
         this.backendPortManager.clear();
@@ -1171,7 +1183,7 @@ export default class TauriLaunchService {
     options: TauriServiceOptions,
     env?: NodeJS.ProcessEnv,
   ): Promise<void> {
-    log.debug(`Single driver mode options: ${JSON.stringify(options, hideEnvValues, 2)}`);
+    log.debug(`Single driver mode options: ${JSON.stringify(options, hideSecrets, 2)}`);
     log.debug(
       `Single driver mode: captureFrontendLogs=${options.captureFrontendLogs}, captureBackendLogs=${options.captureBackendLogs}`,
     );

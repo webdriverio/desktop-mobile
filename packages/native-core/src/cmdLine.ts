@@ -1,7 +1,6 @@
 // Kept out of index.ts: internal to DriverProcess, not package API
 
-// Quotes a caller added around a path, the old workaround for spaces under cmd.exe, would otherwise reach the
-// driver as part of the path once cmd.exe isn't there to strip them
+// Without cmd.exe to strip them, quotes a caller put around a path would reach the driver as part of it
 export function unquote(arg: string): string {
   return arg.length > 1 && arg.startsWith('"') && arg.endsWith('"') ? arg.slice(1, -1) : arg;
 }

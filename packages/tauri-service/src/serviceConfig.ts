@@ -32,12 +32,14 @@ export function appEnv(
   return mergeEnv(process.env, options?.env, serviceEnv);
 }
 
-// A JSON.stringify replacer for debug logs: env values, the service's or WebdriverIO's runnerEnv, can hold secrets,
-// such as CN_API_KEY, so only their names show
-export function hideEnvValues(key: string, value: unknown): unknown {
-  return (key === 'env' || key === 'runnerEnv') && value !== null && typeof value === 'object'
-    ? Object.keys(value)
-    : value;
+// A JSON.stringify replacer for debug logs: an env shows only its variables' names, since their values can hold
+// secrets such as CN_API_KEY, and a value under a key named like a credential (an access key, token, secret or
+// password) is masked
+export function hideSecrets(key: string, value: unknown): unknown {
+  if (key === 'env' && value !== null && typeof value === 'object') {
+    return Object.keys(value);
+  }
+  return typeof value === 'string' && /(key|token|secret|password)$/i.test(key) ? '***' : value;
 }
 
 const EMBEDDED_START_TIMEOUT = 60_000;

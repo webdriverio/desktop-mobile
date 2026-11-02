@@ -153,6 +153,11 @@ export interface ResolvedEdgeVersion {
 }
 
 const WEBVIEW2_FOLDER_ENV = 'WEBVIEW2_BROWSER_EXECUTABLE_FOLDER';
+
+// Windows variable names ignore case, as they do for the app that gets this env
+function envVar(env: Record<string, string> | undefined, name: string): string | undefined {
+  return Object.entries(env ?? {}).find(([key]) => key.toUpperCase() === name)?.[1];
+}
 const EDGEDRIVER_VERSION_ENV = 'EDGEDRIVER_VERSION';
 
 /**
@@ -179,7 +184,7 @@ export async function resolveTargetEdgeVersion(
   }
 
   const fixedFolder =
-    options.browserExecutableFolder ?? options.env?.[WEBVIEW2_FOLDER_ENV] ?? process.env[WEBVIEW2_FOLDER_ENV];
+    options.browserExecutableFolder ?? envVar(options.env, WEBVIEW2_FOLDER_ENV) ?? process.env[WEBVIEW2_FOLDER_ENV];
   if (fixedFolder) {
     const version = await detectFixedRuntimeVersion(fixedFolder);
     if (version) {
@@ -453,6 +458,15 @@ try {
   }
 }
 
+// Drivers downloaded in this process. Each download goes to a new folder that `where` won't find, so a later check,
+// such as another standalone session's, reuses one from here rather than download it again.
+const downloadedDrivers: Array<{ path: string; version: string }> = [];
+
+// For tests: forget the drivers downloaded so far
+export function clearDownloadedMsEdgeDrivers(): void {
+  downloadedDrivers.length = 0;
+}
+
 /**
  * Ensure msedgedriver is available and matches Edge version
  * This is the main entry point for Edge driver management
@@ -478,14 +492,14 @@ export async function ensureMsEdgeDriver(
   log.info(`Target Edge/WebView2 version ${edgeVersion} (source: ${source})`);
   const edgeMajor = getMajorVersion(edgeVersion);
 
+  // An explicit pin (`source: 'override'`) must match the driver exactly; the runtime-derived
+  // paths only need the shared major, since Edge and its driver drift in the lower version parts.
+  const isCompatible = (version: string) =>
+    source === 'override' ? version === edgeVersion : getMajorVersion(version) === edgeMajor;
+
   const existing = await findMsEdgeDriver();
   if (existing.path && existing.version) {
-    // An explicit pin (`source: 'override'`) must match the driver exactly; the runtime-derived
-    // paths only need the shared major, since Edge and its driver drift in the lower version parts.
-    const compatible =
-      source === 'override' ? existing.version === edgeVersion : getMajorVersion(existing.version) === edgeMajor;
-
-    if (compatible) {
+    if (isCompatible(existing.version)) {
       log.info(`✅ msedgedriver ${existing.version} matches Edge ${edgeVersion}`);
       return Ok({
         driverPath: existing.path,
@@ -498,14 +512,22 @@ export async function ensureMsEdgeDriver(
     log.warn(`❌ Version mismatch: msedgedriver ${existing.version} != Edge ${edgeVersion}`);
   }
 
+  const reusable = downloadedDrivers.find((driver) => isCompatible(driver.version) && existsSync(driver.path));
+  if (reusable) {
+    log.info(`✅ Reusing msedgedriver ${reusable.version}, downloaded earlier in this process`);
+    return Ok({
+      driverPath: reusable.path,
+      driverVersion: reusable.version,
+      edgeVersion,
+      method: 'found' as const,
+    });
+  }
+
   if (autoDownload) {
     try {
       log.info(`Attempting to download msedgedriver ${edgeVersion}...`);
       const downloaded = await downloadMsEdgeDriver(edgeVersion, source === 'override');
-
-      // Each download goes to a new folder, so later checks in this process (e.g. another standalone session)
-      // need it on PATH to find it rather than download it again
-      process.env.PATH = `${join(downloaded.path, '..')}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}`;
+      downloadedDrivers.push({ path: downloaded.path, version: downloaded.version });
 
       log.info(`✅ Downloaded msedgedriver ${downloaded.version}`);
       return Ok({

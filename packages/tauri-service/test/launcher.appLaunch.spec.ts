@@ -181,6 +181,33 @@ describe('app args', () => {
     expect(mockLog.error).toHaveBeenCalledWith('Tauri service failed to prepare', bindError);
   });
 
+  it("should stop the run when a worker's driver fails to start, logging the underlying error", async () => {
+    const cap = appCap();
+    const launcher = createLauncher({ driverProvider: 'external' }, 2);
+    await launcher.onPrepare({ maxInstances: 2 }, [cap]);
+    const bindError = new Error('can not listen on port 4444');
+    driverPool(launcher).startDriver.mockRejectedValueOnce(bindError);
+
+    await expect(launcher.onWorkerStart('0-0', cap)).rejects.toMatchObject({
+      name: 'SevereServiceError',
+      message: 'can not listen on port 4444',
+    });
+    expect(mockLog.error).toHaveBeenCalledWith('Tauri service failed to start worker 0-0', bindError);
+  });
+
+  it('should pass on a SevereServiceError from another copy of webdriverio as it is, logging its cause', async () => {
+    const cause = new Error('tauri-driver not found');
+    const foreign = Object.assign(new Error('Failed to prepare: tauri-driver not found'), {
+      name: 'SevereServiceError',
+      cause,
+    });
+    vi.mocked(ensureTauriDriver).mockResolvedValueOnce({ ok: false, error: foreign });
+    const launcher = createLauncher({ driverProvider: 'external' });
+
+    await expect(launcher.onPrepare({ maxInstances: 1 }, [appCap()])).rejects.toBe(foreign);
+    expect(mockLog.error).toHaveBeenCalledWith('Tauri service failed to prepare', cause);
+  });
+
   it("should keep a cloud provider's key in the config out of its debug logs", () => {
     new TauriLaunchService({}, {}, { maxInstances: 2, key: 'secret-cloud-key' } as never);
 

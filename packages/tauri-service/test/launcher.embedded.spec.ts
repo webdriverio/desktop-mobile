@@ -124,7 +124,11 @@ describe('ensureEmbeddedServersHealthy', () => {
     const error = new Error('process did not exit');
     vi.mocked(checkEmbeddedServerAlive).mockResolvedValue(false);
     vi.mocked(stopEmbeddedDriver).mockRejectedValue(error);
-    await expect(launcher.onWorkerStart('0-0', stdCaps)).rejects.toBe(error);
+    await expect(launcher.onWorkerStart('0-0', stdCaps)).rejects.toMatchObject({
+      name: 'SevereServiceError',
+      message: 'process did not exit',
+      cause: error,
+    });
     expect(startEmbeddedDriver).not.toHaveBeenCalled();
     vi.mocked(stopEmbeddedDriver).mockResolvedValue(undefined);
     await launcher.onComplete(0, { capabilities: [] }, []);
@@ -344,7 +348,6 @@ describe('embedded launcher lifecycle', () => {
     const internals = launcher as unknown as {
       driverPool: { stopAll: ReturnType<typeof vi.fn> };
       portManager: { clear: ReturnType<typeof vi.fn> };
-      instanceOptions: Map<string, unknown>;
     };
     internals.driverPool.stopAll.mockRejectedValueOnce(poolError);
 
@@ -352,7 +355,6 @@ describe('embedded launcher lifecycle', () => {
       errors: [embeddedError, poolError],
     });
     expect(internals.portManager.clear).toHaveBeenCalled();
-    expect(internals.instanceOptions.size).toBe(0);
   });
 });
 
