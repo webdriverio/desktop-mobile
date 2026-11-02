@@ -306,13 +306,13 @@ before a requested size is applied, including moves between displays.
 
 Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, a tab the Tab key and a backspace character the Backspace key, as in chromedriver, which skips a carriage return, so a `\r\n` line ending presses Enter once.
 
-Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held.
+Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held. If a `keydown` handler moves focus, the key then types or deletes in the newly focused element, as in Chrome.
 
 While Shift is held, a key sends and types the character Shift gives it on a US keyboard, as in Chrome: `browser.keys([Key.Shift, 'a', '1', ';'])` sends `key: 'A'`, `'!'` and `':'` and types `A!:`, and `addValue(Key.Shift + 'a1;')` types `A!:` too. The `code` and `keyCode` stay those of the key, and the numpad keys don't change.
 
 Unless a `keydown` handler cancels it, Enter acts as in Chrome, on the element focused after the `keydown`:
 - In a textarea or contenteditable, it breaks the line.
-- In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form:
+- In an input, it fires any `change` the field owes, then submits the input's form:
   - From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button, unless that button is disabled. A form without a submit button is submitted if it has no other input of those types.
   - From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
 - On a button (a `<button>`, or a submit, image, reset or button input), it clicks the button.
@@ -338,7 +338,7 @@ Unless a `keydown` handler cancels it, Tab moves focus to the next element and S
 - Tab starts from the element focused after the `keydown`. From an element Tab skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order, or leaves the page if there's none.
 - Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls. The next Tab comes back in at the start, and Shift+Tab at the end.
 
-Tab selects the text of a single-line text input it moves to, so key actions, and the rest of the same Element Send Keys, replace it. In an email or number input, or with a later `addValue()`, the text goes at the end instead ([#927](https://github.com/webdriverio/desktop-mobile/issues/927)). The field Tab leaves fires `change` if Element Send Keys changed it, though not yet if key actions did. So `setValue('user\tpass')` fills two fields and fires `change` on the first, and the second fires its `change` when focus leaves it.
+Tab selects the text of a single-line text input it moves to, so key actions, and the rest of the same Element Send Keys, replace it. In an email or number input, or with a later `addValue()`, the text goes at the end instead ([#927](https://github.com/webdriverio/desktop-mobile/issues/927)). The field Tab leaves fires `change` if its value changed. So `setValue('user\tpass')` fills two fields and fires `change` on the first, and the second fires its `change` when focus leaves it.
 
 Unlike in Chrome, Tab:
 - Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.

@@ -21,6 +21,8 @@ const DIOXUS_COPIES = {
     'fn is_text_field_js',
     'fn is_editable_text_field_js',
     'fn build_special_key_script',
+    'fn with_element_events_js',
+    'fn on_focus_after_keydown_js',
     'fn tab_js',
     'fn build_regular_key_script',
     'fn build_printable_key_script',
