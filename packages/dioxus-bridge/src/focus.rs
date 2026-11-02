@@ -6,13 +6,13 @@ use dioxus_core::VirtualDom;
 /// background, where scripted focus moves otherwise fire no `focus` or `blur`. Elsewhere it does
 /// nothing. It runs from `with_on_window`, before Dioxus builds the webview, so the work waits in a
 /// task until the window's `DesktopContext` exists.
-pub(crate) fn emulate_page_focus(dom: &mut VirtualDom) {
+pub(crate) fn emulate_page_focus(dom: &mut VirtualDom, label: String) {
   #[cfg(target_os = "windows")]
   dom.in_scope(dioxus_core::ScopeId::ROOT, || {
-    dioxus_core::spawn(async { webview2::emulate_page_focus() });
+    dioxus_core::spawn(async move { webview2::emulate_page_focus(&label) });
   });
   #[cfg(not(target_os = "windows"))]
-  let _ = dom;
+  let _ = (dom, label);
 }
 
 #[cfg(target_os = "windows")]
@@ -22,9 +22,9 @@ mod webview2 {
   use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2;
   use windows_core::{IUnknown, Interface, HSTRING, PCWSTR};
 
-  pub(super) fn emulate_page_focus() {
+  pub(super) fn emulate_page_focus(label: &str) {
     let Some(desktop) = dioxus_core::try_consume_context::<dioxus_desktop::DesktopContext>() else {
-      tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: no desktop window");
+      tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation in {label}: no desktop window");
       return;
     };
     // SAFETY: wry's `webview()` returns a #[repr(transparent)] COM interface pointer, and every COM
@@ -34,16 +34,19 @@ mod webview2 {
     let webview = match unknown.cast::<ICoreWebView2>() {
       Ok(webview) => webview,
       Err(e) => {
-        tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: {e:?}");
+        tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation in {label}: {e:?}");
         return;
       }
     };
-    let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {
-      if let Err(e) = result {
-        tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: {e:?} {json}");
-      }
-      Ok(())
-    }));
+    let in_label = label.to_string();
+    let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(
+      move |result, json| {
+        if let Err(e) = result {
+          tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation in {in_label}: {e:?} {json}");
+        }
+        Ok(())
+      },
+    ));
     let method = HSTRING::from("Emulation.setFocusEmulationEnabled");
     let params = HSTRING::from(r#"{"enabled":true}"#);
     // SAFETY: a COM call on the webview's own UI thread, where Dioxus runs its tasks.
@@ -51,7 +54,7 @@ mod webview2 {
       webview.CallDevToolsProtocolMethod(PCWSTR(method.as_ptr()), PCWSTR(params.as_ptr()), &handler)
     };
     if let Err(e) = result {
-      tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: {e:?}");
+      tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation in {label}: {e:?}");
     }
   }
 }

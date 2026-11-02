@@ -60,8 +60,8 @@ function type(el: HTMLInputElement, text: string) {
   log = [];
 }
 
-// Runs `run` with `type` events stopped at the window, before the page's listeners, as WebKit sends
-// no `blur` or `focus` while its window isn't focused.
+// Runs `run` with `eventType` events stopped at the window, before the page's listeners, as WebKit
+// sends no `blur` or `focus` while its window isn't focused.
 function withStopped(eventType: string, run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
   window.addEventListener(eventType, stop, true);
@@ -639,6 +639,15 @@ describe('Tab', () => {
       expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
     },
   );
+
+  it("should fire the change and select the next field when neither blur nor focus arrives, as in WebKit's unfocused windows", () => {
+    render('<input id="a"><input id="b" value="old">');
+    type($('#a'), 'x');
+    withStopped('blur', () => withStopped('focus', () => tab()));
+    expect(focused()?.id).toBe('b');
+    expect([$('#b').selectionStart, $('#b').selectionEnd]).toEqual([0, 3]);
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
 
   it('should focus a text field once, though select() focuses it in Chromium', () => {
     const select = HTMLInputElement.prototype.select;

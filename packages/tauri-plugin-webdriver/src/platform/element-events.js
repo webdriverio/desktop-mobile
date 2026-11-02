@@ -41,6 +41,9 @@ function wdioDeepActiveElement() {
   return el;
 }
 
+// The events a field's owed `change` follows: WebKit sends only `focusout` while its window isn't focused.
+const WDIO_FOCUS_LOSS_EVENTS = ['blur', 'focusout'];
+
 // Records that `el` owes a `change` once it loses focus, unless its value is `value` again by then.
 // An earlier record for `el` wins, as it holds the value from before the first edit.
 function wdioRecordPendingChange(el, value) {
@@ -50,15 +53,15 @@ function wdioRecordPendingChange(el, value) {
   wdioFirePendingChange();
   const root = el.getRootNode();
   // Capturing on the field's root runs before the field's own listeners, so `change` precedes
-  // `blur` however focus leaves, as in a browser. WebKit sends no `blur` while its window isn't
-  // focused, only `focusout`, so whichever arrives first fires it.
+  // `blur` however focus leaves, as in a browser. Whichever event arrives first fires it.
   const onBlur = (event) => {
     if (event.target === el) {
       wdioFirePendingChange(el);
     }
   };
-  root.addEventListener('blur', onBlur, true);
-  root.addEventListener('focusout', onBlur, true);
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    root.addEventListener(type, onBlur, true);
+  }
   window.__wdio_pending_change = { el, value, root, onBlur };
 }
 
@@ -86,8 +89,9 @@ function wdioTakePendingChange(el) {
   if (!record || (el && record.el !== el)) {
     return undefined;
   }
-  record.root.removeEventListener('blur', record.onBlur, true);
-  record.root.removeEventListener('focusout', record.onBlur, true);
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    record.root.removeEventListener(type, record.onBlur, true);
+  }
   window.__wdio_pending_change = undefined;
   return record;
 }
@@ -200,7 +204,7 @@ function wdioTabKey(event) {
     };
     candidate.addEventListener('focus', onFocus, true);
     candidate.addEventListener('focusin', onFocus, true);
-    wdioNativeFocus(candidate).call(candidate);
+    (wdioNativeFocus(candidate) ?? candidate.focus).call(candidate);
     candidate.removeEventListener('focus', onFocus, true);
     candidate.removeEventListener('focusin', onFocus, true);
     // Neither event reaches the field when WebView2 runs without focus emulation, or a capture
