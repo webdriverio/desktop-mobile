@@ -1,5 +1,3 @@
-//! Page focus emulation for `WebView2`.
-
 use dioxus_core::VirtualDom;
 
 /// On Windows, makes `WebView2` treat the page as focused even while its window is in the

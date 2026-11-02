@@ -213,7 +213,7 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     let webview2 = match core_webview2(&webview) {
       Ok(webview2) => webview2,
       Err(e) => {
-        tracing::warn!("Failed to get the ICoreWebView2 of {label}, so it gets no dialog handling or focus emulation: {e:?}");
+        tracing::warn!("Failed to set up the WebView2 handlers of {label}: {e:?}");
         return;
       }
     };
