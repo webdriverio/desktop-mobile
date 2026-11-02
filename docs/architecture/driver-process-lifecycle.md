@@ -15,7 +15,7 @@ spawn(driverPath, args, {
 - `stdin` ignored, `stdout`/`stderr` piped for log forwarding
 - Never use `detached: true` — driver must die with parent
 - Merge the environment with `mergeEnv` from `@wdio/native-utils`, not `{ ...process.env, ...customEnv }`. Windows variable names ignore case, and a spread keeps both `PATH` and `Path`, so a child process can drop the override.
-- On Windows, start a `.exe` (or `.com`) directly, with its path and arguments unquoted. Only a `.cmd` or `.bat` shim, or a bare name, needs `cmd.exe` (`shell: true`). Pass it one command line with each argument quoted, because spawn's shell mode joins the arguments unquoted and a path with a space would split.
+- On Windows, start a `.exe` (or `.com`) directly, with its path and arguments unquoted. Only a `.cmd` or `.bat` shim, or a bare name, needs `cmd.exe` (`shell: true`). Pass it one command line with each argument quoted where it needs to be, because spawn's shell mode joins the arguments unquoted and a path with a space would split.
 
 ## Readiness Detection
 

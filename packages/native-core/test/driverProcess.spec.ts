@@ -150,6 +150,14 @@ describe('DriverProcess.start', () => {
     expect(options).toMatchObject({ shell: true });
   });
 
+  it("should give cmd.exe a shim's path with backslashes, as it splits a command at a forward slash", async () => {
+    setPlatform('win32');
+
+    const [command] = await startWith('./node_modules/.bin/tauri-driver.cmd');
+
+    expect(command).toMatch(/^\.\\node_modules\\\.bin\\tauri-driver\.cmd --port 4444 /);
+  });
+
   it('should start the driver directly elsewhere', async () => {
     setPlatform('linux');
 
