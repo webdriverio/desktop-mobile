@@ -20,6 +20,7 @@ import { startEmbeddedDriver } from '../src/providers/embedded.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
 
 const DEV_SERVER = 'http://localhost:1420';
+const OTHER_DEV_SERVER = 'http://localhost:1421';
 const baseConfig = {} as Parameters<DioxusLaunchService['onPrepare']>[0];
 
 function createLauncher(globalOpts: Partial<DioxusServiceGlobalOptions> = {}): DioxusLaunchService {
@@ -113,6 +114,58 @@ describe('DioxusLaunchService — browser mode', () => {
     const caps: any[] = [{ 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } }];
     await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow('Dev server not reachable');
   });
+
+  it('should reject a native capability alongside a global browser mode before probing', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    const capabilities: DioxusCapabilities[] = [{}, { 'wdio:dioxusServiceOptions': { mode: 'native' } }];
+
+    await expect(launcher.onPrepare(baseConfig, capabilities)).rejects.toMatchObject({
+      message: expect.stringContaining('found mixed modes: browser, native'),
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(launcher.isBrowserMode).toBe(false);
+  });
+
+  it("should keep each capability's own devServerUrl over the global one and probe each", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    const capabilities: DioxusCapabilities[] = [
+      { 'wdio:dioxusServiceOptions': { devServerUrl: OTHER_DEV_SERVER } },
+      {},
+    ];
+
+    await launcher.onPrepare(baseConfig, capabilities);
+
+    expect(capabilities.map((cap) => cap['wdio:dioxusServiceOptions']?.devServerUrl)).toEqual([
+      OTHER_DEV_SERVER,
+      DEV_SERVER,
+    ]);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([OTHER_DEV_SERVER, DEV_SERVER]);
+  });
+
+  it('should name the unreachable dev server of a later capability', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url === OTHER_DEV_SERVER) {
+          throw new Error('ECONNREFUSED');
+        }
+        return new Response(null, { status: 200 });
+      }),
+    );
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    const capabilities: DioxusCapabilities[] = [
+      {},
+      { 'wdio:dioxusServiceOptions': { devServerUrl: OTHER_DEV_SERVER } },
+    ];
+
+    await expect(launcher.onPrepare(baseConfig, capabilities)).rejects.toMatchObject({
+      message: expect.stringContaining(`Dev server not reachable at ${OTHER_DEV_SERVER}`),
+    });
+  });
 });
 
 describe('DioxusLaunchService — devServer management', () => {
@@ -174,6 +227,28 @@ describe('DioxusLaunchService — devServer management', () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
     await launcher.onPrepare(baseConfig, [{}] as any);
     expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should ignore a devServer set on a capability', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    const capabilities = [{ 'wdio:dioxusServiceOptions': { devServer: 'pnpm dev' } }];
+
+    await launcher.onPrepare(baseConfig, capabilities as never);
+
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should give every capability the managed dev server URL over its own devServerUrl', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    const capabilities: DioxusCapabilities[] = [
+      { 'wdio:dioxusServiceOptions': { devServerUrl: OTHER_DEV_SERVER } },
+      {},
+    ];
+
+    await launcher.onPrepare(baseConfig, capabilities);
+
+    expect(startManagedDevServer).toHaveBeenCalledOnce();
+    expect(capabilities.map((cap) => cap['wdio:dioxusServiceOptions']?.devServerUrl)).toEqual([DEV_SERVER, DEV_SERVER]);
   });
 
   it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {

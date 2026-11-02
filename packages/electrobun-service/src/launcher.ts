@@ -5,8 +5,9 @@ import {
   BaseLauncher,
   closeLogWriter,
   isLogWriterInitialized,
+  mixedModesError,
   normaliseInstanceCaps,
-  probeDevServerReachable,
+  resolveDevServerUrls,
   startManagedDevServer,
 } from '@wdio/native-core';
 import { createLogger, errorMessage, isErr, severeServiceError } from '@wdio/native-utils';
@@ -102,74 +103,58 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     capabilities: ElectrobunCapabilities[] | Record<string, { capabilities: ElectrobunCapabilities }>,
   ): Promise<void> {
     const capsList = normaliseInstanceCaps(capabilities).map(({ caps }) => caps);
+    const capOptionsList = capsList.map((cap) =>
+      mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap)),
+    );
 
-    // Reject a mixed browser-mode & native-mode capability set: this launcher applies one
-    // mode to all caps. Silently treating a native cap as browser (or vice-versa) because a
-    // sibling cap set the other mode would be a confusing footgun; fail fast on a consistent mode.
-    const modes = capsList.map((cap) => mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap)).mode);
-    if (modes.some((mode) => mode === 'browser') && modes.some((mode) => mode !== 'browser')) {
-      throw new SevereServiceError(
-        'Mixed browser-mode and native-mode Electrobun capabilities in a single run are not supported. ' +
-          'Set `mode` consistently across all capabilities (all "browser", or all native).',
-      );
+    const modesError = mixedModesError(
+      capOptionsList.map(({ mode }) => mode),
+      'Electrobun',
+      CUSTOM_CAPABILITY_NAME,
+    );
+    if (modesError) {
+      throw new SevereServiceError(modesError);
     }
-
-    // Detect browser mode even when set on a non-first capability.
-    const primaryCap =
-      capsList.find(
-        (cap) => mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap)).mode === 'browser',
-      ) ?? capsList[0];
-    const mergedOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(primaryCap));
 
     // Browser mode: skip all binary/CDP setup; the frontend runs against a dev
     // server in a plain Chrome session.
-    if (mergedOptions.mode === 'browser') {
-      let devServerUrl = mergedOptions.devServerUrl;
+    if ((capOptionsList[0] ?? this.options).mode === 'browser') {
+      const { devServer, devServerUrl } = this.options;
       // Everything from the dev-server start onward runs in one guard: any failure after the
       // server is up must stop it (see #stopDevServer).
       try {
-        // Auto-manage the dev server if requested; the managed readiness wait supersedes the
-        // one-shot preflight below, and a devServer function may supply the URL.
-        if (mergedOptions.devServer) {
+        // Auto-manage the dev server once for the run if requested; the managed readiness wait
+        // supersedes the per-capability preflight, and a devServer function may supply the URL.
+        let managedUrl: string | undefined;
+        if (devServer) {
           // Only a devServer *function* can supply the URL; a string/object form needs devServerUrl
           // as its readiness target. Require it up front so a missing one fails fast instead of
           // polling an empty URL for the whole readiness timeout.
-          if (typeof mergedOptions.devServer !== 'function' && !devServerUrl) {
+          if (typeof devServer !== 'function' && !devServerUrl) {
             throw new SevereServiceError(
               'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
             );
           }
-          const managed = await startManagedDevServer(mergedOptions.devServer, devServerUrl ?? '');
+          const managed = await startManagedDevServer(devServer, devServerUrl ?? '');
           this.#stopDevServer = managed.stop;
-          devServerUrl = managed.url || devServerUrl;
+          managedUrl = managed.url;
         }
-        if (!devServerUrl) {
-          throw new SevereServiceError(
-            'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
-          );
+        const devServerUrls = await resolveDevServerUrls(
+          capOptionsList.map((capOptions) => capOptions.devServerUrl),
+          managedUrl,
+        );
+        if (isErr(devServerUrls)) {
+          throw severeServiceError(devServerUrls.error);
         }
-        try {
-          new URL(devServerUrl);
-        } catch {
-          throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
-        }
-        if (!mergedOptions.devServer) {
-          // Unmanaged: preflight the user-started server before workers navigate to it.
-          const reachable = await probeDevServerReachable(devServerUrl);
-          if (isErr(reachable)) {
-            throw severeServiceError(reachable.error);
-          }
-        }
-        for (const cap of capsList) {
+        capsList.forEach((cap, index) => {
           (cap as { browserName?: string }).browserName = 'chrome';
-          // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
-          // which reads devServerUrl from its capability options.
+          // The worker navigates each instance to the devServerUrl in its own capability options.
           const capRecord = cap as Record<string, unknown>;
           capRecord[CUSTOM_CAPABILITY_NAME] = {
             ...(capRecord[CUSTOM_CAPABILITY_NAME] as Record<string, unknown> | undefined),
-            devServerUrl,
+            devServerUrl: devServerUrls.value[index],
           };
-        }
+        });
       } catch (error) {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});

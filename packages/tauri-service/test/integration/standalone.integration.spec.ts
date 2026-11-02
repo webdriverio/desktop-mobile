@@ -44,7 +44,7 @@ describe('standalone init() in browser mode', () => {
   });
 
   function browserModeCapabilities(): TauriCapabilities {
-    return { 'wdio:tauriServiceOptions': { mode: 'browser', devServer } } as unknown as TauriCapabilities;
+    return { 'wdio:tauriServiceOptions': { mode: 'browser' } };
   }
 
   it('should open a Chrome session without a driver port and load the managed dev server', async () => {
@@ -52,7 +52,7 @@ describe('standalone init() in browser mode', () => {
     const initialUrl = sessionBrowser.url;
     remoteMock.mockResolvedValue(sessionBrowser);
 
-    const browser = await init(browserModeCapabilities());
+    const browser = await init(browserModeCapabilities(), { devServer });
 
     expect(devServer).toHaveBeenCalledOnce();
     expect(remoteMock).toHaveBeenCalledOnce();
@@ -67,18 +67,18 @@ describe('standalone init() in browser mode', () => {
 
   it("should leave the caller's capabilities untouched by the launcher's browser-mode rewrite", async () => {
     remoteMock.mockResolvedValue(createSessionBrowser());
-    const capabilities = {
+    const capabilities: TauriCapabilities = {
       'tauri:options': { application: '/app' },
-      'wdio:tauriServiceOptions': { mode: 'browser', devServer },
-    } as unknown as TauriCapabilities;
+      'wdio:tauriServiceOptions': { mode: 'browser' },
+    };
 
-    const browser = await init(capabilities);
+    const browser = await init(capabilities, { devServer });
 
     expect(remoteMock.mock.calls[0][0].capabilities).toMatchObject({ browserName: 'chrome' });
     expect(remoteMock.mock.calls[0][0].capabilities).not.toHaveProperty('tauri:options');
     expect(capabilities).toEqual({
       'tauri:options': { application: '/app' },
-      'wdio:tauriServiceOptions': { mode: 'browser', devServer },
+      'wdio:tauriServiceOptions': { mode: 'browser' },
     });
 
     await cleanup(browser);
@@ -100,7 +100,7 @@ describe('standalone init() in browser mode', () => {
   it('should delete the session and stop the managed dev server on cleanup', async () => {
     const sessionBrowser = createSessionBrowser();
     remoteMock.mockResolvedValue(sessionBrowser);
-    const browser = await init(browserModeCapabilities());
+    const browser = await init(browserModeCapabilities(), { devServer });
     expect(closeDevServer).not.toHaveBeenCalled();
 
     await cleanup(browser);
@@ -113,7 +113,7 @@ describe('standalone init() in browser mode', () => {
     const error = new Error('chromedriver failed to start');
     remoteMock.mockRejectedValueOnce(error);
 
-    await expect(init(browserModeCapabilities())).rejects.toBe(error);
+    await expect(init(browserModeCapabilities(), { devServer })).rejects.toBe(error);
     expect(closeDevServer).toHaveBeenCalledOnce();
   });
 });
