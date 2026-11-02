@@ -370,7 +370,7 @@ export class DriverProcess {
     }
 
     log.debug(`Stopping ${driverName}...`);
-    if (this.viaShell && process.platform === 'win32') {
+    if (this.viaShell) {
       // Killing cmd.exe alone would leave the driver it started running and holding its port
       killWindowsProcessTree(this._proc);
     } else {
