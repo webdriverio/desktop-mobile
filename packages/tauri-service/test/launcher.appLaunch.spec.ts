@@ -170,6 +170,25 @@ describe('app args', () => {
     expect(logged).not.toContain('secret-');
   });
 
+  it('should log the underlying error when a driver fails to start, which the SevereServiceError hides', async () => {
+    const launcher = createLauncher({ driverProvider: 'external' });
+    const bindError = new Error('can not listen on port 4444');
+    driverPool(launcher).startDriver.mockRejectedValueOnce(bindError);
+
+    await expect(launcher.onPrepare({ maxInstances: 1 }, [appCap()])).rejects.toMatchObject({
+      message: 'Failed to start tauri-driver: can not listen on port 4444',
+    });
+    expect(mockLog.error).toHaveBeenCalledWith('Tauri service failed to prepare', bindError);
+  });
+
+  it("should keep a cloud provider's key in the config out of its debug logs", () => {
+    new TauriLaunchService({}, {}, { maxInstances: 2, key: 'secret-cloud-key' } as never);
+
+    const logged = JSON.stringify(mockLog.debug.mock.calls);
+    expect(logged).toContain('maxInstances=2');
+    expect(logged).not.toContain('secret-cloud-key');
+  });
+
   it("should keep env values out of its debug logs, showing only the variables' names", async () => {
     const launcher = createLauncher({ driverProvider: 'external', env: { CN_API_KEY: 'secret-service-value' } });
 

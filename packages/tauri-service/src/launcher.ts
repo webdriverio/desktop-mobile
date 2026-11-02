@@ -130,8 +130,8 @@ export default class TauriLaunchService {
   private backendPortManager: PortManager;
   private driverPool: DriverPool;
   private browserMode: boolean = false;
-  // Teardown for a service-managed dev server (browser mode). Called from onComplete AND on an
-  // onPrepare failure — WDIO does not call onComplete after onPrepare throws. Idempotent.
+  // Teardown for a service-managed dev server (browser mode). Called on an onPrepare failure and again from
+  // onComplete, which WDIO and standalone sessions still run after one, so it's idempotent.
   #stopDevServer?: () => Promise<void>;
   private embeddedProcesses: Map<string, EmbeddedDriverInfo> = new Map();
   private embeddedConfigs: Map<string, EmbeddedLaunchConfig> = new Map();
@@ -147,7 +147,8 @@ export default class TauriLaunchService {
   ) {
     log.debug('TauriLaunchService initialized');
     log.debug('Capabilities:', JSON.stringify(capabilities, hideEnvValues, 2));
-    log.debug('Config:', JSON.stringify(config, hideEnvValues, 2));
+    // Not the whole config, which can hold credentials such as a cloud provider's key
+    log.debug(`Config: maxInstances=${config.maxInstances}, outputDir=${config.outputDir}`);
 
     const basePort = options.tauriDriverPort || 4444;
     this.portManager = new PortManager(basePort, 4445);
@@ -170,12 +171,12 @@ export default class TauriLaunchService {
     try {
       await this.prepare(config, capabilities);
     } catch (error) {
-      if (error instanceof SevereServiceError) {
-        throw error;
-      }
       // WebdriverIO prints only the SevereServiceError's stack, so this keeps where the failure came from
-      log.error('Tauri service failed to prepare', error);
-      throw severeServiceError(error);
+      const cause = error instanceof SevereServiceError ? error.cause : error;
+      if (cause !== undefined) {
+        log.error('Tauri service failed to prepare', cause);
+      }
+      throw error instanceof SevereServiceError ? error : severeServiceError(error);
     }
   }
 
@@ -222,7 +223,7 @@ export default class TauriLaunchService {
       }
       let devServerUrl = mergedOptions.devServerUrl;
       // Everything from the dev-server start onward runs in one guard: any failure after the server
-      // is up must stop it, because WDIO does not call onComplete after an onPrepare throw.
+      // is up stops it straight away, rather than leaving it running until onComplete.
       try {
         // Auto-manage the dev server if requested; the managed readiness wait supersedes the
         // one-shot preflight below, and a devServer function may supply the URL.
