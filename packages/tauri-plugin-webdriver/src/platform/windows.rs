@@ -210,9 +210,7 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   let alert_state = manager.get_or_create(webview.label());
 
   let _ = webview.with_webview(move |webview| unsafe {
-    let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-    if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+    if let Ok(webview2) = core_webview2(&webview) {
       if FOCUS_EMULATION.load(Ordering::SeqCst) {
         emulate_page_focus(&webview2);
       }
@@ -244,6 +242,12 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   });
 }
 
+/// The `ICoreWebView2` behind a webview, from inside `with_webview`.
+unsafe fn core_webview2(webview: &PlatformWebview) -> windows::core::Result<ICoreWebView2> {
+  let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+  rebind_controller(webview).CoreWebView2()
+}
+
 /// Set by the first WebDriver session, so webviews created after it emulate focus too.
 static FOCUS_EMULATION: AtomicBool = AtomicBool::new(false);
 
@@ -255,8 +259,7 @@ pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
   }
   for window in app.webview_windows().into_values() {
     let result = window.with_webview(|webview| unsafe {
-      let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-      match rebind_controller(&webview).CoreWebView2() {
+      match core_webview2(&webview) {
         Ok(webview2) => emulate_page_focus(&webview2),
         Err(e) => tracing::error!("Failed to turn on focus emulation: {e:?}"),
       }

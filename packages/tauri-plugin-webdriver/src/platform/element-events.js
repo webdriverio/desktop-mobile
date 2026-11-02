@@ -169,12 +169,14 @@ function wdioTabKey(event) {
   }
   const start = wdioDeepActiveElement();
   // When a blur or change handler sends focus back to the field Tab is leaving, the move is cancelled
-  // and Tab ends there, as in Chrome. The field's blur tells this apart from a stop refusing focus.
+  // and Tab ends there, as in Chrome. The field's blur, or in a WebKit window without focus its
+  // focusout, tells this apart from a stop refusing focus.
   let left = false;
   const onBlur = () => {
     left = true;
   };
   start.addEventListener('blur', onBlur, true);
+  start.addEventListener('focusout', onBlur, true);
   // The engine won't focus some stops, such as a link with an invalid tabindex, so Tab tries each in
   // turn until one takes focus, even if a focus trap then sends it straight back.
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
@@ -188,23 +190,28 @@ function wdioTabKey(event) {
       }
     };
     let focused = false;
+    // On the first of `focus` and `focusin`: WebKit sends only `focusin` while its window isn't focused.
     const onFocus = () => {
-      focused = true;
-      if (isTextField) {
-        select();
+      if (!focused) {
+        focused = true;
+        if (isTextField) {
+          select();
+        }
       }
     };
     candidate.addEventListener('focus', onFocus, true);
+    candidate.addEventListener('focusin', onFocus, true);
     wdioNativeFocus(candidate).call(candidate);
     candidate.removeEventListener('focus', onFocus, true);
-    // No focus event reaches the field when a capture listener stops it, or WebKit's window isn't
-    // focused, so select here instead.
+    candidate.removeEventListener('focusin', onFocus, true);
+    // No focus event reaches the field when a capture listener stops it, so select here instead.
     if (isTextField && !focused) {
       select();
     }
     return focused || left || wdioDeepActiveElement() !== start;
   });
   start.removeEventListener('blur', onBlur, true);
+  start.removeEventListener('focusout', onBlur, true);
   if (!next) {
     wdioDeepActiveElement().blur();
   }
@@ -444,7 +451,11 @@ function wdioFocusForClick(el) {
   const onFocus = () => {
     moved = true;
   };
-  document.addEventListener('focus', onFocus, true);
+  // WebKit sends only `focusin` and `focusout` while its window isn't focused.
+  const focusEvents = ['focus', 'focusin', 'focusout'];
+  for (const type of focusEvents) {
+    document.addEventListener(type, onFocus, true);
+  }
   // `activeElement` reports a shadow host when focus is anywhere in its tree; that only counts as the
   // host holding focus when it delegates focus.
   const holdsFocus = (node) =>
@@ -474,7 +485,9 @@ function wdioFocusForClick(el) {
       break;
     }
   }
-  document.removeEventListener('focus', onFocus, true);
+  for (const type of focusEvents) {
+    document.removeEventListener(type, onFocus, true);
+  }
   if (!node || node === document.body) {
     const active = wdioDeepActiveElement();
     if (active !== document.body) {

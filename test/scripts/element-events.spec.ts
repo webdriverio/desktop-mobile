@@ -740,21 +740,25 @@ describe('Tab', () => {
     });
   });
 
-  it('should stay on a field whose blur or change handler sends focus back to it', () => {
-    render('<input id="qty"><input id="name"><input id="email">');
-    // In Chrome and WebKit, a blur handler that refocuses the field cancels the move, so focus stays.
-    // jsdom moves focus anyway, so this fakes the engine.
-    const focus = HTMLElement.prototype.focus;
-    vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
-      if (this.id === 'name') {
-        $('#qty').dispatchEvent(new FocusEvent('blur'));
-      } else {
-        focus.call(this);
-      }
-    });
-    $('#qty').focus();
-    expect(tab()).toBe('qty');
-  });
+  // WebKit sends only focusout while its window isn't focused.
+  it.each(['blur', 'focusout'])(
+    'should stay on a field whose blur or change handler sends focus back to it, on its %s',
+    (type) => {
+      render('<input id="qty"><input id="name"><input id="email">');
+      // In Chrome and WebKit, a handler that refocuses the field cancels the move, so focus stays.
+      // jsdom moves focus anyway, so this fakes the engine.
+      const focus = HTMLElement.prototype.focus;
+      vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
+        if (this.id === 'name') {
+          $('#qty').dispatchEvent(new FocusEvent(type));
+        } else {
+          focus.call(this);
+        }
+      });
+      $('#qty').focus();
+      expect(tab()).toBe('qty');
+    },
+  );
 
   it("should pass Tab on from a stop the page won't focus", () => {
     render('<input id="x"><a id="bad" tabindex="foo">bad</a><input id="y">');
@@ -911,6 +915,18 @@ describe('wdioFocusForClick', () => {
     type($('#a'), 'x');
     events.wdioFocusForClick($('#b'));
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus b=']);
+  });
+
+  it("should stop where a change handler sends focus back, when only focusout arrives, as in WebKit's unfocused windows", () => {
+    type($('#a'), 'x');
+    // WebKit cancels a focus move that a focusout handler undoes; jsdom doesn't, so this fakes it.
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
+      $('#a').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
+    events.wdioFocusForClick($('#b'));
+    focus.mockRestore();
+    expect(document.activeElement?.id).toBe('a');
+    expect(log).toEqual(['change a=x']);
   });
 
   it('should focus the nearest focusable ancestor', () => {

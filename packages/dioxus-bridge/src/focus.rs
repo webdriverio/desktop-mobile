@@ -23,12 +23,12 @@ mod webview2 {
   use windows_core::{HSTRING, PCWSTR};
 
   pub(super) fn emulate_page_focus() {
-    // SAFETY: both types are #[repr(transparent)] pointers to the same WebView2 COM object, whose
-    // layout is fixed by WebView2, not by the crate version, so the bridge needn't match wry's.
     let Some(desktop) = dioxus_core::try_consume_context::<dioxus_desktop::DesktopContext>() else {
       tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: no desktop window");
       return;
     };
+    // SAFETY: both types are #[repr(transparent)] pointers to the same WebView2 COM object, whose
+    // layout is fixed by WebView2, not by the crate version, so the bridge needn't match wry's.
     #[allow(clippy::useless_transmute)]
     let controller: ICoreWebView2Controller =
       unsafe { std::mem::transmute(desktop.webview.controller()) };
