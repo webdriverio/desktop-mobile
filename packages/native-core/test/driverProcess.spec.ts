@@ -45,8 +45,8 @@ async function startWith(driverPath: string, options: { env?: NodeJS.ProcessEnv;
   return vi.mocked(spawn).mock.calls[0] as unknown[];
 }
 
-// Starts on its startup marker, and exits when it's killed or taskkill runs
-async function startRunning(driverPath: string) {
+// Starts on its startup marker, and exits when it's killed or taskkill succeeds
+async function startRunning(driverPath: string, taskkillExitCode = 0) {
   const proc = Object.assign(new EventEmitter(), {
     stdout: new PassThrough(),
     stderr: new PassThrough(),
@@ -66,8 +66,14 @@ async function startRunning(driverPath: string) {
     });
   vi.mocked(spawn).mockImplementation(((command: string) => {
     if (command === 'taskkill') {
-      exit();
-      return new EventEmitter();
+      const taskkill = new EventEmitter();
+      setImmediate(() => {
+        taskkill.emit('exit', taskkillExitCode);
+        if (taskkillExitCode === 0) {
+          exit();
+        }
+      });
+      return taskkill;
     }
     return proc;
   }) as never);
@@ -192,6 +198,16 @@ describe('DriverProcess.stop', () => {
 
     expect(spawn).toHaveBeenCalledWith('taskkill', ['/pid', '4321', '/T', '/F'], { stdio: 'ignore' });
     expect(proc.kill).not.toHaveBeenCalled();
+  });
+
+  it('should kill the process itself when taskkill fails', async () => {
+    setPlatform('win32');
+    const { driver, proc } = await startRunning('C:\\app\\node_modules\\.bin\\tauri-driver.cmd', 1);
+
+    await driver.stop();
+
+    expect(spawn).toHaveBeenCalledWith('taskkill', ['/pid', '4321', '/T', '/F'], { stdio: 'ignore' });
+    expect(proc.kill).toHaveBeenCalled();
   });
 
   it('should send SIGTERM to a driver it started directly', async () => {

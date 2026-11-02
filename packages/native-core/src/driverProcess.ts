@@ -27,8 +27,8 @@ import type { Interface as ReadlineInterface } from 'node:readline';
 import { createLogger, mergeEnv } from '@wdio/native-utils';
 
 import { needsShell, quoteForCmd, unquote } from './cmdLine.js';
-
 import { createLogCapture } from './logCapture.js';
+import { killWindowsProcessTree } from './processTree.js';
 
 const log = createLogger('native-core', 'launcher');
 
@@ -370,12 +370,11 @@ export class DriverProcess {
     }
 
     log.debug(`Stopping ${driverName}...`);
-    const proc = this._proc;
-    if (this.viaShell && process.platform === 'win32' && proc.pid !== undefined) {
+    if (this.viaShell && process.platform === 'win32') {
       // Killing cmd.exe alone would leave the driver it started running and holding its port
-      spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }).on('error', () => proc.kill());
+      killWindowsProcessTree(this._proc);
     } else {
-      proc.kill('SIGTERM');
+      this._proc.kill('SIGTERM');
     }
 
     await this.waitForExit(driverName);
