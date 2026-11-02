@@ -15,9 +15,8 @@
 //     into the caller's `DriverStartOptions` so each service supplies its
 //     own (we used to hardcode Tauri's strings).
 //
-// The poll-for-readiness behaviour (TCP open + HTTP /status reachable),
-// shutdown sequence, and CI-aware timeouts all transfer unchanged — they're
-// generic.
+// The poll-for-readiness behaviour (TCP open + HTTP /status reachable) and
+// CI-aware timeouts transfer unchanged — they're generic.
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import http from 'node:http';
@@ -161,8 +160,10 @@ export class DriverProcess {
         };
         this.viaShell = needsShell(driverPath);
         if (this.viaShell) {
-          // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted
-          this._proc = spawn([driverPath, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true });
+          // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted. cmd.exe also
+          // splits a command at a forward slash.
+          const command = driverPath.replaceAll('/', '\\');
+          this._proc = spawn([command, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true });
         } else {
           const plain = process.platform === 'win32' ? unquote : (arg: string) => arg;
           this._proc = spawn(plain(driverPath), args.map(plain), spawnOptions);
