@@ -60,6 +60,18 @@ function type(el: HTMLInputElement, text: string) {
   log = [];
 }
 
+// Runs `run` with `type` events stopped at the window, before the page's listeners, as WebKit sends
+// no `blur` or `focus` while its window isn't focused.
+function withStopped(type: string, run: () => void) {
+  const stop = (event: Event) => event.stopImmediatePropagation();
+  window.addEventListener(type, stop, true);
+  try {
+    run();
+  } finally {
+    window.removeEventListener(type, stop, true);
+  }
+}
+
 // Element Click: the driver runs the press and the release as separate scripts.
 function click(el: HTMLElement) {
   events.wdioPress(el);
@@ -123,16 +135,15 @@ describe('pending change', () => {
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus a=x', 'blur a=x']);
   });
 
-  it("should fire it on focusout when no blur arrives, as WebKit sends while its window isn't focused", () => {
+  it.each([
+    ['the page moves focus', () => $('#b').focus()],
+    ['a click moves focus', () => events.wdioFocusForClick($('#b'))],
+    ['a clear moves focus', () => events.wdioClearElement($('#b'))],
+  ])("should fire it on focusout when %s and no blur arrives, as in WebKit's unfocused windows", (_, run) => {
+    $('#b').value = 'y';
     type($('#a'), 'x');
-    const stopBlur = (event: Event) => event.stopImmediatePropagation();
-    window.addEventListener('blur', stopBlur, true);
-    try {
-      $('#b').focus();
-    } finally {
-      window.removeEventListener('blur', stopBlur, true);
-    }
-    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+    withStopped('blur', run);
+    expect(log.filter((entry) => entry.startsWith('change a'))).toEqual(['change a=x']);
   });
 
   it('should fire nothing on a field the page has removed', () => {
@@ -583,10 +594,14 @@ describe('Tab', () => {
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
   });
 
-  it("should fire the field's change when Tab leaves the page", () => {
+  it.each([
+    ['', (run: () => void) => run()],
+    [', on focusout if no blur arrives', (run: () => void) => withStopped('blur', run)],
+  ])("should fire the field's change when Tab leaves the page%s", (_, around) => {
     render('<input id="a">');
     type($('#a'), 'x');
-    expect(tab()).toBe('body');
+    around(() => tab());
+    expect(focused()).toBe(document.body);
     expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
   });
 
@@ -628,14 +643,8 @@ describe('Tab', () => {
   it("should select a text field before its focusin handlers when only focusin arrives, as in WebKit's unfocused windows", () => {
     render('<input id="a"><input id="ph" value="+1 ">');
     $('#ph').addEventListener('focusin', () => $('#ph').setSelectionRange(3, 3));
-    const stopFocus = (event: Event) => event.stopImmediatePropagation();
-    window.addEventListener('focus', stopFocus, true);
-    try {
-      $('#a').focus();
-      tab();
-    } finally {
-      window.removeEventListener('focus', stopFocus, true);
-    }
+    $('#a').focus();
+    withStopped('focus', () => tab());
     expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
   });
 
@@ -942,7 +951,6 @@ describe('wdioFocusForClick', () => {
       $('#a').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
     });
     events.wdioFocusForClick($('#b'));
-    vi.restoreAllMocks();
     expect(document.activeElement?.id).toBe('a');
     expect(log).toEqual(['change a=x']);
   });

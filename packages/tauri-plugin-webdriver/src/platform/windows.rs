@@ -327,7 +327,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
 
     let result = self.window.with_webview(move |webview| {
       unsafe {
-        if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+        if let Ok(webview2) = core_webview2(&webview) {
           // Create an in-memory stream for the PNG image
           let stream = match CreateStreamOnHGlobal(HGLOBAL::default(), true) {
             Ok(s) => s,

@@ -28,7 +28,7 @@ See the [App Setup guide](https://github.com/webdriverio/desktop-mobile/blob/mai
 
 ### Apps With Their Own `with_on_window`
 
-`install()` registers each window from a `with_on_window` callback, and on Windows turns on the focus emulation the embedded driver relies on. If your app sets its own callback, set it after `install()` and call `wdio_dioxus::on_window` from it:
+`install()` registers each window from a `with_on_window` callback, and with the embedded driver turns on the focus emulation it needs on Windows. If your app sets its own callback, set it after `install()` and call `wdio_dioxus::on_window` from it:
 
 ```rust,ignore
 config = config.with_on_window(|window, dom| {

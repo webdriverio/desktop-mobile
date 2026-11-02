@@ -130,7 +130,7 @@ Once the app's window has loaded, the server reports it's ready:
 
 ## Apps With Their Own Window Callback
 
-`install()` registers each window with the bridge from a `with_on_window` callback, which on Windows also turns on the focus emulation the embedded driver relies on, and Dioxus keeps only one. If your app needs its own, set it after `install()` and call `wdio_dioxus::on_window` from it:
+`install()` registers each window with the bridge from a `with_on_window` callback, which with the embedded driver also turns on the focus emulation it needs on Windows, and Dioxus keeps only one. If your app needs its own, set it after `install()` and call `wdio_dioxus::on_window` from it:
 
 ```rust
 #[cfg(debug_assertions)]

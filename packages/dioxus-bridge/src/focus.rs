@@ -20,17 +20,24 @@ mod webview2 {
   use dioxus_desktop::wry::WebViewExtWindows;
   use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
   use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2;
-  use windows_core::{HSTRING, PCWSTR};
+  use windows_core::{IUnknown, Interface, HSTRING, PCWSTR};
 
   pub(super) fn emulate_page_focus() {
     let Some(desktop) = dioxus_core::try_consume_context::<dioxus_desktop::DesktopContext>() else {
       tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: no desktop window");
       return;
     };
-    // SAFETY: both types are #[repr(transparent)] pointers to the same WebView2 COM object, whose
-    // layout is fixed by WebView2, not by the crate version, so the bridge needn't match wry's.
-    #[allow(clippy::useless_transmute)]
-    let webview: ICoreWebView2 = unsafe { std::mem::transmute(desktop.webview.webview()) };
+    // SAFETY: wry's interface is a #[repr(transparent)] COM pointer, and every COM interface starts
+    // with IUnknown, so the bridge needn't match wry's crate versions. QueryInterface then checks it
+    // really is an ICoreWebView2.
+    let unknown: IUnknown = unsafe { std::mem::transmute(desktop.webview.webview()) };
+    let webview = match unknown.cast::<ICoreWebView2>() {
+      Ok(webview) => webview,
+      Err(e) => {
+        tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: {e:?}");
+        return;
+      }
+    };
     let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {
       if let Err(e) = result {
         tracing::error!(target: "wdio_dioxus_bridge", "Failed to turn on focus emulation: {e:?} {json}");
