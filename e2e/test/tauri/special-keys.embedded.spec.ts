@@ -409,6 +409,30 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input abc', 'input ab', 'input a', 'change a', 'blur a']);
   });
 
+  it('should type and delete in the field a keydown handler moves focus to, as Chrome does', async () => {
+    await fillChangeScratch({ initialValue: 'pq' });
+    await browser.execute(
+      `var field = document.querySelector("#fresh-field");
+      var next = document.createElement("input");
+      next.id = "fresh-next";
+      next.value = "yz";
+      field.after(next);
+      for (var type of ["input", "change"]) {
+        next.addEventListener(type, function (ev) {
+          window.__fieldEvents.push(ev.type + " next " + ev.target.value);
+        });
+      }
+      field.addEventListener("keydown", function () {
+        next.focus();
+        next.setSelectionRange(0, 0);
+      });`,
+    );
+    await browser.$('#fresh-field').click();
+    await browser.keys(['x', Key.Delete]);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['blur pq', 'input next xyz', 'input next xz', 'change next xz']);
+  });
+
   it('should fire change before blur when the page moves focus', async () => {
     await fillChangeScratch();
     await browser.$('#fresh-field').addValue('x');
