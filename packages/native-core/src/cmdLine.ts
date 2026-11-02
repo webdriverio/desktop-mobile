@@ -8,7 +8,7 @@ export function unquote(arg: string): string {
 // A trailing backslash is doubled so it doesn't escape the closing quote
 export function quoteForCmd(arg: string): string {
   const bare = unquote(arg);
-  if (bare !== '' && !/[\s"&()<>^|]/.test(bare)) {
+  if (bare !== '' && !/[\s"&()<>^|,;=]/.test(bare)) {
     return bare;
   }
   return `"${bare.replace(/"/g, '""').replace(/(\\+)$/, '$1$1')}"`;
