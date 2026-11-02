@@ -244,7 +244,7 @@ describe('Dioxus element events (embedded)', () => {
     await fillFormScratch(
       '<input id="fresh-field"><button type="button" id="fresh-other">other</button><button id="fresh-submit">go</button>',
     );
-    // Registered after the form's logger, so the log is the same whether or not the focus move fires blur.
+    // Registered after the form's logger, so the keydown is logged before the focus move fires the field's change.
     await browser.execute(
       `document.querySelector("#fresh-form").addEventListener("keydown", function (ev) {
         if (ev.key === "Enter") { document.querySelector("#fresh-other").focus(); }

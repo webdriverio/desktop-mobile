@@ -28,7 +28,7 @@ See the [App Setup guide](https://github.com/webdriverio/desktop-mobile/blob/mai
 
 ### Apps With Their Own `with_on_window`
 
-`install()` registers each window from a `with_on_window` callback. If your app sets its own, set it after `install()` and call `wdio_dioxus::on_window` from it:
+`install()` registers each window from a `with_on_window` callback, and on Windows turns on the focus emulation the embedded driver relies on. If your app sets its own callback, set it after `install()` and call `wdio_dioxus::on_window` from it:
 
 ```rust,ignore
 config = config.with_on_window(|window, dom| {
@@ -43,6 +43,8 @@ There's no equivalent for `with_custom_head`: under test, `install()` replaces a
 ## What `install()` Does
 
 `install()` does nothing unless `@wdio/dioxus-service` launched the app. When it did, `install()` starts the in-app WebDriver server the service connects to, and installs the bridge, which provides `browser.dioxus.execute()`, mocking, log forwarding and window management.
+
+On Windows it also turns on WebView2's focus emulation, so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front. The page also counts as visible, so a minimized window fires no `visibilitychange`, and its timers aren't slowed.
 
 ## Custom Commands
 

@@ -22,7 +22,11 @@ pub mod invoke;
 pub mod log_bridge;
 pub mod window_state;
 
-use dioxus_desktop::Config;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+use dioxus_core::VirtualDom;
+use dioxus_desktop::{tao::window::Window, Config};
 use serde_json::{json, Value};
 
 pub use invoke::CommandRegistry;
@@ -31,6 +35,10 @@ pub use log_bridge::FRONTEND_MARKER;
 /// Mirrors `wdio_dioxus_embedded_driver::PORT_ENV_VAR`, which this crate can't
 /// import: the embedded driver depends on the bridge.
 const EMBEDDED_PORT_ENV_VAR: &str = "WDIO_EMBEDDED_PORT";
+
+/// Set when the bridge is installed for the embedded driver, whose script-driven focus moves need
+/// focus emulation.
+static EMBEDDED: AtomicBool = AtomicBool::new(false);
 
 /// The guest-js bundle, embedded by `build.rs` from `dist-js/index.js`. It's
 /// committed so crates.io and git builds have it; rebuild it with
@@ -91,7 +99,7 @@ fn install_with_registry_and_config(
   }
 
   let registry_for_handler = registry;
-  let embedded = embedded_port.is_some();
+  EMBEDDED.store(embedded_port.is_some(), Ordering::SeqCst);
 
   // On Windows, Wry serves custom protocols as `http://{scheme}.*`, and
   // WebView2 rejects a `fetch('wdio://invoke')`, so guest-js reads the URL
@@ -115,13 +123,17 @@ fn install_with_registry_and_config(
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
     .with_custom_head(head)
-    .with_on_window(move |window, dom| {
-      let label = window_state::register_window(&window);
-      tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
-      if embedded {
-        focus::emulate_page_focus(dom);
-      }
-    })
+    .with_on_window(|window, dom| on_window(&window, dom))
+}
+
+/// Registers a window with WDIO and, for the embedded driver, turns on focus emulation. The bridge
+/// installs it as the `with_on_window` callback; an app with its own calls it from that.
+pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
+  let label = window_state::register_window(window);
+  tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
+  if EMBEDDED.load(Ordering::SeqCst) {
+    focus::emulate_page_focus(dom);
+  }
 }
 
 fn register_window_commands(registry: &CommandRegistry) {

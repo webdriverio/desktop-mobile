@@ -144,6 +144,8 @@ pub async fn create<R: Runtime + 'static>(
     Err(_) => ("webview".to_string(), "unknown".to_string()),
   };
 
+  crate::platform::start_focus_emulation(&state.app);
+
   let mut sessions = state.sessions.write().await;
 
   // Create session with initial window

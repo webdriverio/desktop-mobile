@@ -194,6 +194,10 @@ function wdioTabKey(event) {
     candidate.addEventListener('focus', onFocus, true);
     wdioNativeFocus(candidate).call(candidate);
     candidate.removeEventListener('focus', onFocus, true);
+    // A capture listener that stops the focus event keeps it from the field, so select here instead.
+    if (isTextField && !focused) {
+      select();
+    }
     return focused || left || wdioDeepActiveElement() !== start;
   });
   start.removeEventListener('blur', onBlur, true);

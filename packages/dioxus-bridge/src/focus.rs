@@ -6,15 +6,14 @@ use dioxus_core::VirtualDom;
 /// background, where scripted focus moves otherwise fire no `focus` or `blur`. Elsewhere it does
 /// nothing. Call it from `with_on_window`: Dioxus builds the webview afterwards, so the work runs
 /// in a task once the window's `DesktopContext` exists.
-#[cfg(target_os = "windows")]
 pub fn emulate_page_focus(dom: &mut VirtualDom) {
+  #[cfg(target_os = "windows")]
   dom.in_scope(dioxus_core::ScopeId::ROOT, || {
     dioxus_core::spawn(async { webview2::emulate_page_focus() });
   });
+  #[cfg(not(target_os = "windows"))]
+  let _ = dom;
 }
-
-#[cfg(not(target_os = "windows"))]
-pub fn emulate_page_focus(_dom: &mut VirtualDom) {}
 
 #[cfg(target_os = "windows")]
 mod webview2 {

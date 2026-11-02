@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -212,8 +213,7 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
     if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
-      // Only under WebdriverIO, which sets the port, so an ordinary debug run keeps real focus.
-      if std::env::var_os(crate::PORT_ENV_VAR).is_some() {
+      if FOCUS_EMULATION.load(Ordering::SeqCst) {
         emulate_page_focus(&webview2);
       }
 
@@ -242,6 +242,25 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
       std::mem::forget(handler);
     }
   });
+}
+
+/// Set by the first WebDriver session, so webviews created after it emulate focus too.
+static FOCUS_EMULATION: AtomicBool = AtomicBool::new(false);
+
+/// Turns on focus emulation in every webview once a WebDriver session starts, so an ordinary run
+/// of a build with the plugin keeps the window's real focus.
+pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
+  if FOCUS_EMULATION.swap(true, Ordering::SeqCst) {
+    return;
+  }
+  for window in app.webview_windows().into_values() {
+    let _ = window.with_webview(|webview| unsafe {
+      let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+      if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+        emulate_page_focus(&webview2);
+      }
+    });
+  }
 }
 
 /// Makes `WebView2` treat the page as focused even while its window is in the background, where

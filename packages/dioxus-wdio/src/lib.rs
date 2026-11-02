@@ -68,19 +68,9 @@ pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, regist
 /// });
 /// ```
 pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
-  let mode = mode(automation::is_requested(), external_provider());
-  if mode != Mode::Off {
-    wdio_dioxus_bridge::window_state::register_window(window);
+  if automation::is_requested() {
+    wdio_dioxus_bridge::on_window(window, dom);
   }
-  if emulates_focus(&mode) {
-    wdio_dioxus_bridge::focus::emulate_page_focus(dom);
-  }
-}
-
-/// Only the embedded driver moves focus with script, for which WebView2 fires no `focus` or `blur`
-/// in a background window.
-fn emulates_focus(mode: &Mode) -> bool {
-  cfg!(feature = "embedded") && *mode == Mode::Embedded
 }
 
 fn external_provider() -> bool {
@@ -136,12 +126,5 @@ mod tests {
   #[test]
   fn should_install_only_the_bridge_for_the_external_provider() {
     assert_eq!(mode(true, true), Mode::BridgeOnly);
-  }
-
-  #[test]
-  fn emulates_focus_only_for_the_embedded_server() {
-    assert_eq!(emulates_focus(&Mode::Embedded), cfg!(feature = "embedded"));
-    assert!(!emulates_focus(&Mode::BridgeOnly));
-    assert!(!emulates_focus(&Mode::Off));
   }
 }
