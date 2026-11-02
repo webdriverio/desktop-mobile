@@ -428,9 +428,18 @@ describe('special keys (embedded)', () => {
       });`,
     );
     await browser.$('#fresh-field').click();
-    await browser.keys(['x', Key.Delete]);
+    await browser.keys('x');
+    await browser.$('#fresh-field').click();
+    await browser.keys(Key.Delete);
     await browser.$('#fresh-other').click();
-    expect(await fieldEvents()).toEqual(['blur pq', 'input next xyz', 'input next xz', 'change next xz']);
+    expect(await fieldEvents()).toEqual([
+      'blur pq',
+      'input next xyz',
+      'change next xyz',
+      'blur pq',
+      'input next yz',
+      'change next yz',
+    ]);
   });
 
   it('should fire change before blur when the page moves focus', async () => {
