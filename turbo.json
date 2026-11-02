@@ -141,12 +141,6 @@
       "persistent": true,
       "cache": false
     },
-    "@repo/e2e#build": {
-      "dependsOn": [
-        "@wdio/electron-service#build",
-        "@wdio/tauri-service#build"
-      ]
-    },
     "@repo/e2e#protocol-install:electron-builder": {
       "cache": false
     },

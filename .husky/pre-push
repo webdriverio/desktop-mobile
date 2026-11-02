@@ -3,3 +3,5 @@
 # is what fixes that. Letting the run cache is what buys the room for typecheck,
 # which no longer happens as a side effect of build.
 turbo run typecheck test --filter=./packages/*
+# e2e's `test` script is the whole E2E matrix, so e2e only gets typecheck.
+turbo run typecheck --filter=./e2e
