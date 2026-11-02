@@ -11,7 +11,7 @@ export function mergeEnv(...layers: Array<Record<string, string | undefined> | u
   for (const layer of layers) {
     for (const [key, value] of Object.entries(layer ?? {})) {
       if (ignoreCase) {
-        // Upper case, as Node folds the names when it builds a child's environment
+        // Upper case, as Node compares the names when it drops duplicates from a child's environment
         const folded = key.toUpperCase();
         const existing = keys.get(folded);
         if (existing !== undefined && existing !== key) {
