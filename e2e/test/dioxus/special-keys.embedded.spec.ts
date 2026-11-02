@@ -97,12 +97,12 @@ describe('Dioxus special keys (embedded)', () => {
     expect(await fieldValue('#fresh-input')).toBe('A!:B@?');
   });
 
-  it('should press Enter for a newline and Backspace for a backspace character, skip a carriage return, and send a tab as a character', async () => {
+  it('should press Enter for a newline, Backspace for a backspace character and Tab for a tab, and skip a carriage return', async () => {
     await browser.keys(['\n', '\r', '\b', '\t']);
     expect((await keyTargetEvents()).map(({ key, code, keyCode }) => ({ key, code, keyCode }))).toEqual([
       { key: 'Enter', code: 'Enter', keyCode: 13 },
       { key: 'Backspace', code: 'Backspace', keyCode: 8 },
-      { key: '\t', code: 'Tab', keyCode: 9 },
+      { key: 'Tab', code: 'Tab', keyCode: 9 },
     ]);
   });
 

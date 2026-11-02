@@ -42,6 +42,12 @@ async function fieldEvents() {
   return (await browser.execute('return window.__fieldEvents || []')) as unknown as string[];
 }
 
+async function focusedId() {
+  return browser.execute(
+    'var el = document.activeElement; while (el && el.shadowRoot && el.shadowRoot.activeElement) { el = el.shadowRoot.activeElement; } return el ? el.id : undefined;',
+  );
+}
+
 // A field that logs its events with its value, and a button to move focus to.
 async function fillChangeScratch({ initialValue = '', inShadowHost = false } = {}) {
   await fillScratch(
@@ -356,14 +362,14 @@ describe('special keys (embedded)', () => {
     expect(await input.getValue()).toBe('A!:B@?');
   });
 
-  it('should press Enter for a newline and Backspace for a backspace character, skip a carriage return, and type a tab', async () => {
+  it('should press Enter for a newline, Backspace for a backspace character and Tab for a tab, and skip a carriage return', async () => {
     await browser.$('#key-target').click();
     await browser.execute('window.__keyTargetEvents = [];');
     await browser.keys(['\n', '\r', '\b', '\t']);
     expect((await keyTargetEvents()).map(({ key, code, keyCode }) => ({ key, code, keyCode }))).toEqual([
       { key: 'Enter', code: 'Enter', keyCode: 13 },
       { key: 'Backspace', code: 'Backspace', keyCode: 8 },
-      { key: '\t', code: 'Tab', keyCode: 9 },
+      { key: 'Tab', code: 'Tab', keyCode: 9 },
     ]);
     const input = browser.$('#keys-input');
     await input.setValue('ab\b\r\nc');
@@ -673,6 +679,46 @@ describe('special keys (embedded)', () => {
       'click fresh-submit',
       'submit fresh-submit',
     ]);
+  });
+
+  it("should type after a tab in the next field, replacing its value, and fire each field's change, as Chrome does", async () => {
+    await fillFormScratch(
+      '<input id="fresh-a"><input id="fresh-b" value="old"><button type="button" id="fresh-other">other</button>',
+    );
+    await browser.$('#fresh-a').setValue('a\tb');
+    expect([await browser.$('#fresh-a').getValue(), await browser.$('#fresh-b').getValue()]).toEqual(['a', 'b']);
+    expect(await fieldEvents()).toEqual(['keydown Tab', 'change a', 'keyup Tab']);
+    await browser.execute('window.__fieldEvents = [];');
+    await browser.keys([Key.Shift, Key.Tab]);
+    expect(await focusedId()).toBe('fresh-a');
+    expect(await fieldEvents()).toEqual([
+      'keydown ShiftLeft',
+      'keydown Tab',
+      'change b',
+      'keyup ShiftLeft',
+      'keyup Tab',
+    ]);
+  });
+
+  it('should move focus into and out of a shadow root on Tab', async () => {
+    await fillChangeScratch({ inShadowHost: true });
+    await browser.execute('document.querySelector("#fresh-other").focus();');
+    await browser.keys([Key.Shift, Key.Tab]);
+    expect(await focusedId()).toBe('fresh-field');
+    await browser.keys(Key.Tab);
+    expect(await focusedId()).toBe('fresh-other');
+  });
+
+  it('should leave focus where it is when a keydown handler cancels Tab', async () => {
+    await fillFormScratch('<input id="fresh-a"><input id="fresh-b">');
+    await browser.execute(
+      `document.querySelector("#fresh-a").addEventListener("keydown", function (ev) {
+        if (ev.key === "Tab") { ev.preventDefault(); }
+      });`,
+    );
+    await browser.$('#fresh-a').addValue('a\tb');
+    expect(await focusedId()).toBe('fresh-a');
+    expect([await browser.$('#fresh-a').getValue(), await browser.$('#fresh-b').getValue()]).toEqual(['ab', '']);
   });
 
   it('should not fire change when a click on the shadow host leaves the field focused', async () => {

@@ -1,5 +1,5 @@
 //! Key events and their default actions. Synthetic key events have none, so after an uncanceled
-//! keydown the driver types, deletes or breaks the line itself.
+//! keydown the driver types, deletes, breaks the line or moves focus itself.
 
 use std::collections::BTreeSet;
 
@@ -108,13 +108,18 @@ fn build_special_key_script(
     "ArrowUp" | "ArrowLeft" => radio_step_js(false),
     _ => String::new(),
   };
-  let after_dispatch =
-    if js_key == "Enter" && is_down && !(modifiers.ctrl || modifiers.meta || modifiers.alt) {
-      enter_js(modifiers.shift)
-    } else {
-      String::new()
-    };
+  let after_dispatch = match js_key {
+    _ if !is_down => String::new(),
+    "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => enter_js(modifiers.shift),
+    "Tab" => tab_js(),
+    _ => String::new(),
+  };
   key_event_script(js_key, js_code, key_code, is_down, modifiers, &after_dispatch, &default_action)
+}
+
+/// JS for Tab's default action. `wdioTabKey` reads the keydown's cancellation and modifiers itself.
+fn tab_js() -> String {
+  format!("{{\n{ELEMENT_EVENTS_JS}\nwdioTabKey(keyEvent);\n}}")
 }
 
 /// JS dispatching a synthetic printable-character `KeyboardEvent` plus the insertion or Ctrl/Meta+A
@@ -597,13 +602,19 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
 }
 
 /// JS inserting a printable run at the focused element's selection, as typing does, so text follows
-/// focus when a key moves it.
+/// focus when a key moves it. Like the field Send Keys focused, the field the text goes into fires
+/// `change` when focus leaves it.
 pub fn build_insert_run_script(run: &str) -> String {
   let active_element = deep_active_element_js("activeEl");
+  let editable = is_editable_text_field_js("activeEl");
   let insert_text = insert_text_js("activeEl", &js_string(run));
   format!(
     r"(function() {{
+                {ELEMENT_EVENTS_JS}
                 {active_element}
+                if ({editable}) {{
+                    wdioRecordPendingChange(activeEl, activeEl.value);
+                }}
                 {insert_text}
                 return true;
             }})()"
@@ -980,7 +991,45 @@ mod tests {
     assert!(!body.contains("insertedText"));
     let run = build_insert_run_script("x");
     assert!(run.contains("var activeEl = document.activeElement || document.body;"));
-    assert!(run.contains(&format!("if ({}) {{", is_editable_text_field_js("activeEl"))));
+    let insert = insert_text_js("activeEl", &js_string("x"));
+    assert!(insert.contains(&format!("if ({}) {{", is_editable_text_field_js("activeEl"))));
+    assert!(run.contains(&insert));
     assert!(run.contains("inputType: 'insertText'"));
+  }
+
+  #[test]
+  fn tab_runs_the_shared_tab_key_action_after_its_keydown() {
+    for value in ["\u{E004}", "\t"] {
+      for modifiers in [NONE, SHIFT, CTRL] {
+        let script = down(value, modifiers);
+        let dispatch = script.find(DISPATCH).unwrap();
+        let tab = script.find("wdioTabKey(keyEvent);").unwrap();
+        let guard = script.find(GUARD).unwrap();
+        assert!(dispatch < tab && tab < guard, "{script}");
+        assert!(script.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\nwdioTabKey(")), "{script}");
+      }
+    }
+    for script in [key_script("\u{E004}", false, &NONE), down(ENTER_KEY, NONE)] {
+      assert!(!script.contains("wdioTabKey(keyEvent)"), "{script}");
+    }
+  }
+
+  #[test]
+  fn send_keys_presses_tab_between_text_runs() {
+    assert_eq!(
+      plan_send_keys("a\tb"),
+      vec![text("a"), key("\t", true, NONE), key("\t", false, NONE), text("b")]
+    );
+  }
+
+  #[test]
+  fn send_keys_text_run_records_the_change_its_field_owes_before_typing() {
+    let script = build_insert_run_script("hi");
+    let body = after_helpers(&script);
+    let focused = body.find("var activeEl = document.activeElement || document.body;").unwrap();
+    let record = body.find("wdioRecordPendingChange(activeEl, activeEl.value);").unwrap();
+    let insert = body.find("var insertedText = \"hi\"").unwrap();
+    assert!(focused < record && record < insert, "{body}");
+    assert!(body[focused..record].contains(&is_editable_text_field_js("activeEl")), "{body}");
   }
 }
