@@ -60,7 +60,7 @@
     "protocol-install:tauri": "../fixtures/e2e-apps/tauri/scripts/protocol-install.sh",
     "protocol-install:electron-builder": "../fixtures/e2e-apps/electron-builder/scripts/protocol-install.sh",
     "protocol-install:electron-forge": "../fixtures/e2e-apps/electron-forge/scripts/protocol-install.sh",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
     "@wdio/appium-service": "catalog:default",

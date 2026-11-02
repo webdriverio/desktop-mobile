@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [
+      "node"
+    ]
+  },
+  // The wdio configs stay in tsconfig.json: their worker hooks may use browser globals and page callbacks.
+  // Importing @wdio/native-types or a service here would declare a global `browser` for every file.
+  "include": [
+    "./config/**/*.ts",
+    "./lib/display.ts",
+    "./lib/statusBar.ts",
+    "./lib/utils.ts",
+    "./scripts/**/*.ts"
+  ],
+  // CI runs show-logs.ts on bare node, so tsconfig.scripts.json checks it under type-stripping rules.
+  "exclude": [
+    "./scripts/show-logs.ts"
+  ]
+}
