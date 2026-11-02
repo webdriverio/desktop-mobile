@@ -49,7 +49,9 @@ pub fn install(config: Config) -> Config {
 /// ```
 #[must_use]
 pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, register: F) -> Config {
-  match mode(automation::is_requested(), external_provider()) {
+  let external_provider =
+    std::env::var(PROVIDER_ENV_VAR).is_ok_and(|provider| provider == "external");
+  match mode(automation::is_requested(), external_provider) {
     Mode::Off => config,
     Mode::Embedded => install_embedded(config, register),
     Mode::BridgeOnly => install_bridge(config, register),
@@ -71,10 +73,6 @@ pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
   if automation::is_requested() {
     wdio_dioxus_bridge::on_window(window, dom);
   }
-}
-
-fn external_provider() -> bool {
-  std::env::var(PROVIDER_ENV_VAR).is_ok_and(|provider| provider == "external")
 }
 
 #[derive(Debug, PartialEq, Eq)]

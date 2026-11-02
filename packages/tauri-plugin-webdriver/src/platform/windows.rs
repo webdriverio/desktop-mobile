@@ -254,12 +254,15 @@ pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
     return;
   }
   for window in app.webview_windows().into_values() {
-    let _ = window.with_webview(|webview| unsafe {
+    let result = window.with_webview(|webview| unsafe {
       let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
       if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
         emulate_page_focus(&webview2);
       }
     });
+    if let Err(e) = result {
+      tracing::error!("Failed to turn on focus emulation in {}: {e}", window.label());
+    }
   }
 }
 

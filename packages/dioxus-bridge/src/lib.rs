@@ -99,7 +99,10 @@ fn install_with_registry_and_config(
   }
 
   let registry_for_handler = registry;
-  EMBEDDED.store(embedded_port.is_some(), Ordering::SeqCst);
+  // Never cleared, so a later bridge-only install doesn't turn emulation off under the driver.
+  if embedded_port.is_some() {
+    EMBEDDED.store(true, Ordering::SeqCst);
+  }
 
   // On Windows, Wry serves custom protocols as `http://{scheme}.*`, and
   // WebView2 rejects a `fetch('wdio://invoke')`, so guest-js reads the URL
