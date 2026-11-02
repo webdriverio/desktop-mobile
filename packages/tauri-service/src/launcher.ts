@@ -561,20 +561,24 @@ export default class TauriLaunchService {
           };
         });
 
-        // Start all drivers in parallel for faster multiremote startup
-        const startPromises = instanceConfigs.map((config) =>
-          this.driverPool.startDriver({
-            mode: 'multiremote',
-            identifier: config.instanceId,
-            port: config.instancePort,
-            nativePort: config.instanceNativePort,
-            options: config.instanceOptions,
-            env: config.env,
-            instanceId: config.instanceId,
-          }),
+        // Settle every start before failing: onComplete stops only the drivers that finished starting
+        const starts = await Promise.allSettled(
+          instanceConfigs.map((config) =>
+            this.driverPool.startDriver({
+              mode: 'multiremote',
+              identifier: config.instanceId,
+              port: config.instancePort,
+              nativePort: config.instanceNativePort,
+              options: config.instanceOptions,
+              env: config.env,
+              instanceId: config.instanceId,
+            }),
+          ),
         );
-
-        await Promise.all(startPromises);
+        const failed = starts.find((start): start is PromiseRejectedResult => start.status === 'rejected');
+        if (failed) {
+          throw failed.reason;
+        }
       }
     } else if (isEmbedded) {
       // Embedded provider: spawn app directly with embedded WebDriver server
@@ -637,7 +641,6 @@ export default class TauriLaunchService {
           );
           log.info(`tauri-driver listening on ${hostname}:${port}`);
         } catch (error) {
-          log.error(`Failed to start tauri-driver: ${error}`);
           throw severeServiceError('Failed to start tauri-driver', error);
         }
 
@@ -838,21 +841,16 @@ export default class TauriLaunchService {
           const backendPort = await this.backendPortManager.allocatePort();
           log.debug(`Spawning test-runner-backend for worker ${cid} on port ${backendPort}`);
 
-          try {
-            const { proc } = await startTestRunnerBackend({
-              port: backendPort,
-              serviceOptions: workerOptions,
-              env: workerEnv,
-              instanceId: cid,
-            });
-            await waitTestRunnerBackendReady('127.0.0.1', backendPort, 30000);
-            this.workerBackends.set(cid, { proc, port: backendPort });
-            driverEnv = backendDriverEnv(workerEnv, backendPort);
-            log.debug(`Worker ${cid} backend ready on port ${backendPort}`);
-          } catch (error) {
-            log.error(`Failed to start test-runner-backend for worker ${cid}: ${error}`);
-            throw error;
-          }
+          const { proc } = await startTestRunnerBackend({
+            port: backendPort,
+            serviceOptions: workerOptions,
+            env: workerEnv,
+            instanceId: cid,
+          });
+          await waitTestRunnerBackendReady('127.0.0.1', backendPort, 30000);
+          this.workerBackends.set(cid, { proc, port: backendPort });
+          driverEnv = backendDriverEnv(workerEnv, backendPort);
+          log.debug(`Worker ${cid} backend ready on port ${backendPort}`);
         }
       }
 

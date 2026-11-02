@@ -195,6 +195,26 @@ describe('app args', () => {
     expect(mockLog.error).toHaveBeenCalledWith('Tauri service failed to start worker 0-0', bindError);
   });
 
+  it('should wait for every multiremote driver to start before it stops the run, so onComplete can stop them all', async () => {
+    const launcher = createLauncher({ driverProvider: 'external' });
+    let startSecond: (info: object) => void = () => {};
+    driverPool(launcher)
+      .startDriver.mockRejectedValueOnce(new Error('can not listen on port 4444'))
+      .mockReturnValueOnce(new Promise((resolve) => (startSecond = resolve)));
+    let outcome: unknown;
+    const prepared = launcher
+      .onPrepare({ maxInstances: 1 }, { a: { capabilities: appCap() }, b: { capabilities: appCap() } })
+      .catch((error: unknown) => (outcome = error));
+
+    await vi.waitFor(() => expect(driverPool(launcher).startDriver).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(outcome).toBeUndefined();
+
+    startSecond({});
+    await prepared;
+    expect(outcome).toMatchObject({ name: 'SevereServiceError', message: 'can not listen on port 4444' });
+  });
+
   it('should pass on a SevereServiceError from another copy of webdriverio as it is, logging its cause', async () => {
     const cause = new Error('tauri-driver not found');
     const foreign = Object.assign(new Error('Failed to prepare: tauri-driver not found'), {
