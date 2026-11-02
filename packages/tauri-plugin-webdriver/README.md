@@ -30,7 +30,7 @@ It is **not needed** if you use the `'external'` or `'crabnebula'` driver provid
 | Windows  | Full support | WebView2 native APIs  |
 | Linux    | Full support | WebKitGTK native APIs |
 
-On Windows, once a WebDriver session starts, the plugin turns on WebView2's focus emulation, so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front. The page also counts as visible, so a minimized window fires no `visibilitychange`, and its timers aren't slowed.
+On Windows, once a WebDriver session starts, the plugin turns on WebView2's focus emulation, so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front. The page also stays focused and visible whatever the window does: switching windows fires no window `focus` or `blur`, a minimized window fires no `visibilitychange`, and its timers aren't slowed.
 
 Android and iOS are not supported. The plugin still builds for them, so an app that also targets mobile compiles, but on mobile it does nothing.
 

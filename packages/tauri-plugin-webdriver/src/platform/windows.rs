@@ -149,9 +149,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
     let result = self.window.with_webview({
       let tx = tx.clone();
       move |webview| unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-        if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+        if let Ok(webview2) = core_webview2(&webview) {
           let script_hstring = HSTRING::from(&script_owned);
 
           let handler: ICoreWebView2ExecuteScriptCompletedHandler =
@@ -210,37 +208,41 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   let alert_state = manager.get_or_create(webview.label());
 
   let _ = webview.with_webview(move |webview| unsafe {
-    if let Ok(webview2) = core_webview2(&webview) {
-      if FOCUS_EMULATION.load(Ordering::SeqCst) {
-        emulate_page_focus(&webview2);
-      }
-
-      // Disable default script dialogs so ScriptDialogOpening event fires
-      if let Ok(settings) = webview2.Settings() {
-        if let Err(e) = settings.SetAreDefaultScriptDialogsEnabled(false) {
-          tracing::error!("Failed to disable default script dialogs: {e:?}");
-          return;
-        }
-      } else {
-        tracing::error!("Failed to get webview settings");
+    let webview2 = match core_webview2(&webview) {
+      Ok(webview2) => webview2,
+      Err(e) => {
+        tracing::error!("Failed to get the webview's ICoreWebView2: {e:?}");
         return;
       }
+    };
 
-      let handler: ICoreWebView2ScriptDialogOpeningEventHandler =
-        ScriptDialogOpeningHandler::new(alert_state).into();
-
-      let mut token = std::mem::zeroed();
-      if let Err(e) = webview2.add_ScriptDialogOpening(&handler, &raw mut token) {
-        tracing::error!("Failed to register ScriptDialogOpening handler: {e:?}");
-      } else {
-        tracing::debug!("Registered script dialog handler for webview");
-      }
-
-      // Prevent handler from being dropped - leak it to keep the COM ref alive
-      std::mem::forget(handler);
-    } else {
-      tracing::error!("Failed to get the webview's ICoreWebView2");
+    if FOCUS_EMULATION.load(Ordering::SeqCst) {
+      emulate_page_focus(&webview2);
     }
+
+    // Disable default script dialogs so ScriptDialogOpening event fires
+    if let Ok(settings) = webview2.Settings() {
+      if let Err(e) = settings.SetAreDefaultScriptDialogsEnabled(false) {
+        tracing::error!("Failed to disable default script dialogs: {e:?}");
+        return;
+      }
+    } else {
+      tracing::error!("Failed to get webview settings");
+      return;
+    }
+
+    let handler: ICoreWebView2ScriptDialogOpeningEventHandler =
+      ScriptDialogOpeningHandler::new(alert_state).into();
+
+    let mut token = std::mem::zeroed();
+    if let Err(e) = webview2.add_ScriptDialogOpening(&handler, &raw mut token) {
+      tracing::error!("Failed to register ScriptDialogOpening handler: {e:?}");
+    } else {
+      tracing::debug!("Registered script dialog handler for webview");
+    }
+
+    // Prevent handler from being dropped - leak it to keep the COM ref alive
+    std::mem::forget(handler);
   });
 }
 
@@ -425,9 +427,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     let margin_right = options.margin_right;
 
     let result = self.window.with_webview(move |webview| unsafe {
-      let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-      let webview2 = match rebind_controller(&webview).CoreWebView2() {
+      let webview2 = match core_webview2(&webview) {
         Ok(wv) => wv,
         Err(e) => {
           if let Ok(mut guard) = tx.lock() {
@@ -596,9 +596,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     if !async_state.mark_handler_registered(&label) {
       let app_clone = app.clone();
       let handler_result = self.window.with_webview(move |webview| unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-        if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+        if let Ok(webview2) = core_webview2(&webview) {
           let state = app_clone.state::<AsyncScriptState>();
           register_message_handler(&webview2, state.inner());
         }

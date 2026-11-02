@@ -449,13 +449,14 @@ function wdioMouseDown(el, init) {
 function wdioFocusForClick(el) {
   const previous = wdioDeepActiveElement();
   let moved = false;
-  const onFocus = () => {
+  const onFocusChange = () => {
     moved = true;
   };
-  // Not `focus`, which WebKit doesn't send while its window isn't focused: `focusin` follows it.
+  // Either a field gaining focus or one losing it, even to a handler that takes it back. Not `focus`,
+  // which WebKit doesn't send while its window isn't focused: `focusin` follows it.
   const focusEvents = ['focusin', 'focusout'];
   for (const type of focusEvents) {
-    document.addEventListener(type, onFocus, true);
+    document.addEventListener(type, onFocusChange, true);
   }
   // `activeElement` reports a shadow host when focus is anywhere in its tree; that only counts as the
   // host holding focus when it delegates focus.
@@ -487,7 +488,7 @@ function wdioFocusForClick(el) {
     }
   }
   for (const type of focusEvents) {
-    document.removeEventListener(type, onFocus, true);
+    document.removeEventListener(type, onFocusChange, true);
   }
   if (!node || node === document.body) {
     const active = wdioDeepActiveElement();

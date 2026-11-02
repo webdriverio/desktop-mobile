@@ -630,9 +630,12 @@ describe('Tab', () => {
     $('#ph').addEventListener('focusin', () => $('#ph').setSelectionRange(3, 3));
     const stopFocus = (event: Event) => event.stopImmediatePropagation();
     window.addEventListener('focus', stopFocus, true);
-    $('#a').focus();
-    tab();
-    window.removeEventListener('focus', stopFocus, true);
+    try {
+      $('#a').focus();
+      tab();
+    } finally {
+      window.removeEventListener('focus', stopFocus, true);
+    }
     expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
   });
 
@@ -932,7 +935,7 @@ describe('wdioFocusForClick', () => {
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus b=']);
   });
 
-  it("should stop where a change handler sends focus back, when only focusout arrives, as in WebKit's unfocused windows", () => {
+  it('should stop when focus leaves the field, as when WebKit cancels a move in a window without focus', () => {
     type($('#a'), 'x');
     // WebKit cancels a focus move that a focusout handler undoes; jsdom doesn't, so this fakes it.
     vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {
