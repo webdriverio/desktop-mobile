@@ -424,7 +424,11 @@ export class DriverProcess {
 
       shutdownTimeout = setTimeout(() => {
         log.warn(`${driverName} did not stop gracefully after ${stopTimeout}ms, forcing kill`);
-        this._proc?.kill('SIGKILL');
+        if (this.viaShell && this._proc) {
+          killWindowsProcessTree(this._proc);
+        } else {
+          this._proc?.kill('SIGKILL');
+        }
 
         killTimeout = setTimeout(() => {
           log.warn(`${driverName} force kill timeout, giving up`);
