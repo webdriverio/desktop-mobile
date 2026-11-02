@@ -14,6 +14,7 @@
       "node",
       "@wdio/globals/types",
       "@wdio/visual-service",
+      "@wdio/native-types",
       "mocha"
     ],
     "typeRoots": [
@@ -22,7 +23,14 @@
     ]
   },
   "include": [
-    "./test/**/*.spec.ts"
+    "./config/**/*.ts",
+    "./lib/**/*.ts",
+    "./scripts/**/*.ts",
+    "./test/**/*.ts",
+    "./wdio*.conf.ts"
   ],
-  "exclude": []
+  // CI runs show-logs.ts on bare node, so tsconfig.scripts.json checks it under type-stripping rules.
+  "exclude": [
+    "./scripts/show-logs.ts"
+  ]
 }

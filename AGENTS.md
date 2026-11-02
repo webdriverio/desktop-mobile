@@ -5,14 +5,14 @@ Guidance for coding agents working in this repo: the commands to run, the checks
 ## Commands
 
 - **One package:** `pnpm --filter <package> test` (unit tests), `test:integration`, `typecheck` or `build`. These skip Turborepo, so they run against your workspace dependencies' built `dist/`, which may be stale. Build those first with `pnpm turbo run build --filter=<package>^...`.
-- **All packages:** `pnpm turbo run typecheck test --filter=./packages/*` is what the pre-push hook runs, and `pnpm build` builds every package. Turborepo caches both; add `--force` to rerun a cached pass. Don't run the root `pnpm test`: it also runs the E2E matrix and every package-test app.
+- **All packages:** `pnpm turbo run typecheck test --filter=./packages/*` type-checks and tests every package, and `pnpm build` builds them. Turborepo caches both; add `--force` to rerun a cached pass. Don't run the root `pnpm test`: it also runs the E2E matrix and every package-test app.
 - **Lint:** `pnpm lint` runs Biome and ESLint over the whole repo. It doesn't run through Turborepo, so don't pass it `--force`. A package's own `lint` script is Biome only and misses rules such as `vitest/valid-expect`. To check just what you changed, run `pnpm exec biome check <files>` and `pnpm exec eslint <files>`, as the commit hook does.
-- **E2E** (`e2e/`, the `pnpm e2e*` scripts) needs the fixture app in `fixtures/e2e-apps/` built first, and it's slow. CI runs it for the services a PR touches; locally, run the tests of the packages you changed. See [docs/e2e-testing.md](./docs/e2e-testing.md).
+- **E2E** (`e2e/`, the `pnpm e2e*` scripts) needs the fixture app in `fixtures/e2e-apps/` built first, and it's slow. CI runs it for the services a PR touches; locally, run the tests of the packages you changed. `pnpm turbo run typecheck --filter=./e2e` type-checks the suite without the apps. See [docs/e2e-testing.md](./docs/e2e-testing.md).
 - **Rust crates** (packages with a `Cargo.toml`): from the crate's directory, `cargo fmt`, `cargo test` and `cargo clippy --all-targets -- -D warnings`. CI fails on unformatted code and clippy warnings.
 
 ## Before you push
 
-Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and `test` for every package when you push. If you skip the hooks, run those checks yourself for what you changed. New logic needs unit tests.
+Husky runs Biome and ESLint on staged files when you commit. When you push, it runs the all-packages typecheck and test and the E2E typecheck above. If you skip the hooks, run those checks yourself for what you changed. New logic needs unit tests.
 
 ## Gotchas
 
