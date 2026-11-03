@@ -71,16 +71,19 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   const executeOptions = { windowLabel, __wdioOptions__: true } as TauriExecuteOptions;
   const executeInMockWindow = <T>(script: string): Promise<T> =>
     tauriExecute<T, [TauriExecuteOptions]>(browserToUse, script, executeOptions);
-  // Once the mock's window closes, its in-app half is gone with it. update, mockClear, mockReset and
-  // mockRestore then skip the app, since there's nothing left there to sync, clear or remove.
-  // The setters and withImplementation need to throw if the window doesn't exist, so they call
-  // executeInMockWindow directly.
+  // A closed window takes the mock's in-app half with it, so from then on syncing, clearing and
+  // restoring skip the app. The setters still throw, as there's nothing left to configure.
+  let windowClosed = false;
   const executeUnlessWindowClosed = async <T>(script: string): Promise<T | typeof WINDOW_CLOSED> => {
+    if (windowClosed) {
+      return WINDOW_CLOSED;
+    }
     try {
       return await executeInMockWindow<T>(script);
     } catch (error) {
       if (error instanceof Error && error.message.includes(`'${windowLabel}' not found`)) {
         log.debug(`[${command}] Window '${windowLabel}' has closed, so calls made in it since the last sync are lost`);
+        windowClosed = true;
         // Dropped from the store, so auto-sync stops reading it and the next mock() makes a fresh one.
         mockStore.deleteMock(browserToUse, `tauri.${command}`);
         return WINDOW_CLOSED;
@@ -208,7 +211,10 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
       await executeUnlessWindowClosed<void>(interceptor.buildUnregistrationScript(command));
     } finally {
       outerMockClear();
-      mockStore.deleteMock(browserToUse, `tauri.${command}`);
+      // A mock dropped when its window closed may have been replaced in the store since.
+      if (!windowClosed) {
+        mockStore.deleteMock(browserToUse, `tauri.${command}`);
+      }
     }
     return mock;
   };

@@ -39,7 +39,7 @@ All three use `runBulkMockOp` from `@wdio/native-utils`, and each service passes
 Each mock method makes an app call, then updates the outer mock:
 - `mockClear` and `mockReset` update the outer mock only after the app call succeeds. If they cleared it first and the app call failed, the app would still hold the calls, and the next `update()` would copy them back.
 - `mockRestore` removes the mock from the store on every service except Electron, even when the app call fails, so the next `mock()` starts fresh. React Native removes it only after the app call succeeds, because a failed uninstall leaves the Hermes spy installed.
-- Tauri also removes a mock from the store once the window it was created in has closed. Its methods then skip the app call, so `mockClear` and `mockReset` clear the outer mock alone.
+- Tauri also removes a mock from the store the first time a call finds the window it was created in closed. From then on, `update`, `mockClear`, `mockReset` and `mockRestore` skip the app, so `mockClear` and `mockReset` clear the outer mock alone. The setters still throw.
 
 ## Rules
 

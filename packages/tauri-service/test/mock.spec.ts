@@ -457,13 +457,16 @@ describe('createMock', () => {
         expect(mockStore.deleteMock).toHaveBeenCalledWith(expect.anything(), 'tauri.read_clipboard');
       });
 
-      it('should clear, reset and restore without an error', async () => {
+      it('should clear, reset and restore without an error, and leave the app and store alone once dropped', async () => {
         const mock = await mockInClosedWindow();
         await mock.mockClear();
         expect(mock.mock.calls).toEqual([]);
+        expect(mockStore.deleteMock).toHaveBeenCalledOnce();
+        mockExecute.mockClear();
         await mock.mockReset();
         await mock.mockRestore();
-        expect(mockStore.deleteMock).toHaveBeenCalledWith(expect.anything(), 'tauri.read_clipboard');
+        expect(mockExecute).not.toHaveBeenCalled();
+        expect(mockStore.deleteMock).toHaveBeenCalledOnce();
       });
 
       it('should still reject a setter', async () => {
