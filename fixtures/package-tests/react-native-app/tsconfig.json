@@ -8,6 +8,7 @@
     "noEmit": true,
     "types": [
       "node",
+      "@wdio/globals/types",
       "mocha"
     ]
   },

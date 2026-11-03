@@ -3,7 +3,6 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { dirname, extname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Options } from '@wdio/types';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -88,7 +87,7 @@ function assertNoTauriDriverProcesses(): void {
   }
 }
 
-export const config: Options.Testrunner = {
+export const config: WebdriverIO.Config = {
   runner: 'local',
   specs: ['./test/tauri-browser/*.spec.ts'],
   exclude: [],
@@ -101,7 +100,7 @@ export const config: Options.Testrunner = {
         devServerUrl,
       },
     },
-  ] as unknown as Options.Testrunner['capabilities'],
+  ],
   logLevel: 'info',
   outputDir: join(__dirname, 'logs', 'tauri-browser'),
   bail: 0,

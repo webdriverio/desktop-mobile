@@ -14,7 +14,7 @@ import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
-import { mergeServiceOptions } from './serviceConfig.js';
+import { hideSecrets, mergeServiceOptions } from './serviceConfig.js';
 import type { TauriCapabilities, TauriServiceGlobalOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'service');
@@ -122,7 +122,7 @@ export async function init(
 
     await launcher.onWorkerStart('standalone', capabilities);
 
-    log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, null, 2));
+    log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, hideSecrets, 2));
 
     // Browser mode has no Tauri driver: WebdriverIO starts and manages chromedriver itself.
     const remoteOptions = launcher.isBrowserMode
@@ -194,7 +194,6 @@ export function createTauriCapabilities(
   appBinaryPath: string,
   options: {
     appArgs?: string[];
-    tauriDriverPort?: number;
     logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
     startTimeout?: number;
     driverProvider?: 'external' | 'crabnebula' | 'embedded';
@@ -204,12 +203,11 @@ export function createTauriCapabilities(
   return {
     'tauri:options': {
       application: appBinaryPath,
-      args: options.appArgs || [],
+      ...(options.appArgs && { args: options.appArgs }),
     },
     'wdio:tauriServiceOptions': {
       appBinaryPath,
-      appArgs: options.appArgs || [],
-      tauriDriverPort: options.tauriDriverPort,
+      appArgs: options.appArgs,
       logLevel: options.logLevel,
       startTimeout: options.startTimeout,
       driverProvider: options.driverProvider,

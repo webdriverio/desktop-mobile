@@ -14,6 +14,7 @@ export {
   formatDiagnosticResults,
   type LinuxLibrary,
 } from './diagnostics.js';
+export { mergeEnv } from './env.js';
 export { errorMessage, severeServiceError } from './errors.js';
 export type { LogArea } from './log.js';
 export { type BulkMockOpOptions, type MockLifecycleOp, runBulkMockOp, runThenSync } from './mockLifecycle.js';

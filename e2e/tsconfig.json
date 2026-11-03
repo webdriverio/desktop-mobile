@@ -14,6 +14,7 @@
       "node",
       "@wdio/globals/types",
       "@wdio/visual-service",
+      "@wdio/native-types",
       "mocha"
     ],
     "typeRoots": [
@@ -22,7 +23,10 @@
     ]
   },
   "include": [
-    "./test/**/*.spec.ts"
-  ],
-  "exclude": []
+    "./config/**/*.ts",
+    "./lib/**/*.ts",
+    "./scripts/**/*.ts",
+    "./test/**/*.ts",
+    "./wdio*.conf.ts"
+  ]
 }

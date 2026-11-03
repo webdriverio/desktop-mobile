@@ -74,7 +74,7 @@ const APP_BINARY = '/app/my-app';
 const EMBEDDED_PORT = 4445;
 
 const stubDriverInfo = { proc: { pid: 123, kill: vi.fn() } as any, logHandlers: [] };
-const stubConfig = { appBinaryPath: APP_BINARY, port: EMBEDDED_PORT, options: {} };
+const stubConfig = { appBinaryPath: APP_BINARY, appArgs: [], port: EMBEDDED_PORT, options: {} };
 const stdCaps = [{ 'tauri:options': { application: APP_BINARY } }];
 
 function createEmbeddedLauncher(): TauriLaunchService {
@@ -116,7 +116,7 @@ describe('ensureEmbeddedServersHealthy', () => {
     await (launcher as any).ensureEmbeddedServersHealthy();
 
     expect(stopEmbeddedDriver).toHaveBeenCalledWith(stubDriverInfo);
-    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0');
+    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, [], EMBEDDED_PORT, {}, '0');
     expect((launcher as any).embeddedProcesses.get('0')).toBe(newInfo);
   });
 
@@ -124,7 +124,11 @@ describe('ensureEmbeddedServersHealthy', () => {
     const error = new Error('process did not exit');
     vi.mocked(checkEmbeddedServerAlive).mockResolvedValue(false);
     vi.mocked(stopEmbeddedDriver).mockRejectedValue(error);
-    await expect(launcher.onWorkerStart('0-0', stdCaps)).rejects.toBe(error);
+    await expect(launcher.onWorkerStart('0-0', stdCaps)).rejects.toMatchObject({
+      name: 'SevereServiceError',
+      message: 'process did not exit',
+      cause: error,
+    });
     expect(startEmbeddedDriver).not.toHaveBeenCalled();
     vi.mocked(stopEmbeddedDriver).mockResolvedValue(undefined);
     await launcher.onComplete(0, { capabilities: [] }, []);
@@ -141,7 +145,7 @@ describe('ensureEmbeddedServersHealthy', () => {
   });
 
   it('should restart only the crashed instance when multiple instances are running', async () => {
-    const config2 = { appBinaryPath: APP_BINARY, port: 4446, options: {} };
+    const config2 = { appBinaryPath: APP_BINARY, appArgs: [], port: 4446, options: {} };
     const driverInfo2 = { proc: { pid: 789 } as any, logHandlers: [] };
     (launcher as any).embeddedConfigs.set('1', config2);
     (launcher as any).embeddedProcesses.set('1', driverInfo2);
@@ -153,7 +157,7 @@ describe('ensureEmbeddedServersHealthy', () => {
     await (launcher as any).ensureEmbeddedServersHealthy();
 
     expect(startEmbeddedDriver).toHaveBeenCalledOnce();
-    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0');
+    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, [], EMBEDDED_PORT, {}, '0');
     expect((launcher as any).embeddedProcesses.get('0')).toBe(newInfo);
     expect((launcher as any).embeddedProcesses.get('1')).toBe(driverInfo2);
   });
@@ -213,7 +217,7 @@ describe('verifyEmbeddedServerStable — Windows stability probes', () => {
     await vi.advanceTimersByTimeAsync(600);
     await promise;
 
-    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0');
+    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, [], EMBEDDED_PORT, {}, '0');
     expect((launcher as any).embeddedProcesses.get('0')).toBe(newInfo);
   });
 
@@ -344,7 +348,6 @@ describe('embedded launcher lifecycle', () => {
     const internals = launcher as unknown as {
       driverPool: { stopAll: ReturnType<typeof vi.fn> };
       portManager: { clear: ReturnType<typeof vi.fn> };
-      instanceOptions: Map<string, unknown>;
     };
     internals.driverPool.stopAll.mockRejectedValueOnce(poolError);
 
@@ -352,7 +355,6 @@ describe('embedded launcher lifecycle', () => {
       errors: [embeddedError, poolError],
     });
     expect(internals.portManager.clear).toHaveBeenCalled();
-    expect(internals.instanceOptions.size).toBe(0);
   });
 });
 
@@ -456,7 +458,7 @@ describe('embedded port allocation', () => {
     await launcher.onPrepare({ capabilities: [] }, caps as never);
 
     expect(allocatePort.mock.calls).toEqual([[4445], [4446]]);
-    expect(vi.mocked(startEmbeddedDriver).mock.calls.map((call) => call[1])).toEqual([4445, 51234]);
+    expect(vi.mocked(startEmbeddedDriver).mock.calls.map((call) => call[2])).toEqual([4445, 51234]);
     expect(caps.map((cap) => cap.port)).toEqual([4445, 51234]);
   });
 
@@ -476,7 +478,7 @@ describe('embedded port allocation', () => {
     await launcher.onPrepare({ capabilities: [] }, caps);
 
     expect(allocatePort.mock.calls).toEqual([[5000], [4446]]);
-    expect(vi.mocked(startEmbeddedDriver).mock.calls.map((call) => call[1])).toEqual([5000, 51234]);
+    expect(vi.mocked(startEmbeddedDriver).mock.calls.map((call) => call[2])).toEqual([5000, 51234]);
     expect((caps.appA as { port?: number }).port).toBe(5000);
     expect((caps.appB as { port?: number }).port).toBe(51234);
   });

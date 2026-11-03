@@ -293,19 +293,19 @@ importers:
         specifier: catalog:default
         version: 10.1.0(@types/node@26.6.5)(@wdio/electron-service@packages+electron-service)(@wdio/visual-service@11.0.0(expect-webdriverio@8.0.0(@wdio/types@10.1.0)(webdriverio@10.1.0(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)))(webdriverio@10.1.0(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)))(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(expect-webdriverio@8.0.0(@wdio/types@10.1.0)(webdriverio@10.1.0(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)))(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
       '@wdio/dioxus-service':
-        specifier: link:../packages/dioxus-service
+        specifier: workspace:*
         version: link:../packages/dioxus-service
       '@wdio/display-server':
         specifier: catalog:default
         version: 10.1.0
       '@wdio/electrobun-service':
-        specifier: link:../packages/electrobun-service
+        specifier: workspace:*
         version: link:../packages/electrobun-service
       '@wdio/electron-service':
-        specifier: link:../packages/electron-service
+        specifier: workspace:*
         version: link:../packages/electron-service
       '@wdio/flutter-service':
-        specifier: link:../packages/flutter-service
+        specifier: workspace:*
         version: link:../packages/flutter-service
       '@wdio/globals':
         specifier: catalog:default
@@ -320,10 +320,10 @@ importers:
         specifier: workspace:*
         version: link:../packages/native-utils
       '@wdio/react-native-service':
-        specifier: link:../packages/react-native-service
+        specifier: workspace:*
         version: link:../packages/react-native-service
       '@wdio/tauri-service':
-        specifier: link:../packages/tauri-service
+        specifier: workspace:*
         version: link:../packages/tauri-service
       '@wdio/visual-service':
         specifier: catalog:default
