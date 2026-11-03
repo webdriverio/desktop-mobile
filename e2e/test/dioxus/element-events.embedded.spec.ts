@@ -311,6 +311,28 @@ describe('Dioxus element events (embedded)', () => {
     ]);
   });
 
+  // Chrome would navigate, but Dioxus desktop blocks navigation to the app's pages once it has loaded.
+  it('should fire submit on Enter in a form no handler cancels, without navigating', async () => {
+    await fillChangeScratch();
+    await browser.execute(
+      `document.querySelector("#change-scratch").innerHTML = '<form id="fresh-form" method="get"><input id="fresh-field" name="q"><button id="fresh-submit">go</button></form>';
+      window.__fieldEvents = [];
+      window.__beforeSubmit = true;
+      document.querySelector("#fresh-form").addEventListener("submit", function (ev) {
+        window.__fieldEvents.push("submit " + ev.submitter.id);
+      });`,
+    );
+    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+    await browser.keys(Key.Enter);
+    const navigation = browser.waitUntil(async () => (await browser.getUrl()).includes('?'), {
+      timeout: 1000,
+      timeoutMsg: 'no navigation',
+    });
+    expect((await errorOf(navigation))?.message).toBe('no navigation');
+    expect(await fieldEvents()).toEqual(['submit fresh-submit', 'submit fresh-submit']);
+    expect(await browser.execute('return [location.search, window.__beforeSubmit]')).toEqual(['', true]);
+  });
+
   it('should click a button on Enter and Space in addValue, leaving its value alone', async () => {
     await fillFormScratch('<button id="fresh-submit" value="v">go</button>');
     const button = browser.$('#fresh-submit');
