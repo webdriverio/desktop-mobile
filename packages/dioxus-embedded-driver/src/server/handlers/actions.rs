@@ -788,6 +788,7 @@ pub async fn release(
 
 #[cfg(test)]
 mod tests {
+  use super::super::key_input::after_helpers;
   use super::*;
 
   fn parse(json: &str) -> ActionsRequest {
@@ -1099,12 +1100,12 @@ mod tests {
     assert!(is_skipped_key("\r") && map_special_key("\r").is_none());
     let newline = key_script("\n", true, &m);
     assert!(event_init(&newline).starts_with(r#"key: "Enter", code: "Enter", keyCode: 13,"#));
-    assert!(newline.contains("wdioEnterKey();"));
+    assert!(newline.contains("wdioEnterKey(activeEl);"));
     let backspace = key_script("\u{8}", true, &m);
     assert!(
       event_init(&backspace).starts_with(r#"key: "Backspace", code: "Backspace", keyCode: 8,"#)
     );
-    assert!(backspace.contains("deleteContentBackward"));
+    assert!(after_helpers(&backspace).contains("deleteContentBackward"));
     assert_eq!(map_special_key("\t"), map_special_key("\u{E004}"));
     let tab = key_script("\t", true, &m);
     assert!(event_init(&tab).starts_with(r#"key: "Tab", code: "Tab", keyCode: 9,"#), "{tab}");

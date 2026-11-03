@@ -11,12 +11,14 @@ const TAURI_COPY = 'packages/tauri-plugin-webdriver/src/platform/element-events.
 const DIOXUS_COPY = 'packages/dioxus-embedded-driver/src/server/handlers/element-events.js';
 
 type ElementEvents = {
+  wdioDeepActiveElement(): Element;
   wdioRecordPendingChange(el: HTMLElement, value: string): void;
+  wdioFlushPendingChange(): void;
   wdioTakePendingChange(el?: HTMLElement): { el: HTMLElement; value: string } | undefined;
   wdioCommitOnEnter(el: HTMLElement): void;
   wdioSubmitOnEnter(el: HTMLElement): void;
   wdioKeyClick(el: HTMLElement): void;
-  wdioEnterKey(): void;
+  wdioEnterKey(el: Element): void;
   wdioSpaceDown(el: HTMLElement, blocked: boolean): void;
   wdioSpaceUp(el: HTMLElement, blocked: boolean): void;
   wdioTabKey(event: KeyboardEvent): void;
@@ -31,7 +33,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioDeepActiveElement, wdioRecordPendingChange, wdioFlushPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -51,13 +53,23 @@ function render(html: string) {
   }
 }
 
-// What Send Keys does to a text field: focus it, record the change it owes, and type.
+// What typing does to a text field: focus it, type, and record the change it owes if that edited it.
 function type(el: HTMLInputElement, text: string) {
   el.focus();
-  events.wdioRecordPendingChange(el, el.value);
-  el.value += text;
-  el.dispatchEvent(new Event('input', { bubbles: true }));
+  if (text !== '') {
+    const value = el.value;
+    el.value += text;
+    events.wdioRecordPendingChange(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
   log = [];
+}
+
+// Enter as the drivers press it: after the keydown, a field focus left without a blur fires its
+// change, then Enter acts on the element focused now.
+function enter() {
+  events.wdioFlushPendingChange();
+  events.wdioEnterKey(events.wdioDeepActiveElement());
 }
 
 // Stops `blur` reaching the page, as Chromium does on scripted focus moves while the window isn't
@@ -198,7 +210,8 @@ describe('wdioCommitOnEnter', () => {
     type($('#t'), 'x');
     events.wdioCommitOnEnter($('#t'));
     expect(log).toEqual([]);
-    type($('#a'), '');
+    type($('#a'), 'x');
+    $('#a').value = '';
     events.wdioCommitOnEnter($('#a'));
     expect(log).toEqual([]);
   });
@@ -429,7 +442,7 @@ describe('Enter and Space on a button', () => {
   it('should commit and submit from the focused field on Enter', () => {
     render('<form id="f"><input id="i"><button id="b">go</button></form>');
     type($('#i'), 'x');
-    events.wdioEnterKey();
+    enter();
     expect(log).toEqual(['change i=x', 'click b', 'submit f by b']);
   });
 
@@ -440,7 +453,7 @@ describe('Enter and Space on a button', () => {
     render(`<form id="f">${button}<button id="s">go</button></form>`);
     $('#b').focus();
     log = [];
-    events.wdioEnterKey();
+    enter();
     expect(log).toEqual(expected);
   });
 
@@ -457,7 +470,7 @@ describe('Enter and Space on a button', () => {
     } else {
       keydownHandler();
     }
-    events.wdioEnterKey();
+    enter();
     expect(log).toEqual(expected);
   });
 });
@@ -467,21 +480,15 @@ describe('Tab', () => {
     vi.restoreAllMocks();
   });
 
-  function focused() {
-    let el = document.activeElement;
-    while (el?.shadowRoot?.activeElement) {
-      el = el.shadowRoot.activeElement;
-    }
-    return el;
-  }
-
-  // Tab as the drivers press it: the keydown goes to the focused element, then its default action runs.
+  // Tab as the drivers press it: the keydown goes to the focused element, a field focus left without a
+  // blur fires its change, then Tab's default action runs.
   function tab(init: KeyboardEventInit = {}) {
     const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true, ...init });
-    focused()?.dispatchEvent(event);
+    events.wdioDeepActiveElement().dispatchEvent(event);
+    events.wdioFlushPendingChange();
     events.wdioTabKey(event);
-    const el = focused();
-    return el?.id || el?.localName;
+    const el = events.wdioDeepActiveElement();
+    return el.id || el.localName;
   }
 
   function tabs(count: number, init: KeyboardEventInit = {}) {

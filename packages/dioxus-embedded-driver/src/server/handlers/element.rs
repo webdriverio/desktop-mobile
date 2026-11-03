@@ -586,29 +586,24 @@ async fn element_var(
 
 #[cfg(test)]
 mod tests {
+  use super::super::key_input::after_helpers;
   use super::*;
-
-  /// The script after the shared helpers, so a test can't match their definitions.
-  fn body(script: &str) -> &str {
-    let helpers = script.find(ELEMENT_EVENTS_JS).unwrap();
-    &script[helpers + ELEMENT_EVENTS_JS.len()..]
-  }
 
   #[test]
   fn click_scrolls_and_presses_then_releases_in_a_later_script() {
     let press = click_press_script("__wdio_elem_abc");
-    let pressing = body(&press);
+    let pressing = after_helpers(&press);
     let scroll = pressing.find("el.scrollIntoView({ behavior: 'instant',").unwrap();
     assert!(scroll < pressing.find("wdioPress(el);").unwrap());
     assert!(!pressing.contains("wdioRelease("));
     let release = click_release_script("__wdio_elem_abc");
-    assert!(body(&release).contains("wdioRelease(window.__wdio_elem_abc);"));
+    assert!(after_helpers(&release).contains("wdioRelease(window.__wdio_elem_abc);"));
   }
 
   #[test]
   fn clear_returns_the_shared_helpers_status() {
     let script = clear_element_script("__wdio_elem_abc");
-    let body = body(&script);
+    let body = after_helpers(&script);
     let stale = body.find("throw '__wdio_stale__';").unwrap();
     assert!(stale < body.find("return wdioClearElement(el);").unwrap());
   }
