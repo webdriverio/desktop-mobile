@@ -13,7 +13,9 @@ use webkit2gtk::{
 };
 
 use crate::platform::alert_state::{AlertStateManager, AlertType, PendingAlert};
-use crate::platform::{wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions};
+use crate::platform::{
+  script_result_refs_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
+};
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
 
@@ -426,9 +428,30 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
     &self,
     script: &str,
     args: &[Value],
+    ref_prefix: &str,
+  ) -> Result<Value, WebDriverErrorResponse> {
+    self.run_async_script(script, args, Some(ref_prefix)).await
+  }
+
+  async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
+    self.run_async_script(script, &[], None).await
+  }
+}
+
+impl<R: Runtime + 'static> LinuxExecutor<R> {
+  /// Runs an async script. With a `ref_prefix`, a DOM node in the result comes back as a reference.
+  async fn run_async_script(
+    &self,
+    script: &str,
+    args: &[Value],
+    ref_prefix: Option<&str>,
   ) -> Result<Value, WebDriverErrorResponse> {
     let args_json = serde_json::to_string(args)
       .map_err(|e| WebDriverErrorResponse::invalid_argument(&e.to_string()))?;
+    let (refs_js, result_js) = match ref_prefix {
+      Some(prefix) => (script_result_refs_js(prefix), "__wdio_refs.withRefs(result)"),
+      None => (String::new(), "result"),
+    };
 
     // Build wrapper that includes argument deserialization.
     // call_async_javascript_function_future treats the body as function statements,
@@ -436,6 +459,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
     let wrapper = format!(
       r"return new Promise((resolve, reject) => {{
                 var ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+                {refs_js}
                 function deserializeArg(arg) {{
                     if (arg === null || arg === undefined) return arg;
                     if (Array.isArray(arg)) return arg.map(deserializeArg);
@@ -457,7 +481,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
                     if (error) {{
                         reject(new Error(typeof error === 'string' ? error : String(error)));
                     }} else {{
-                        resolve(result);
+                        resolve({result_js});
                     }}
                 }};
                 var __args = {args_json}.map(deserializeArg);

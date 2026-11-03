@@ -10,8 +10,10 @@ use uuid::Uuid;
 
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
-use crate::webdriver::element::ELEMENT_KEY;
+use crate::webdriver::element::{ELEMENT_KEY, SCRIPT_REF_VAR_PREFIX};
 use crate::webdriver::session::Session;
+
+const SCRIPT_RESULT_REFS_JS: &str = include_str!("script-result-refs.js");
 
 #[derive(Debug, Deserialize)]
 pub struct ExecuteScriptRequest {
@@ -22,7 +24,11 @@ pub struct ExecuteScriptRequest {
 
 /// Dispatch a script to the webview via the bridge's embedded channel and
 /// await the result. Returns a WebDriver error on script failure or timeout.
-async fn run_script(script: &str, args: &[Value], timeout_ms: u64) -> WebDriverResult {
+async fn run_script(
+  script: &str,
+  args: &[Value],
+  timeout_ms: u64,
+) -> Result<Value, WebDriverErrorResponse> {
   let (tx, rx) = oneshot::channel();
   let id = Uuid::new_v4().to_string();
 
@@ -30,7 +36,7 @@ async fn run_script(script: &str, args: &[Value], timeout_ms: u64) -> WebDriverR
   wdio_dioxus_bridge::embedded::push(id, script.to_string(), args.to_vec(), tx);
 
   match tokio::time::timeout(Duration::from_millis(timeout_ms), rx).await {
-    Ok(Ok(Ok(value))) => Ok(WebDriverResponse::success(value)),
+    Ok(Ok(Ok(value))) => Ok(value),
     Ok(Ok(Err(error))) => Err(WebDriverErrorResponse::javascript_error(&error, None)),
     Ok(Err(_)) => {
       // Sender dropped (shouldn't happen in normal operation).
@@ -38,6 +44,30 @@ async fn run_script(script: &str, args: &[Value], timeout_ms: u64) -> WebDriverR
     }
     Err(_) => Err(WebDriverErrorResponse::script_timeout()),
   }
+}
+
+/// JS defining `__wdio_refs`, which turns the DOM nodes in a script result into references with IDs
+/// that start with `ref_prefix`, kept in the variables `ElementStore::register_script_refs` records.
+fn script_result_refs_js(ref_prefix: &str) -> String {
+  format!(
+    "{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '{SCRIPT_REF_VAR_PREFIX}');"
+  )
+}
+
+/// Runs a script whose result may carry references from `script_result_refs_js`, and registers
+/// them so later element commands find their nodes.
+async fn run_script_with_refs(
+  state: &AppState,
+  session_id: &str,
+  script: &str,
+  args: &[Value],
+  timeout_ms: u64,
+  ref_prefix: &str,
+) -> WebDriverResult {
+  let result = run_script(script, args, timeout_ms).await?;
+  let mut sessions = state.sessions.write().await;
+  sessions.get_mut(session_id)?.elements.register_script_refs(&result, ref_prefix);
+  Ok(WebDriverResponse::success(result))
 }
 
 /// Resolve a request's WebDriver args into (call-site expressions, pass-through values).
@@ -84,6 +114,7 @@ pub async fn execute_sync(
   Path(session_id): Path<String>,
   Json(request): Json<ExecuteScriptRequest>,
 ) -> WebDriverResult {
+  let ref_prefix = Uuid::new_v4().to_string();
   let (timeout_ms, call_expr, pass_through) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
@@ -92,16 +123,19 @@ pub async fn execute_sync(
     let param_names: Vec<String> = (0..pass_through.len()).map(|i| format!("__arg{i}")).collect();
     let param_list = param_names.join(", ");
     let call_list = call_args.join(", ");
-    let call_expr = if call_list.is_empty() {
-      format!("return (function() {{ {} }})()", request.script)
+    let call = if call_list.is_empty() {
+      format!("(function() {{ {} }})()", request.script)
     } else {
-      format!("return (function({param_list}) {{ {} }})({call_list})", request.script)
+      format!("(function({param_list}) {{ {} }})({call_list})", request.script)
     };
+    let call_expr =
+      format!("{}\nreturn __wdio_refs.withRefs(await {call});", script_result_refs_js(&ref_prefix));
 
     (session.timeouts.script_ms, call_expr, pass_through)
   };
 
-  run_script(&call_expr, &pass_through, timeout_ms).await
+  run_script_with_refs(&state, &session_id, &call_expr, &pass_through, timeout_ms, &ref_prefix)
+    .await
 }
 
 /// POST `/session/{session_id}/execute/async`
@@ -117,6 +151,7 @@ pub async fn execute_async(
   Path(session_id): Path<String>,
   Json(request): Json<ExecuteScriptRequest>,
 ) -> WebDriverResult {
+  let ref_prefix = Uuid::new_v4().to_string();
   let (timeout_ms, wrapped, pass_through) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
@@ -139,13 +174,15 @@ pub async fn execute_async(
     };
 
     let wrapped = format!(
-      r#"return (function() {{
+      r#"{refs_js}
+      return (function() {{
         return new Promise(function(resolve, reject) {{
-          var __done = function(result) {{ resolve(result); }};
+          var __done = function(result) {{ resolve(__wdio_refs.withRefs(result)); }};
           try {{ (function({param_list}) {{ {script} }})({call_list}); }}
           catch (e) {{ reject(e); }}
         }});
       }})()"#,
+      refs_js = script_result_refs_js(&ref_prefix),
       param_list = param_list,
       call_list = call_list,
       script = request.script,
@@ -154,5 +191,18 @@ pub async fn execute_async(
     (session.timeouts.script_ms, wrapped, pass_through)
   };
 
-  run_script(&wrapped, &pass_through, timeout_ms).await
+  run_script_with_refs(&state, &session_id, &wrapped, &pass_through, timeout_ms, &ref_prefix).await
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn script_result_refs_keep_nodes_where_the_element_store_looks() {
+    let js = script_result_refs_js("5f0c");
+
+    assert!(js.starts_with(SCRIPT_RESULT_REFS_JS));
+    assert!(js.ends_with("var __wdio_refs = __wdioScriptResultRefs('5f0c', '__wdio_elem_');"));
+  }
 }

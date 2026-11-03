@@ -1076,14 +1076,17 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
   // Script Execution
   // =========================================================================
 
-  /// Execute synchronous JavaScript with arguments
+  /// Execute synchronous JavaScript with arguments. A DOM element or shadow root in the result
+  /// comes back as a reference with an ID that starts with `ref_prefix`.
   async fn execute_script(
     &self,
     script: &str,
     args: &[Value],
+    ref_prefix: &str,
   ) -> Result<Value, WebDriverErrorResponse> {
     let args_json = serde_json::to_string(args)
       .map_err(|e| WebDriverErrorResponse::invalid_argument(&e.to_string()))?;
+    let refs_js = script_result_refs_js(ref_prefix);
 
     // Generate unique result variable name
     let result_var = format!("__wdio_exec_{}", uuid::Uuid::new_v4());
@@ -1100,6 +1103,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     let wrapper = format!(
       r"(function() {{
                 var ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+                {refs_js}
 
                 function serializeValue(value) {{
                     if (value === null || value === undefined) return null;
@@ -1117,7 +1121,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                     }}
                     if (typeof value === 'object') {{
                         if (value[ELEMENT_KEY]) return value;
-                        if (value && value.nodeType && value.nodeType === 1) return null;
+                        var ref = __wdio_refs.nodeRef(value);
+                        if (ref) return ref;
                         var result = {{}};
                         for (var key in value) {{
                             if (value.hasOwnProperty(key)) {{
@@ -1199,23 +1204,23 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     }
   }
 
-  /// Execute asynchronous JavaScript with callback.
+  /// Execute asynchronous JavaScript with callback. A DOM element or shadow root in the result
+  /// comes back as a reference with an ID that starts with `ref_prefix`.
   ///
   /// Each platform must implement this using native message handlers.
   async fn execute_async_script(
     &self,
     script: &str,
     args: &[Value],
+    ref_prefix: &str,
   ) -> Result<Value, WebDriverErrorResponse>;
 
   /// Execute a pre-wrapped async DirectEval script (the `/wdio/eval` channel).
   ///
   /// The script uses the W3C async-callback contract (`arguments[last]` is the done callback).
-  /// Defaults to `execute_async_script`; a platform may override to avoid a long-lived native
-  /// completion handler (see the macOS executor).
-  async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
-    self.execute_async_script(script, &[]).await
-  }
+  /// Unlike `execute_async_script`, it leaves DOM nodes in the result as they are: the channel has
+  /// no session to register references in.
+  async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse>;
 
   // =========================================================================
   // Screenshots
@@ -1645,6 +1650,28 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // =============================================================================
 // Helper Functions for Default Implementations
 // =============================================================================
+
+const SCRIPT_RESULT_REFS_JS: &str = include_str!("script-result-refs.js");
+
+/// JS defining `__wdio_refs`, which turns the DOM nodes in a script result into references with IDs
+/// that start with `ref_prefix`. It keeps each node where Find Element keeps the ones it finds, so
+/// [`crate::webdriver::element::ElementStore::register_script_refs`] can register the IDs.
+pub fn script_result_refs_js(ref_prefix: &str) -> String {
+  format!("{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '__wd_el_');")
+}
+
+#[cfg(test)]
+mod script_result_refs_tests {
+  use super::*;
+
+  #[test]
+  fn script_result_refs_keep_nodes_under_find_elements_variable_prefix() {
+    let js = script_result_refs_js("5f0c");
+
+    assert!(js.starts_with(SCRIPT_RESULT_REFS_JS));
+    assert!(js.ends_with("var __wdio_refs = __wdioScriptResultRefs('5f0c', '__wd_el_');"));
+  }
+}
 
 /// Runs `script`, and if it returns [`ELEMENT_EVENTS_MISSING`], installs the helpers and runs it
 /// again. That only happens in a document the plugin's init script didn't reach.

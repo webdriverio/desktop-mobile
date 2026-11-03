@@ -27,7 +27,9 @@ use windows::Win32::System::Com::{
 use windows_core::BOOL;
 
 use crate::platform::alert_state::{AlertState, AlertStateManager, AlertType, PendingAlert};
-use crate::platform::{wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions};
+use crate::platform::{
+  script_result_refs_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
+};
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
 
@@ -571,9 +573,30 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     &self,
     script: &str,
     args: &[Value],
+    ref_prefix: &str,
+  ) -> Result<Value, WebDriverErrorResponse> {
+    self.run_async_script(script, args, Some(ref_prefix)).await
+  }
+
+  async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
+    self.run_async_script(script, &[], None).await
+  }
+}
+
+impl<R: Runtime + 'static> WindowsExecutor<R> {
+  /// Runs an async script. With a `ref_prefix`, a DOM node in the result comes back as a reference.
+  async fn run_async_script(
+    &self,
+    script: &str,
+    args: &[Value],
+    ref_prefix: Option<&str>,
   ) -> Result<Value, WebDriverErrorResponse> {
     let args_json = serde_json::to_string(args)
       .map_err(|e| WebDriverErrorResponse::invalid_argument(&e.to_string()))?;
+    let (refs_js, result_js) = match ref_prefix {
+      Some(prefix) => (script_result_refs_js(prefix), "__wdio_refs.withRefs(r)"),
+      None => (String::new(), "r"),
+    };
 
     let async_id = uuid::Uuid::new_v4().to_string();
 
@@ -605,6 +628,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     let wrapper = format!(
       r"(function() {{
                 var ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+                {refs_js}
                 function deserializeArg(arg) {{
                     if (arg === null || arg === undefined) return arg;
                     if (Array.isArray(arg)) return arg.map(deserializeArg);
@@ -626,7 +650,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
                     window.chrome.webview.postMessage(JSON.stringify({{
                         handler: '{HANDLER_NAME}',
                         id: '{async_id}',
-                        result: r,
+                        result: {result_js},
                         error: null
                     }}));
                 }};
