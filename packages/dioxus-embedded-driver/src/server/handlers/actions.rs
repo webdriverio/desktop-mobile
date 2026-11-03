@@ -12,6 +12,7 @@
 //! to 0 — lands on the element's center rather than viewport `(0, 0)`.
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -725,11 +726,24 @@ pub async fn release(
     let pointer_pos = std::mem::take(&mut session.action_state.pointer_position);
     (session.timeouts.script_ms, release_scripts(&presses, pointer_pos))
   };
-  for script in scripts {
-    eval(script, timeout_ms).await?;
-  }
+  // Release everything even if one fails; the state is cleared, so nothing could retry it.
+  eval_all(scripts, |script| eval(script, timeout_ms)).await?;
 
   Ok(WebDriverResponse::null())
+}
+
+/// Runs every script and returns the first error.
+async fn eval_all<Fut: Future<Output = Result<(), WebDriverErrorResponse>>>(
+  scripts: Vec<String>,
+  mut eval: impl FnMut(String) -> Fut,
+) -> Result<(), WebDriverErrorResponse> {
+  let mut first_error = None;
+  for script in scripts {
+    if let Err(error) = eval(script).await {
+      first_error.get_or_insert(error);
+    }
+  }
+  first_error.map_or(Ok(()), Err)
 }
 
 /// The keyups and mouseups that release `presses`, given in release order, with buttons going up at
@@ -1116,6 +1130,29 @@ mod tests {
     assert!(right_up.contains("button:2,buttons:1,ctrlKey:false,shiftKey:true"), "{right_up}");
     assert!(event_init(shift_up).contains("shiftKey: false"), "{shift_up}");
     assert!(left_up.contains("button:0,buttons:0,ctrlKey:false,shiftKey:false"), "{left_up}");
+  }
+
+  #[test]
+  fn release_runs_every_script_after_a_failure_and_returns_the_first_error() {
+    let ran = std::cell::RefCell::new(Vec::new());
+    let scripts = ["a", "b", "c"].map(String::from).to_vec();
+
+    let result = tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(eval_all(
+      scripts,
+      |script| {
+        ran.borrow_mut().push(script.clone());
+        async move {
+          if script == "c" {
+            Ok(())
+          } else {
+            Err(WebDriverErrorResponse::unknown_error(&script))
+          }
+        }
+      },
+    ));
+
+    assert_eq!(*ran.borrow(), ["a", "b", "c"]);
+    assert_eq!(result.unwrap_err().message, "a");
   }
 
   #[test]
