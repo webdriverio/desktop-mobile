@@ -38,8 +38,6 @@ use dioxus_desktop::Config;
 /// env var without adding a separate dep on `wdio-dioxus-bridge`.
 pub use wdio_dioxus_bridge::automation;
 
-/// Registers a window and turns on focus emulation, for apps that set their own `with_on_window`
-/// callback after [`install`] and call this from it.
 pub use wdio_dioxus_bridge::on_window;
 
 /// Default port for the embedded WebDriver HTTP server.
