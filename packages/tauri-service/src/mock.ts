@@ -82,6 +82,8 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
       return await executeInMockWindow<T>(script);
     } catch (error) {
       if (error instanceof Error && error.message.includes(`'${windowLabel}' not found`)) {
+        // Dropped from the store, so auto-sync stops reading it and the next mock() makes a fresh one.
+        mockStore.deleteMock(browserToUse, `tauri.${command}`);
         return WINDOW_CLOSED;
       }
       throw error;

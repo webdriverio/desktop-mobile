@@ -451,10 +451,11 @@ describe('createMock', () => {
         return mock;
       }
 
-      it('should keep the calls synced before it closed', async () => {
+      it('should keep the calls synced before it closed, and drop the mock from the store', async () => {
         const mock = await mockInClosedWindow();
         await mock.update();
         expect(mock.mock.calls).toEqual([['a']]);
+        expect(mockStore.deleteMock).toHaveBeenCalledWith(expect.anything(), 'tauri.read_clipboard');
       });
 
       it('should clear, reset and restore without an error', async () => {

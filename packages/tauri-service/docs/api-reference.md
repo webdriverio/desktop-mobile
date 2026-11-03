@@ -99,7 +99,7 @@ expect(content).toBe('mocked file content');
 
 The mock sees every call to the command in that window: the app's `invoke()` from `@tauri-apps/api/core`, `window.__TAURI__.core.invoke`, the helpers built on them (mock `plugin:event|emit` to see the app's `emit()` calls), and `core.invoke` in `browser.tauri.execute()`. A call from the app passes the mock its arguments as Tauri sends them over IPC: a JSON copy of the arguments, or the bytes of a binary payload.
 
-**Note:** A mock stays in the window that was selected when `mock()` created it, even after `switchWindow()`. Each command has one mock, so `mock()` on a command that's already mocked returns that mock, in its original window. To mock the command in another window instead, call `mockRestore()`, switch windows and call `mock()` again.
+**Note:** A mock stays in the window that was selected when `mock()` created it, even after `switchWindow()`. Each command has one mock, so `mock()` on a command that's already mocked returns that mock, in its original window, unless that window has closed. To mock the command in another window instead, call `mockRestore()`, switch windows and call `mock()` again.
 
 **Browser Mode:** Works in browser mode — this is the primary testing API in browser mode. The `command` argument is the Tauri command name (matching what the frontend passes to `invoke()`). Trigger the command via a UI interaction or `browser.execute(() => window.__TAURI_INTERNALS__.invoke('command-name'))`, then call `update()` and assert.
 

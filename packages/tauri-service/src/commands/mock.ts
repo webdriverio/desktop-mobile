@@ -63,9 +63,9 @@ export async function mock(this: TauriServiceContext | undefined, command: strin
   }
 
   try {
-    const existingMock = mockStore.getMock(browserContext, `tauri.${command}`);
-    await existingMock.mockReset();
-    return existingMock;
+    await mockStore.getMock(browserContext, `tauri.${command}`).mockReset();
+    // mockReset drops a mock whose window has closed, so this throws and a fresh mock is made.
+    return mockStore.getMock(browserContext, `tauri.${command}`);
   } catch (_e) {
     const newMock = await createMock(command, browserContext);
     mockStore.setMock(browserContext, newMock);
