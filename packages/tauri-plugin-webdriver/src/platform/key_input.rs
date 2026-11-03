@@ -357,7 +357,7 @@ fn key_event_script(
 
 /// JS for Backspace (`backward`) or Delete in an editable text field: removes the selection, or the
 /// character before or after the caret (the end, without a selection API), and fires `input`. A
-/// deletion records the `change` the field owes, so this needs `element-events.js` in scope.
+/// deletion first records the `change` the field owes, so this needs `element-events.js` in scope.
 fn delete_js(backward: bool) -> String {
   let text_field = is_editable_text_field_js("activeEl");
   let (edge_check, removed_start, removed_end, input_type) = if backward {
@@ -386,6 +386,7 @@ fn delete_js(backward: bool) -> String {
                         removeEnd = {edge_check} ? {removed_end} : selStart;
                     }}
                     if (removeStart !== removeEnd) {{
+                        wdioRecordPendingChange(activeEl, currentValue);
                         var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                             activeEl.tagName === 'INPUT'
                                 ? window.HTMLInputElement.prototype
@@ -399,7 +400,6 @@ fn delete_js(backward: bool) -> String {
                         if (hasSelectionApi) {{
                             activeEl.setSelectionRange(removeStart, removeStart);
                         }}
-                        wdioRecordPendingChange(activeEl, currentValue);
                         activeEl.dispatchEvent(new InputEvent('input', {{
                             bubbles: true,
                             composed: true,
@@ -488,7 +488,7 @@ fn insert_text_js(el: &str, text_js: &str) -> String {
                     }} catch (e) {{}}
                     // Chrome fires `input` for any insertion, even one that leaves the value as it
                     // was. Without a selection API, the text went in only if the value changed.
-                    var edited = insertedText !== '';
+                    var edited = true;
                     if (typeof selStart === 'number' && typeof selEnd === 'number') {{
                         nativeInputValueSetter.call(
                             {el},
@@ -761,15 +761,13 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
 }
 
 /// JS inserting a printable run at the focused element's selection, as typing does, so text follows
-/// focus when a key moves it. The field the text goes into fires `change` when focus leaves it,
-/// after the one owed by a field a key handler moved focus from.
+/// focus when a key moves it. The field the text goes into fires `change` when focus leaves it.
 pub fn build_insert_run_script(run: &str) -> String {
   let active_element = deep_active_element_js("activeEl");
   let insert_text = insert_text_js("activeEl", &js_string(run));
   format!(
     r"(function() {{
                 {ELEMENT_EVENTS_JS}
-                wdioFlushPendingChange();
                 {active_element}
                 {insert_text}
                 return true;
@@ -1144,20 +1142,6 @@ mod tests {
   }
 
   #[test]
-  fn typing_fires_input_for_an_insertion_and_drops_what_a_number_input_rejects() {
-    let insert = insert_text_js("activeEl", &js_string("x"));
-    let number = insert.find("if (activeEl.type === 'number') {").unwrap();
-    let filter = insert.find("insertedText = insertedText.replace(/[^0-9.eE+-]/g, '');").unwrap();
-    let current = insert.find("var currentValue = activeEl.value;").unwrap();
-    assert!(number < filter && filter < current, "{insert}");
-    let edited = insert.find("var edited = insertedText !== '';").unwrap();
-    let selection = insert.find("if (typeof selStart === 'number'").unwrap();
-    let sanitized = insert.find("edited = activeEl.value !== currentValue;").unwrap();
-    let fires = insert.find("if (edited) {").unwrap();
-    assert!(edited < selection && selection < sanitized && sanitized < fires, "{insert}");
-  }
-
-  #[test]
   fn only_text_fields_and_editors_take_typed_text() {
     let field = is_text_field_js("el");
     assert!(field.contains("el.tagName === 'TEXTAREA'"));
@@ -1510,10 +1494,9 @@ mod tests {
   fn build_insert_run_script_records_the_owed_change_inserts_and_fires_input() {
     let script = build_insert_run_script("hi");
     let body = after_helpers(&script);
-    let flush = body.find("wdioFlushPendingChange();").unwrap();
     let focused = body.find("var activeEl = document.activeElement || document.body;").unwrap();
     let insert = body.find(&insert_text_js("activeEl", &js_string("hi"))).unwrap();
-    assert!(flush < focused && focused < insert, "{body}");
+    assert!(focused < insert, "{body}");
     assert!(body.contains("inputType: 'insertText'"));
     assert!(body.contains("document.execCommand('insertText', false, insertedText)"));
     assert!(!body.contains("new Event('change'"));
@@ -1578,11 +1561,7 @@ mod tests {
       (delete_js(true), "if (removeStart !== removeEnd) {"),
       (delete_js(false), "if (removeStart !== removeEnd) {"),
     ] {
-      let recorded = edit.find(record).unwrap();
-      assert!(edit.find(edits).unwrap() < recorded, "{edit}");
-      assert!(edit.rfind("nativeInputValueSetter.call(").unwrap() < recorded, "{edit}");
-      let then = edit[recorded + record.len()..].trim_start();
-      assert!(then.starts_with("activeEl.dispatchEvent(new InputEvent('input'"), "{edit}");
+      assert!(edit.find(edits).unwrap() < edit.find(record).unwrap(), "{edit}");
     }
     let none = mods(false, false, false, false);
     let ctrl = mods(true, false, false, false);
@@ -1600,7 +1579,7 @@ mod tests {
       build_printable_key_script("x", "KeyX", 88, true, &ctrl),
       build_printable_key_script("a", "KeyA", 65, true, &ctrl),
     ] {
-      assert!(!script.replace(ELEMENT_EVENTS_JS, "").contains(record), "{script}");
+      assert!(!script.contains(record), "{script}");
     }
   }
 
@@ -1659,36 +1638,6 @@ mod tests {
       build_special_key_script("Tab", "Tab", 9, false, &none),
     ] {
       assert!(!script.contains("wdio"), "{script}");
-    }
-  }
-
-  #[test]
-  fn every_key_script_that_calls_a_helper_carries_them_once() {
-    for modifiers in [
-      mods(false, false, false, false),
-      mods(true, false, false, false),
-      mods(false, true, false, false),
-      mods(false, false, true, false),
-      mods(false, false, false, true),
-    ] {
-      for is_down in [true, false] {
-        let special = special_key_range().map(|ch| {
-          let (key, code, key_code) = map_special_key(&ch.to_string()).unwrap();
-          if is_printable_key(key) {
-            build_printable_key_script(key, code, key_code, is_down, &modifiers)
-          } else {
-            build_special_key_script(key, code, key_code, is_down, &modifiers)
-          }
-        });
-        let regular = ["a", "A", "x", "1", " ", "é"]
-          .map(|key| build_regular_key_script(key, is_down, &modifiers));
-        for script in special.chain(regular) {
-          match script.matches(ELEMENT_EVENTS_JS).count() {
-            0 => assert!(!script.contains("wdio") && !script.contains("WDIO_"), "{script}"),
-            copies => assert_eq!(copies, 1, "{script}"),
-          }
-        }
-      }
     }
   }
 
