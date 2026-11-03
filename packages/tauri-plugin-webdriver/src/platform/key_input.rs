@@ -454,8 +454,8 @@ fn select_all_js() -> String {
 }
 
 /// JS inserting the string expression `text_js` at `el`'s selection, replacing any selected range,
-/// and firing `input` if the value changed. Only editable text fields and contenteditable take text.
-/// A text field whose value changes records the `change` it owes.
+/// and firing `input`. Only editable text fields and contenteditable take text. A text field the
+/// insertion edits records the `change` it owes.
 fn insert_text_js(el: &str, text_js: &str) -> String {
   let text_field = is_editable_text_field_js(el);
   format!(

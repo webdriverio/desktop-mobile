@@ -1659,12 +1659,17 @@ where
   Fut: Future<Output = Result<Value, WebDriverErrorResponse>>,
 {
   let result = run(script).await?;
-  if !misses_element_events(&result) {
+  if !misses_element_events(script, &result) {
     return Ok(result);
   }
-  run(install_element_events_js()).await?;
+  let installed = run(install_element_events_js()).await?;
+  if installed.get("value") != Some(&Value::Bool(true)) {
+    return Err(WebDriverErrorResponse::unknown_error(&format!(
+      "The element helpers didn't install in the page: {installed}"
+    )));
+  }
   let result = run(script).await?;
-  if misses_element_events(&result) {
+  if misses_element_events(script, &result) {
     return Err(WebDriverErrorResponse::unknown_error(
       "The page dropped the element helpers as soon as they were installed",
     ));
@@ -1672,8 +1677,11 @@ where
   Ok(result)
 }
 
-fn misses_element_events(result: &Value) -> bool {
-  result.get("value").and_then(Value::as_str) == Some(ELEMENT_EVENTS_MISSING)
+/// Only a script that checks for the helpers can miss them: any other script's result can be any
+/// string, the marker included.
+fn misses_element_events(script: &str, result: &Value) -> bool {
+  script.contains(ELEMENT_EVENTS_MISSING)
+    && result.get("value").and_then(Value::as_str) == Some(ELEMENT_EVENTS_MISSING)
 }
 
 fn click_press_script(js_var: &str) -> String {
@@ -1733,14 +1741,15 @@ mod element_script_tests {
     assert!(stale < script.find("return wdioClearElement(el);").unwrap());
   }
 
-  /// Runs a script through `run_with_element_events` on a page that answers each script it's given
+  /// Runs `script` through `run_with_element_events` on a page that answers each script it's given
   /// with the next of `answers`, and returns the result and the scripts the page ran.
   async fn run_on_page(
+    script: &str,
     answers: Vec<Value>,
   ) -> (Result<Value, WebDriverErrorResponse>, Vec<String>) {
     let answers = std::sync::Mutex::new(answers.into_iter());
     let ran = std::sync::Mutex::new(Vec::new());
-    let result = run_with_element_events("script", |script| {
+    let result = run_with_element_events(script, |script| {
       ran.lock().unwrap().push(script.to_string());
       let answer = answers.lock().unwrap().next().unwrap();
       async move { Ok(serde_json::json!({ "success": true, "value": answer })) }
@@ -1749,29 +1758,53 @@ mod element_script_tests {
     (result, ran.into_inner().unwrap())
   }
 
+  /// A script that checks for the helpers.
+  fn checked() -> String {
+    element_events_script("return wdioDeepActiveElement();")
+  }
+
   fn missing() -> Value {
     Value::String(ELEMENT_EVENTS_MISSING.to_string())
   }
 
   #[tokio::test]
   async fn runs_a_script_once_when_the_page_has_the_helpers() {
-    let (result, ran) = run_on_page(vec![Value::Bool(true)]).await;
+    let script = checked();
+    let (result, ran) = run_on_page(&script, vec![Value::Bool(true)]).await;
     assert_eq!(result.unwrap()["value"], true);
-    assert_eq!(ran, ["script"]);
+    assert_eq!(ran, [script]);
   }
 
   #[tokio::test]
   async fn installs_the_helpers_and_reruns_a_script_that_found_none() {
-    let (result, ran) = run_on_page(vec![missing(), Value::Bool(true), Value::from("done")]).await;
+    let script = checked();
+    let answers = vec![missing(), Value::Bool(true), Value::from("done")];
+    let (result, ran) = run_on_page(&script, answers).await;
     assert_eq!(result.unwrap()["value"], "done");
-    assert_eq!(ran, ["script", install_element_events_js(), "script"]);
+    assert_eq!(ran, [script.as_str(), install_element_events_js(), script.as_str()]);
+  }
+
+  #[tokio::test]
+  async fn fails_when_the_helpers_dont_install() {
+    let (result, ran) = run_on_page(&checked(), vec![missing(), Value::Null]).await;
+    let message = result.err().map(|e| e.message).unwrap_or_default();
+    assert!(message.contains("didn't install"), "{message}");
+    assert_eq!(ran.len(), 2);
   }
 
   #[tokio::test]
   async fn fails_when_the_helpers_are_still_missing_after_installing_them() {
-    let (result, ran) = run_on_page(vec![missing(), Value::Bool(true), missing()]).await;
+    let (result, ran) =
+      run_on_page(&checked(), vec![missing(), Value::Bool(true), missing()]).await;
     assert!(result.is_err());
     assert_eq!(ran.len(), 3);
+  }
+
+  #[tokio::test]
+  async fn returns_the_marker_from_a_script_that_doesnt_check_for_the_helpers() {
+    let (result, ran) = run_on_page("return document.title;", vec![missing()]).await;
+    assert_eq!(result.unwrap()["value"], ELEMENT_EVENTS_MISSING);
+    assert_eq!(ran, ["return document.title;"]);
   }
 }
 
