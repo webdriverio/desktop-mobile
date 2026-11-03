@@ -13,6 +13,8 @@ Internal crate used by [`wdio-dioxus`](../dioxus-wdio/) and [`wdio-dioxus-embedd
 
 It's a "bridge" rather than a "plugin" because Dioxus has no plugin system; it hooks in through `desktop::Config`. The npm package `@wdio/dioxus-bridge` in this directory holds the guest-js source; `build.rs` embeds the built bundle in the crate.
 
+Because `desktop::Config` keeps only one `with_custom_head` string and one `with_on_window` callback, `install(config)` sets both. Apps that need their own window callback or custom `<head>` should call `wdio_dioxus::on_window(&window, dom)` or append `wdio_dioxus::custom_head()` (backed by `custom_head()` / `custom_head_with_embedded_port(port)` here), or load stylesheets via Dioxus's `document::Stylesheet` / `document::Link` components. See the [App Setup guide](../dioxus-service/docs/app-setup.md).
+
 ## Platform Support
 
 | Platform | Status |

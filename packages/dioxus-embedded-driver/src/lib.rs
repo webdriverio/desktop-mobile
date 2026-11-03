@@ -80,8 +80,7 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
     return config;
   }
 
-  let port =
-    std::env::var(PORT_ENV_VAR).ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT);
+  let port = resolve_port();
 
   // Use a port-scoped temp directory so concurrent instances (multiremote)
   // each get their own WebView2/WebKit user data folder and don't conflict.
@@ -94,4 +93,18 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
   server::start(port);
   tracing::info!(port, "wdio-dioxus-embedded-driver started");
   config
+}
+
+/// Returns the `<head>` `<script>` snippet that [`install`] injects when
+/// automation is active, or an empty string otherwise.
+#[must_use]
+pub fn custom_head() -> String {
+  if !automation::is_requested() {
+    return String::new();
+  }
+  wdio_dioxus_bridge::custom_head_with_embedded_port(resolve_port())
+}
+
+fn resolve_port() -> u16 {
+  std::env::var(PORT_ENV_VAR).ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT)
 }

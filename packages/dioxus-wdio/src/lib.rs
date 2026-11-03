@@ -76,6 +76,33 @@ pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
   }
 }
 
+/// Returns the `<head>` `<script>` snippet that [`install`] injects when
+/// `@wdio/dioxus-service` launched the app, or an empty string otherwise.
+///
+/// For apps that set their own [`Config::with_custom_head`]: call it after
+/// [`install`], which it replaces, and append this snippet to your head HTML:
+///
+/// ```ignore
+/// let mut head = r#"<link rel="stylesheet" href="/assets/main.css">"#.to_string();
+/// #[cfg(debug_assertions)]
+/// head.push_str(&wdio_dioxus::custom_head());
+/// config = config.with_custom_head(head);
+/// ```
+#[must_use]
+pub fn custom_head() -> String {
+  let external_provider =
+    std::env::var(PROVIDER_ENV_VAR).is_ok_and(|provider| provider == "external");
+  custom_head_for_mode(mode(automation::is_requested(), external_provider))
+}
+
+fn custom_head_for_mode(mode: Mode) -> String {
+  match mode {
+    Mode::Off => String::new(),
+    Mode::Embedded => embedded_custom_head(),
+    Mode::BridgeOnly => wdio_dioxus_bridge::custom_head(),
+  }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum Mode {
   Off,
@@ -99,6 +126,20 @@ fn install_embedded<F: FnOnce(&CommandRegistry)>(config: Config, register: F) ->
 #[cfg(not(feature = "embedded"))]
 fn install_embedded<F: FnOnce(&CommandRegistry)>(config: Config, register: F) -> Config {
   install_bridge(config, register)
+}
+
+#[cfg(feature = "embedded")]
+fn embedded_custom_head() -> String {
+  let port = std::env::var(wdio_dioxus_embedded_driver::PORT_ENV_VAR)
+    .ok()
+    .and_then(|s| s.parse::<u16>().ok())
+    .unwrap_or(wdio_dioxus_embedded_driver::DEFAULT_PORT);
+  wdio_dioxus_bridge::custom_head_with_embedded_port(port)
+}
+
+#[cfg(not(feature = "embedded"))]
+fn embedded_custom_head() -> String {
+  wdio_dioxus_bridge::custom_head()
 }
 
 fn install_bridge<F: FnOnce(&CommandRegistry)>(config: Config, register: F) -> Config {
@@ -125,5 +166,25 @@ mod tests {
   #[test]
   fn should_install_only_the_bridge_for_the_external_provider() {
     assert_eq!(mode(true, true), Mode::BridgeOnly);
+  }
+
+  #[test]
+  fn custom_head_is_empty_when_automation_is_off() {
+    assert_eq!(custom_head_for_mode(Mode::Off), "");
+  }
+
+  #[test]
+  fn custom_head_returns_bridge_head_for_external_provider() {
+    let head = custom_head_for_mode(Mode::BridgeOnly);
+    assert!(head.contains("window.__WDIO_BRIDGE_URL__="));
+    assert!(!head.contains("window.__WDIO_EMBEDDED_PORT="));
+  }
+
+  #[cfg(feature = "embedded")]
+  #[test]
+  fn custom_head_includes_embedded_port_in_embedded_mode() {
+    let head = custom_head_for_mode(Mode::Embedded);
+    assert!(head.contains("window.__WDIO_BRIDGE_URL__="));
+    assert!(head.contains("window.__WDIO_EMBEDDED_PORT="));
   }
 }

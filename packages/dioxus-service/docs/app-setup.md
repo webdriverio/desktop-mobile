@@ -45,7 +45,7 @@ wdio-dioxus = "1"
 
 ### Step 2: Call `install()` in `main.rs`
 
-Call `wdio_dioxus::install(config)` inside a `#[cfg(debug_assertions)]` block. Call it last in your `Config` chain: a later `with_on_window` or `with_custom_head` call replaces the ones `install()` sets. If your app sets its own `with_on_window` callback, see [Apps With Their Own Window Callback](#apps-with-their-own-window-callback).
+Call `wdio_dioxus::install(config)` inside a `#[cfg(debug_assertions)]` block. Call it last in your `Config` chain: a later `with_on_window` or `with_custom_head` call replaces the ones `install()` sets. If your app sets its own `with_on_window` callback or `with_custom_head`, see [Apps With Their Own Window Callback](#apps-with-their-own-window-callback) and [Apps With Their Own Custom Head](#apps-with-their-own-custom-head).
 
 ```rust
 use dioxus::prelude::*;
@@ -148,7 +148,24 @@ config = config.with_on_window(|window, dom| {
 
 Without it, the service never sees the app's windows, and startup fails with "the app's window never registered with the bridge".
 
-`with_custom_head` has no equivalent: under test, `install()` replaces a head your app sets, so stylesheets or scripts loaded there are missing. Normal runs aren't affected. Load stylesheets from a component with `document::Stylesheet { href: asset!("/assets/main.css") }` instead, which doesn't use the custom head. See [#718](https://github.com/webdriverio/desktop-mobile/issues/718).
+## Apps With Their Own Custom Head
+
+`install()` injects the bridge `<script>` via `with_custom_head`, and Dioxus keeps only one custom head string. Where possible, load stylesheets and head elements from a component with `document::Stylesheet { href: asset!("/assets/main.css") }` or `document::Link`, which don't use `with_custom_head`.
+
+If your app needs `with_custom_head`, set it after `install()` and append `wdio_dioxus::custom_head()` (which returns an empty string when the app is not launched by `@wdio/dioxus-service`):
+
+```rust
+#[cfg(debug_assertions)]
+{
+    config = wdio_dioxus::install(config);
+}
+
+let mut head = r#"<link rel="stylesheet" href="/assets/main.css">"#.to_string();
+#[cfg(debug_assertions)]
+head.push_str(&wdio_dioxus::custom_head());
+
+config = config.with_custom_head(head);
+```
 
 ## What Happens Internally
 
