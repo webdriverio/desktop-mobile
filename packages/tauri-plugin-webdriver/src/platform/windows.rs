@@ -9,12 +9,12 @@ use tauri::webview::PlatformWebview;
 use tauri::{Manager, Runtime, WebviewWindow};
 use tokio::sync::oneshot;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
-  ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Controller,
-  ICoreWebView2Environment6, ICoreWebView2ExecuteScriptCompletedHandler,
-  ICoreWebView2PrintToPdfCompletedHandler, ICoreWebView2ScriptDialogOpeningEventHandler,
-  ICoreWebView2WebMessageReceivedEventHandler, ICoreWebView2_7,
-  COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE,
-  COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT,
+  ICoreWebView2, ICoreWebView2CallDevToolsProtocolMethodCompletedHandler,
+  ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Controller, ICoreWebView2Environment6,
+  ICoreWebView2ExecuteScriptCompletedHandler, ICoreWebView2PrintToPdfCompletedHandler,
+  ICoreWebView2ScriptDialogOpeningEventHandler, ICoreWebView2WebMessageReceivedEventHandler,
+  ICoreWebView2_7, COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,
+  COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE, COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT,
 };
 use windows::core::{Interface, HSTRING, PCWSTR};
 use windows::Win32::Foundation::HGLOBAL;
@@ -25,7 +25,9 @@ use windows::Win32::System::Com::{
 use windows_core::BOOL;
 
 use crate::platform::alert_state::{AlertState, AlertStateManager, AlertType, PendingAlert};
-use crate::platform::{wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions};
+use crate::platform::{
+  wrap_script_for_frame_context, FrameId, ModifierState, PlatformExecutor, PrintOptions,
+};
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
 
@@ -197,6 +199,78 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
       Err(_) => Err(WebDriverErrorResponse::script_timeout()),
     }
   }
+
+  /// Call a Chrome DevTools Protocol method against the `WebView2` (e.g. `Input.dispatchKeyEvent`),
+  /// serialized on `ScriptExecutionLocks` like `evaluate_js`.
+  async fn call_cdp_method(
+    &self,
+    method: &str,
+    params_json: &str,
+  ) -> Result<(), WebDriverErrorResponse> {
+    let locks = self.window.state::<ScriptExecutionLocks>();
+    let lock = locks.get(self.window.label());
+    let _guard = lock.lock().await;
+
+    let (tx, rx) = oneshot::channel();
+    let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
+    let method_owned = method.to_string();
+    let params_owned = params_json.to_string();
+
+    let result = self.window.with_webview({
+      let tx = tx.clone();
+      move |webview| unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+
+        if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+          let method_hstring = HSTRING::from(&method_owned);
+          let params_hstring = HSTRING::from(&params_owned);
+
+          let handler: ICoreWebView2CallDevToolsProtocolMethodCompletedHandler =
+            CallDevToolsProtocolHandler::new(tx.clone()).into();
+
+          if let Err(e) = webview2.CallDevToolsProtocolMethod(
+            PCWSTR(method_hstring.as_ptr()),
+            PCWSTR(params_hstring.as_ptr()),
+            &handler,
+          ) {
+            tracing::error!("CallDevToolsProtocolMethod '{method_owned}' failed: {e:?}");
+            if let Ok(mut guard) = tx.lock() {
+              if let Some(tx) = guard.take() {
+                let _ = tx.send(Err(format!("CallDevToolsProtocolMethod failed: {e:?}")));
+              }
+            }
+          }
+        } else {
+          tracing::error!("Failed to get CoreWebView2 for CDP call");
+          if let Ok(mut guard) = tx.lock() {
+            if let Some(tx) = guard.take() {
+              let _ = tx.send(Err("Failed to get CoreWebView2".to_string()));
+            }
+          }
+        }
+      }
+    });
+
+    if let Err(e) = result {
+      tracing::error!("with_webview failed for CDP call: {e}");
+      if let Ok(mut guard) = tx.lock() {
+        if let Some(tx) = guard.take() {
+          let _ = tx.send(Err(e.to_string()));
+        }
+      }
+    }
+
+    let timeout = std::time::Duration::from_millis(self.timeouts.script_ms);
+    match tokio::time::timeout(timeout, rx).await {
+      Ok(Ok(Ok(_))) => Ok(()),
+      Ok(Ok(Err(error))) => Err(WebDriverErrorResponse::unknown_error(&error)),
+      Ok(Err(_)) => {
+        tracing::error!("Channel closed unexpectedly during CDP call");
+        Err(WebDriverErrorResponse::unknown_error("Channel closed"))
+      }
+      Err(_) => Err(WebDriverErrorResponse::script_timeout()),
+    }
+  }
 }
 
 /// Register `WebView2` handlers at webview creation time.
@@ -261,6 +335,24 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     let lock = locks.get(self.window.label());
     let _guard = lock.lock().await;
     self.evaluate_js_inner(script).await
+  }
+
+  // =========================================================================
+  // Keyboard input: CDP at top level (trusted); a switched-into frame falls back to the JS path
+  // because CDP Input.dispatchKeyEvent takes no frame parameter.
+  // =========================================================================
+
+  async fn dispatch_key_event(
+    &self,
+    key: &str,
+    is_down: bool,
+    modifiers: &ModifierState,
+  ) -> Result<(), WebDriverErrorResponse> {
+    if !self.frame_context.is_empty() {
+      return self.dispatch_key_event_js(key, is_down, modifiers).await;
+    }
+    let event = crate::platform::key_input::to_cdp_key_event(key, is_down, modifiers);
+    self.call_cdp_method("Input.dispatchKeyEvent", &event.to_params_json()).await
   }
 
   // =========================================================================
@@ -645,11 +737,13 @@ mod handlers {
 
   use serde_json::Value;
   use webview2_com::Microsoft::Web::WebView2::Win32::{
-    ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler,
-    ICoreWebView2CapturePreviewCompletedHandler_Impl, ICoreWebView2Deferral,
-    ICoreWebView2ExecuteScriptCompletedHandler, ICoreWebView2ExecuteScriptCompletedHandler_Impl,
-    ICoreWebView2PrintToPdfCompletedHandler, ICoreWebView2PrintToPdfCompletedHandler_Impl,
-    ICoreWebView2ScriptDialogOpeningEventArgs, ICoreWebView2ScriptDialogOpeningEventHandler,
+    ICoreWebView2, ICoreWebView2CallDevToolsProtocolMethodCompletedHandler,
+    ICoreWebView2CallDevToolsProtocolMethodCompletedHandler_Impl,
+    ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2CapturePreviewCompletedHandler_Impl,
+    ICoreWebView2Deferral, ICoreWebView2ExecuteScriptCompletedHandler,
+    ICoreWebView2ExecuteScriptCompletedHandler_Impl, ICoreWebView2PrintToPdfCompletedHandler,
+    ICoreWebView2PrintToPdfCompletedHandler_Impl, ICoreWebView2ScriptDialogOpeningEventArgs,
+    ICoreWebView2ScriptDialogOpeningEventHandler,
     ICoreWebView2ScriptDialogOpeningEventHandler_Impl, ICoreWebView2WebMessageReceivedEventArgs,
     ICoreWebView2WebMessageReceivedEventHandler, ICoreWebView2WebMessageReceivedEventHandler_Impl,
     COREWEBVIEW2_SCRIPT_DIALOG_KIND_ALERT, COREWEBVIEW2_SCRIPT_DIALOG_KIND_CONFIRM,
@@ -685,6 +779,44 @@ mod handlers {
         Err(format!("Script execution failed: {errorcode:?}"))
       } else {
         let json_str = unsafe { resultobjectasjson.to_string().unwrap_or_default() };
+        match serde_json::from_str(&json_str) {
+          Ok(value) => Ok(value),
+          Err(_) => Ok(Value::String(json_str)),
+        }
+      };
+
+      if let Ok(mut guard) = self.tx.lock() {
+        if let Some(tx) = guard.take() {
+          let _ = tx.send(response);
+        }
+      }
+      Ok(())
+    }
+  }
+
+  #[implement(ICoreWebView2CallDevToolsProtocolMethodCompletedHandler)]
+  pub struct CallDevToolsProtocolHandler {
+    pub tx: ScriptResultSender,
+  }
+
+  impl CallDevToolsProtocolHandler {
+    pub fn new(tx: ScriptResultSender) -> Self {
+      Self { tx }
+    }
+  }
+
+  impl ICoreWebView2CallDevToolsProtocolMethodCompletedHandler_Impl
+    for CallDevToolsProtocolHandler_Impl
+  {
+    fn Invoke(
+      &self,
+      errorcode: windows::core::HRESULT,
+      returnobjectasjson: &windows::core::PCWSTR,
+    ) -> windows::core::Result<()> {
+      let response = if errorcode.is_err() {
+        Err(format!("CDP method failed: {errorcode:?}"))
+      } else {
+        let json_str = unsafe { returnobjectasjson.to_string().unwrap_or_default() };
         match serde_json::from_str(&json_str) {
           Ok(value) => Ok(value),
           Err(_) => Ok(Value::String(json_str)),
@@ -1039,8 +1171,8 @@ mod handlers {
 }
 
 use handlers::{
-  CapturePreviewHandler, ExecuteScriptHandler, ScriptDialogOpeningHandler,
-  WebMessageReceivedHandler,
+  CallDevToolsProtocolHandler, CapturePreviewHandler, ExecuteScriptHandler,
+  ScriptDialogOpeningHandler, WebMessageReceivedHandler,
 };
 
 // =============================================================================
