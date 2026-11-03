@@ -175,7 +175,11 @@ fn key_event_script(
   } else {
     "var keydownTarget = activeEl;\n                activeEl = wdioDeepActiveElement();"
   };
-  let active_element = deep_active_element_js("activeEl");
+  let active_element = if acts {
+    "var activeEl = wdioDeepActiveElement();".to_string()
+  } else {
+    deep_active_element_js("activeEl")
+  };
   let event_type = if is_down { "keydown" } else { "keyup" };
   let key = js_string(key);
   let code = js_string(code);
@@ -720,7 +724,7 @@ mod tests {
       let dispatch = body.find(DISPATCH).unwrap();
       let flush = body.find("wdioFlushPendingChange();").unwrap();
       let guard = body.find(GUARD).unwrap();
-      let refocus = body.find("activeEl = wdioDeepActiveElement();").unwrap();
+      let refocus = guard + body[guard..].find("activeEl = wdioDeepActiveElement();").unwrap();
       let textarea = body.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
       let newline = body.find(&format!("var insertedText = {};", js_string("\n"))).unwrap();
       let editor = body.find("} else if (activeEl.isContentEditable) {").unwrap();
@@ -803,8 +807,10 @@ mod tests {
 
   #[test]
   fn key_and_input_events_go_to_the_deep_focused_element_and_cross_shadow_boundaries() {
+    assert!(down("\u{E00C}", NONE).contains("activeEl.shadowRoot.activeElement"));
     for script in [down("\u{E003}", NONE), down("x", NONE), down(" ", NONE)] {
-      assert!(script.contains("activeEl.shadowRoot.activeElement"), "{script}");
+      let body = after_helpers(&script).trim_start();
+      assert!(body.starts_with("var activeEl = wdioDeepActiveElement();"), "{script}");
       let script = script.replace(ELEMENT_EVENTS_JS, "");
       let keyboard = script.find("new KeyboardEvent(").unwrap();
       let input = script.find("new InputEvent('input'").unwrap();

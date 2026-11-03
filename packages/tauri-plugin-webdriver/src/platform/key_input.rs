@@ -316,7 +316,11 @@ fn key_event_script(
   } else {
     "var keydownTarget = activeEl;\n                activeEl = wdioDeepActiveElement();"
   };
-  let active_element = deep_active_element_js("activeEl");
+  let active_element = if acts {
+    "var activeEl = wdioDeepActiveElement();".to_string()
+  } else {
+    deep_active_element_js("activeEl")
+  };
   let event_type = if is_down { "keydown" } else { "keyup" };
   let key = js_string(key);
   let code = js_string(code);
@@ -1191,12 +1195,18 @@ mod tests {
   fn key_scripts_target_the_deep_active_element() {
     let none = mods(false, false, false, false);
     for script in [
-      build_special_key_script("Enter", "Enter", 13, true, &none),
-      build_printable_key_script(" ", "Space", 32, true, &none),
+      build_special_key_script("Escape", "Escape", 27, true, &none),
       build_insert_run_script("x"),
       build_send_keys_start_script("v", "", None),
     ] {
       assert!(script.contains("activeEl.shadowRoot.activeElement"), "{script}");
+    }
+    for script in [
+      build_special_key_script("Enter", "Enter", 13, true, &none),
+      build_printable_key_script(" ", "Space", 32, true, &none),
+    ] {
+      let body = after_helpers(&script).trim_start();
+      assert!(body.starts_with("var activeEl = wdioDeepActiveElement();"), "{script}");
     }
   }
 
@@ -1519,7 +1529,7 @@ mod tests {
       let dispatch = body.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
       let flush = body.find("wdioFlushPendingChange();").unwrap();
       let guard = body.find("if (canceled) {").unwrap();
-      let refocus = body.find("activeEl = wdioDeepActiveElement();").unwrap();
+      let refocus = guard + body[guard..].find("activeEl = wdioDeepActiveElement();").unwrap();
       let textarea = body.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
       let editor = body.find("} else if (activeEl.isContentEditable) {").unwrap();
       let enter_key = body.find("wdioEnterKey(activeEl);").unwrap();
@@ -1614,7 +1624,7 @@ mod tests {
     let body = after_helpers(&arrow);
     let target = body.find("var keydownTarget = activeEl;").unwrap();
     let step = body.find("if (keydownTarget.tagName === 'INPUT'").unwrap();
-    assert!(target < body.find(lookup).unwrap() && !body[step..].contains("activeEl"), "{arrow}");
+    assert!(body[target..step].contains(lookup) && !body[step..].contains("activeEl"), "{arrow}");
     let up = build_printable_key_script("x", "KeyX", 88, false, &none);
     assert!(!up.contains(lookup), "{up}");
   }
