@@ -60,15 +60,19 @@ function type(el: HTMLInputElement, text: string) {
   log = [];
 }
 
-// Stops `blur` reaching the page, as current WebKit does on scripted focus moves while its window
-// isn't focused.
-function withoutBlur(run: () => void) {
+// Stops `blur` and `focus` reaching the page, as current WebKit does on scripted focus moves while its
+// window isn't focused.
+function withoutBlurOrFocus(run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
-  window.addEventListener('blur', stop, true);
+  for (const type of ['blur', 'focus']) {
+    window.addEventListener(type, stop, true);
+  }
   try {
     run();
   } finally {
-    window.removeEventListener('blur', stop, true);
+    for (const type of ['blur', 'focus']) {
+      window.removeEventListener(type, stop, true);
+    }
   }
 }
 
@@ -137,15 +141,15 @@ describe('pending change', () => {
 
   it("should fire it on focusout when no blur arrives, as in WebKit's unfocused windows", () => {
     type($('#a'), 'x');
-    withoutBlur(() => $('#b').focus());
-    expect(log).toEqual(['change a=x', 'focus b=']);
+    withoutBlurOrFocus(() => $('#b').focus());
+    expect(log).toEqual(['change a=x']);
   });
 
   it('should fire nothing on a field the page has removed', () => {
     type($('#a'), 'x');
     $('#a').remove();
-    events.wdioFocusForClick($('#b'));
-    expect(log).toEqual(['focus b=']);
+    events.wdioRecordPendingChange($('#b'), '');
+    expect(log).toEqual([]);
   });
 
   it('should fire it rather than drop it when another field records a change', () => {
@@ -587,6 +591,15 @@ describe('Tab', () => {
     expect([$('#b').selectionStart, $('#b').selectionEnd]).toEqual([0, 3]);
     tab();
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
+  });
+
+  it("should select the next text field and fire the change when no blur or focus arrives, as in WebKit's unfocused windows", () => {
+    render('<input id="a"><input id="b" value="old">');
+    type($('#a'), 'x');
+    withoutBlurOrFocus(() => tab());
+    expect(focused()?.id).toBe('b');
+    expect([$('#b').selectionStart, $('#b').selectionEnd]).toEqual([0, 3]);
+    expect(log).toEqual(['change a=x']);
   });
 
   it("should fire the field's change when Tab leaves the page", () => {
