@@ -208,21 +208,11 @@ pub fn deep_active_element_js(var: &str) -> String {
   )
 }
 
-/// `element-events.js`'s text field types, for scripts that don't paste that file.
-fn text_field_types_js() -> &'static str {
-  const DECLARATION: &str = "const WDIO_TEXT_FIELD_TYPES = ";
-  let start =
-    ELEMENT_EVENTS_JS.find(DECLARATION).expect("element-events.js declares WDIO_TEXT_FIELD_TYPES")
-      + DECLARATION.len();
-  let end = start + ELEMENT_EVENTS_JS[start..].find(';').expect("the declaration ends with a ;");
-  &ELEMENT_EVENTS_JS[start..end]
-}
-
-/// JS expression that is true when `el` takes typed text: a textarea or a text-like input.
+/// JS expression that is true when `el` takes typed text: a textarea or a text-like input. It needs
+/// `element-events.js` in scope.
 pub fn is_text_field_js(el: &str) -> String {
-  let types = text_field_types_js();
   format!(
-    "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && {types}.indexOf({el}.type) !== -1))"
+    "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes({el}.type)))"
   )
 }
 
@@ -452,7 +442,7 @@ fn enter_js(shift: bool) -> String {
                 }} else if (activeEl.isContentEditable) {{
                     document.execCommand('{command}', false, null);
                 }} else {{
-                    wdioEnterKey();
+                    wdioEnterKey(activeEl);
                 }}"
   )
 }
@@ -496,7 +486,7 @@ fn insert_text_js(el: &str, text_js: &str) -> String {
                     }} catch (e) {{}}
                     // Chrome fires `input` for any insertion, even one that leaves the value as it
                     // was. Without a selection API, only a changed value shows sanitizing kept the text.
-                    var edited = true;
+                    var edited = insertedText !== '';
                     if (typeof selStart === 'number' && typeof selEnd === 'number') {{
                         nativeInputValueSetter.call(
                             {el},
@@ -1158,7 +1148,7 @@ mod tests {
     let filter = insert.find("insertedText = insertedText.replace(/[^0-9.eE+-]/g, '');").unwrap();
     let current = insert.find("var currentValue = activeEl.value;").unwrap();
     assert!(number < filter && filter < current, "{insert}");
-    let edited = insert.find("var edited = true;").unwrap();
+    let edited = insert.find("var edited = insertedText !== '';").unwrap();
     let selection = insert.find("if (typeof selStart === 'number'").unwrap();
     let sanitized = insert.find("edited = activeEl.value !== currentValue;").unwrap();
     let fires = insert.find("if (edited) {").unwrap();
@@ -1169,9 +1159,7 @@ mod tests {
   fn only_text_fields_and_editors_take_typed_text() {
     let field = is_text_field_js("el");
     assert!(field.contains("el.tagName === 'TEXTAREA'"));
-    assert!(field.contains(
-      "['text', 'search', 'url', 'tel', 'email', 'password', 'number'].indexOf(el.type)"
-    ));
+    assert!(field.contains("el.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(el.type)"));
     let insert = insert_text_js("activeEl", &js_string("x"));
     assert!(insert.contains(&format!("if ({})", is_editable_text_field_js("activeEl"))));
     let script = build_insert_run_script("x");
@@ -1536,7 +1524,7 @@ mod tests {
       let refocus = body.find("activeEl = wdioDeepActiveElement();").unwrap();
       let textarea = body.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
       let editor = body.find("} else if (activeEl.isContentEditable) {").unwrap();
-      let enter_key = body.find("wdioEnterKey();").unwrap();
+      let enter_key = body.find("wdioEnterKey(activeEl);").unwrap();
       assert!(dispatch < flush && flush < guard && guard < refocus, "{enter}");
       assert!(refocus < textarea && textarea < editor && editor < enter_key, "{enter}");
     }
@@ -1604,7 +1592,7 @@ mod tests {
       build_printable_key_script("x", "KeyX", 88, true, &ctrl),
       build_printable_key_script("a", "KeyA", 65, true, &ctrl),
     ] {
-      assert!(!script.contains(record), "{script}");
+      assert!(!script.replace(ELEMENT_EVENTS_JS, "").contains(record), "{script}");
     }
   }
 
@@ -1628,7 +1616,7 @@ mod tests {
       build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none),
       build_printable_key_script("x", "KeyX", 88, false, &none),
     ] {
-      assert!(!script.contains(lookup), "{script}");
+      assert!(!script.replace(ELEMENT_EVENTS_JS, "").contains(lookup), "{script}");
     }
   }
 

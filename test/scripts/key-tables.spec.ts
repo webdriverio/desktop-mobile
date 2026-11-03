@@ -17,7 +17,6 @@ const DIOXUS_COPIES = {
     'fn shifted_char',
     'fn js_string',
     'fn deep_active_element_js',
-    'fn text_field_types_js',
     'fn is_text_field_js',
     'fn is_editable_text_field_js',
     'fn build_special_key_script',
