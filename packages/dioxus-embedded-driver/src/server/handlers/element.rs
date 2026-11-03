@@ -16,15 +16,15 @@ use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use super::key_input::{
-  build_insert_run_script, build_send_keys_start_script, key_script, plain_text, plan_send_keys,
-  typed_text, SendKeysStep,
+  build_insert_run_script, build_send_keys_start_script, element_events_script, key_script,
+  plain_text, plan_send_keys, typed_text, SendKeysStep,
 };
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::element::ELEMENT_KEY;
 
 /// Run a script and return its result, or a WebDriver error.
-async fn eval(script: String, timeout_ms: u64) -> Result<Value, WebDriverErrorResponse> {
+pub(super) async fn eval(script: String, timeout_ms: u64) -> Result<Value, WebDriverErrorResponse> {
   let (tx, rx) = oneshot::channel();
   let id = Uuid::new_v4().to_string();
   wdio_dioxus_bridge::embedded::push(id, script, vec![], tx);
@@ -526,47 +526,38 @@ pub async fn take_screenshot(
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/// Page-side helpers for focus moves and form events.
+/// Page-side helpers for focus moves and form events, installed once per page as one global.
 pub(crate) const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
 fn click_press_script(js_var: &str) -> String {
-  format!(
-    r"(function() {{
-              {ELEMENT_EVENTS_JS}
-              var el = window.{js_var};
+  element_events_script(&format!(
+    r"var el = window.{js_var};
               if (!el || !el.isConnected) {{
                   throw '__wdio_stale__';
               }}
               el.scrollIntoView({{ behavior: 'instant', block: 'center', inline: 'center' }});
               wdioPress(el);
-              return true;
-          }})()"
-  )
+              return true;"
+  ))
 }
 
 /// JS releasing the press, in its own script so that the page reacts to the press first.
 fn click_release_script(js_var: &str) -> String {
-  format!(
-    r"(function() {{
-              {ELEMENT_EVENTS_JS}
-              wdioRelease(window.{js_var});
-              return true;
-          }})()"
-  )
+  element_events_script(&format!(
+    r"wdioRelease(window.{js_var});
+              return true;"
+  ))
 }
 
 /// JS for Element Clear: returns 'not editable' for an element W3C can't clear.
 fn clear_element_script(js_var: &str) -> String {
-  format!(
-    r"(function() {{
-              {ELEMENT_EVENTS_JS}
-              var el = window.{js_var};
+  element_events_script(&format!(
+    r"var el = window.{js_var};
               if (!el || !el.isConnected) {{
                   throw '__wdio_stale__';
               }}
-              return wdioClearElement(el);
-          }})()"
-  )
+              return wdioClearElement(el);"
+  ))
 }
 
 async fn element_var(
@@ -586,8 +577,8 @@ async fn element_var(
 
 #[cfg(test)]
 mod tests {
-  use super::super::key_input::after_helpers;
   use super::*;
+  use crate::server::handlers::key_input::{after_helpers, helpers_taken};
 
   #[test]
   fn click_scrolls_and_presses_then_releases_in_a_later_script() {
@@ -603,6 +594,7 @@ mod tests {
   #[test]
   fn clear_returns_the_shared_helpers_status() {
     let script = clear_element_script("__wdio_elem_abc");
+    assert_eq!(helpers_taken(&script), ["wdioClearElement"]);
     let body = after_helpers(&script);
     let stale = body.find("throw '__wdio_stale__';").unwrap();
     assert!(stale < body.find("return wdioClearElement(el);").unwrap());

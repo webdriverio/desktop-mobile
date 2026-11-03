@@ -54,11 +54,10 @@ pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Confi
   install_with_registry_and_config(config, registry, None)
 }
 
-/// Variant of [`install`] for `wdio-dioxus-embedded-driver`: also registers
-/// the commands its guest-js polling loop uses, and starts that loop.
+/// Variant of [`install`] that also registers the embedded driver's polling commands and starts its
+/// loop. The driver itself uses [`install_with_embedded_port_registry_and_page_js`].
 pub fn install_with_embedded_port(config: Config, port: u16) -> Config {
-  embedded::init();
-  install_with_registry_and_config(config, CommandRegistry::new(), Some(port))
+  install_with_embedded_port_and_registry(config, CommandRegistry::new(), port)
 }
 
 /// Like [`install_with_embedded_port`] but accepts a pre-populated
@@ -69,17 +68,28 @@ pub fn install_with_embedded_port_and_registry(
   registry: CommandRegistry,
   port: u16,
 ) -> Config {
+  install_with_embedded_port_registry_and_page_js(config, registry, port, "")
+}
+
+/// Like [`install_with_embedded_port_and_registry`], and also runs `page_js` in each page, in its
+/// own `<script>` in the `<head>`, so `page_js` mustn't contain `</script`.
+pub fn install_with_embedded_port_registry_and_page_js(
+  config: Config,
+  registry: CommandRegistry,
+  port: u16,
+  page_js: &str,
+) -> Config {
   embedded::init();
-  install_with_registry_and_config(config, registry, Some(port))
+  install_with_registry_and_config(config, registry, Some((port, page_js)))
 }
 
 fn install_with_registry_and_config(
   config: Config,
   registry: CommandRegistry,
-  embedded_port: Option<u16>,
+  embedded: Option<(u16, &str)>,
 ) -> Config {
   automation::report();
-  if embedded_port.is_none() && std::env::var_os(EMBEDDED_PORT_ENV_VAR).is_some() {
+  if embedded.is_none() && std::env::var_os(EMBEDDED_PORT_ENV_VAR).is_some() {
     tracing::warn!(
       target: "wdio_dioxus_bridge",
       "{EMBEDDED_PORT_ENV_VAR} is set, so @wdio/dioxus-service is waiting for an embedded WebDriver \
@@ -89,7 +99,7 @@ fn install_with_registry_and_config(
   }
   log_bridge::register(&registry);
   register_window_commands(&registry);
-  if embedded_port.is_some() {
+  if embedded.is_some() {
     register_embedded_commands(&registry);
   }
 
@@ -101,23 +111,29 @@ fn install_with_registry_and_config(
   let bridge_url =
     if cfg!(target_os = "windows") { "http://wdio.invoke/" } else { "wdio://invoke" };
 
-  // If the embedded driver is active, inject the port signal before the
-  // module script so the polling loop starts up automatically.
-  let head = match embedded_port {
-    Some(port) => format!(
-      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};window.__WDIO_EMBEDDED_PORT={port};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
-    ),
-    None => format!(
-      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
-    ),
-  };
-
   config
     .with_custom_protocol("wdio".to_string(), move |_webview_id, request| {
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
-    .with_custom_head(head)
+    .with_custom_head(head(bridge_url, embedded))
     .with_on_window(|window, dom| on_window(&window, dom))
+}
+
+/// The page `<head>` scripts. With the embedded driver, the port signal comes before the module
+/// script so the polling loop starts up automatically.
+fn head(bridge_url: &str, embedded: Option<(u16, &str)>) -> String {
+  match embedded {
+    Some((port, page_js)) => {
+      let page_script =
+        if page_js.is_empty() { String::new() } else { format!("<script>{page_js}</script>") };
+      format!(
+        "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};window.__WDIO_EMBEDDED_PORT={port};</script>{page_script}<script type=\"module\">{GUEST_JS_BUNDLE}</script>"
+      )
+    }
+    None => format!(
+      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
+    ),
+  }
 }
 
 /// Registers a window with WDIO and, for the embedded driver, turns on focus emulation. Call it from
@@ -153,4 +169,20 @@ fn register_embedded_commands(registry: &CommandRegistry) {
     embedded::resolve(&id, result);
     Ok(Value::Null)
   });
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn embedded_head_runs_the_page_script_in_its_own_element_before_the_guest_js() {
+    let head = head("wdio://invoke", Some((4444, "window.page = 1;")));
+    let port = head.find("window.__WDIO_EMBEDDED_PORT=4444;</script>").unwrap();
+    let page = head.find("<script>window.page = 1;</script>").unwrap();
+    let guest = head.find("<script type=\"module\">").unwrap();
+    assert!(port < page && page < guest, "{head}");
+    let without = super::head("wdio://invoke", Some((4444, "")));
+    assert!(!without.contains("<script></script>"), "{without}");
+  }
 }

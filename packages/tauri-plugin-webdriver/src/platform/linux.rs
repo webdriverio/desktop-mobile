@@ -190,7 +190,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
   // Core JavaScript Execution
   // =========================================================================
 
-  async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
+  async fn evaluate_js_raw(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
     let (tx, rx) = oneshot::channel();
     let script_owned = wrap_script_for_frame_context(script, &self.frame_context);
 

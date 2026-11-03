@@ -2,6 +2,7 @@
 //! keydown the driver types, deletes, breaks the line or moves focus itself.
 
 use std::collections::BTreeSet;
+use std::sync::OnceLock;
 
 use super::actions::{
   is_skipped_key, map_special_key, regular_key, single_char, us_keyboard_key,
@@ -11,7 +12,8 @@ use super::element::ELEMENT_EVENTS_JS;
 
 // The non-test functions below `key_script` are copies of tauri-plugin-wdio-webdriver's
 // key_input.rs, since a published crate can only include its own files.
-// test/scripts/key-tables.spec.ts checks the copies match.
+// test/scripts/key-tables.spec.ts checks the copies match. `element_events_script` isn't a copy:
+// only Tauri's checks for missing helpers.
 
 /// JS dispatching one keydown or keyup of a WebDriver key value and running its default action,
 /// picking the script as the Tauri driver's `dispatch_key_event` does.
@@ -67,7 +69,7 @@ fn deep_active_element_js(var: &str) -> String {
   )
 }
 
-/// JS expression that is true when `el` takes typed text. It needs `element-events.js` in scope.
+/// JS expression that is true when `el` takes typed text.
 fn is_text_field_js(el: &str) -> String {
   format!(
     "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes({el}.type)))"
@@ -154,7 +156,7 @@ fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
 /// JS dispatching one keydown or keyup to the deep focused element, then running `after_dispatch`,
 /// which can read `canceled`, and `default_action` unless a handler canceled the event. As in
 /// Chrome, the default action goes to the element focused after the event, as a handler can move
-/// focus, with the event's target in `keydownTarget`. A key that acts carries element-events.js once.
+/// focus, with the event's target in `keydownTarget`.
 fn key_event_script(
   key: &str,
   code: &str,
@@ -165,7 +167,6 @@ fn key_event_script(
   default_action: &str,
 ) -> String {
   let acts = !(after_dispatch.is_empty() && default_action.is_empty());
-  let helpers = if acts { ELEMENT_EVENTS_JS } else { "" };
   let refocus = if default_action.is_empty() {
     ""
   } else {
@@ -180,10 +181,8 @@ fn key_event_script(
   let key = js_string(key);
   let code = js_string(code);
   let ModifierState { ctrl, shift, alt, meta } = *modifiers;
-  format!(
-    r"(function() {{
-                {helpers}
-                {active_element}
+  element_events_script(&format!(
+    r"{active_element}
                 var keyEvent = new KeyboardEvent('{event_type}', {{
                     key: {key},
                     code: {code},
@@ -204,14 +203,13 @@ fn key_event_script(
                 }}
                 {refocus}
                 {default_action}
-                return true;
-            }})()"
-  )
+                return true;"
+  ))
 }
 
 /// JS for Backspace (`backward`) or Delete in an editable text field: removes the selection, or the
 /// character before or after the caret (the end, without a selection API), and fires `input`. A
-/// deletion first records the `change` the field owes, so this needs `element-events.js` in scope.
+/// deletion first records the `change` the field owes.
 fn delete_js(backward: bool) -> String {
   let text_field = is_editable_text_field_js("activeEl");
   let (edge_check, removed_start, removed_end, input_type) = if backward {
@@ -317,7 +315,7 @@ fn select_all_js() -> String {
 
 /// JS inserting the string expression `text_js` at `el`'s selection, replacing any selected range,
 /// and firing `input`. Only editable text fields and contenteditable take text. A text field the
-/// insertion edits records the `change` it owes, so this needs `element-events.js` in scope.
+/// insertion edits records the `change` it owes.
 fn insert_text_js(el: &str, text_js: &str) -> String {
   let text_field = is_editable_text_field_js(el);
   format!(
@@ -551,10 +549,8 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
       )
     }
   };
-  format!(
-    r"(function() {{
-                {ELEMENT_EVENTS_JS}
-                var el = window.{js_var};
+  element_events_script(&format!(
+    r"var el = window.{js_var};
                 if (!el || !el.isConnected) {{
                     return {{ status: 'stale' }};
                 }}
@@ -599,9 +595,8 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                         wdioCaretToEnd(receiver);
                     }}
                 }}
-                {finish}
-            }})()"
-  )
+                {finish}"
+  ))
 }
 
 /// JS inserting a printable run at the focused element's selection, as typing does, so text follows
@@ -609,20 +604,94 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
 pub fn build_insert_run_script(run: &str) -> String {
   let active_element = deep_active_element_js("activeEl");
   let insert_text = insert_text_js("activeEl", &js_string(run));
+  element_events_script(&format!(
+    r"{active_element}
+                {insert_text}
+                return true;"
+  ))
+}
+
+const ELEMENT_EVENTS_GLOBAL: &str = "__wdio_element_events";
+
+fn is_identifier_char(c: char) -> bool {
+  c.is_ascii_alphanumeric() || c == '_' || c == '$'
+}
+
+/// The names `element-events.js` declares with `function` or `const` at the start of a line.
+fn element_events_names() -> &'static [&'static str] {
+  static NAMES: OnceLock<Vec<&'static str>> = OnceLock::new();
+  NAMES.get_or_init(|| {
+    ELEMENT_EVENTS_JS
+      .lines()
+      .filter_map(|line| line.strip_prefix("function ").or_else(|| line.strip_prefix("const ")))
+      .map(|rest| &rest[..rest.find(|c: char| !is_identifier_char(c)).unwrap_or(rest.len())])
+      .collect()
+  })
+}
+
+/// Whether `js` contains `name` as a whole identifier.
+fn mentions(js: &str, name: &str) -> bool {
+  js.match_indices(name).any(|(at, _)| {
+    !js[..at].ends_with(is_identifier_char)
+      && !js[at + name.len()..].starts_with(is_identifier_char)
+  })
+}
+
+/// `body` as a script that takes the helpers it calls from the page. The bridge installs them from
+/// the `<head>`, so this doesn't check for them.
+pub(crate) fn element_events_script(body: &str) -> String {
+  let names: Vec<&str> =
+    element_events_names().iter().copied().filter(|name| mentions(body, name)).collect();
+  let prelude = if names.is_empty() {
+    String::new()
+  } else {
+    format!(
+      r"const {{ {} }} = window.{ELEMENT_EVENTS_GLOBAL};
+                ",
+      names.join(", ")
+    )
+  };
   format!(
     r"(function() {{
-                {ELEMENT_EVENTS_JS}
-                {active_element}
-                {insert_text}
-                return true;
+                {prelude}{body}
             }})()"
   )
 }
 
-/// The script after the shared helpers, so a test can't match their definitions.
+/// JS installing the helpers in the page, unless they're there already.
+pub(crate) fn install_element_events_js() -> &'static str {
+  static SCRIPT: OnceLock<String> = OnceLock::new();
+  SCRIPT.get_or_init(|| {
+    let names = element_events_names().join(", ");
+    format!(
+      r"(function() {{
+                if (!window.{ELEMENT_EVENTS_GLOBAL}) {{
+                    window.{ELEMENT_EVENTS_GLOBAL} = (function() {{
+{ELEMENT_EVENTS_JS}
+                        return {{ {names} }};
+                    }})();
+                }}
+                return true;
+            }})()"
+    )
+  })
+}
+
+/// The script after the line taking the helpers from the page.
 #[cfg(test)]
 pub(crate) fn after_helpers(script: &str) -> &str {
-  &script[script.find(ELEMENT_EVENTS_JS).unwrap() + ELEMENT_EVENTS_JS.len()..]
+  let taken = format!("}} = window.{ELEMENT_EVENTS_GLOBAL};");
+  &script[script.find(&taken).unwrap() + taken.len()..]
+}
+
+/// The helpers a script takes from the page.
+#[cfg(test)]
+pub(crate) fn helpers_taken(script: &str) -> Vec<&str> {
+  let Some(end) = script.find(&format!(" }} = window.{ELEMENT_EVENTS_GLOBAL};")) else {
+    return Vec::new();
+  };
+  let start = script[..end].rfind("const { ").unwrap() + "const { ".len();
+  script[start..end].split(", ").collect()
 }
 
 #[cfg(test)]
@@ -769,7 +838,7 @@ mod tests {
         let space = script.find(&format!("{call}(activeEl, canceled || false);")).unwrap();
         let guard = script.find(GUARD).unwrap();
         assert!(dispatch < space && space < guard, "{script}");
-        assert!(script.contains(ELEMENT_EVENTS_JS), "{script}");
+        assert!(helpers_taken(&script).contains(&call), "{script}");
       }
       for held in [CTRL, ALT, META] {
         let script = key_script(" ", is_down, &held);
@@ -803,7 +872,6 @@ mod tests {
     for script in [down("\u{E003}", NONE), down("x", NONE), down(" ", NONE)] {
       let body = after_helpers(&script).trim_start();
       assert!(body.starts_with("var activeEl = wdioDeepActiveElement();"), "{script}");
-      let script = script.replace(ELEMENT_EVENTS_JS, "");
       let keyboard = script.find("new KeyboardEvent(").unwrap();
       let input = script.find("new InputEvent('input'").unwrap();
       assert!(script[keyboard..].contains("composed: true"));
@@ -1007,6 +1075,7 @@ mod tests {
         let tab = body.find("wdioTabKey(keyEvent);").unwrap();
         let guard = body.find(GUARD).unwrap();
         assert!(dispatch < tab && tab < guard, "{script}");
+        assert_eq!(helpers_taken(&script), ["wdioDeepActiveElement", "wdioTabKey"], "{script}");
       }
     }
     for script in [key_script("\u{E004}", false, &NONE), down(ENTER_KEY, NONE)] {
@@ -1081,7 +1150,7 @@ mod tests {
   }
 
   #[test]
-  fn keys_that_act_carry_the_helpers_once() {
+  fn keys_that_act_take_the_helpers_from_the_page() {
     for script in [
       down(" ", NONE),
       key_script(" ", false, &NONE),
@@ -1092,8 +1161,10 @@ mod tests {
       down("\u{E004}", CTRL),
       down("\u{E015}", NONE),
     ] {
-      assert!(script.starts_with(&format!("(function() {{\n                {ELEMENT_EVENTS_JS}")));
-      assert_eq!(script.matches(ELEMENT_EVENTS_JS).count(), 1, "{script}");
+      assert!(
+        !helpers_taken(&script).is_empty() && !script.contains(ELEMENT_EVENTS_JS),
+        "{script}"
+      );
     }
     for script in [
       key_script("x", false, &NONE),
@@ -1104,5 +1175,45 @@ mod tests {
     ] {
       assert!(!script.contains("wdio"), "{script}");
     }
+  }
+
+  #[test]
+  fn element_events_names_are_the_files_top_level_declarations() {
+    let names = element_events_names();
+    for name in ["WDIO_TEXT_FIELD_TYPES", "WDIO_CLICK_FOCUSABLE", "wdioDeepActiveElement"] {
+      assert!(names.contains(&name), "{name}");
+    }
+    assert!(names.iter().all(|name| !name.is_empty() && name.chars().all(is_identifier_char)));
+    assert_eq!(names.iter().collect::<BTreeSet<_>>().len(), names.len());
+    assert!(!names.contains(&"onFocusLoss"), "nested declarations stay inside the helpers");
+  }
+
+  #[test]
+  fn mentions_matches_whole_identifiers_only() {
+    assert!(mentions("wdioPress(el);", "wdioPress"));
+    assert!(mentions("a || wdioContains(el, b)", "wdioContains"));
+    for js in ["var wdioPressed = el;", "_wdioPress(el);", "$wdioPress(el);"] {
+      assert!(!mentions(js, "wdioPress"), "{js}");
+    }
+  }
+
+  #[test]
+  fn element_events_script_takes_only_the_helpers_its_body_calls() {
+    let script = element_events_script("wdioCaretToEnd(el);\nwdioRelease(el);\nreturn true;");
+    assert_eq!(helpers_taken(&script), ["wdioRelease", "wdioCaretToEnd"]);
+    assert!(after_helpers(&script).trim_start().starts_with("wdioCaretToEnd(el);"), "{script}");
+    assert!(script.starts_with("(function() {") && script.ends_with("})()"), "{script}");
+    let plain = element_events_script("return document.title;");
+    assert!(!plain.contains(ELEMENT_EVENTS_GLOBAL) && helpers_taken(&plain).is_empty(), "{plain}");
+  }
+
+  #[test]
+  fn install_element_events_js_installs_every_helper_unless_installed() {
+    let script = install_element_events_js();
+    let guard = script.find(&format!("if (!window.{ELEMENT_EVENTS_GLOBAL}) {{")).unwrap();
+    assert!(guard < script.find(ELEMENT_EVENTS_JS).unwrap());
+    let names = element_events_names().join(", ");
+    assert!(script.contains(&format!("return {{ {names} }};")));
+    assert!(!script.to_ascii_lowercase().contains("</script"), "the bridge runs it in a <script>");
   }
 }

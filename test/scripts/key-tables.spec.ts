@@ -48,6 +48,11 @@ const DIOXUS_COPIES = {
     'fn plain_text',
     'fn build_send_keys_start_script',
     'fn build_insert_run_script',
+    'const ELEMENT_EVENTS_GLOBAL',
+    'fn is_identifier_char',
+    'fn element_events_names',
+    'fn mentions',
+    'fn install_element_events_js',
   ],
 };
 const SHARED_ITEMS = Object.entries(DIOXUS_COPIES).flatMap(([dioxusCopy, items]) =>
