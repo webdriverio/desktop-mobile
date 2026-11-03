@@ -35,21 +35,20 @@ describe('Tauri APIs using Multiremote', () => {
     const browserA = multi.getInstance('browserA');
     const browserB = multi.getInstance('browserB');
 
-    // Both instances should be able to execute concurrently without interference
-    const [resultA, resultB] = await Promise.all([
-      browserA.tauri.execute(({ core }) => core.invoke('get_platform_info')),
-      browserB.tauri.execute(({ core }) => core.invoke('get_platform_info')),
+    // Each page keeps its own value, which it wouldn't if both instances drove one app.
+    type Marked = { __wdioInstance?: string };
+    await browserA.tauri.execute(() => {
+      (globalThis as unknown as Marked).__wdioInstance = 'A';
+    });
+    await browserB.tauri.execute(() => {
+      (globalThis as unknown as Marked).__wdioInstance = 'B';
+    });
+    const [markerA, markerB] = await Promise.all([
+      browserA.tauri.execute(() => (globalThis as unknown as Marked).__wdioInstance),
+      browserB.tauri.execute(() => (globalThis as unknown as Marked).__wdioInstance),
     ]);
-
-    assertHasOwnProperty(resultA, 'hostname');
-    assertHasOwnProperty(resultB, 'hostname');
-    assertHasOwnProperty(resultA, 'memory');
-    assertHasOwnProperty(resultB, 'memory');
-
-    // Verify instances can operate independently by checking they have unique hostnames
-    // (or at least that both queries succeeded independently)
-    expect(typeof resultA.hostname).toBe('string');
-    expect(typeof resultB.hostname).toBe('string');
+    expect(markerA).toBe('A');
+    expect(markerB).toBe('B');
   });
 
   describe('emitEvent', () => {

@@ -169,7 +169,8 @@ if (envContext.isMultiremote) {
     baseEnv.ENABLE_SPLASH_WINDOW = 'true';
   }
 
-  // The service automatically handles data directory isolation for multiremote instances
+  // The service automatically handles data directory isolation for multiremote instances.
+  // A takes its args from appArgs and B from tauri:options.args.
   capabilities = {
     browserA: {
       capabilities: {
@@ -177,7 +178,6 @@ if (envContext.isMultiremote) {
         'wdio:enforceWebDriverClassic': true,
         'tauri:options': {
           application: appBinaryPath,
-          args: ['--browser=A'],
         },
         'wdio:tauriServiceOptions': {
           appBinaryPath: appBinaryPath,
@@ -203,7 +203,8 @@ if (envContext.isMultiremote) {
         },
         'wdio:tauriServiceOptions': {
           appBinaryPath: appBinaryPath,
-          appArgs: ['--browser=B'],
+          // Never reaches the app: tauri:options.args replaces appArgs.
+          appArgs: ['--browser=decoy'],
           env: baseEnv,
           // Enable log capture for logging tests
           captureBackendLogs: true,
@@ -231,7 +232,6 @@ if (envContext.isMultiremote) {
       'wdio:enforceWebDriverClassic': true,
       'tauri:options': {
         application: appBinaryPath,
-        args: ['foo', 'bar=baz'],
       },
       'wdio:tauriServiceOptions': {
         appBinaryPath: appBinaryPath,

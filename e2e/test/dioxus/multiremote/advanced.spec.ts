@@ -5,11 +5,11 @@ describe('Dioxus multiremote advanced', () => {
     const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
     const browserA = multi.getInstance('browserA');
     const browserB = multi.getInstance('browserB');
-    const [platformA, platformB] = await Promise.all([
-      browserA.dioxus.execute(({ invoke }) => invoke('get_platform_info')),
-      browserB.dioxus.execute(({ invoke }) => invoke('get_platform_info')),
+    const [argsA, argsB] = await Promise.all([
+      browserA.dioxus.execute(({ invoke }) => invoke('get_command_line_args')),
+      browserB.dioxus.execute(({ invoke }) => invoke('get_command_line_args')),
     ]);
-    expect((platformA as { os: string }).os).toBeTruthy();
-    expect((platformB as { os: string }).os).toBeTruthy();
+    expect(argsA).toEqual(['--browser=A']);
+    expect(argsB).toEqual(['--browser=B']);
   });
 });

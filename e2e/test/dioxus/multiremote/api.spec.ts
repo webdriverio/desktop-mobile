@@ -1,11 +1,15 @@
 import { expect, multiRemoteBrowser } from '@wdio/globals';
 
 describe('Dioxus multiremote API', () => {
-  it('should execute in both instances', async () => {
+  it('should execute in each instance', async () => {
     const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
+    const browserA = multi.getInstance('browserA');
+    const browserB = multi.getInstance('browserB');
+    await browserA.dioxus.execute('window.__wdioInstance = "A"');
+    await browserB.dioxus.execute('window.__wdioInstance = "B"');
     const [a, b] = await Promise.all([
-      multi.getInstance('browserA').dioxus.execute('return "A"'),
-      multi.getInstance('browserB').dioxus.execute('return "B"'),
+      browserA.dioxus.execute('return window.__wdioInstance'),
+      browserB.dioxus.execute('return window.__wdioInstance'),
     ]);
     expect(a).toBe('A');
     expect(b).toBe('B');
