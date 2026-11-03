@@ -47,10 +47,10 @@
     "tests"
   ],
   "peerDependencies": {
-    "@wdio/globals": "^9.0.0 || ^10.0.0",
-    "@wdio/types": "^9.0.0 || ^10.0.0",
+    "@wdio/globals": "^9.33.0 || ^10.2.0",
+    "@wdio/types": "^9.33.0 || ^10.2.0",
     "electron": "*",
-    "webdriverio": "^9.0.0 || ^10.0.0"
+    "webdriverio": "^9.33.0 || ^10.2.0"
   },
   "peerDependenciesMeta": {
     "@wdio/globals": {
