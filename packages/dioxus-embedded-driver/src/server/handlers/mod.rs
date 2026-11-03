@@ -19,6 +19,8 @@ pub mod stubs;
 pub mod timeouts;
 pub mod window;
 
+pub(crate) use key_input::install_element_events_js;
+
 /// GET `/status` — returns ready=true when the bridge has at least one
 /// registered window (indicating the webview is up and the IPC channel is
 /// ready for commands).

@@ -90,7 +90,12 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
 
   let registry = wdio_dioxus_bridge::CommandRegistry::new();
   register(&registry);
-  let config = wdio_dioxus_bridge::install_with_embedded_port_and_registry(config, registry, port);
+  let config = wdio_dioxus_bridge::install_with_embedded_port_registry_and_page_js(
+    config,
+    registry,
+    port,
+    server::handlers::install_element_events_js(),
+  );
   server::start(port);
   tracing::info!(port, "wdio-dioxus-embedded-driver started");
   config

@@ -70,6 +70,7 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
 
       Ok(())
     })
+    .js_init_script_on_all_frames(platform::key_input::install_element_events_js())
     .on_webview_ready(|webview| {
       platform::register_webview_handlers(&webview);
     })

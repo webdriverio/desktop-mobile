@@ -49,11 +49,9 @@ const DIOXUS_COPIES = {
     'fn build_send_keys_start_script',
     'fn build_insert_run_script',
     'const ELEMENT_EVENTS_GLOBAL',
-    'const ELEMENT_EVENTS_MISSING',
     'fn is_identifier_char',
     'fn element_events_names',
     'fn mentions',
-    'fn element_events_script',
     'fn install_element_events_js',
   ],
 };

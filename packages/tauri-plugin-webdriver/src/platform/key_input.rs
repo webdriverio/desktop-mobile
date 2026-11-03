@@ -678,11 +678,9 @@ pub const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
 const ELEMENT_EVENTS_GLOBAL: &str = "__wdio_element_events";
 
-/// What a script that calls the helpers hands back when the page hasn't installed them.
+/// What a script that calls the helpers returns, rather than throws, when the page hasn't installed
+/// them: `WebView2` reports a thrown exception as `null`.
 pub const ELEMENT_EVENTS_MISSING: &str = "__wdio_element_events_missing__";
-
-/// How that script hands it back. `WebView2` reports a thrown exception as `null`, so it returns it.
-const ELEMENT_EVENTS_MISSING_EXIT: &str = "return";
 
 fn is_identifier_char(c: char) -> bool {
   c.is_ascii_alphanumeric() || c == '_' || c == '$'
@@ -708,8 +706,9 @@ fn mentions(js: &str, name: &str) -> bool {
   })
 }
 
-/// `body` as a script that takes the helpers it calls from the page. Without them, it hands back
-/// [`ELEMENT_EVENTS_MISSING`] before doing anything, so the executor can install them and rerun it.
+/// `body` as a script that takes the helpers it calls from the page. In a document the plugin's init
+/// script didn't reach, it returns [`ELEMENT_EVENTS_MISSING`] before doing anything, so the executor
+/// can install them and rerun it.
 pub fn element_events_script(body: &str) -> String {
   let names: Vec<&str> =
     element_events_names().iter().copied().filter(|name| mentions(body, name)).collect();
@@ -718,7 +717,7 @@ pub fn element_events_script(body: &str) -> String {
   } else {
     format!(
       r"if (!window.{ELEMENT_EVENTS_GLOBAL}) {{
-                    {ELEMENT_EVENTS_MISSING_EXIT} '{ELEMENT_EVENTS_MISSING}';
+                    return '{ELEMENT_EVENTS_MISSING}';
                 }}
                 const {{ {} }} = window.{ELEMENT_EVENTS_GLOBAL};
                 ",
@@ -732,7 +731,8 @@ pub fn element_events_script(body: &str) -> String {
   )
 }
 
-/// JS installing the helpers in the page, unless they're there already.
+/// JS installing the helpers in the page, unless they're there already. The plugin runs it in every
+/// document as an init script, and the executor in a document that script didn't reach.
 pub fn install_element_events_js() -> &'static str {
   static SCRIPT: OnceLock<String> = OnceLock::new();
   SCRIPT.get_or_init(|| {
@@ -1831,8 +1831,7 @@ mod tests {
   #[test]
   fn scripts_check_for_the_helpers_before_anything_else() {
     let none = mods(false, false, false, false);
-    let expected =
-      format!("(function(){{if(!window.{ELEMENT_EVENTS_GLOBAL}){{{ELEMENT_EVENTS_MISSING_EXIT}'");
+    let expected = format!("(function(){{if(!window.{ELEMENT_EVENTS_GLOBAL}){{return'");
     for script in [
       build_printable_key_script("x", "KeyX", 88, true, &none),
       build_printable_key_script(" ", "Space", 32, false, &none),

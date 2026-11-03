@@ -612,12 +612,6 @@ pub fn build_insert_run_script(run: &str) -> String {
 
 const ELEMENT_EVENTS_GLOBAL: &str = "__wdio_element_events";
 
-/// What a script that calls the helpers hands back when the page hasn't installed them.
-pub(crate) const ELEMENT_EVENTS_MISSING: &str = "__wdio_element_events_missing__";
-
-/// How that script hands it back. The bridge drops a key script's return value, so it throws it.
-const ELEMENT_EVENTS_MISSING_EXIT: &str = "throw";
-
 fn is_identifier_char(c: char) -> bool {
   c.is_ascii_alphanumeric() || c == '_' || c == '$'
 }
@@ -642,8 +636,8 @@ fn mentions(js: &str, name: &str) -> bool {
   })
 }
 
-/// `body` as a script that takes the helpers it calls from the page. Without them, it hands back
-/// [`ELEMENT_EVENTS_MISSING`] before doing anything, so the executor can install them and rerun it.
+/// `body` as a script that takes the helpers it calls from the page, where the bridge's page script
+/// installed them.
 pub(crate) fn element_events_script(body: &str) -> String {
   let names: Vec<&str> =
     element_events_names().iter().copied().filter(|name| mentions(body, name)).collect();
@@ -651,10 +645,7 @@ pub(crate) fn element_events_script(body: &str) -> String {
     String::new()
   } else {
     format!(
-      r"if (!window.{ELEMENT_EVENTS_GLOBAL}) {{
-                    {ELEMENT_EVENTS_MISSING_EXIT} '{ELEMENT_EVENTS_MISSING}';
-                }}
-                const {{ {} }} = window.{ELEMENT_EVENTS_GLOBAL};
+      r"const {{ {} }} = window.{ELEMENT_EVENTS_GLOBAL};
                 ",
       names.join(", ")
     )
@@ -666,7 +657,8 @@ pub(crate) fn element_events_script(body: &str) -> String {
   )
 }
 
-/// JS installing the helpers in the page, unless they're there already.
+/// JS installing the helpers in the page, unless they're there already. The bridge runs it in each
+/// page from the `<head>`.
 pub(crate) fn install_element_events_js() -> &'static str {
   static SCRIPT: OnceLock<String> = OnceLock::new();
   SCRIPT.get_or_init(|| {
@@ -1216,29 +1208,12 @@ mod tests {
   }
 
   #[test]
-  fn scripts_check_for_the_helpers_before_anything_else() {
-    let expected =
-      format!("(function(){{if(!window.{ELEMENT_EVENTS_GLOBAL}){{{ELEMENT_EVENTS_MISSING_EXIT}'");
-    for script in [
-      down("x", NONE),
-      key_script(" ", false, &NONE),
-      down("\u{E004}", NONE),
-      down("\u{E003}", NONE),
-      build_insert_run_script("x"),
-      build_send_keys_start_script("__wdio_elem_abc", "x", Some("x")),
-    ] {
-      let missing = script.find(ELEMENT_EVENTS_MISSING).unwrap();
-      let before: String = script[..missing].split_whitespace().collect();
-      assert_eq!(before, expected, "{script}");
-    }
-  }
-
-  #[test]
   fn install_element_events_js_installs_every_helper_unless_installed() {
     let script = install_element_events_js();
     let guard = script.find(&format!("if (!window.{ELEMENT_EVENTS_GLOBAL}) {{")).unwrap();
     assert!(guard < script.find(ELEMENT_EVENTS_JS).unwrap());
     let names = element_events_names().join(", ");
     assert!(script.contains(&format!("return {{ {names} }};")));
+    assert!(!script.to_ascii_lowercase().contains("</script"), "the bridge runs it in a <script>");
   }
 }

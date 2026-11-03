@@ -1648,7 +1648,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
 /// Runs `script` with `run`. A script that calls the element helpers hands back
 /// [`ELEMENT_EVENTS_MISSING`] when the page has none, before doing anything else, so this installs
-/// them and runs the script again. That happens once per document, and in each frame.
+/// them and runs the script again. The plugin's init script installs them in every document, so
+/// this happens only in a document that script didn't reach.
 async fn run_with_element_events<'a, F, Fut>(
   script: &'a str,
   run: F,
