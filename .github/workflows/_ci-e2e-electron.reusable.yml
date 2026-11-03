@@ -41,6 +41,10 @@ on:
         description: "Cache key to use for downloading artifacts"
         type: string
         required: false
+      wdio-v9:
+        description: "Run on WebdriverIO v9 (the minimum catalog) instead of the default"
+        type: boolean
+        default: false
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -100,6 +104,7 @@ jobs:
         uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: ${{ inputs.node-version }}
+          wdio-v9: ${{ inputs.wdio-v9 }}
 
       # Download the pre-built packages from the build job
       # This ensures all tests use the same build artifacts

@@ -73,6 +73,7 @@ const CORE_INFRA_WORKFLOWS = new Set([
 const META_WORKFLOWS = new Set([
   'codeql.yml',
   'crate-drift.yml',
+  'wdio-v9.yml',
   'pr-title.yml',
   'auto-label-issues.yml',
   'expense.yml',
