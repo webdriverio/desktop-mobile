@@ -51,12 +51,15 @@ function render(html: string) {
   }
 }
 
-// What Send Keys does to a text field: focus it, record the change it owes, and type.
+// What typing does to a text field: focus it, type, and record the change it owes if that edited it.
 function type(el: HTMLInputElement, text: string) {
   el.focus();
-  events.wdioRecordPendingChange(el, el.value);
-  el.value += text;
-  el.dispatchEvent(new Event('input', { bubbles: true }));
+  if (text !== '') {
+    const value = el.value;
+    el.value += text;
+    events.wdioRecordPendingChange(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
   log = [];
 }
 
