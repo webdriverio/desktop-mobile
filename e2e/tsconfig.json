@@ -28,9 +28,5 @@
     "./scripts/**/*.ts",
     "./test/**/*.ts",
     "./wdio*.conf.ts"
-  ],
-  // CI runs show-logs.ts with plain Node, which only strips types, so the root tsconfig.scripts.json checks it under those rules.
-  "exclude": [
-    "./scripts/show-logs.ts"
   ]
 }

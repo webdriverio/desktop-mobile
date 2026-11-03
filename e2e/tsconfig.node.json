@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "./config/**/*.ts",
+    "./lib/display.ts",
+    "./lib/statusBar.ts",
+    "./lib/utils.ts",
+    "./scripts/**/*.ts"
+  ]
+}
