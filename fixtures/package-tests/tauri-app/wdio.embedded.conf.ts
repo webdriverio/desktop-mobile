@@ -70,7 +70,7 @@ export const config = {
     [
       '@wdio/tauri-service',
       {
-        driverProvider: 'embedded' as const,
+        // No driverProvider: this run checks that the default is the embedded provider.
         captureBackendLogs: true,
         captureFrontendLogs: true,
       },
