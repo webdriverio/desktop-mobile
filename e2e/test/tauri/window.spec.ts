@@ -325,7 +325,7 @@ describe('Embedded WebDriver focus emulation', () => {
     await browser.tauri.switchWindow('main');
   });
 
-  it('should keep the page focused while the window is minimized', async () => {
+  it('should keep the page focused and visible while the window is minimized', async () => {
     await browser.minimizeWindow();
     await browser.waitUntil(() =>
       browser.tauri.execute(({ core }) => core.invoke<boolean>('plugin:window|is_minimized')),
@@ -343,9 +343,9 @@ describe('Embedded WebDriver focus emulation', () => {
       second.focus();
       first.remove();
       second.remove();
-      return { hasFocus: document.hasFocus(), blurred };
+      return { hasFocus: document.hasFocus(), visibility: document.visibilityState, blurred };
     });
 
-    expect(result).toEqual({ hasFocus: true, blurred: true });
+    expect(result).toEqual({ hasFocus: true, visibility: 'visible', blurred: true });
   });
 });
