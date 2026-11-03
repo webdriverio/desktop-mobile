@@ -505,14 +505,20 @@ pub async fn perform(
                 if is_skipped_key(value) => {}
               KeyAction::KeyDown { value } => {
                 {
-                  let mut sessions = state.sessions.write().await;
-                  if let Ok(session) = sessions.get_mut(&session_id) {
-                    session.action_state.press_key(value);
-                    modifiers = Modifiers::from_keys(session.action_state.pressed_keys());
+                  let sessions = state.sessions.read().await;
+                  if let Ok(session) = sessions.get(&session_id) {
+                    // A modifier key's own keydown carries its flag.
+                    let held = session.action_state.pressed_keys().chain([value]);
+                    modifiers = Modifiers::from_keys(held);
                   }
                 }
-                // Recompute before dispatch so a modifier key's own keydown carries its flag.
                 eval(key_script(value, true, &modifiers), timeout_ms).await?;
+                // As in Tauri, the key is held only once its keydown went through, so Release
+                // Actions doesn't report a modifier the page never saw go down.
+                let mut sessions = state.sessions.write().await;
+                if let Ok(session) = sessions.get_mut(&session_id) {
+                  session.action_state.press_key(value);
+                }
               }
               KeyAction::KeyUp { value } => {
                 {
@@ -726,13 +732,13 @@ pub async fn release(
     let pointer_pos = std::mem::take(&mut session.action_state.pointer_position);
     (session.timeouts.script_ms, release_scripts(&presses, pointer_pos))
   };
-  // Release everything even if one fails; the state is cleared, so nothing could retry it.
   eval_all(scripts, |script| eval(script, timeout_ms)).await?;
 
   Ok(WebDriverResponse::null())
 }
 
-/// Runs every script and returns the first error.
+/// Runs every script even if one fails, as the state is cleared and nothing could retry it, and
+/// returns the first error. A timeout stops it: each later script would wait out its own timeout.
 async fn eval_all<Fut: Future<Output = Result<(), WebDriverErrorResponse>>>(
   scripts: Vec<String>,
   mut run: impl FnMut(String) -> Fut,
@@ -740,7 +746,11 @@ async fn eval_all<Fut: Future<Output = Result<(), WebDriverErrorResponse>>>(
   let mut first_error = None;
   for script in scripts {
     if let Err(error) = run(script).await {
+      let timed_out = error.error == "script timeout";
       first_error.get_or_insert(error);
+      if timed_out {
+        break;
+      }
     }
   }
   first_error.map_or(Ok(()), Err)
@@ -750,19 +760,19 @@ async fn eval_all<Fut: Future<Output = Result<(), WebDriverErrorResponse>>>(
 /// `(x, y)`. Each event carries the modifiers and buttons still held after it, so a mouseup before a
 /// held Shift's keyup reports `shiftKey: true`.
 fn release_scripts(presses: &[Press], (x, y): (i32, i32)) -> Vec<String> {
-  let mut held_mask = presses.iter().fold(0, |mask, press| match press {
-    Press::Button { button, .. } => mask | button_to_mask(*button),
-    Press::Key(_) => mask,
-  });
   presses
     .iter()
     .enumerate()
     .map(|(i, press)| {
-      let modifiers = Modifiers::from_keys(presses[i + 1..].iter().filter_map(Press::key));
+      let held = &presses[i + 1..];
+      let modifiers = Modifiers::from_keys(held.iter().filter_map(Press::key));
       match press {
         Press::Key(key) => key_script(key, false, &modifiers),
         Press::Button { button, .. } => {
-          held_mask &= !button_to_mask(*button);
+          let held_mask = held.iter().fold(0, |mask, press| match press {
+            Press::Button { button, .. } => mask | button_to_mask(*button),
+            Press::Key(_) => mask,
+          });
           pointer_event_js("mouseup", x, y, *button, held_mask, modifiers)
         }
       }
@@ -1133,6 +1143,20 @@ mod tests {
   }
 
   #[test]
+  fn release_keeps_a_button_down_while_another_source_holds_it() {
+    let presses = [
+      Press::Button { source_id: "pen".to_string(), button: 0 },
+      Press::Button { source_id: "mouse".to_string(), button: 0 },
+    ];
+
+    let scripts = release_scripts(&presses, (3, 4));
+
+    let [pen_up, mouse_up] = &scripts[..] else { panic!("{scripts:?}") };
+    assert!(pen_up.contains("button:0,buttons:1,"), "{pen_up}");
+    assert!(mouse_up.contains("button:0,buttons:0,"), "{mouse_up}");
+  }
+
+  #[test]
   fn release_runs_every_script_after_a_failure_and_returns_the_first_error() {
     let ran = std::cell::RefCell::new(Vec::new());
     let scripts = ["a", "b", "c"].map(String::from).to_vec();
@@ -1153,6 +1177,29 @@ mod tests {
 
     assert_eq!(*ran.borrow(), ["a", "b", "c"]);
     assert_eq!(result.unwrap_err().message, "a");
+  }
+
+  #[test]
+  fn release_stops_at_a_timeout() {
+    let ran = std::cell::RefCell::new(Vec::new());
+    let scripts = ["a", "b", "c"].map(String::from).to_vec();
+
+    let result = tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(eval_all(
+      scripts,
+      |script| {
+        ran.borrow_mut().push(script.clone());
+        async move {
+          if script == "b" {
+            Err(WebDriverErrorResponse::script_timeout())
+          } else {
+            Ok(())
+          }
+        }
+      },
+    ));
+
+    assert_eq!(*ran.borrow(), ["a", "b"]);
+    assert_eq!(result.unwrap_err().error, "script timeout");
   }
 
   #[test]

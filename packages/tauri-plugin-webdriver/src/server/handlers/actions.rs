@@ -394,7 +394,8 @@ pub async fn release<R: Runtime + 'static>(
   let mut held_modifiers = HeldModifiers::from_keys(presses.iter().filter_map(Press::key));
   let (x, y) = taken.pointer_position;
 
-  // Release everything even if one fails; the state is cleared, so nothing could retry it.
+  // Release everything even if one fails, as the state is cleared and nothing could retry it. A
+  // timeout stops it: each later event would wait out its own timeout.
   let mut first_error = None;
   for press in &presses {
     let released = match press {
@@ -414,7 +415,11 @@ pub async fn release<R: Runtime + 'static>(
       }
     };
     if let Err(error) = released {
+      let timed_out = error.error == "script timeout";
       first_error.get_or_insert(error);
+      if timed_out {
+        break;
+      }
     }
   }
 

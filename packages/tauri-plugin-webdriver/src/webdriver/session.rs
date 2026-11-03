@@ -57,8 +57,9 @@ impl ActionState {
     self.presses.iter().filter_map(Press::key)
   }
 
-  /// Empties the held keys and buttons, returning them in W3C's release order: last pressed first,
-  /// whichever kind, as Release Actions undoes one cancel list in reverse.
+  /// The held keys and buttons in W3C's release order: last pressed first, whichever kind, as
+  /// Release Actions undoes one cancel list in reverse. This forgets the held keys, but each source's
+  /// buttons stay in `pressed_buttons` for the caller to release.
   pub fn take_presses_to_release(&mut self) -> Vec<Press> {
     let mut presses = std::mem::take(&mut self.presses);
     presses.reverse();
