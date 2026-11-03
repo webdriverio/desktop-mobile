@@ -416,6 +416,8 @@ Once the plugin is installed and verified:
 
 This plugin embeds a W3C WebDriver HTTP server directly in your Tauri application. The default `embedded` provider needs it; the `external` and `crabnebula` providers don't.
 
+In builds that register it, the plugin also adds `window.__wdio_element_events` to every page and frame: the helpers its element and key commands call.
+
 ### Requirements
 
 - Tauri v2.10+
