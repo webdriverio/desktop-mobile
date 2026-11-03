@@ -22,7 +22,6 @@ pub mod invoke;
 pub mod log_bridge;
 pub mod window_state;
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use dioxus_core::VirtualDom;
@@ -35,10 +34,6 @@ pub use log_bridge::FRONTEND_MARKER;
 /// Mirrors `wdio_dioxus_embedded_driver::PORT_ENV_VAR`, which this crate can't
 /// import: the embedded driver depends on the bridge.
 const EMBEDDED_PORT_ENV_VAR: &str = "WDIO_EMBEDDED_PORT";
-
-/// Set when the bridge is installed for the embedded driver, whose script-driven focus moves need
-/// focus emulation.
-static EMBEDDED: AtomicBool = AtomicBool::new(false);
 
 /// The guest-js bundle, embedded by `build.rs` from `dist-js/index.js`. It's
 /// committed so crates.io and git builds have it; rebuild it with
@@ -96,8 +91,6 @@ fn install_with_registry_and_config(
   register_window_commands(&registry);
   if embedded_port.is_some() {
     register_embedded_commands(&registry);
-    // Never cleared, so a later bridge-only install doesn't turn emulation off under the driver.
-    EMBEDDED.store(true, Ordering::SeqCst);
   }
 
   let registry_for_handler = registry;
@@ -133,7 +126,7 @@ fn install_with_registry_and_config(
 pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
   let label = window_state::register_window(window);
   tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
-  if EMBEDDED.load(Ordering::SeqCst) {
+  if embedded::is_active() {
     focus::emulate_page_focus(dom);
   }
 }

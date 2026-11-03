@@ -249,7 +249,7 @@ unsafe fn core_webview2(webview: &PlatformWebview) -> windows::core::Result<ICor
 /// Set by the first WebDriver session, so webviews created after it emulate focus too.
 static FOCUS_EMULATION: AtomicBool = AtomicBool::new(false);
 
-/// Turns on focus emulation in every webview once a WebDriver session starts, so an ordinary run
+/// Turns on focus emulation in every webview window once a WebDriver session starts, so an ordinary run
 /// of a build with the plugin keeps the window's real focus.
 pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
   if FOCUS_EMULATION.swap(true, Ordering::SeqCst) {

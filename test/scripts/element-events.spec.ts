@@ -60,7 +60,7 @@ function type(el: HTMLInputElement, text: string) {
   log = [];
 }
 
-// Stops `blur` and `focus` reaching the page, as current WebKit does on scripted focus moves while its
+// Stops `blur` and `focus` reaching the page, as WebKit does on scripted focus moves while its
 // window isn't focused.
 function withoutBlurOrFocus(run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
