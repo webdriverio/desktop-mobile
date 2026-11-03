@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -8,6 +10,9 @@ use tauri::{
 };
 
 use crate::platform::alert_state::{AlertStateManager, AlertType};
+use crate::platform::key_input::{
+  element_events_script, install_element_events_js, ELEMENT_EVENTS_MISSING,
+};
 use crate::platform::pointer_input::{pointer_event_script, PointerInputState};
 use crate::server::response::WebDriverErrorResponse;
 
@@ -328,8 +333,14 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
   // Core JavaScript Execution
   // =========================================================================
 
-  /// Execute JavaScript and return the result as JSON
-  async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse>;
+  /// Execute JavaScript as is and return the result as JSON
+  async fn evaluate_js_raw(&self, script: &str) -> Result<Value, WebDriverErrorResponse>;
+
+  /// Execute JavaScript and return the result as JSON, first installing the element helpers if the
+  /// script calls them and the page has none
+  async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
+    run_with_element_events(script, |script| self.evaluate_js_raw(script)).await
+  }
 
   // =========================================================================
   // Navigation
@@ -1635,53 +1646,70 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // Helper Functions for Default Implementations
 // =============================================================================
 
+/// Runs `script` with `run`. A script that calls the element helpers hands back
+/// [`ELEMENT_EVENTS_MISSING`] when the page has none, before doing anything else, so this installs
+/// them and runs the script again. That happens once per document, and in each frame.
+async fn run_with_element_events<'a, F, Fut>(
+  script: &'a str,
+  run: F,
+) -> Result<Value, WebDriverErrorResponse>
+where
+  F: Fn(&'a str) -> Fut,
+  Fut: Future<Output = Result<Value, WebDriverErrorResponse>>,
+{
+  let result = run(script).await?;
+  if !misses_element_events(&result) {
+    return Ok(result);
+  }
+  run(install_element_events_js()).await?;
+  let result = run(script).await?;
+  if misses_element_events(&result) {
+    return Err(WebDriverErrorResponse::unknown_error(
+      "The page dropped the element helpers as soon as they were installed",
+    ));
+  }
+  Ok(result)
+}
+
+fn misses_element_events(result: &Value) -> bool {
+  result.get("value").and_then(Value::as_str) == Some(ELEMENT_EVENTS_MISSING)
+}
+
 fn click_press_script(js_var: &str) -> String {
-  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
-  format!(
-    r"(function() {{
-              {element_events}
-              var el = window.{js_var};
+  element_events_script(&format!(
+    r"var el = window.{js_var};
               if (!el || !el.isConnected) {{
                   throw new Error('stale element reference');
               }}
               el.scrollIntoView({{ behavior: 'instant', block: 'center', inline: 'center' }});
               wdioPress(el);
-              return true;
-          }})()"
-  )
+              return true;"
+  ))
 }
 
 /// JS releasing the press, in its own script so that the page reacts to the press first.
 fn click_release_script(js_var: &str) -> String {
-  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
-  format!(
-    r"(function() {{
-              {element_events}
-              wdioRelease(window.{js_var});
-              return true;
-          }})()"
-  )
+  element_events_script(&format!(
+    r"wdioRelease(window.{js_var});
+              return true;"
+  ))
 }
 
 /// JS for Element Clear: returns 'not editable' for an element W3C can't clear.
 fn clear_element_script(js_var: &str) -> String {
-  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
-  format!(
-    r"(function() {{
-              {element_events}
-              var el = window.{js_var};
+  element_events_script(&format!(
+    r"var el = window.{js_var};
               if (!el || !el.isConnected) {{
                   throw new Error('stale element reference');
               }}
-              return wdioClearElement(el);
-          }})()"
-  )
+              return wdioClearElement(el);"
+  ))
 }
 
 #[cfg(test)]
 mod element_script_tests {
   use super::*;
-  use crate::platform::key_input::{after_helpers, ELEMENT_EVENTS_JS};
+  use crate::platform::key_input::{after_helpers, helpers_taken};
 
   #[test]
   fn click_scrolls_and_presses_then_releases_in_a_later_script() {
@@ -1699,9 +1727,50 @@ mod element_script_tests {
   #[test]
   fn clear_returns_the_shared_helpers_status() {
     let script = clear_element_script("__wd_el_abc");
-    assert!(script.contains(ELEMENT_EVENTS_JS));
+    assert_eq!(helpers_taken(&script), ["wdioClearElement"]);
     let stale = script.find("throw new Error('stale element reference');").unwrap();
     assert!(stale < script.find("return wdioClearElement(el);").unwrap());
+  }
+
+  /// Runs a script through `run_with_element_events` on a page that answers each script it's given
+  /// with the next of `answers`, and returns the result and the scripts the page ran.
+  async fn run_on_page(
+    answers: Vec<Value>,
+  ) -> (Result<Value, WebDriverErrorResponse>, Vec<String>) {
+    let answers = std::sync::Mutex::new(answers.into_iter());
+    let ran = std::sync::Mutex::new(Vec::new());
+    let result = run_with_element_events("script", |script| {
+      ran.lock().unwrap().push(script.to_string());
+      let answer = answers.lock().unwrap().next().unwrap();
+      async move { Ok(serde_json::json!({ "success": true, "value": answer })) }
+    })
+    .await;
+    (result, ran.into_inner().unwrap())
+  }
+
+  fn missing() -> Value {
+    Value::String(ELEMENT_EVENTS_MISSING.to_string())
+  }
+
+  #[tokio::test]
+  async fn runs_a_script_once_when_the_page_has_the_helpers() {
+    let (result, ran) = run_on_page(vec![Value::Bool(true)]).await;
+    assert_eq!(result.unwrap()["value"], true);
+    assert_eq!(ran, ["script"]);
+  }
+
+  #[tokio::test]
+  async fn installs_the_helpers_and_reruns_a_script_that_found_none() {
+    let (result, ran) = run_on_page(vec![missing(), Value::Bool(true), Value::from("done")]).await;
+    assert_eq!(result.unwrap()["value"], "done");
+    assert_eq!(ran, ["script", install_element_events_js(), "script"]);
+  }
+
+  #[tokio::test]
+  async fn fails_when_the_helpers_are_still_missing_after_installing_them() {
+    let (result, ran) = run_on_page(vec![missing(), Value::Bool(true), missing()]).await;
+    assert!(result.is_err());
+    assert_eq!(ran.len(), 3);
   }
 }
 

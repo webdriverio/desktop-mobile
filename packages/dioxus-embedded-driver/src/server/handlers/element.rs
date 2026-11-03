@@ -5,6 +5,7 @@
 //! (`__wdio_elem_<N>`) and mapped to WebDriver element IDs in the session's
 //! `ElementStore`.
 
+use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,15 +17,44 @@ use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use super::key_input::{
-  build_insert_run_script, build_send_keys_start_script, key_script, plain_text, plan_send_keys,
-  typed_text, SendKeysStep,
+  build_insert_run_script, build_send_keys_start_script, element_events_script,
+  install_element_events_js, key_script, plain_text, plan_send_keys, typed_text, SendKeysStep,
+  ELEMENT_EVENTS_MISSING,
 };
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::element::ELEMENT_KEY;
 
 /// Run a script and return its result, or a WebDriver error.
-async fn eval(script: String, timeout_ms: u64) -> Result<Value, WebDriverErrorResponse> {
+pub(super) async fn eval(script: String, timeout_ms: u64) -> Result<Value, WebDriverErrorResponse> {
+  run_with_element_events(script, |script| bridge_eval(script, timeout_ms)).await
+}
+
+/// Runs `script` with `run`. A script that calls the element helpers throws
+/// [`ELEMENT_EVENTS_MISSING`] when the page has none, before doing anything else, so this installs
+/// them and runs the script again. That happens once per document.
+async fn run_with_element_events<F, Fut>(
+  script: String,
+  run: F,
+) -> Result<Value, WebDriverErrorResponse>
+where
+  F: Fn(String) -> Fut,
+  Fut: Future<Output = Result<Value, WebDriverErrorResponse>>,
+{
+  match run(script.clone()).await {
+    Err(e) if e.message == ELEMENT_EVENTS_MISSING => {}
+    result => return result,
+  }
+  run(install_element_events_js().to_string()).await?;
+  match run(script).await {
+    Err(e) if e.message == ELEMENT_EVENTS_MISSING => Err(WebDriverErrorResponse::unknown_error(
+      "The page dropped the element helpers as soon as they were installed",
+    )),
+    result => result,
+  }
+}
+
+async fn bridge_eval(script: String, timeout_ms: u64) -> Result<Value, WebDriverErrorResponse> {
   let (tx, rx) = oneshot::channel();
   let id = Uuid::new_v4().to_string();
   wdio_dioxus_bridge::embedded::push(id, script, vec![], tx);
@@ -526,47 +556,38 @@ pub async fn take_screenshot(
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/// Page-side helpers for focus moves and form events.
+/// Page-side helpers for focus moves and form events, which a page installs once as one global.
 pub(crate) const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
 fn click_press_script(js_var: &str) -> String {
-  format!(
-    r"(function() {{
-              {ELEMENT_EVENTS_JS}
-              var el = window.{js_var};
+  element_events_script(&format!(
+    r"var el = window.{js_var};
               if (!el || !el.isConnected) {{
                   throw '__wdio_stale__';
               }}
               el.scrollIntoView({{ behavior: 'instant', block: 'center', inline: 'center' }});
               wdioPress(el);
-              return true;
-          }})()"
-  )
+              return true;"
+  ))
 }
 
 /// JS releasing the press, in its own script so that the page reacts to the press first.
 fn click_release_script(js_var: &str) -> String {
-  format!(
-    r"(function() {{
-              {ELEMENT_EVENTS_JS}
-              wdioRelease(window.{js_var});
-              return true;
-          }})()"
-  )
+  element_events_script(&format!(
+    r"wdioRelease(window.{js_var});
+              return true;"
+  ))
 }
 
 /// JS for Element Clear: returns 'not editable' for an element W3C can't clear.
 fn clear_element_script(js_var: &str) -> String {
-  format!(
-    r"(function() {{
-              {ELEMENT_EVENTS_JS}
-              var el = window.{js_var};
+  element_events_script(&format!(
+    r"var el = window.{js_var};
               if (!el || !el.isConnected) {{
                   throw '__wdio_stale__';
               }}
-              return wdioClearElement(el);
-          }})()"
-  )
+              return wdioClearElement(el);"
+  ))
 }
 
 async fn element_var(
@@ -586,8 +607,8 @@ async fn element_var(
 
 #[cfg(test)]
 mod tests {
-  use super::super::key_input::after_helpers;
   use super::*;
+  use crate::server::handlers::key_input::{after_helpers, helpers_taken};
 
   #[test]
   fn click_scrolls_and_presses_then_releases_in_a_later_script() {
@@ -603,6 +624,7 @@ mod tests {
   #[test]
   fn clear_returns_the_shared_helpers_status() {
     let script = clear_element_script("__wdio_elem_abc");
+    assert_eq!(helpers_taken(&script), ["wdioClearElement"]);
     let body = after_helpers(&script);
     let stale = body.find("throw '__wdio_stale__';").unwrap();
     assert!(stale < body.find("return wdioClearElement(el);").unwrap());
@@ -623,5 +645,53 @@ mod tests {
       let started = send_keys_started(&json!({ "status": status }));
       assert_eq!(started.err().map(|e| e.error), Some(error.to_string()), "{status}");
     }
+  }
+
+  /// Runs a script through `run_with_element_events` on a page that answers each script it's given
+  /// with the next of `answers`, and returns the result and the scripts the page ran.
+  fn run_on_page(
+    answers: Vec<Result<Value, String>>,
+  ) -> (Result<Value, WebDriverErrorResponse>, Vec<String>) {
+    let answers = std::sync::Mutex::new(answers.into_iter());
+    let ran = std::sync::Mutex::new(Vec::new());
+    let run = run_with_element_events("script".to_string(), |script| {
+      ran.lock().unwrap().push(script);
+      let answer = answers.lock().unwrap().next().unwrap();
+      async move { answer.map_err(|e| WebDriverErrorResponse::javascript_error(&e, None)) }
+    });
+    let result = tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(run);
+    (result, ran.into_inner().unwrap())
+  }
+
+  fn missing() -> Result<Value, String> {
+    Err(ELEMENT_EVENTS_MISSING.to_string())
+  }
+
+  #[test]
+  fn runs_a_script_once_when_the_page_has_the_helpers() {
+    let (result, ran) = run_on_page(vec![Ok(json!(true))]);
+    assert_eq!(result.unwrap(), json!(true));
+    assert_eq!(ran, ["script"]);
+  }
+
+  #[test]
+  fn installs_the_helpers_and_reruns_a_script_that_found_none() {
+    let (result, ran) = run_on_page(vec![missing(), Ok(json!(true)), Ok(json!("done"))]);
+    assert_eq!(result.unwrap(), json!("done"));
+    assert_eq!(ran, ["script", install_element_events_js(), "script"]);
+  }
+
+  #[test]
+  fn fails_when_the_helpers_are_still_missing_after_installing_them() {
+    let (result, ran) = run_on_page(vec![missing(), Ok(json!(true)), missing()]);
+    assert_eq!(result.err().map(|e| e.error), Some("unknown error".to_string()));
+    assert_eq!(ran.len(), 3);
+  }
+
+  #[test]
+  fn passes_other_script_errors_through() {
+    let (result, ran) = run_on_page(vec![Err("__wdio_stale__".to_string())]);
+    assert_eq!(result.err().map(|e| e.message), Some("__wdio_stale__".to_string()));
+    assert_eq!(ran, ["script"]);
   }
 }

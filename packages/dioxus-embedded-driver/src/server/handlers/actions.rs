@@ -19,8 +19,6 @@ use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::Value;
-use tokio::sync::oneshot;
-use uuid::Uuid;
 
 use super::key_input::key_script;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
@@ -176,30 +174,14 @@ struct PointerState {
   y: i32,
 }
 
-/// Run a script through the bridge eval channel, ignoring its return value.
+/// Run a script, ignoring its return value.
 async fn eval(script: String, timeout_ms: u64) -> Result<(), WebDriverErrorResponse> {
-  let (tx, rx) = oneshot::channel();
-  let id = Uuid::new_v4().to_string();
-  wdio_dioxus_bridge::embedded::push(id, script, vec![], tx);
-  match tokio::time::timeout(Duration::from_millis(timeout_ms), rx).await {
-    Ok(Ok(Ok(_))) => Ok(()),
-    Ok(Ok(Err(e))) => Err(WebDriverErrorResponse::javascript_error(&e, None)),
-    Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error("eval channel closed")),
-    Err(_) => Err(WebDriverErrorResponse::script_timeout()),
-  }
+  super::element::eval(script, timeout_ms).await.map(|_| ())
 }
 
 /// Run a script that returns a `[x, y]` pair of numbers.
 async fn eval_point(script: String, timeout_ms: u64) -> Result<(i32, i32), WebDriverErrorResponse> {
-  let (tx, rx) = oneshot::channel();
-  let id = Uuid::new_v4().to_string();
-  wdio_dioxus_bridge::embedded::push(id, script, vec![], tx);
-  let value: Value = match tokio::time::timeout(Duration::from_millis(timeout_ms), rx).await {
-    Ok(Ok(Ok(v))) => v,
-    Ok(Ok(Err(e))) => return Err(WebDriverErrorResponse::javascript_error(&e, None)),
-    Ok(Err(_)) => return Err(WebDriverErrorResponse::unknown_error("eval channel closed")),
-    Err(_) => return Err(WebDriverErrorResponse::script_timeout()),
-  };
+  let value = super::element::eval(script, timeout_ms).await?;
   // element_center_js returns JS `null` when the element variable is undefined/null — a stale
   // element reference, which must surface as `stale element reference` (404), not `unknown error`.
   if value.is_null() {

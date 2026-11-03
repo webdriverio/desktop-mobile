@@ -300,7 +300,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
   // Core JavaScript Execution
   // =========================================================================
 
-  async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
+  async fn evaluate_js_raw(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
     let locks = self.window.state::<ScriptExecutionLocks>();
     let lock = locks.get(self.window.label());
     let _guard = lock.lock().await;
