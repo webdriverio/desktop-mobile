@@ -321,6 +321,29 @@ describe('special keys (embedded)', () => {
     expect((await keyTargetEvents()).find((event) => event.key === 'PageDown')).toMatchObject({ shiftKey: true });
   });
 
+  it('should release a button pressed after a key before the key, as W3C releases the latest press first', async () => {
+    await fillFormScratch('<button type="button" id="fresh-button">go</button>');
+    await browser.execute(
+      `var button = document.querySelector("#fresh-button");
+      button.addEventListener("mouseup", function () { window.__fieldEvents.push("mouseup fresh-button"); });
+      button.scrollIntoView({ block: "center" });
+      button.focus();`,
+    );
+    const button = await browser.$('#fresh-button');
+    try {
+      await browser.action('key').down(Key.Shift).perform(true);
+      await browser.action('pointer').move({ origin: button }).down().perform(true);
+    } finally {
+      await browser.releaseActions();
+    }
+    expect(await fieldEvents()).toEqual([
+      'keydown ShiftLeft',
+      'mouseup fresh-button',
+      'click fresh-button',
+      'keyup ShiftLeft',
+    ]);
+  });
+
   it('should send the code, keyCode and Shift a browser sends for printable keys', async () => {
     await browser.$('#key-target').click();
     await browser.execute('window.__keyTargetEvents = [];');

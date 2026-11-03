@@ -21,6 +21,24 @@ impl Default for Timeouts {
   }
 }
 
+// The press tracking is the same in both embedded drivers; test/scripts/key-tables.spec.ts checks
+// the copies match.
+/// A held key or pointer button.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Press {
+  Key(String),
+  Button { source_id: String, button: u32 },
+}
+
+impl Press {
+  pub fn key(&self) -> Option<&String> {
+    match self {
+      Press::Key(key) => Some(key),
+      Press::Button { .. } => None,
+    }
+  }
+}
+
 /// Input state carried across W3C Actions calls within a session.
 ///
 /// The pointer position persists so a later `performActions` with
@@ -30,8 +48,8 @@ impl Default for Timeouts {
 #[derive(Debug, Default)]
 pub struct ActionState {
   pub pointer_position: (i32, i32),
-  /// Pressed keys in the order they were pressed.
-  pressed_keys: Vec<String>,
+  /// Held keys and pointer buttons, in the order they were pressed.
+  presses: Vec<Press>,
   /// Pressed pointer buttons keyed by the action source's `id`.
   pub pressed_buttons: HashMap<String, HashSet<u32>>,
 }
@@ -40,22 +58,52 @@ impl ActionState {
   /// A key pressed again while held moves to the end, as W3C releases its latest press first.
   pub fn press_key(&mut self, key: &str) {
     self.release_key(key);
-    self.pressed_keys.push(key.to_string());
+    self.presses.push(Press::Key(key.to_string()));
   }
 
   pub fn release_key(&mut self, key: &str) {
-    self.pressed_keys.retain(|held| held != key);
+    self.presses.retain(|press| !matches!(press, Press::Key(held) if held == key));
   }
 
-  pub fn pressed_keys(&self) -> &[String] {
-    &self.pressed_keys
+  /// The held keys, in the order they were pressed.
+  pub fn pressed_keys(&self) -> impl Iterator<Item = &String> {
+    self.presses.iter().filter_map(Press::key)
   }
 
-  /// Empties the pressed keys, returning them in W3C's release order: last pressed first.
-  pub fn take_keys_to_release(&mut self) -> Vec<String> {
-    let mut keys = std::mem::take(&mut self.pressed_keys);
-    keys.reverse();
-    keys
+  /// Empties the held keys and buttons, returning them in W3C's release order: last pressed first,
+  /// whichever kind, as Release Actions undoes one cancel list in reverse.
+  pub fn take_presses_to_release(&mut self) -> Vec<Press> {
+    let mut presses = std::mem::take(&mut self.presses);
+    presses.reverse();
+    presses
+  }
+
+  fn forget_button_press(&mut self, source_id: &str, button: u32) {
+    self.presses.retain(|press| {
+      !matches!(press, Press::Button { source_id: held, button: held_button }
+        if held == source_id && *held_button == button)
+    });
+  }
+
+  pub fn press_button(&mut self, source_id: &str, button: u32) {
+    if self.pressed_buttons.entry(source_id.to_string()).or_default().insert(button) {
+      self.presses.push(Press::Button { source_id: source_id.to_string(), button });
+    }
+  }
+
+  pub fn release_button(&mut self, source_id: &str, button: u32) {
+    if let Some(held) = self.pressed_buttons.get_mut(source_id) {
+      held.remove(&button);
+    }
+    self.forget_button_press(source_id, button);
+  }
+
+  /// Releases every button `source_id` holds, returning them.
+  pub fn cancel_buttons(&mut self, source_id: &str) -> HashSet<u32> {
+    self
+      .presses
+      .retain(|press| !matches!(press, Press::Button { source_id: held, .. } if held == source_id));
+    self.pressed_buttons.remove(source_id).unwrap_or_default()
   }
 }
 
@@ -117,6 +165,14 @@ impl SessionManager {
 mod tests {
   use super::*;
 
+  fn key(key: &str) -> Press {
+    Press::Key(key.to_string())
+  }
+
+  fn button(source_id: &str, button: u32) -> Press {
+    Press::Button { source_id: source_id.to_string(), button }
+  }
+
   #[test]
   fn release_actions_releases_keys_in_reverse_press_order() {
     let mut state = ActionState::default();
@@ -124,9 +180,39 @@ mod tests {
       state.press_key(key);
     }
     state.release_key("a");
-    assert_eq!(state.pressed_keys(), ["\u{E009}", " "]);
-    assert_eq!(state.take_keys_to_release(), [" ", "\u{E009}"]);
-    assert!(state.pressed_keys().is_empty());
+    assert!(state.pressed_keys().eq(["\u{E009}", " "]));
+    assert_eq!(state.take_presses_to_release(), [key(" "), key("\u{E009}")]);
+    assert_eq!(state.pressed_keys().count(), 0);
+  }
+
+  #[test]
+  fn release_actions_releases_keys_and_buttons_in_one_reverse_press_order() {
+    let mut state = ActionState::default();
+    state.press_key("\u{E008}");
+    state.press_button("mouse", 0);
+    state.press_key("\u{E009}");
+    state.press_button("mouse", 2);
+    state.release_button("mouse", 2);
+    state.press_button("pen", 0);
+    state.press_button("pen", 0);
+
+    let release = state.take_presses_to_release();
+
+    assert_eq!(release, [button("pen", 0), key("\u{E009}"), button("mouse", 0), key("\u{E008}")]);
+  }
+
+  #[test]
+  fn canceling_a_source_releases_only_its_buttons() {
+    let mut state = ActionState::default();
+    state.press_button("mouse", 0);
+    state.press_key("\u{E008}");
+    state.press_button("mouse", 2);
+    state.press_button("pen", 0);
+
+    assert_eq!(state.cancel_buttons("mouse"), [0, 2].into());
+
+    assert!(!state.pressed_buttons.contains_key("mouse"));
+    assert_eq!(state.take_presses_to_release(), [button("pen", 0), key("\u{E008}")]);
   }
 
   #[test]

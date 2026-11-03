@@ -24,6 +24,7 @@ use super::key_input::key_script;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::element::ELEMENT_KEY;
+use crate::webdriver::session::Press;
 
 #[derive(Debug, Deserialize)]
 pub struct ActionsRequest {
@@ -546,12 +547,7 @@ pub async fn perform(
                 down_pos.insert(*button, (pointer_state.x, pointer_state.y));
                 let mut sessions = state.sessions.write().await;
                 if let Ok(session) = sessions.get_mut(&session_id) {
-                  session
-                    .action_state
-                    .pressed_buttons
-                    .entry(id.clone())
-                    .or_default()
-                    .insert(*button);
+                  session.action_state.press_button(id, *button);
                 }
               }
               PointerAction::PointerUp { button } => {
@@ -598,9 +594,7 @@ pub async fn perform(
                 }
                 let mut sessions = state.sessions.write().await;
                 if let Ok(session) = sessions.get_mut(&session_id) {
-                  if let Some(buttons) = session.action_state.pressed_buttons.get_mut(id) {
-                    buttons.remove(button);
-                  }
+                  session.action_state.release_button(id, *button);
                 }
               }
               PointerAction::PointerMove { x, y, origin, .. } => {
@@ -631,11 +625,9 @@ pub async fn perform(
                 // (there's no MouseEvent equivalent), so drop its tracked state and clear the held mask.
                 let mut sessions = state.sessions.write().await;
                 if let Ok(session) = sessions.get_mut(&session_id) {
-                  if let Some(buttons) = session.action_state.pressed_buttons.remove(id) {
-                    for button in buttons {
-                      held_mask &= !button_to_mask(button);
-                      down_pos.remove(&button);
-                    }
+                  for button in session.action_state.cancel_buttons(id) {
+                    held_mask &= !button_to_mask(button);
+                    down_pos.remove(&button);
                   }
                 }
                 // The aborted press emits no click/auxclick, and a cancel breaks any pending
@@ -725,46 +717,43 @@ pub async fn release(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
-  let (timeout_ms, pressed_keys, pressed_buttons, pointer_pos) = {
+  let (timeout_ms, scripts) = {
     let mut sessions = state.sessions.write().await;
     let session = sessions.get_mut(&session_id)?;
-    let pressed_keys = session.action_state.take_keys_to_release();
-    let pressed_buttons = std::mem::take(&mut session.action_state.pressed_buttons);
-    let pointer_pos = session.action_state.pointer_position;
-    session.action_state.pointer_position = (0, 0);
-    (session.timeouts.script_ms, pressed_keys, pressed_buttons, pointer_pos)
+    let presses = session.action_state.take_presses_to_release();
+    session.action_state.pressed_buttons.clear();
+    let pointer_pos = std::mem::take(&mut session.action_state.pointer_position);
+    (session.timeouts.script_ms, release_scripts(&presses, pointer_pos))
   };
-
-  // Release held keys; each keyup reflects the modifiers still held *after* it is released
-  // (e.g. releasing Shift while Ctrl is still down → shiftKey:false, ctrlKey:true). The mouseups
-  // below run once every key is up, so their default (empty) modifiers are correct.
-  for (i, key) in pressed_keys.iter().enumerate() {
-    let mods = Modifiers::from_keys(&pressed_keys[i + 1..]);
-    eval(key_script(key, false, &mods), timeout_ms).await?;
-  }
-  let mut held_mask = pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
-  // Release every held button. `pressed_buttons` drains from a HashMap of HashSets (both unordered);
-  // collect and sort so a multi-button release dispatches its mouseups deterministically, each
-  // reporting the buttons still held *after* it (the released button is cleared from `held_mask` first).
-  let mut buttons_to_release: Vec<u32> = pressed_buttons.into_values().flatten().collect();
-  buttons_to_release.sort_unstable();
-  for button in buttons_to_release {
-    held_mask &= !button_to_mask(button);
-    eval(
-      pointer_event_js(
-        "mouseup",
-        pointer_pos.0,
-        pointer_pos.1,
-        button,
-        held_mask,
-        Modifiers::default(),
-      ),
-      timeout_ms,
-    )
-    .await?;
+  for script in scripts {
+    eval(script, timeout_ms).await?;
   }
 
   Ok(WebDriverResponse::null())
+}
+
+/// The keyups and mouseups that release `presses`, given in release order, with buttons going up at
+/// `(x, y)`. Each event carries the modifiers and buttons still held after it, so a mouseup before a
+/// held Shift's keyup reports `shiftKey: true`.
+fn release_scripts(presses: &[Press], (x, y): (i32, i32)) -> Vec<String> {
+  let mut held_mask = presses.iter().fold(0, |mask, press| match press {
+    Press::Button { button, .. } => mask | button_to_mask(*button),
+    Press::Key(_) => mask,
+  });
+  presses
+    .iter()
+    .enumerate()
+    .map(|(i, press)| {
+      let modifiers = Modifiers::from_keys(presses[i + 1..].iter().filter_map(Press::key));
+      match press {
+        Press::Key(key) => key_script(key, false, &modifiers),
+        Press::Button { button, .. } => {
+          held_mask &= !button_to_mask(*button);
+          pointer_event_js("mouseup", x, y, *button, held_mask, modifiers)
+        }
+      }
+    })
+    .collect()
 }
 
 #[cfg(test)]
@@ -1110,6 +1099,23 @@ mod tests {
     let after_shift_released = Modifiers::from_keys(&["\u{E009}".to_string()]);
     let shift_up = event_init(&key_script("\u{E008}", false, &after_shift_released));
     assert!(shift_up.contains("ctrlKey: true, metaKey: false, shiftKey: false"), "{shift_up}");
+  }
+
+  #[test]
+  fn release_sends_each_event_with_the_buttons_and_modifiers_still_held() {
+    let presses = [
+      Press::Button { source_id: "mouse".to_string(), button: 2 },
+      Press::Key("\u{E008}".to_string()),
+      Press::Button { source_id: "mouse".to_string(), button: 0 },
+    ];
+
+    let scripts = release_scripts(&presses, (3, 4));
+
+    let [right_up, shift_up, left_up] = &scripts[..] else { panic!("{scripts:?}") };
+    assert!(right_up.contains("MouseEvent(\"mouseup\""), "{right_up}");
+    assert!(right_up.contains("button:2,buttons:1,ctrlKey:false,shiftKey:true"), "{right_up}");
+    assert!(event_init(shift_up).contains("shiftKey: false"), "{shift_up}");
+    assert!(left_up.contains("button:0,buttons:0,ctrlKey:false,shiftKey:false"), "{left_up}");
   }
 
   #[test]

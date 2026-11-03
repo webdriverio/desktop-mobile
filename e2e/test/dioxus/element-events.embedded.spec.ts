@@ -357,6 +357,24 @@ describe('Dioxus element events (embedded)', () => {
     ]);
   });
 
+  it('should release a button pressed after a key before the key, with the key still held', async () => {
+    await fillFormScratch('<button type="button" id="fresh-button">go</button>');
+    await browser.execute(
+      `var button = document.querySelector("#fresh-button");
+      button.addEventListener("mouseup", function (ev) { window.__fieldEvents.push("mouseup shiftKey=" + ev.shiftKey); });
+      button.scrollIntoView({ block: "center" });
+      button.focus();`,
+    );
+    const button = await browser.$('#fresh-button');
+    try {
+      await browser.action('key').down(Key.Shift).perform(true);
+      await browser.action('pointer').move({ origin: button }).down().perform(true);
+    } finally {
+      await browser.releaseActions();
+    }
+    expect(await fieldEvents()).toEqual(['keydown ShiftLeft', 'mouseup shiftKey=true', 'keyup ShiftLeft']);
+  });
+
   it('should move focus on Tab and back on Shift+Tab, firing the change Send Keys left pending, as Chrome does', async () => {
     await fillFormScratch('<input id="fresh-a"><input id="fresh-b">');
     await browser.$('#fresh-a').addValue('a');
