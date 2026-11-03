@@ -200,6 +200,42 @@ describe('triggerDeeplink Command', () => {
       );
     });
 
+    it.each([
+      ['external', 'linux'],
+      ['external', 'win32'],
+      ['crabnebula', 'linux'],
+      ['crabnebula', 'win32'],
+    ] as const)(
+      'should refuse to open the URL through the OS for %s on %s when another instance runs the same app',
+      async (provider, platform) => {
+        mockPlatform(platform);
+        const browser = createBrowser();
+
+        await expect(
+          triggerDeeplink.call({ browser, provider, sharesApp: true }, 'myapp://standard'),
+        ).rejects.toMatchObject({
+          message: expect.stringContaining(
+            `triggerDeeplink() can't reach a multiremote instance with the ${provider} provider on ${platform}`,
+          ),
+        });
+        expect(spawn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ['embedded', 'linux'],
+      ['crabnebula', 'darwin'],
+    ] as const)(
+      'should still emit in the app for %s on %s when another instance runs the same app',
+      async (provider, platform) => {
+        mockPlatform(platform);
+        const browser = createBrowser();
+        await triggerDeeplink.call({ browser, provider, sharesApp: true }, 'myapp://test');
+
+        expect(browser.execute).toHaveBeenCalledWith(expect.any(Function), 'myapp://test');
+      },
+    );
+
     it('should throw when browser context is missing in embedded mode', async () => {
       await expect(triggerDeeplink.call({ provider: 'embedded' }, 'myapp://test')).rejects.toThrow(
         'embedded deeplink injection requires browser context',

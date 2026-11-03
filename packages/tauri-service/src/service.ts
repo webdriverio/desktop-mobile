@@ -61,6 +61,7 @@ export default class TauriWorkerService {
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
+  private instanceApps = new Map<WebdriverIO.Browser, string | undefined>();
 
   constructor(options: TauriServiceOptions & TauriServiceGlobalOptions, capabilities: TauriCapabilities) {
     // Options may be supplied service-level (services: [['tauri', {...}]]) or capability-level
@@ -132,6 +133,12 @@ export default class TauriWorkerService {
           this.addTauriApi(instance);
           this.patchBrowserExecute(instance);
           const instanceOptions = (caps as TauriCapabilities | undefined)?.['wdio:tauriServiceOptions'];
+          if (name !== undefined) {
+            this.instanceApps.set(
+              instance,
+              (caps as TauriCapabilities | undefined)?.['tauri:options']?.application ?? instanceOptions?.appBinaryPath,
+            );
+          }
           setCurrentWindowLabel(instance, instanceOptions?.windowLabel || this.windowLabel);
           setSessionProvider(instance, this.driverProvider);
           stage = `waitUntilWindowAvailable:${name ?? 'single'}`;
@@ -476,6 +483,17 @@ export default class TauriWorkerService {
     (browser as WebdriverIO.Browser & { tauri: TauriServiceAPI }).tauri = this.getTauriAPI(browser, browserMode);
   }
 
+  private sharesApp(browser: WebdriverIO.Browser): boolean {
+    const apps = [...this.instanceApps].filter(
+      (entry): entry is [WebdriverIO.Browser, string] => entry[1] !== undefined,
+    );
+    if (!this.instanceApps.has(browser)) {
+      return new Set(apps.map(([, app]) => app)).size < apps.length;
+    }
+    const own = this.instanceApps.get(browser);
+    return apps.some(([instance, app]) => instance !== browser && app === own);
+  }
+
   /**
    * Get Tauri API object for a browser instance
    * Handles both standard and multiremote browsers
@@ -523,7 +541,10 @@ export default class TauriWorkerService {
         if (browserMode) {
           throw new Error('browser.tauri.triggerDeeplink() is not supported in browser mode.');
         }
-        return triggerDeeplink.call({ browser, provider: this.driverProvider }, url);
+        return triggerDeeplink.call(
+          { browser, provider: this.driverProvider, sharesApp: this.sharesApp(browser) },
+          url,
+        );
       },
 
       switchWindow: async (label: string): Promise<void> => {
