@@ -11,6 +11,7 @@ const TAURI_COPY = 'packages/tauri-plugin-webdriver/src/platform/element-events.
 const DIOXUS_COPY = 'packages/dioxus-embedded-driver/src/server/handlers/element-events.js';
 
 type ElementEvents = {
+  wdioDeepActiveElement(): Element;
   wdioRecordPendingChange(el: HTMLElement, value: string): void;
   wdioFlushPendingChange(): void;
   wdioTakePendingChange(el?: HTMLElement): { el: HTMLElement; value: string } | undefined;
@@ -32,7 +33,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioFlushPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioDeepActiveElement, wdioRecordPendingChange, wdioFlushPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -64,19 +65,11 @@ function type(el: HTMLInputElement, text: string) {
   log = [];
 }
 
-function focused() {
-  let el = document.activeElement;
-  while (el?.shadowRoot?.activeElement) {
-    el = el.shadowRoot.activeElement;
-  }
-  return el;
-}
-
 // Enter as the drivers press it: after the keydown, a field focus left without a blur fires its
 // change, then Enter acts on the element focused now.
 function enter() {
   events.wdioFlushPendingChange();
-  events.wdioEnterKey(focused() as Element);
+  events.wdioEnterKey(events.wdioDeepActiveElement());
 }
 
 // Stops `blur` reaching the page, as Chromium does on scripted focus moves while the window isn't
@@ -491,11 +484,11 @@ describe('Tab', () => {
   // blur fires its change, then Tab's default action runs.
   function tab(init: KeyboardEventInit = {}) {
     const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true, ...init });
-    focused()?.dispatchEvent(event);
+    events.wdioDeepActiveElement().dispatchEvent(event);
     events.wdioFlushPendingChange();
     events.wdioTabKey(event);
-    const el = focused();
-    return el?.id || el?.localName;
+    const el = events.wdioDeepActiveElement();
+    return el.id || el.localName;
   }
 
   function tabs(count: number, init: KeyboardEventInit = {}) {

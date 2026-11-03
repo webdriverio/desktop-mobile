@@ -93,23 +93,14 @@ fn build_special_key_script(
 ) -> String {
   let default_action = match js_key {
     _ if !is_down => String::new(),
-    "Backspace" | "Delete" => on_focus_after_keydown_js(&delete_js(js_key == "Backspace")),
-    // Chrome steps the radio group of the keydown's target, wherever a handler moved focus.
+    "Backspace" | "Delete" => delete_js(js_key == "Backspace"),
     "ArrowDown" | "ArrowRight" => radio_step_js(true),
     "ArrowUp" | "ArrowLeft" => radio_step_js(false),
-    "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => {
-      on_focus_after_keydown_js(&enter_js(modifiers.shift))
-    }
+    "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => enter_js(modifiers.shift),
     _ => String::new(),
   };
   let after_dispatch = if is_down && js_key == "Tab" { tab_js() } else { String::new() };
   key_event_script(js_key, js_code, key_code, is_down, modifiers, &after_dispatch, &default_action)
-}
-
-/// `action` on the element focused after the keydown: a handler can move focus, and Chrome then
-/// acts there.
-fn on_focus_after_keydown_js(action: &str) -> String {
-  format!("activeEl = wdioDeepActiveElement();\n{action}")
 }
 
 /// JS for Tab's default action. `wdioTabKey` reads the keydown's cancellation and modifiers itself.
@@ -144,11 +135,11 @@ fn build_printable_key_script(
   let default_action = if !is_down {
     String::new()
   } else if is_select_all {
-    on_focus_after_keydown_js(&select_all_js())
+    select_all_js()
   } else if modifiers.ctrl || modifiers.meta || modifiers.alt {
     String::new()
   } else {
-    on_focus_after_keydown_js(&insert_text_js("activeEl", &js_string(key)))
+    insert_text_js("activeEl", &js_string(key))
   };
   let after_dispatch = if key == " " { space_js(is_down, modifiers) } else { String::new() };
   key_event_script(key, code, key_code, is_down, modifiers, &after_dispatch, &default_action)
@@ -162,8 +153,9 @@ fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
 }
 
 /// JS dispatching one keydown or keyup to the deep focused element, then running `after_dispatch`,
-/// which can read `canceled`, and `default_action` unless a handler canceled the event. A key that
-/// acts carries element-events.js once, for both.
+/// which can read `canceled`, and `default_action` unless a handler canceled the event. As in
+/// Chrome, the default action goes to the element focused after the event, as a handler can move
+/// focus, with the event's target in `keydownTarget`. A key that acts carries element-events.js once.
 fn key_event_script(
   key: &str,
   code: &str,
@@ -178,6 +170,11 @@ fn key_event_script(
   // Fires the `change` a field owes if a handler moved focus off it without a `blur`. Workaround
   // for #886; drop once the drivers emulate focus.
   let flush = if acts { "wdioFlushPendingChange();" } else { "" };
+  let refocus = if default_action.is_empty() {
+    ""
+  } else {
+    "var keydownTarget = activeEl;\n                activeEl = wdioDeepActiveElement();"
+  };
   let active_element = deep_active_element_js("activeEl");
   let event_type = if is_down { "keydown" } else { "keyup" };
   let key = js_string(key);
@@ -206,6 +203,7 @@ fn key_event_script(
                 if (canceled) {{
                     return true;
                 }}
+                {refocus}
                 {default_action}
                 return true;
             }})()"
@@ -269,14 +267,14 @@ fn delete_js(backward: bool) -> String {
 }
 
 /// JS moving the checked radio to the next (`forward`) or previous button of the group of the radio
-/// that got the keydown, firing `change`.
+/// that got the keydown, firing `change`. Chrome steps from that radio wherever a handler moved focus.
 fn radio_step_js(forward: bool) -> String {
   format!(
-    r#"if (activeEl.tagName === 'INPUT' && activeEl.type === 'radio' && activeEl.name) {{
-                    var radios = Array.from(activeEl.getRootNode().querySelectorAll(
-                        'input[type="radio"][name="' + CSS.escape(activeEl.name) + '"]'
+    r#"if (keydownTarget.tagName === 'INPUT' && keydownTarget.type === 'radio' && keydownTarget.name) {{
+                    var radios = Array.from(keydownTarget.getRootNode().querySelectorAll(
+                        'input[type="radio"][name="' + CSS.escape(keydownTarget.name) + '"]'
                     ));
-                    var currentIndex = radios.indexOf(activeEl);
+                    var currentIndex = radios.indexOf(keydownTarget);
                     if (currentIndex !== -1 && radios.length > 1) {{
                         var nextIndex = {forward}
                             ? (currentIndex + 1) % radios.length
@@ -344,7 +342,7 @@ fn insert_text_js(el: &str, text_js: &str) -> String {
                         selEnd = {el}.selectionEnd;
                     }} catch (e) {{}}
                     // Chrome fires `input` for any insertion, even one that leaves the value as it
-                    // was. Without a selection API, only a changed value shows sanitizing kept the text.
+                    // was. Without a selection API, the text went in only if the value changed.
                     var edited = insertedText !== '';
                     if (typeof selStart === 'number' && typeof selEnd === 'number') {{
                         nativeInputValueSetter.call(
@@ -757,8 +755,10 @@ mod tests {
     ] {
       let script = down(value, NONE);
       let action = default_action(&script);
-      assert!(action.contains("if (activeEl.tagName === 'INPUT' && activeEl.type === 'radio'"));
-      assert!(action.contains("CSS.escape(activeEl.name)"));
+      assert!(
+        action.contains("if (keydownTarget.tagName === 'INPUT' && keydownTarget.type === 'radio'")
+      );
+      assert!(action.contains("CSS.escape(keydownTarget.name)"));
       assert!(action.contains(&format!("var nextIndex = {forward}")), "{value:?}");
     }
     assert!(!key_script("\u{E015}", false, &NONE).contains("nextRadio"));
@@ -1089,9 +1089,16 @@ mod tests {
       let acts = default_action.find(action).unwrap();
       assert!(default_action[..acts].contains(lookup), "{script}");
     }
-    for script in [down("\u{E015}", NONE), key_script("x", false, &NONE)] {
-      assert!(!script.replace(ELEMENT_EVENTS_JS, "").contains(lookup), "{script}");
-    }
+    let arrow = down("\u{E015}", NONE);
+    let action = default_action(&arrow);
+    let target = action.find("var keydownTarget = activeEl;").unwrap();
+    let step = action.find("if (keydownTarget.tagName === 'INPUT'").unwrap();
+    assert!(
+      target < action.find(lookup).unwrap() && !action[step..].contains("activeEl"),
+      "{arrow}"
+    );
+    let up = key_script("x", false, &NONE);
+    assert!(!up.contains(lookup), "{up}");
   }
 
   #[test]
@@ -1122,6 +1129,23 @@ mod tests {
       key_script("\u{E004}", false, &NONE),
     ] {
       assert!(!script.contains("wdio"), "{script}");
+    }
+  }
+
+  #[test]
+  fn every_key_script_that_calls_a_helper_carries_them_once() {
+    for modifiers in [NONE, CTRL, SHIFT, ALT, META] {
+      for is_down in [true, false] {
+        let special = ('\u{E000}'..='\u{E05D}').map(String::from);
+        let regular = ["a", "A", "x", "1", " ", "é"].map(String::from);
+        for key in special.chain(regular) {
+          let script = key_script(&key, is_down, &modifiers);
+          match script.matches(ELEMENT_EVENTS_JS).count() {
+            0 => assert!(!script.contains("wdio") && !script.contains("WDIO_"), "{script}"),
+            copies => assert_eq!(copies, 1, "{script}"),
+          }
+        }
+      }
     }
   }
 }
