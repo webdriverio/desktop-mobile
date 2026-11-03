@@ -27,8 +27,8 @@ export const APPIUM_MATRIX: AppiumCompat[] = [
   {
     appiumMajor: 3,
     drivers: {
-      uiautomator2: { name: 'uiautomator2', source: 'appium-uiautomator2-driver', version: '^8.2.2' },
-      xcuitest: { name: 'xcuitest', source: 'appium-xcuitest-driver', version: '^12.1.4' },
+      uiautomator2: { name: 'uiautomator2', source: 'appium-uiautomator2-driver', version: '^9.0.1' },
+      xcuitest: { name: 'xcuitest', source: 'appium-xcuitest-driver', version: '^13.0.4' },
       flutter: { name: 'flutter', source: 'appium-flutter-driver', version: '^4.0.0' },
     },
   },
