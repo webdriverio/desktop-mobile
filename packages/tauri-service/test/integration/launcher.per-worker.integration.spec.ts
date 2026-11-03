@@ -1,6 +1,6 @@
 import type { spawn } from 'node:child_process';
 import getPort from 'get-port';
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { TauriCapabilities } from '../../src/types.js';
 
 // Mock only the driver discovery, not the process itself
@@ -16,7 +16,8 @@ vi.mock('../../src/pathResolver.js', () => ({
   getWebKitWebDriverPath: vi.fn().mockReturnValue('/usr/bin/WebKitWebDriver'),
 }));
 
-vi.mock('@wdio/native-utils', () => ({
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     debug: vi.fn(),
@@ -77,7 +78,8 @@ vi.mock('node:child_process', async () => {
   };
 });
 
-import { access, mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureTauriDriver } from '../../src/driverManager.js';
 import TauriLaunchService from '../../src/launcher.js';
@@ -244,6 +246,36 @@ describe('Per-Worker Mode - Integration', () => {
 
       // Should not throw when starting with custom env
       await expect((launcher as any).onWorkerStart('0-0', caps, [], {})).resolves.not.toThrow();
+    });
+
+    it("should start each worker's driver with the env, under the worker's own data directory", async () => {
+      vi.mocked(ensureTauriDriver).mockResolvedValue({
+        ok: true,
+        value: { path: mockSuccessPath, method: 'found' },
+      });
+      const envDir = await mkdtemp(join(tmpdir(), 'wdio-tauri-env-'));
+      onTestFinished(() => rm(envDir, { recursive: true, force: true }));
+      const envFile = join(envDir, 'env.json');
+
+      launcher = new TauriLaunchService(
+        {
+          tauriDriverPort: basePort,
+          driverProvider: 'external',
+          env: { WDIO_MOCK_DRIVER_ENV_FILE: envFile, WDIO_APP_FLAG: 'on', [DATA_DIR_ENV]: '/user/data' },
+        },
+        { browserName: 'tauri', 'tauri:options': { application: '/app' } },
+        { maxInstances: 2 },
+      );
+      await launcher.onPrepare({}, [{ browserName: 'tauri', 'tauri:options': { application: '/app' } }]);
+      const dataDirs = captureDataDirs(launcher);
+
+      await launcher.onWorkerStart('0-0', { browserName: 'tauri', 'tauri:options': { application: '/app' } });
+
+      const driverEnv = JSON.parse(await readFile(envFile, 'utf8'));
+      expect(driverEnv.WDIO_APP_FLAG).toBe('on');
+      expect(driverEnv[DATA_DIR_ENV]).toBe(dataDirs()[0]);
+      expect(driverEnv[DATA_DIR_ENV]).not.toBe('/user/data');
+      expect(driverEnv.PATH).toBe(process.env.PATH);
     });
   });
 
