@@ -336,8 +336,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
   /// Execute JavaScript as is and return the result as JSON
   async fn evaluate_js_raw(&self, script: &str) -> Result<Value, WebDriverErrorResponse>;
 
-  /// Execute JavaScript and return the result as JSON, first installing the element helpers if the
-  /// script calls them and the page has none
+  /// Execute JavaScript and return the result as JSON. A script that finds the element helpers
+  /// missing runs again once they're installed.
   async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
     run_with_element_events(script, |script| self.evaluate_js_raw(script)).await
   }

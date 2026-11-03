@@ -174,7 +174,6 @@ struct PointerState {
   y: i32,
 }
 
-/// Run a script, ignoring its return value.
 async fn eval(script: String, timeout_ms: u64) -> Result<(), WebDriverErrorResponse> {
   super::element::eval(script, timeout_ms).await.map(|_| ())
 }
