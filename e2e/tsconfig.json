@@ -23,15 +23,10 @@
     ]
   },
   "include": [
+    "./config/**/*.ts",
     "./lib/**/*.ts",
+    "./scripts/**/*.ts",
     "./test/**/*.ts",
     "./wdio*.conf.ts"
-  ],
-  // Node-only code, which tsconfig.node.json checks without the DOM lib or test globals. Specs and
-  // configs still import some of it, which pulls those files back into this program.
-  "exclude": [
-    "./lib/display.ts",
-    "./lib/statusBar.ts",
-    "./lib/utils.ts"
   ]
 }
