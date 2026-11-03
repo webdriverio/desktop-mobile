@@ -38,8 +38,6 @@ use dioxus_desktop::Config;
 /// env var without adding a separate dep on `wdio-dioxus-bridge`.
 pub use wdio_dioxus_bridge::automation;
 
-pub use wdio_dioxus_bridge::on_window;
-
 /// Default port for the embedded WebDriver HTTP server.
 pub const DEFAULT_PORT: u16 = 4444;
 
