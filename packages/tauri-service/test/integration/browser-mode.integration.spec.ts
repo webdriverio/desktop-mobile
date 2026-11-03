@@ -298,10 +298,10 @@ describe('browser mode — BiDi preload interceptor (#259)', () => {
         seq.push(`preload:${name}`);
         return { script: `preload-${name}` };
       });
+      instance.url.mockImplementation(async () => {
+        seq.push(`url:${name}`);
+      });
     }
-    root.url.mockImplementation(async () => {
-      seq.push('url');
-    });
 
     await newService().before({} as never, [], root as unknown as WebdriverIO.Browser);
 
@@ -312,9 +312,26 @@ describe('browser mode — BiDi preload interceptor (#259)', () => {
       };
       expect(isInjectionScript(functionDeclaration)).toBe(true);
     }
-    // The root drives navigation/fan-out; only the per-instance sessions own a preload.
+    // Only the per-instance sessions own a preload and navigate.
     expect(root.scriptAddPreloadScript).not.toHaveBeenCalled();
-    expect(seq).toEqual(['preload:browserA', 'preload:browserB', 'url']);
+    expect(seq).toEqual(['preload:browserA', 'preload:browserB', 'url:browserA', 'url:browserB']);
+  });
+
+  it("should not fail init when a multiremote instance's post-load inject throws but its preload succeeded", async () => {
+    const { root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB'], { isBidi: true });
+    instances.get('browserA')?.execute.mockRejectedValueOnce(new Error('transient execute failure'));
+
+    await expect(newService().before({} as never, [], root as unknown as WebdriverIO.Browser)).resolves.toBeUndefined();
+  });
+
+  it('should fail init when the post-load inject throws on a multiremote instance without a preload', async () => {
+    const { root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB'], { isBidi: true });
+    instances.get('browserB')?.scriptAddPreloadScript.mockRejectedValueOnce(new Error('bidi unavailable'));
+    instances.get('browserB')?.execute.mockRejectedValueOnce(new Error('inject failed'));
+
+    await expect(newService().before({} as never, [], root as unknown as WebdriverIO.Browser)).rejects.toMatchObject({
+      message: 'inject failed',
+    });
   });
 
   it('should rely on the BiDi preload and not re-inject via execute() after a navigation', async () => {

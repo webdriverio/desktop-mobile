@@ -45,7 +45,7 @@ export default class DioxusWorkerService {
       Object.values(_capabilities as Record<string, { capabilities?: DioxusCapabilities } | undefined>)
         .map((entry) => entry?.capabilities?.['wdio:dioxusServiceOptions'])
         .find((instanceOptions) => instanceOptions?.mode === 'browser');
-    this.devServerUrl = browserModeOptions?.devServerUrl ?? _options.devServerUrl;
+    this.devServerUrl = capOptions?.devServerUrl ?? _options.devServerUrl;
     this.browserMode = (browserModeOptions?.mode ?? _options.mode) === 'browser';
     this.capabilities = _capabilities;
     this.options = mergeOptions(_options, capOptions);
@@ -68,10 +68,7 @@ export default class DioxusWorkerService {
     try {
       if (this.browserMode) {
         stage = 'initBrowserMode';
-        if (!this.devServerUrl) {
-          throw new Error('devServerUrl is required for browser mode but was not set');
-        }
-        await this.initBrowserMode(browser as WebdriverIO.Browser, this.devServerUrl);
+        await this.initBrowserMode(browser as WebdriverIO.Browser);
         log.info('before() complete (browser mode)');
         return;
       }
@@ -178,11 +175,27 @@ export default class DioxusWorkerService {
     (browser as unknown as { dioxus: DioxusServiceAPI }).dioxus = dioxus;
   }
 
-  private async initBrowserMode(browser: WebdriverIO.Browser, devServerUrl: string): Promise<void> {
-    log.debug(`Browser mode: navigating to ${devServerUrl}`);
-    await browser.url(devServerUrl);
-
-    await this.injectSpy(browser);
+  private async initBrowserMode(browser: WebdriverIO.Browser): Promise<void> {
+    const targets: Array<{ instance: WebdriverIO.Browser; devServerUrl: string }> = [];
+    await forEachInstance(
+      browser,
+      (instance, { name, caps }) => {
+        const devServerUrl =
+          (caps as DioxusCapabilities | undefined)?.['wdio:dioxusServiceOptions']?.devServerUrl ?? this.devServerUrl;
+        if (!devServerUrl) {
+          throw new Error(
+            `devServerUrl is required for browser mode but was not set${name === undefined ? '' : ` for multiremote instance "${name}"`}`,
+          );
+        }
+        targets.push({ instance, devServerUrl });
+      },
+      this.capabilities,
+    );
+    for (const { instance, devServerUrl } of targets) {
+      log.debug(`Browser mode: navigating to ${devServerUrl}`);
+      await instance.url(devServerUrl);
+      await this.injectSpy(instance);
+    }
 
     // Re-inject the spy after every navigation so the mock infrastructure survives page
     // loads within the same test session. Uses overwriteCommand rather than reassigning

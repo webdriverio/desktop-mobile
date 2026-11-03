@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // jsdom has no delegatesFocus, so the E2E specs cover shadow hosts that keep focus.
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -19,6 +19,8 @@ type ElementEvents = {
   wdioEnterKey(): void;
   wdioSpaceDown(el: HTMLElement, blocked: boolean): void;
   wdioSpaceUp(el: HTMLElement, blocked: boolean): void;
+  wdioTabKey(event: KeyboardEvent): void;
+  wdioTabStops(current: Element): { stops: Element[] };
   wdioPress(el: HTMLElement): void;
   wdioRelease(el: HTMLElement): void;
   wdioFocusForClick(el: HTMLElement): void;
@@ -29,7 +31,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -457,6 +459,331 @@ describe('Enter and Space on a button', () => {
     }
     events.wdioEnterKey();
     expect(log).toEqual(expected);
+  });
+});
+
+describe('Tab', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function focused() {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement) {
+      el = el.shadowRoot.activeElement;
+    }
+    return el;
+  }
+
+  // Tab as the drivers press it: the keydown goes to the focused element, then its default action runs.
+  function tab(init: KeyboardEventInit = {}) {
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true, ...init });
+    focused()?.dispatchEvent(event);
+    events.wdioTabKey(event);
+    const el = focused();
+    return el?.id || el?.localName;
+  }
+
+  function tabs(count: number, init: KeyboardEventInit = {}) {
+    return Array.from({ length: count }, () => tab(init));
+  }
+
+  it('should visit positive tabindex ascending, then tabindex 0 and natural stops in tree order, then leave the page', () => {
+    render(`<input id="a"><button id="b">b</button><a id="l" href="#">l</a><a id="nohref">x</a>
+      <span id="s" tabindex="0">s</span><div id="n" tabindex="-1">n</div><input id="p2" tabindex="2">
+      <input id="p1" tabindex="1"><input type="hidden" id="h"><input id="p1b" tabindex="1"><select id="sel"></select>
+      <textarea id="t"></textarea><iframe id="f"></iframe><audio id="silent"></audio>
+      <details><summary id="sum">sum</summary></details>`);
+    expect(tabs(13)).toEqual(['p1', 'p1b', 'p2', 'a', 'b', 'l', 's', 'sel', 't', 'f', 'sum', 'body', 'p1']);
+  });
+
+  it('should go back through the same stops with Shift', () => {
+    render('<input id="a"><input id="p1" tabindex="1"><button id="b">b</button>');
+    expect(tabs(5, { shiftKey: true })).toEqual(['b', 'a', 'p1', 'body', 'b']);
+  });
+
+  it('should skip disabled, inert and unrendered elements', () => {
+    render(`<input id="a"><input id="d" disabled><fieldset disabled><input id="fd"></fieldset>
+      <div inert><input id="i"></div><input id="hidden" hidden><div style="display: none"><input id="none"></div>
+      <div style="visibility: hidden"><input id="vh"><input id="vv" style="visibility: visible"></div>
+      <details><summary id="sum">sum</summary><input id="closed"></details>
+      <details open><summary id="sum2">sum</summary><input id="open"></details><input id="z">`);
+    $('#a').focus();
+    expect(tabs(5)).toEqual(['vv', 'sum', 'sum2', 'open', 'z']);
+  });
+
+  it('should stop on an editing host, media with controls and slot fallback content, but not in a slot with tabindex -1', () => {
+    render(`<div id="ed" contenteditable="true"><p id="ed-p">x</p></div><audio id="au" controls></audio>
+      <video id="vid"></video><object id="ob"></object><embed id="em"><div id="h1"></div>
+      <div id="h2"><input id="h2-slotted"></div>`);
+    // jsdom has no isContentEditable.
+    for (const id of ['ed', 'ed-p']) {
+      Object.defineProperty($(`#${id}`), 'isContentEditable', { value: true });
+    }
+    $('#h1').attachShadow({ mode: 'open' }).innerHTML = '<slot><input id="fallback"></slot>';
+    $('#h2').attachShadow({ mode: 'open' }).innerHTML = '<input id="h2-a"><slot tabindex="-1"></slot>';
+    expect(events.wdioTabStops(document.body).stops.map((stop) => stop.id)).toEqual([
+      'ed',
+      'au',
+      'ob',
+      'em',
+      'fallback',
+      'h2-a',
+    ]);
+  });
+
+  it('should go through a form whose controls hide its own properties', () => {
+    render('<input id="a"><form id="f"><input id="kids" name="children"><input id="e"></form><input id="z">');
+    // In browsers, a named control hides the form's own property of that name. jsdom doesn't.
+    for (const name of ['children', 'matches']) {
+      Object.defineProperty($('#f'), name, { value: $('#kids') });
+    }
+    $('#a').focus();
+    expect(tabs(3)).toEqual(['kids', 'e', 'z']);
+  });
+
+  it('should go through open shadow roots and slots, with focus-delegating hosts no stop themselves', () => {
+    render(`<input id="a"><div id="h1"><input id="h1-slotted"></div><div id="h2" tabindex="0"></div>
+      <div id="h3" tabindex="-1"></div><div id="h4" tabindex="0"></div><input id="z">`);
+    const shadow = (host: string, html: string) => {
+      const root = $(host).attachShadow({ mode: 'open' });
+      root.innerHTML = html;
+      return root;
+    };
+    shadow('#h1', '<input id="h1-a"><slot></slot><input id="h1-b" tabindex="1">');
+    shadow('#h2', '<input id="h2-a">');
+    shadow('#h3', '<input id="h3-a">');
+    // jsdom has no delegatesFocus.
+    Object.defineProperty(shadow('#h4', '<input id="h4-a">'), 'delegatesFocus', { value: true });
+    $('#a').focus();
+    expect(tabs(7)).toEqual(['h1-b', 'h1-a', 'h1-slotted', 'h2', 'h2-a', 'h4-a', 'z']);
+    expect(tabs(7, { shiftKey: true })).toEqual(['h4-a', 'h2-a', 'h2', 'h1-slotted', 'h1-a', 'h1-b', 'a']);
+  });
+
+  it.each([
+    ['none checked', '', ['r1', 'z'], ['r3', 'a']],
+    ['one checked', 'r2', ['r2', 'z'], ['r2', 'a']],
+    ['a disabled one checked', 'r1', ['r2', 'z'], ['r3', 'a']],
+  ])('should stop once on a radio group with %s', (_, checked, forward, backward) => {
+    render(`<input id="a"><input type="radio" name="r" id="r1"><input type="radio" name="r" id="r2">
+      <input type="radio" name="r" id="r3"><input id="z">`);
+    if (checked) {
+      $(`#${checked}`).checked = true;
+    }
+    $('#r1').disabled = checked === 'r1';
+    $('#a').focus();
+    expect(tabs(2)).toEqual(forward);
+    $('#z').focus();
+    expect(tabs(2, { shiftKey: true })).toEqual(backward);
+  });
+
+  it('should stop on each unnamed radio, and on radios with the same name in other forms', () => {
+    render(`<input id="a"><input type="radio" id="u1"><input type="radio" id="u2">
+      <form><input type="radio" name="r" id="f1"></form><form><input type="radio" name="r" id="f2"></form>`);
+    $('#a').focus();
+    expect(tabs(4)).toEqual(['u1', 'u2', 'f1', 'f2']);
+  });
+
+  it('should leave focus alone when a handler cancels the keydown, or Control, Alt or Meta is held', () => {
+    render('<input id="a"><input id="b">');
+    $('#a').addEventListener('keydown', (event) => event.preventDefault(), { once: true });
+    $('#a').focus();
+    const presses = [{}, { ctrlKey: true }, { altKey: true }, { metaKey: true }];
+    expect(presses.map((init) => tab(init))).toEqual(['a', 'a', 'a', 'a']);
+  });
+
+  it("should fire the field's change before blur, and select the next text field's value", () => {
+    render('<input id="a"><input id="b" value="old"><textarea id="t">text</textarea>');
+    type($('#a'), 'x');
+    tab();
+    expect(log).toEqual(['change a=x', 'blur a=x', 'focus b=old']);
+    expect([$('#b').selectionStart, $('#b').selectionEnd]).toEqual([0, 3]);
+    tab();
+    expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
+  });
+
+  it('should focus a text field once, though select() focuses it in Chromium', () => {
+    const select = HTMLInputElement.prototype.select;
+    vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
+      select.call(this);
+      this.focus();
+    });
+    render('<input id="a"><input id="guard" value="g"><input id="z">');
+    $('#guard').addEventListener('focus', () => $('#z').focus(), { once: true });
+    $('#a').focus();
+    expect(tab()).toBe('z');
+    expect(log.filter((entry) => entry.startsWith('focus'))).toEqual(['focus a=', 'focus guard=g', 'focus z=']);
+  });
+
+  it("should select the next text field's value after the field focus leaves fires its change", () => {
+    render('<input id="zip"><input id="city">');
+    $('#zip').addEventListener('change', () => {
+      $('#city').value = 'Shelbyville';
+    });
+    type($('#zip'), '1');
+    tab();
+    expect([$('#city').selectionStart, $('#city').selectionEnd]).toEqual([0, 11]);
+  });
+
+  it('should leave the caret where the focus handler of the text field Tab moves to puts it', () => {
+    render('<input id="a"><input id="ph" value="+1 ">');
+    $('#ph').addEventListener('focus', () => $('#ph').setSelectionRange(3, 3));
+    $('#a').focus();
+    tab();
+    expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
+  });
+
+  it.each([
+    ['moving focus', '<input id="a"><input id="b">'],
+    ['leaving the page', '<input id="a">'],
+  ])("should fire the field's change when %s skips the blur", (_, html) => {
+    render(html);
+    type($('#a'), 'x');
+    withoutBlur(() => tab());
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
+
+  it("should fire the field's change when a handler cancels Tab and moves focus without a blur", () => {
+    render('<input id="a"><input id="b"><input id="c">');
+    type($('#a'), 'x');
+    const trap = (event: Event) => {
+      event.preventDefault();
+      withoutBlur(() => $('#c').focus());
+    };
+    $('#a').addEventListener('keydown', trap, { once: true });
+    expect(tab()).toBe('c');
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
+
+  it('should go from an element Tab skips to the nearest stop in tree order, or leave the page when there is none', () => {
+    render(`<div id="t1" tabindex="-1">t</div><input id="a"><div id="t2" tabindex="-1">t</div><input id="b">
+      <div id="t3" tabindex="-1">t</div>`);
+    const from = (id: string, init: KeyboardEventInit = {}) => {
+      $(`#${id}`).focus();
+      return tab(init);
+    };
+    expect([from('t2'), from('t2', { shiftKey: true }), from('t3'), from('t1', { shiftKey: true })]).toEqual([
+      'b',
+      'a',
+      'body',
+      'body',
+    ]);
+  });
+
+  it('should keep focus within a modal dialog', () => {
+    render('<input id="a"><dialog id="d" open><input id="d1"><input id="d2"></dialog><input id="z">');
+    // jsdom has no showModal.
+    const dialog = $('#d');
+    Object.defineProperty(dialog, 'matches', {
+      value: (selector: string) => selector === ':modal' || Element.prototype.matches.call(dialog, selector),
+    });
+    $('#d1').focus();
+    expect(tabs(4)).toEqual(['d2', 'body', 'd1', 'd2']);
+  });
+
+  it("should keep focus within a shadow root's modal dialog, including the fields slotted into it", () => {
+    render('<input id="a"><div id="host"><input id="s1"><input id="s2"></div><input id="z">');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<dialog open><slot></slot></dialog>';
+    const dialog = root.querySelector('dialog') as HTMLDialogElement;
+    Object.defineProperty(dialog, 'matches', {
+      value: (selector: string) => selector === ':modal' || Element.prototype.matches.call(dialog, selector),
+    });
+    $('#s1').focus();
+    expect(tabs(4)).toEqual(['s2', 'body', 's1', 's2']);
+  });
+
+  it('should leave focus where a focus trap sends it back', () => {
+    render(
+      '<input id="o1"><button id="g1">g1</button><button id="only">only</button><button id="g2">g2</button><input id="o2">',
+    );
+    for (const id of ['g1', 'g2']) {
+      $(`#${id}`).addEventListener('focus', () => $('#only').focus());
+    }
+    $('#only').focus();
+    expect([tab(), tab({ shiftKey: true })]).toEqual(['only', 'only']);
+  });
+
+  it('should leave focus where a focus trap in a shadow root sends it back', () => {
+    render('<input id="o1"><div id="host"></div><input id="o2">');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<button id="g1">g1</button><button id="only">only</button><button id="g2">g2</button>';
+    const only = root.querySelector('#only') as HTMLElement;
+    for (const id of ['#g1', '#g2']) {
+      root.querySelector(id)?.addEventListener('focus', () => only.focus());
+    }
+    only.focus();
+    expect([tab(), tab({ shiftKey: true })]).toEqual(['only', 'only']);
+  });
+
+  it('should focus each stop itself, never through a focus() the page defines', () => {
+    render('<input id="a"><div id="host" tabindex="0"></div><input id="z">');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<input id="inner">';
+    $('#host').focus = () => (root.querySelector('#inner') as HTMLElement).focus();
+    $('#a').focus();
+    expect(tabs(3)).toEqual(['host', 'inner', 'z']);
+  });
+
+  describe('with focus listeners the page registers in the capture phase', () => {
+    let removeListener = () => {};
+    const listen = (target: EventTarget, handler: (event: FocusEvent) => void) => {
+      target.addEventListener('focus', handler as EventListener, true);
+      removeListener = () => target.removeEventListener('focus', handler as EventListener, true);
+    };
+    afterEach(() => removeListener());
+
+    it("should leave a document focus trap's redirect alone, though select() focuses in Chromium", () => {
+      const select = HTMLInputElement.prototype.select;
+      vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
+        select.call(this);
+        this.focus();
+      });
+      render('<div id="modal"><button id="first">first</button><button id="last">last</button></div><input id="out">');
+      listen(document, (event) => {
+        if (!$('#modal').contains(event.target as Node)) {
+          $('#first').focus();
+        }
+      });
+      $('#last').focus();
+      expect(tab()).toBe('first');
+    });
+
+    it('should leave a focus trap that stops the focus event holding focus', () => {
+      render('<div id="modal"><button id="only">only</button></div><input id="out">');
+      listen(document, (event) => {
+        if (!$('#modal').contains(event.target as Node)) {
+          event.stopImmediatePropagation();
+          $('#only').focus();
+        }
+      });
+      $('#only').focus();
+      expect(tab()).toBe('only');
+    });
+  });
+
+  it('should stay on a field whose blur or change handler sends focus back to it', () => {
+    render('<input id="qty"><input id="name"><input id="email">');
+    // In Chrome and WebKit, a blur handler that refocuses the field cancels the move, so focus stays.
+    // jsdom moves focus anyway, so this fakes the engine.
+    const focus = HTMLElement.prototype.focus;
+    vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
+      if (this.id === 'name') {
+        $('#qty').dispatchEvent(new FocusEvent('blur'));
+      } else {
+        focus.call(this);
+      }
+    });
+    $('#qty').focus();
+    expect(tab()).toBe('qty');
+  });
+
+  it("should pass Tab on from a stop the page won't focus", () => {
+    render('<input id="x"><a id="bad" tabindex="foo">bad</a><input id="y">');
+    $('#x').focus();
+    expect(tabs(2)).toEqual(['y', 'body']);
+    $('#y').focus();
+    expect(tab({ shiftKey: true })).toBe('x');
   });
 });
 

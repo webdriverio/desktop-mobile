@@ -7,8 +7,7 @@
 // callback + startup/error markers, then delegates to core.
 
 import { DriverPool as CoreDriverPool, type DriverInfo } from '@wdio/native-core';
-import { isErr } from '@wdio/native-utils';
-
+import { isErr, mergeEnv } from '@wdio/native-utils';
 import { ensureTauriDriver } from './driverManager.js';
 import { forwardDriverLine } from './logForwarder.js';
 import { getWebKitWebDriverPath } from './pathResolver.js';
@@ -22,6 +21,7 @@ export interface DriverStartConfig {
   port: number;
   nativePort: number;
   options?: TauriServiceOptions;
+  // Set over the app's `env` from `options`, e.g. the instance's data directory
   env?: NodeJS.ProcessEnv;
   instanceId?: string;
 }
@@ -61,7 +61,8 @@ export class DriverPool {
       nativePort: config.nativePort,
       driverPath: tauriDriverPath,
       nativeDriverPath: this.nativeDriverPath,
-      env: config.env,
+      // The driver passes its environment on to the app; DriverProcess layers it over process.env
+      env: mergeEnv(serviceOptions.env, config.env),
       instanceId: config.instanceId,
       driverName: 'tauri-driver',
       startupMarkers: TAURI_STARTUP_MARKERS,
@@ -70,6 +71,14 @@ export class DriverPool {
         forwardDriverLine(line, inst, serviceOptions);
       },
     });
+  }
+
+  useNativeDriver(path: string): void {
+    if (this.nativeDriverPath) {
+      return;
+    }
+    this.nativeDriverPath = path;
+    this.nativeDriverPathResolved = true;
   }
 
   async stopDriver(identifier: string): Promise<void> {

@@ -195,8 +195,7 @@ describe('startEmbeddedDriver', () => {
       json: () => Promise.resolve({ value: { ready: true } }),
     });
 
-    const options: TauriServiceOptions = { appArgs: ['--test'] };
-    const result = await startEmbeddedDriver('/path/to/app', 4445, options);
+    const result = await startEmbeddedDriver('/path/to/app', ['--test'], 4445, {});
 
     expect(spawn).toHaveBeenCalledWith(
       '/path/to/app',
@@ -222,7 +221,7 @@ describe('startEmbeddedDriver', () => {
         }),
     );
 
-    const promise = startEmbeddedDriver('/path/to/nonexistent', 4445, {});
+    const promise = startEmbeddedDriver('/path/to/nonexistent', [], 4445, {});
 
     setImmediate(() => {
       mockProc.emit('error', new Error('ENOENT'));
@@ -235,7 +234,7 @@ describe('startEmbeddedDriver', () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('Connection refused'));
 
     const options: TauriServiceOptions = { startTimeout: 500 };
-    const promise = startEmbeddedDriver('/path/to/app', 4445, options);
+    const promise = startEmbeddedDriver('/path/to/app', [], 4445, options);
 
     await expect(promise).rejects.toThrow('Embedded WebDriver server did not become ready');
     expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
@@ -371,7 +370,7 @@ describe('embedded lifecycle races', () => {
   it('enforces startTimeout even while the HTTP request is stalled', async () => {
     const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
     const requests = stallFetch();
-    const result = startEmbeddedDriver('/app', 4445, { startTimeout: 20 }).catch((error: unknown) => error);
+    const result = startEmbeddedDriver('/app', [], 4445, { startTimeout: 20 }).catch((error: unknown) => error);
     await vi.advanceTimersByTimeAsync(20);
     expect(await result).toMatchObject({ message: expect.stringContaining('within 20ms') });
     expect(requests[0].aborted).toBe(true);
@@ -381,7 +380,7 @@ describe('embedded lifecycle races', () => {
   it('stops polling immediately when the child exits during startup', async () => {
     const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
     const requests = stallFetch();
-    const result = startEmbeddedDriver('/app', 4445, {});
+    const result = startEmbeddedDriver('/app', [], 4445, {});
     child.exitCode = 42;
     child.emit('exit', 42, null);
     await expect(result).rejects.toThrow('code=42');
@@ -397,7 +396,7 @@ describe('embedded lifecycle races', () => {
     vi.mocked(child.kill).mockImplementation(() => {
       throw cleanup;
     });
-    const result = startEmbeddedDriver('/app', 4445, { startTimeout: 20 }).catch((error: unknown) => error);
+    const result = startEmbeddedDriver('/app', [], 4445, { startTimeout: 20 }).catch((error: unknown) => error);
     await vi.advanceTimersByTimeAsync(20);
     const rejection = (await result) as AggregateError & { cause: Error };
     expect(rejection.cause).toMatchObject({ message: expect.stringContaining('within 20ms') });
@@ -410,7 +409,7 @@ describe('embedded lifecycle races', () => {
   it('removes startup listeners and timers when ready', async () => {
     const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
     globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ value: { ready: true } }) });
-    await startEmbeddedDriver('/app', 4445, {});
+    await startEmbeddedDriver('/app', [], 4445, {});
     expect(child.listenerCount('exit')).toBe(0);
     expect(child.listenerCount('error')).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
