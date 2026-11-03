@@ -313,3 +313,39 @@ describe('Embedded WebDriver Close Window', () => {
     expect(await browser.getWindowHandles()).not.toContain('close-guard');
   });
 });
+
+// Last in the file: it leaves the window minimized, as Set Window Rect doesn't restore it.
+describe('Embedded WebDriver focus emulation', () => {
+  before(async function () {
+    if (process.env.DRIVER_PROVIDER !== 'embedded' || process.platform !== 'win32') {
+      this.skip();
+    }
+
+    await browser.tauri.execute(({ core }) => core.invoke('switch_to_main'));
+    await browser.tauri.switchWindow('main');
+  });
+
+  it('should keep the page focused while the window is minimized', async () => {
+    await browser.minimizeWindow();
+    await browser.waitUntil(() =>
+      browser.tauri.execute(({ core }) => core.invoke<boolean>('plugin:window|is_minimized')),
+    );
+
+    const result = await browser.execute(() => {
+      const first = document.createElement('input');
+      const second = document.createElement('input');
+      document.body.append(first, second);
+      first.focus();
+      let blurred = false;
+      first.addEventListener('blur', () => {
+        blurred = true;
+      });
+      second.focus();
+      first.remove();
+      second.remove();
+      return { hasFocus: document.hasFocus(), blurred };
+    });
+
+    expect(result).toEqual({ hasFocus: true, blurred: true });
+  });
+});
