@@ -1,5 +1,3 @@
-// Kept out of index.ts: internal to DriverProcess, not package API
-
 // Without cmd.exe to strip them, quotes a caller put around a path would reach the driver as part of it
 export function unquote(arg: string): string {
   return arg.length > 1 && arg.startsWith('"') && arg.endsWith('"') ? arg.slice(1, -1) : arg;
