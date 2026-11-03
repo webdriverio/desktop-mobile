@@ -69,7 +69,7 @@ function enter() {
   events.wdioEnterKey(events.wdioDeepActiveElement());
 }
 
-// Stops `blur` and `focus` reaching the page, as WebKit does on scripted focus moves while its
+// Stops `blur` and `focus` reaching the page, as WebKitGTK does on scripted focus moves while its
 // window isn't focused.
 function withoutBlurOrFocus(run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
@@ -148,7 +148,7 @@ describe('pending change', () => {
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus a=x', 'blur a=x']);
   });
 
-  it("should fire it on focusout when no blur arrives, as in WebKit's unfocused windows", () => {
+  it("should fire it on focusout when no blur arrives, as in WebKitGTK's unfocused windows", () => {
     type($('#a'), 'x');
     withoutBlurOrFocus(() => $('#b').focus());
     expect(log).toEqual(['change a=x']);
@@ -595,7 +595,7 @@ describe('Tab', () => {
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
   });
 
-  it("should select the next text field and fire the change when no blur or focus arrives, as in WebKit's unfocused windows", () => {
+  it("should select the next text field and fire the change when no blur or focus arrives, as in WebKitGTK's unfocused windows", () => {
     render('<input id="a"><input id="b" value="old">');
     type($('#a'), 'x');
     withoutBlurOrFocus(() => tab());
@@ -751,8 +751,8 @@ describe('Tab', () => {
 
   it.each([
     ['a window in front', ['blur', 'focusout']],
-    // WebKit sends no blur while its window isn't focused.
-    ["WebKit's window without focus", ['focusout']],
+    // WebKitGTK sends no blur while its window isn't focused.
+    ["WebKitGTK's window without focus", ['focusout']],
   ])('should stay on a field whose blur or change handler sends focus back to it, in %s', (_, eventTypes) => {
     render('<input id="qty"><input id="name"><input id="email">');
     // In Chrome and WebKit, a handler that refocuses the field cancels the move, so focus stays.
@@ -932,7 +932,7 @@ describe('wdioFocusForClick', () => {
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus b=']);
   });
 
-  it('should stop when focus leaves the field, as when WebKit cancels a move in a window without focus', () => {
+  it('should stop when focus leaves the field, as when WebKitGTK cancels a move in a window without focus', () => {
     type($('#a'), 'x');
     // WebKit cancels a focus move that a focusout handler undoes; jsdom doesn't, so this fakes it.
     vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {
