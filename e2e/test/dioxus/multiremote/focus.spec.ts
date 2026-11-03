@@ -63,15 +63,15 @@ describe('Dioxus multiremote focus (embedded)', () => {
       }
     });
 
-    // WebKitGTK fires `focusout` but not `blur` while its window has no focus.
-    it('should fire change once focus leaves an edited field', async () => {
+    // For WebKitGTK builds that skip `blur` here, test/scripts/element-events.spec.ts covers the `focusout`-only path.
+    it('should fire change before blur once focus leaves an edited field', async () => {
       const all = instances();
       const focused = await Promise.all(all.map(hasFocus));
       expect(focused).toContain(false);
 
       for (const [index, instance] of all.entries()) {
         if (!focused[index]) {
-          expect(await editAndLeaveField(instance)).toEqual(['input x', 'change x', 'focusout x']);
+          expect(await editAndLeaveField(instance)).toEqual(['input x', 'change x', 'blur x', 'focusout x']);
         }
       }
     });
