@@ -69,8 +69,8 @@ function enter() {
   events.wdioEnterKey(events.wdioDeepActiveElement());
 }
 
-// Stops `blur` and `focus` reaching the page, as WebKitGTK does on scripted focus moves while its
-// window isn't focused.
+// Hides `blur` and `focus` from the page, as a WebKitGTK window without focus fires neither for
+// scripted focus moves.
 function withoutBlurOrFocus(run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
   for (const type of ['blur', 'focus']) {
@@ -751,7 +751,6 @@ describe('Tab', () => {
 
   it.each([
     ['a window in front', ['blur', 'focusout']],
-    // WebKitGTK sends no blur while its window isn't focused.
     ["WebKitGTK's window without focus", ['focusout']],
   ])('should stay on a field whose blur or change handler sends focus back to it, in %s', (_, eventTypes) => {
     render('<input id="qty"><input id="name"><input id="email">');

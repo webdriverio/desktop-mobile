@@ -48,8 +48,7 @@ pub fn init() {
   });
 }
 
-/// Returns `true` when the channel has been initialised, i.e. the embedded driver is active. The
-/// bridge turns on focus emulation only then.
+/// Whether the embedded driver is active, i.e. the channel is initialised.
 pub fn is_active() -> bool {
   CHANNEL.get().is_some()
 }

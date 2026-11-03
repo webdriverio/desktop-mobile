@@ -1,9 +1,8 @@
 use dioxus_core::VirtualDom;
 
-/// On Windows, makes `WebView2` treat the page as focused even while its window is in the
-/// background, where scripted focus moves otherwise fire no `focus`, `blur`, `focusin` or
-/// `focusout`. Elsewhere it does nothing. It runs from `with_on_window`, before Dioxus builds the
-/// webview, so the work waits in a task until the window's `DesktopContext` exists.
+/// On Windows, makes `WebView2` treat the page as focused while its window is in the background,
+/// where scripted focus moves fire no focus events. `with_on_window` runs before Dioxus builds the
+/// webview, so this waits in a task until the window's `DesktopContext` exists.
 pub(crate) fn emulate_page_focus(dom: &mut VirtualDom) {
   #[cfg(target_os = "windows")]
   dom.in_scope(dioxus_core::ScopeId::ROOT, || {
@@ -23,7 +22,7 @@ mod webview2 {
   pub(super) fn emulate_page_focus() {
     let desktop = dioxus_core::consume_context::<dioxus_desktop::DesktopContext>();
     // SAFETY: both types are #[repr(transparent)] pointers to the same WebView2 COM object, whose
-    // layout is fixed by WebView2, not by the crate version, so the bridge needn't match wry's.
+    // layout is fixed by WebView2, not by the crate version.
     #[allow(clippy::useless_transmute)]
     let webview: ICoreWebView2 = unsafe { std::mem::transmute(desktop.webview.webview()) };
     let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {

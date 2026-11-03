@@ -68,8 +68,8 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   linux::register_webview_handlers(webview);
 }
 
-/// Turns on page focus emulation when a WebDriver session starts. Windows only: in a background
-/// window, WebKit still fires `focusout`, which a field's owed `change` follows.
+/// Turns on focus emulation once a WebDriver session starts. Windows only, as WebKit still fires
+/// `focusout` in a background window.
 pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
   #[cfg(target_os = "windows")]
   windows::start_focus_emulation(app);

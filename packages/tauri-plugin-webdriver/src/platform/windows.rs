@@ -199,8 +199,8 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
   }
 }
 
-/// Register `WebView2` handlers at webview creation time, and focus emulation once a WebDriver session
-/// has started. This is called from the plugin's `on_webview_ready` hook to ensure the script dialog
+/// Registers `WebView2` handlers when a webview is created, and turns on focus emulation if a
+/// WebDriver session has started. The plugin's `on_webview_ready` hook calls it, so the script dialog
 /// handler is registered before any navigation completes.
 pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   // Get per-window alert state from the manager

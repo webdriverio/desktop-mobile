@@ -58,9 +58,10 @@ pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, regist
   }
 }
 
-/// Registers a window with WDIO, and with the embedded driver turns on the
-/// focus emulation it needs on Windows, for apps that set their own
-/// `with_on_window` callback. Set it after [`install`], which it replaces, and call this from it:
+/// For apps with their own `with_on_window` callback: registers the window
+/// with WDIO and, with the embedded driver, turns on the focus emulation it
+/// needs on Windows. Set your callback after [`install`], as it replaces the
+/// bridge's, and call this from it:
 ///
 /// ```ignore
 /// config = config.with_on_window(|window, dom| {

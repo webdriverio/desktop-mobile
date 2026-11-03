@@ -29,8 +29,8 @@ features = [ "derive" ]
 version = "1"
 features = [ "sync" ]
 
-# Need not match wry's, as the bridge transmutes wry's ICoreWebView2 onto its own type. Bump the
-# two together: windows-core must be the version webview2-com uses.
+# These needn't match wry's versions, as the bridge converts wry's ICoreWebView2 to its own type.
+# Bump them together: windows-core must be the version webview2-com uses.
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = "0.38"
 windows-core = "0.61"
