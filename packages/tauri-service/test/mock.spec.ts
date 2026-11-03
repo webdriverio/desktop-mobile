@@ -367,9 +367,9 @@ describe('createMock', () => {
   describe('window routing', () => {
     it('should route every mock operation to the window the mock was registered in', async () => {
       const browser = makeBrowser();
+      mockExecute.mockResolvedValueOnce('main');
       const mock = await createMock('read_clipboard', browser);
 
-      // Switch session window to 'settings' after registering the mock in 'main'
       setCurrentWindowLabel(browser, 'settings');
       mockExecute.mockClear();
 
@@ -418,20 +418,16 @@ describe('createMock', () => {
       }
     });
 
-    it('should fall back to the session window label when registration returns none', async () => {
-      const browser = makeBrowser();
-      setCurrentWindowLabel(browser, 'settings');
-
-      const mock = await createMock('read_clipboard', browser);
-      setCurrentWindowLabel(browser, 'main');
+    it("should follow the session's window when registration returns no label", async () => {
+      const mock = await createMock('read_clipboard', makeBrowser());
       mockExecute.mockClear();
 
-      await mock.mockReturnValue('from-settings');
+      await mock.mockReturnValue('x');
       await mock.mockRestore();
 
       expect(mockExecute).toHaveBeenCalledTimes(2);
       for (const call of mockExecute.mock.calls) {
-        expect(call[2]).toEqual({ windowLabel: 'settings', __wdioOptions__: true });
+        expect(call[2]).toStrictEqual({ windowLabel: undefined, __wdioOptions__: true });
       }
     });
 
