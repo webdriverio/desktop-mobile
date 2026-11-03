@@ -393,7 +393,8 @@ describe('createMock', () => {
       );
       await mock.mockRestore();
 
-      expect(mockExecute).toHaveBeenCalledTimes(14);
+      // 15, as withImplementation syncs the mock once its callback returns.
+      expect(mockExecute).toHaveBeenCalledTimes(15);
       for (const call of mockExecute.mock.calls) {
         expect(call[0]).toBe(browser);
         expect(call[2]).toEqual({ windowLabel: 'main', __wdioOptions__: true });
