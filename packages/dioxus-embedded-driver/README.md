@@ -43,7 +43,7 @@ Build the app with `dx build --desktop` rather than `cargo build`, so the files 
    - `DIOXUS_WEBVIEW_AUTOMATION=true`
    - `WDIO_EMBEDDED_PORT=<port>` (default 4444, unique per capability)
 
-2. `wdio_dioxus_embedded_driver::install(config)` installs the bridge and starts the HTTP server on `127.0.0.1` at the port in `WDIO_EMBEDDED_PORT` (4444 if unset). It does this on every debug launch, whether or not the service is driving the app.
+2. `wdio_dioxus_embedded_driver::install(config)` installs the bridge and starts the HTTP server on `127.0.0.1` at the port in `WDIO_EMBEDDED_PORT` (4444 if unset). Without `DIOXUS_WEBVIEW_AUTOMATION=true`, as in an ordinary debug run, it does nothing.
 
 3. `@wdio/dioxus-service` polls the `/status` endpoint until the server is ready, then establishes a WebDriver session.
 
@@ -58,6 +58,8 @@ The embedded driver works on all three platforms:
 | Windows  | ✅     |
 | Linux    | ✅     |
 | macOS    | ✅     |
+
+When WebdriverIO launches the app on Windows, the bridge turns on WebView2's focus emulation, which the driver relies on. The page then acts as focused while its window is in the background, so focus moves fire `focus` and `blur` as they do in a window in front. It also stays focused and visible whatever the window does: switching windows fires no window `focus` or `blur`, a minimized window fires no `visibilitychange`, and its timers aren't slowed. The bridge turns emulation on from its `with_on_window` callback, so an app with its own callback calls `wdio_dioxus::on_window` from it, or `wdio_dioxus_bridge::on_window` without `wdio-dioxus`.
 
 ## Limitations
 
@@ -88,7 +90,7 @@ WDIO_EMBEDDED_PORT=4445 npx wdio run wdio.conf.ts
 
 Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, a tab the Tab key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. In key actions, chromedriver sends a newline, a tab and a backspace character with the same `key` but an empty `code`.
 
-Key events go to the focused element, even one inside an open shadow root. Unless a `keydown` handler cancels it, a key types its character into a text field or contenteditable, Backspace and Delete delete in a text field, Control+A or Meta+A selects all, and the arrow keys check the next or previous radio button in a group. If the handler moves focus, typing, deleting and select-all act on the newly focused element, and the arrow keys still step from the radio that got the `keydown`, as in Chrome. With Control, Alt or Meta held, a key types nothing. A read-only or disabled field keeps its value. Edits in a text field fire `input` but no `beforeinput`, and the field fires `change` when focus leaves it, if its value changed. On Windows, while the app's window isn't focused, WebView2 fires no `blur` when a page handler moves focus, so that field's `change` can come late or not at all ([#915](https://github.com/webdriverio/desktop-mobile/issues/915)). [#927](https://github.com/webdriverio/desktop-mobile/issues/927) lists where typing still differs from Chrome, such as not deleting in a contenteditable.
+Key events go to the focused element, even one inside an open shadow root. Unless a `keydown` handler cancels it, a key types its character into a text field or contenteditable, Backspace and Delete delete in a text field, Control+A or Meta+A selects all, and the arrow keys check the next or previous radio button in a group. If the handler moves focus, typing, deleting and select-all act on the newly focused element, and the arrow keys still step from the radio that got the `keydown`, as in Chrome. With Control, Alt or Meta held, a key types nothing. A read-only or disabled field keeps its value. Edits in a text field fire `input` but no `beforeinput`, and the field fires `change` when focus leaves it, if its value changed. [#927](https://github.com/webdriverio/desktop-mobile/issues/927) lists where typing still differs from Chrome, such as not deleting in a contenteditable.
 
 Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held, so `addValue('x' + Key.Enter)` types `x`, then presses Enter. Element Send Keys types only into a text field or contenteditable, and refuses a file input.
 

@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -8,6 +9,7 @@ use serde_json::Value;
 use tauri::webview::PlatformWebview;
 use tauri::{Manager, Runtime, WebviewWindow};
 use tokio::sync::oneshot;
+use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
   ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Controller,
   ICoreWebView2Environment6, ICoreWebView2ExecuteScriptCompletedHandler,
@@ -147,9 +149,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
     let result = self.window.with_webview({
       let tx = tx.clone();
       move |webview| unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-        if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+        if let Ok(webview2) = core_webview2(&webview) {
           let script_hstring = HSTRING::from(&script_owned);
 
           let handler: ICoreWebView2ExecuteScriptCompletedHandler =
@@ -199,18 +199,20 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
   }
 }
 
-/// Register `WebView2` handlers at webview creation time.
-/// This is called from the plugin's `on_webview_ready` hook to ensure
-/// the script dialog handler is registered before any navigation completes.
+/// Registers `WebView2` handlers when a webview is created, and turns on focus emulation if a
+/// WebDriver session has started. The plugin's `on_webview_ready` hook calls it, so the script dialog
+/// handler is registered before any navigation completes.
 pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   // Get per-window alert state from the manager
   let manager = webview.app_handle().state::<AlertStateManager>();
   let alert_state = manager.get_or_create(webview.label());
 
   let _ = webview.with_webview(move |webview| unsafe {
-    let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+    if let Ok(webview2) = core_webview2(&webview) {
+      if FOCUS_EMULATION.load(Ordering::SeqCst) {
+        emulate_page_focus(&webview2);
+      }
 
-    if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
       // Disable default script dialogs so ScriptDialogOpening event fires
       if let Ok(settings) = webview2.Settings() {
         if let Err(e) = settings.SetAreDefaultScriptDialogsEnabled(false) {
@@ -236,6 +238,48 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
       std::mem::forget(handler);
     }
   });
+}
+
+/// The `ICoreWebView2` behind a webview, from inside `with_webview`.
+unsafe fn core_webview2(webview: &PlatformWebview) -> windows::core::Result<ICoreWebView2> {
+  let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+  rebind_controller(webview).CoreWebView2()
+}
+
+/// Set by the first WebDriver session, so webviews created after it emulate focus too.
+static FOCUS_EMULATION: AtomicBool = AtomicBool::new(false);
+
+/// Turns on focus emulation in every webview window once a WebDriver session starts, so an ordinary run
+/// of a build with the plugin keeps the window's real focus.
+pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
+  if FOCUS_EMULATION.swap(true, Ordering::SeqCst) {
+    return;
+  }
+  for window in app.webview_windows().into_values() {
+    let _ = window.with_webview(|webview| unsafe {
+      if let Ok(webview2) = core_webview2(&webview) {
+        emulate_page_focus(&webview2);
+      }
+    });
+  }
+}
+
+/// Makes `WebView2` treat the page as focused even while its window is in the background, where
+/// scripted focus moves otherwise fire no `focus`, `blur`, `focusin` or `focusout`.
+unsafe fn emulate_page_focus(webview2: &ICoreWebView2) {
+  let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {
+    if let Err(e) = result {
+      tracing::error!("Failed to turn on focus emulation: {e:?} {json}");
+    }
+    Ok(())
+  }));
+  let method = HSTRING::from("Emulation.setFocusEmulationEnabled");
+  let params = HSTRING::from(r#"{"enabled":true}"#);
+  if let Err(e) =
+    webview2.CallDevToolsProtocolMethod(PCWSTR(method.as_ptr()), PCWSTR(params.as_ptr()), &handler)
+  {
+    tracing::error!("Failed to turn on focus emulation: {e:?}");
+  }
 }
 
 #[async_trait]
@@ -273,7 +317,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
 
     let result = self.window.with_webview(move |webview| {
       unsafe {
-        if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+        if let Ok(webview2) = core_webview2(&webview) {
           // Create an in-memory stream for the PNG image
           let stream = match CreateStreamOnHGlobal(HGLOBAL::default(), true) {
             Ok(s) => s,
@@ -373,9 +417,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     let margin_right = options.margin_right;
 
     let result = self.window.with_webview(move |webview| unsafe {
-      let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-      let webview2 = match rebind_controller(&webview).CoreWebView2() {
+      let webview2 = match core_webview2(&webview) {
         Ok(wv) => wv,
         Err(e) => {
           if let Ok(mut guard) = tx.lock() {
@@ -544,9 +586,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     if !async_state.mark_handler_registered(&label) {
       let app_clone = app.clone();
       let handler_result = self.window.with_webview(move |webview| unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-        if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+        if let Ok(webview2) = core_webview2(&webview) {
           let state = app_clone.state::<AsyncScriptState>();
           register_message_handler(&webview2, state.inner());
         }

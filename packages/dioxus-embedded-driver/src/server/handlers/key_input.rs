@@ -166,9 +166,6 @@ fn key_event_script(
 ) -> String {
   let acts = !(after_dispatch.is_empty() && default_action.is_empty());
   let helpers = if acts { ELEMENT_EVENTS_JS } else { "" };
-  // Fires the `change` a field owes if a handler moved focus off it without a `blur`. Workaround
-  // for #886; drop once the drivers emulate focus.
-  let flush = if acts { "wdioFlushPendingChange();" } else { "" };
   let refocus = if default_action.is_empty() {
     ""
   } else {
@@ -201,7 +198,6 @@ fn key_event_script(
                     cancelable: true
                 }});
                 var canceled = !activeEl.dispatchEvent(keyEvent);
-                {flush}
                 {after_dispatch}
                 if (canceled) {{
                     return true;
@@ -578,7 +574,7 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                     focusTarget = focusTarget.parentElement;
                 }}
                 wdioCaretToEnd(el);
-                wdioFocus(focusTarget);
+                focusTarget.focus();
                 if (!wasFocused && el.isContentEditable) {{
                     try {{
                         var range = document.createRange();
@@ -714,12 +710,11 @@ mod tests {
   }
 
   #[test]
-  fn enter_fires_an_owed_change_then_breaks_the_line_or_runs_the_shared_enter_key_action() {
+  fn enter_breaks_the_line_or_runs_the_shared_enter_key_action_where_focus_is() {
     for value in ["\u{E007}", "\u{E006}", "\n"] {
       let script = down(value, NONE);
       let body = after_helpers(&script);
       let dispatch = body.find(DISPATCH).unwrap();
-      let flush = body.find("wdioFlushPendingChange();").unwrap();
       let guard = body.find(GUARD).unwrap();
       let refocus = guard + body[guard..].find("activeEl = wdioDeepActiveElement();").unwrap();
       let textarea = body.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
@@ -727,7 +722,7 @@ mod tests {
       let editor = body.find("} else if (activeEl.isContentEditable) {").unwrap();
       let paragraph = body.find("document.execCommand('insertParagraph', false, null);").unwrap();
       let enter_key = body.find("wdioEnterKey(activeEl);").unwrap();
-      assert!(dispatch < flush && flush < guard && guard < refocus, "{script}");
+      assert!(dispatch < guard && guard < refocus, "{script}");
       assert!(refocus < textarea && textarea < newline && newline < editor, "{script}");
       assert!(editor < paragraph && paragraph < enter_key, "{script}");
     }
@@ -965,7 +960,7 @@ mod tests {
     let stale = body.find("return { status: 'stale' };").unwrap();
     let file = body.find("el.type === 'file'").unwrap();
     let set = body.find(&format!("wdioSetValueControl(el, {});", js_string("2026-10-21"))).unwrap();
-    let focus = body.find("wdioFocus(focusTarget);").unwrap();
+    let focus = body.find("focusTarget.focus();").unwrap();
     assert!(stale < file && file < set && set < focus, "{body}");
     assert!(!body.contains("throw"));
   }
@@ -974,7 +969,7 @@ mod tests {
   fn send_keys_start_script_types_only_into_an_editable_text_field_or_editor() {
     let script = build_send_keys_start_script("__wdio_elem_abc", "x", Some("x"));
     let body = after_helpers(&script);
-    let focus = body.find("wdioFocus(focusTarget);").unwrap();
+    let focus = body.find("focusTarget.focus();").unwrap();
     let unfocused = body.find("return { status: 'unfocused' };").unwrap();
     let insert = body.find("var insertedText = \"x\";").unwrap();
     assert!(focus < unfocused && unfocused < insert, "{body}");
@@ -1086,7 +1081,7 @@ mod tests {
   }
 
   #[test]
-  fn keys_that_act_carry_the_helpers_once_and_fire_an_owed_change_after_the_event() {
+  fn keys_that_act_carry_the_helpers_once() {
     for script in [
       down(" ", NONE),
       key_script(" ", false, &NONE),
@@ -1099,11 +1094,6 @@ mod tests {
     ] {
       assert!(script.starts_with(&format!("(function() {{\n                {ELEMENT_EVENTS_JS}")));
       assert_eq!(script.matches(ELEMENT_EVENTS_JS).count(), 1, "{script}");
-      let body = after_helpers(&script);
-      let dispatch = body.find(DISPATCH).unwrap();
-      let flush = body.find("wdioFlushPendingChange();").unwrap();
-      let guard = body.find(GUARD).unwrap();
-      assert!(dispatch < flush && flush < guard, "{script}");
     }
     for script in [
       key_script("x", false, &NONE),

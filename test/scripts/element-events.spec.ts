@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /// <reference lib="dom" />
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +13,6 @@ const DIOXUS_COPY = 'packages/dioxus-embedded-driver/src/server/handlers/element
 type ElementEvents = {
   wdioDeepActiveElement(): Element;
   wdioRecordPendingChange(el: HTMLElement, value: string): void;
-  wdioFlushPendingChange(): void;
   wdioTakePendingChange(el?: HTMLElement): { el: HTMLElement; value: string } | undefined;
   wdioCommitOnEnter(el: HTMLElement): void;
   wdioSubmitOnEnter(el: HTMLElement): void;
@@ -33,7 +32,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioDeepActiveElement, wdioRecordPendingChange, wdioFlushPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioDeepActiveElement, wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -65,22 +64,24 @@ function type(el: HTMLInputElement, text: string) {
   log = [];
 }
 
-// Enter as the drivers press it: after the keydown, a field focus left without a blur fires its
-// change, then Enter acts on the element focused now.
+// Enter as the drivers press it: on the element focused after the keydown.
 function enter() {
-  events.wdioFlushPendingChange();
   events.wdioEnterKey(events.wdioDeepActiveElement());
 }
 
-// Stops `blur` reaching the page, as Chromium does on scripted focus moves while the window isn't
-// focused.
-function withoutBlur(run: () => void) {
+// Hides `blur` and `focus` from the page, as a WebKitGTK window without focus fires neither for
+// scripted focus moves.
+function withoutBlurOrFocus(run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
-  window.addEventListener('blur', stop, true);
+  for (const type of ['blur', 'focus']) {
+    window.addEventListener(type, stop, true);
+  }
   try {
     run();
   } finally {
-    window.removeEventListener('blur', stop, true);
+    for (const type of ['blur', 'focus']) {
+      window.removeEventListener(type, stop, true);
+    }
   }
 }
 
@@ -94,6 +95,20 @@ describe('element-events.js', () => {
   it('should be the same in both embedded driver crates', () => {
     expect(readFileSync(join(REPO_ROOT, DIOXUS_COPY), 'utf8'), `copy ${TAURI_COPY} over ${DIOXUS_COPY}`).toBe(source);
   });
+
+  it.each(['packages/tauri-plugin-webdriver/src', 'packages/dioxus-embedded-driver/src'])(
+    'should define every helper the Rust code in %s calls',
+    (dir) => {
+      const defined = new Set(Array.from(source.matchAll(/^function (wdio\w+)/gm), (match) => match[1]));
+      const called = readdirSync(join(REPO_ROOT, dir), { recursive: true, encoding: 'utf8' })
+        .filter((file) => file.endsWith('.rs'))
+        .flatMap((file) =>
+          Array.from(readFileSync(join(REPO_ROOT, dir, file), 'utf8').matchAll(/\b(wdio[A-Z]\w*)\(/g), (m) => m[1]),
+        );
+      expect(called.length).toBeGreaterThan(0);
+      expect([...new Set(called)].filter((name) => !defined.has(name))).toEqual([]);
+    },
+  );
 });
 
 beforeEach(() => {
@@ -133,35 +148,17 @@ describe('pending change', () => {
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus a=x', 'blur a=x']);
   });
 
-  it('should fire it when the driver next moves focus, if focus left the field without a blur', () => {
-    $('#a').value = 'x';
-    events.wdioRecordPendingChange($('#a'), '');
-    events.wdioFocusForClick($('#b'));
-    expect(log).toEqual(['change a=x', 'focus b=']);
-  });
-
-  it('should fire it before the driver focuses the field again, if focus left it without a blur', () => {
-    $('#a').value = 'x';
-    events.wdioRecordPendingChange($('#a'), '');
-    events.wdioClearElement($('#a'));
-    expect(log).toEqual(['change a=x', 'focus a=x', 'input a=', 'change a=', 'blur a=']);
-  });
-
-  it.each([
-    ['a click', () => events.wdioFocusForClick($('#b'))],
-    ['a clear', () => events.wdioClearElement($('#b'))],
-  ])('should fire it when %s moves focus without a blur', (_, run) => {
-    $('#b').value = 'y';
+  it("should fire it on focusout when no blur arrives, as in WebKitGTK's unfocused windows", () => {
     type($('#a'), 'x');
-    withoutBlur(run);
-    expect(log.filter((entry) => entry.startsWith('change a'))).toEqual(['change a=x']);
+    withoutBlurOrFocus(() => $('#b').focus());
+    expect(log).toEqual(['change a=x']);
   });
 
   it('should fire nothing on a field the page has removed', () => {
     type($('#a'), 'x');
     $('#a').remove();
-    events.wdioFocusForClick($('#b'));
-    expect(log).toEqual(['focus b=']);
+    events.wdioRecordPendingChange($('#b'), '');
+    expect(log).toEqual([]);
   });
 
   it('should fire it rather than drop it when another field records a change', () => {
@@ -457,21 +454,12 @@ describe('Enter and Space on a button', () => {
     expect(log).toEqual(expected);
   });
 
-  it.each([
-    ['', ['change i=x', 'blur i=x', 'focus b=', 'click b']],
-    // WebView2 skips the blur while its window isn't focused.
-    [' without a blur', ['focus b=', 'change i=x', 'click b']],
-  ])("should click the button a keydown handler moved focus to%s, after the field's change", (noBlur, expected) => {
+  it("should click the button a keydown handler moved focus to, after the field's change", () => {
     render('<form id="f"><input id="i"><button type="button" id="b">go</button><button id="s">go</button></form>');
     type($('#i'), 'x');
-    const keydownHandler = () => $('#b').focus();
-    if (noBlur) {
-      withoutBlur(keydownHandler);
-    } else {
-      keydownHandler();
-    }
+    $('#b').focus();
     enter();
-    expect(log).toEqual(expected);
+    expect(log).toEqual(['change i=x', 'blur i=x', 'focus b=', 'click b']);
   });
 });
 
@@ -480,12 +468,10 @@ describe('Tab', () => {
     vi.restoreAllMocks();
   });
 
-  // Tab as the drivers press it: the keydown goes to the focused element, a field focus left without a
-  // blur fires its change, then Tab's default action runs.
+  // Tab as the drivers press it: the keydown goes to the focused element, then its default action runs.
   function tab(init: KeyboardEventInit = {}) {
     const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true, ...init });
     events.wdioDeepActiveElement().dispatchEvent(event);
-    events.wdioFlushPendingChange();
     events.wdioTabKey(event);
     const el = events.wdioDeepActiveElement();
     return el.id || el.localName;
@@ -609,6 +595,22 @@ describe('Tab', () => {
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
   });
 
+  it("should select the next text field and fire the change when no blur or focus arrives, as in WebKitGTK's unfocused windows", () => {
+    render('<input id="a"><input id="b" value="old">');
+    type($('#a'), 'x');
+    withoutBlurOrFocus(() => tab());
+    expect(events.wdioDeepActiveElement().id).toBe('b');
+    expect([$('#b').selectionStart, $('#b').selectionEnd]).toEqual([0, 3]);
+    expect(log).toEqual(['change a=x']);
+  });
+
+  it("should fire the field's change when Tab leaves the page", () => {
+    render('<input id="a">');
+    type($('#a'), 'x');
+    tab();
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
+
   it('should focus a text field once, though select() focuses it in Chromium', () => {
     const select = HTMLInputElement.prototype.select;
     vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
@@ -638,28 +640,6 @@ describe('Tab', () => {
     $('#a').focus();
     tab();
     expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
-  });
-
-  it.each([
-    ['moving focus', '<input id="a"><input id="b">'],
-    ['leaving the page', '<input id="a">'],
-  ])("should fire the field's change when %s skips the blur", (_, html) => {
-    render(html);
-    type($('#a'), 'x');
-    withoutBlur(() => tab());
-    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
-  });
-
-  it("should fire the field's change when a handler cancels Tab and moves focus without a blur", () => {
-    render('<input id="a"><input id="b"><input id="c">');
-    type($('#a'), 'x');
-    const trap = (event: Event) => {
-      event.preventDefault();
-      withoutBlur(() => $('#c').focus());
-    };
-    $('#a').addEventListener('keydown', trap, { once: true });
-    expect(tab()).toBe('c');
-    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
   });
 
   it('should go from an element Tab skips to the nearest stop in tree order, or leave the page when there is none', () => {
@@ -769,14 +749,19 @@ describe('Tab', () => {
     });
   });
 
-  it('should stay on a field whose blur or change handler sends focus back to it', () => {
+  it.each([
+    ['a window in front', ['blur', 'focusout']],
+    ["WebKitGTK's window without focus", ['focusout']],
+  ])('should stay on a field whose blur or change handler sends focus back to it, in %s', (_, eventTypes) => {
     render('<input id="qty"><input id="name"><input id="email">');
-    // In Chrome and WebKit, a blur handler that refocuses the field cancels the move, so focus stays.
+    // In Chrome and WebKit, a handler that refocuses the field cancels the move, so focus stays.
     // jsdom moves focus anyway, so this fakes the engine.
     const focus = HTMLElement.prototype.focus;
     vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
       if (this.id === 'name') {
-        $('#qty').dispatchEvent(new FocusEvent('blur'));
+        for (const eventType of eventTypes) {
+          $('#qty').dispatchEvent(new FocusEvent(eventType, { bubbles: eventType === 'focusout', composed: true }));
+        }
       } else {
         focus.call(this);
       }
@@ -931,6 +916,10 @@ describe('wdioPress and wdioRelease', () => {
 });
 
 describe('wdioFocusForClick', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() =>
     render(`<input id="a"><button id="b"><span id="inner">b</span></button><div id="plain">plain</div>
       <label id="label" for="a">A</label><div id="box" tabindex="-1"><span id="text">text</span></div>`),
@@ -940,6 +929,17 @@ describe('wdioFocusForClick', () => {
     type($('#a'), 'x');
     events.wdioFocusForClick($('#b'));
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus b=']);
+  });
+
+  it('should stop when focus leaves the field, as when WebKitGTK cancels a move in a window without focus', () => {
+    type($('#a'), 'x');
+    // WebKit cancels a focus move that a focusout handler undoes; jsdom doesn't, so this fakes it.
+    vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {
+      $('#a').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
+    events.wdioFocusForClick($('#b'));
+    expect(document.activeElement?.id).toBe('a');
+    expect(log).toEqual(['change a=x']);
   });
 
   it('should focus the nearest focusable ancestor', () => {

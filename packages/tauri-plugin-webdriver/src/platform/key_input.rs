@@ -307,9 +307,6 @@ fn key_event_script(
 ) -> String {
   let acts = !(after_dispatch.is_empty() && default_action.is_empty());
   let helpers = if acts { ELEMENT_EVENTS_JS } else { "" };
-  // Fires the `change` a field owes if a handler moved focus off it without a `blur`. Workaround
-  // for #886; drop once the drivers emulate focus.
-  let flush = if acts { "wdioFlushPendingChange();" } else { "" };
   let refocus = if default_action.is_empty() {
     ""
   } else {
@@ -342,7 +339,6 @@ fn key_event_script(
                     cancelable: true
                 }});
                 var canceled = !activeEl.dispatchEvent(keyEvent);
-                {flush}
                 {after_dispatch}
                 if (canceled) {{
                     return true;
@@ -729,7 +725,7 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                     focusTarget = focusTarget.parentElement;
                 }}
                 wdioCaretToEnd(el);
-                wdioFocus(focusTarget);
+                focusTarget.focus();
                 if (!wasFocused && el.isContentEditable) {{
                     try {{
                         var range = document.createRange();
@@ -1449,7 +1445,7 @@ mod tests {
     let script = build_send_keys_start_script("__wd_el_abc", "", None);
     let body = after_helpers(&script);
     let field_caret = body.find("wdioCaretToEnd(el);").unwrap();
-    let focus = body.find("wdioFocus(focusTarget)").unwrap();
+    let focus = body.find("focusTarget.focus()").unwrap();
     let editor_caret = body.find("range.collapse(false)").unwrap();
     let delegated_caret = body.find("wdioCaretToEnd(receiver);").unwrap();
     assert!(field_caret < focus && focus < editor_caret && editor_caret < delegated_caret);
@@ -1480,7 +1476,7 @@ mod tests {
   #[test]
   fn build_send_keys_start_script_types_plain_text_in_the_same_script() {
     let plain = build_send_keys_start_script("__wd_el_abc", "hi", Some("hi"));
-    let focus = plain.find("wdioFocus(focusTarget)").unwrap();
+    let focus = plain.find("focusTarget.focus()").unwrap();
     let insert = plain.find("var insertedText = \"hi\"").unwrap();
     assert!(focus < insert);
     assert!(plain[insert..].contains("wdioRecordPendingChange(receiver, currentValue);"));
@@ -1502,20 +1498,19 @@ mod tests {
   }
 
   #[test]
-  fn enter_fires_an_owed_change_then_acts_on_the_element_focused_after_it() {
+  fn enter_acts_on_the_element_focused_after_its_keydown() {
     let none = mods(false, false, false, false);
     let shift = mods(false, true, false, false);
     for modifiers in [none, shift] {
       let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
       let body = after_helpers(&enter);
       let dispatch = body.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
-      let flush = body.find("wdioFlushPendingChange();").unwrap();
       let guard = body.find("if (canceled) {").unwrap();
       let refocus = guard + body[guard..].find("activeEl = wdioDeepActiveElement();").unwrap();
       let textarea = body.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
       let editor = body.find("} else if (activeEl.isContentEditable) {").unwrap();
       let enter_key = body.find("wdioEnterKey(activeEl);").unwrap();
-      assert!(dispatch < flush && flush < guard && guard < refocus, "{enter}");
+      assert!(dispatch < guard && guard < refocus, "{enter}");
       assert!(refocus < textarea && textarea < editor && editor < enter_key, "{enter}");
     }
     for held in [
@@ -1608,7 +1603,7 @@ mod tests {
   }
 
   #[test]
-  fn keys_that_act_carry_the_helpers_once_and_fire_an_owed_change_after_the_event() {
+  fn keys_that_act_carry_the_helpers_once() {
     let none = mods(false, false, false, false);
     let ctrl = mods(true, false, false, false);
     for script in [
@@ -1623,11 +1618,6 @@ mod tests {
     ] {
       assert!(script.starts_with(&format!("(function() {{\n                {ELEMENT_EVENTS_JS}")));
       assert_eq!(script.matches(ELEMENT_EVENTS_JS).count(), 1, "{script}");
-      let body = after_helpers(&script);
-      let dispatch = body.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
-      let flush = body.find("wdioFlushPendingChange();").unwrap();
-      let guard = body.find("if (canceled) {").unwrap();
-      assert!(dispatch < flush && flush < guard, "{script}");
     }
     for script in [
       build_printable_key_script("x", "KeyX", 88, false, &none),
@@ -1664,7 +1654,7 @@ mod tests {
     assert!(!after_helpers(&focused).contains("wdioRecordPendingChange("), "{focused}");
     let typed = build_send_keys_start_script("__wd_el_abc", "x", Some("x"));
     let body = after_helpers(&typed);
-    let focus = body.find("wdioFocus(focusTarget);").unwrap();
+    let focus = body.find("focusTarget.focus();").unwrap();
     assert!(focus < body.find("wdioRecordPendingChange(receiver, currentValue);").unwrap());
     assert!(!body.contains("new Event('change'"));
   }
@@ -1717,7 +1707,7 @@ mod tests {
       .unwrap();
     let returned = script.find("return { status: valueControlStatus };").unwrap();
     assert!(
-      file < set && set < returned && returned < script.find("wdioFocus(focusTarget);").unwrap()
+      file < set && set < returned && returned < script.find("focusTarget.focus();").unwrap()
     );
   }
 

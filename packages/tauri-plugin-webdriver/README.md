@@ -30,6 +30,8 @@ It is **not needed** if you use the `'external'` or `'crabnebula'` driver provid
 | Windows  | Full support | WebView2 native APIs  |
 | Linux    | Full support | WebKitGTK native APIs |
 
+On Windows, once a WebDriver session starts, the plugin turns on WebView2's focus emulation, so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front. The page also stays focused and visible whatever the window does: switching windows fires no window `focus` or `blur`, a minimized window fires no `visibilitychange`, and its timers aren't slowed. Turning it on for a page in a background window fires the `focus` the page missed, on the window and on its focused element.
+
 Android and iOS are not supported. The plugin still builds for them, so an app that also targets mobile compiles, but on mobile it does nothing.
 
 ## Installation
@@ -306,7 +308,7 @@ before a requested size is applied, including moves between displays.
 
 Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, a tab the Tab key and a backspace character the Backspace key, as in chromedriver, which skips a carriage return, so a `\r\n` line ending presses Enter once.
 
-Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held. If a `keydown` handler moves focus, typing, deleting and select-all act on the newly focused element, and the arrow keys still step from the radio that got the `keydown`, as in Chrome. A text field that keys edit fires `change` when focus leaves it, if its value changed. On Windows, while the app's window isn't focused, WebView2 fires no `blur` when a page handler moves focus, so that field's `change` can come late or not at all ([#915](https://github.com/webdriverio/desktop-mobile/issues/915)).
+Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held. If a `keydown` handler moves focus, typing, deleting and select-all act on the newly focused element, and the arrow keys still step from the radio that got the `keydown`, as in Chrome. A text field that keys edit fires `change` when focus leaves it, if its value changed.
 
 While Shift is held, a key sends and types the character Shift gives it on a US keyboard, as in Chrome: `browser.keys([Key.Shift, 'a', '1', ';'])` sends `key: 'A'`, `'!'` and `':'` and types `A!:`, and `addValue(Key.Shift + 'a1;')` types `A!:` too. The `code` and `keyCode` stay those of the key, and the numpad keys don't change.
 

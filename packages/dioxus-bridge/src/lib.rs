@@ -17,11 +17,15 @@
 pub mod automation;
 pub mod deeplink;
 pub mod embedded;
+mod focus;
 pub mod invoke;
 pub mod log_bridge;
 pub mod window_state;
 
-use dioxus_desktop::Config;
+use std::sync::Arc;
+
+use dioxus_core::VirtualDom;
+use dioxus_desktop::{tao::window::Window, Config};
 use serde_json::{json, Value};
 
 pub use invoke::CommandRegistry;
@@ -113,10 +117,17 @@ fn install_with_registry_and_config(
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
     .with_custom_head(head)
-    .with_on_window(|window, _dom| {
-      let label = window_state::register_window(&window);
-      tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
-    })
+    .with_on_window(|window, dom| on_window(&window, dom))
+}
+
+/// Registers a window with WDIO and, for the embedded driver, turns on focus emulation. Call it from
+/// your own `with_on_window` callback, which replaces the bridge's.
+pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
+  let label = window_state::register_window(window);
+  tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
+  if embedded::is_active() {
+    focus::emulate_page_focus(dom);
+  }
 }
 
 fn register_window_commands(registry: &CommandRegistry) {

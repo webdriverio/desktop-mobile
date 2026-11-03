@@ -41,6 +41,9 @@ function wdioDeepActiveElement() {
   return el;
 }
 
+// WebKitGTK sends only `focusout`, not `blur`, while its window isn't focused.
+const WDIO_FOCUS_LOSS_EVENTS = ['blur', 'focusout'];
+
 // Records that `el` owes a `change` once it loses focus, unless its value is `value` again by then.
 // An earlier record for `el` wins, as it holds the value from before the first edit.
 function wdioRecordPendingChange(el, value) {
@@ -49,32 +52,17 @@ function wdioRecordPendingChange(el, value) {
   }
   wdioFirePendingChange();
   const root = el.getRootNode();
-  // Capturing on the field's root runs before the field's own blur listeners, so `change` precedes
-  // `blur` however focus leaves, as in a browser.
-  const onBlur = (event) => {
+  // Capturing on the field's root runs before the field's own listeners, so `change` precedes
+  // `blur` however focus leaves, as in a browser. Whichever event arrives first fires it.
+  const onFocusLoss = (event) => {
     if (event.target === el) {
       wdioFirePendingChange(el);
     }
   };
-  root.addEventListener('blur', onBlur, true);
-  window.__wdio_pending_change = { el, value, root, onBlur };
-}
-
-// WebView2 skips `blur` on scripted focus moves while its window isn't focused, so the driver
-// calls this around its own focus moves and after each key event that acts, and a field that lost
-// focus without a `blur` fires the `change` it owes. Workaround for #886; drop once the drivers
-// emulate focus.
-function wdioFlushPendingChange() {
-  const record = window.__wdio_pending_change;
-  if (record && record.root.activeElement !== record.el) {
-    wdioFirePendingChange();
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    root.addEventListener(type, onFocusLoss, true);
   }
-}
-
-function wdioFocus(el, focus = el.focus) {
-  wdioFlushPendingChange();
-  focus.call(el);
-  wdioFlushPendingChange();
+  window.__wdio_pending_change = { el, value, root, onFocusLoss };
 }
 
 // The built-in focus() for `el`, such as HTMLElement's or SVGElement's. A native Tab never calls a
@@ -101,7 +89,9 @@ function wdioTakePendingChange(el) {
   if (!record || (el && record.el !== el)) {
     return undefined;
   }
-  record.root.removeEventListener('blur', record.onBlur, true);
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    record.root.removeEventListener(type, record.onFocusLoss, true);
+  }
   window.__wdio_pending_change = undefined;
   return record;
 }
@@ -178,12 +168,14 @@ function wdioTabKey(event) {
   }
   const start = wdioDeepActiveElement();
   // When a blur or change handler sends focus back to the field Tab is leaving, the move is cancelled
-  // and Tab ends there, as in Chrome. The field's blur tells this apart from a stop refusing focus.
+  // and Tab ends there, as in Chrome. If the field never lost focus, the stop refused to take it.
   let left = false;
-  const onBlur = () => {
+  const onFocusLoss = () => {
     left = true;
   };
-  start.addEventListener('blur', onBlur, true);
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    start.addEventListener(type, onFocusLoss, true);
+  }
   // The engine won't focus some stops, such as a link with an invalid tabindex, so Tab tries each in
   // turn until one takes focus, even if a focus trap then sends it straight back.
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
@@ -204,18 +196,19 @@ function wdioTabKey(event) {
       }
     };
     candidate.addEventListener('focus', onFocus, true);
-    wdioFocus(candidate, wdioNativeFocus(candidate));
+    wdioNativeFocus(candidate).call(candidate);
     candidate.removeEventListener('focus', onFocus, true);
-    // In a window without focus, no focus event fires, so select here instead.
+    // WebKitGTK fires no `focus` while its window isn't focused, so select here instead.
     if (isTextField && !focused) {
       select();
     }
     return focused || left || wdioDeepActiveElement() !== start;
   });
-  start.removeEventListener('blur', onBlur, true);
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    start.removeEventListener(type, onFocusLoss, true);
+  }
   if (!next) {
     wdioDeepActiveElement().blur();
-    wdioFlushPendingChange();
   }
 }
 
@@ -448,13 +441,16 @@ function wdioMouseDown(el, init) {
 // Moves focus as a mousedown on `el` does: to `el` or its nearest ancestor a click can focus, or off
 // the focused element when there is none.
 function wdioFocusForClick(el) {
-  wdioFlushPendingChange();
   const previous = wdioDeepActiveElement();
   let moved = false;
-  const onFocus = () => {
+  const onFocusChange = () => {
     moved = true;
   };
-  document.addEventListener('focus', onFocus, true);
+  // `focusin` and `focusout`, as WebKitGTK skips `focus` and `blur` while its window isn't focused.
+  const focusEvents = ['focusin', 'focusout'];
+  for (const type of focusEvents) {
+    document.addEventListener(type, onFocusChange, true);
+  }
   // `activeElement` reports a shadow host when focus is anywhere in its tree; that only counts as the
   // host holding focus when it delegates focus.
   const holdsFocus = (node) =>
@@ -484,14 +480,15 @@ function wdioFocusForClick(el) {
       break;
     }
   }
-  document.removeEventListener('focus', onFocus, true);
+  for (const type of focusEvents) {
+    document.removeEventListener(type, onFocusChange, true);
+  }
   if (!node || node === document.body) {
     const active = wdioDeepActiveElement();
     if (active !== document.body) {
       active.blur();
     }
   }
-  wdioFlushPendingChange();
 }
 
 // A label's focus() focuses its field, and Chromium's focuses a scrolling box, which no mousedown does.
@@ -552,7 +549,7 @@ function wdioClearElement(el) {
   if (field ? el.value === '' : el.innerHTML === '') {
     return 'empty';
   }
-  wdioFocus(el);
+  el.focus();
   const record = wdioTakePendingChange(el);
   const committedValue = record ? record.value : el.value;
   if (field) {
@@ -581,7 +578,7 @@ function wdioSetValueControl(el, typed) {
   if (el.readOnly || el.matches(':disabled')) {
     return 'immutable';
   }
-  wdioFocus(el);
+  el.focus();
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
   const previousValue = el.value;
   setValue.call(el, typed);

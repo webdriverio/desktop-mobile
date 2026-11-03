@@ -58,8 +58,10 @@ pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, regist
   }
 }
 
-/// Registers a window with WDIO, for apps that set their own `with_on_window`
-/// callback. Set it after [`install`], which it replaces, and call this from it:
+/// For apps with their own `with_on_window` callback: registers the window
+/// with WDIO and, with the embedded driver, turns on the focus emulation it
+/// needs on Windows. Set your callback after [`install`], as it replaces the
+/// bridge's, and call this from it:
 ///
 /// ```ignore
 /// config = config.with_on_window(|window, dom| {
@@ -69,10 +71,8 @@ pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, regist
 /// });
 /// ```
 pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
-  // Unused for now; it's in the signature so native webview calls can use it without an API change.
-  let _ = dom;
   if automation::is_requested() {
-    wdio_dioxus_bridge::window_state::register_window(window);
+    wdio_dioxus_bridge::on_window(window, dom);
   }
 }
 

@@ -68,6 +68,15 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   linux::register_webview_handlers(webview);
 }
 
+/// Turns on focus emulation once a WebDriver session starts. Windows only, as WebKit still fires
+/// `focusout` in a background window.
+pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
+  #[cfg(target_os = "windows")]
+  windows::start_focus_emulation(app);
+  #[cfg(not(target_os = "windows"))]
+  let _ = app;
+}
+
 /// Start the macOS headless run-loop pump as early as possible — from the plugin's `setup` hook, on
 /// the main thread — so it covers cold-start / deeplink navigation before the first webview is ready.
 /// `Once`-guarded in `macos::start_runloop_pump`, so the `on_webview_ready` call remains a harmless
