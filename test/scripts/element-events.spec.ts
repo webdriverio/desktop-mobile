@@ -60,15 +60,15 @@ function type(el: HTMLInputElement, text: string) {
   log = [];
 }
 
-// Runs `run` with `eventType` events stopped at the window, before the page's listeners, as WebKit
-// sends no `blur` or `focus` while its window isn't focused.
-function withStopped(eventType: string, run: () => void) {
+// Stops `blur` reaching the page, as current WebKit does on scripted focus moves while its window
+// isn't focused.
+function withoutBlur(run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
-  window.addEventListener(eventType, stop, true);
+  window.addEventListener('blur', stop, true);
   try {
     run();
   } finally {
-    window.removeEventListener(eventType, stop, true);
+    window.removeEventListener('blur', stop, true);
   }
 }
 
@@ -135,15 +135,10 @@ describe('pending change', () => {
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus a=x', 'blur a=x']);
   });
 
-  it.each([
-    ['the page moves focus', () => $('#b').focus()],
-    ['a click moves focus', () => events.wdioFocusForClick($('#b'))],
-    ['a clear moves focus', () => events.wdioClearElement($('#b'))],
-  ])("should fire it on focusout when %s and no blur arrives, as in WebKit's unfocused windows", (_, run) => {
-    $('#b').value = 'y';
+  it("should fire it on focusout when no blur arrives, as in WebKit's unfocused windows", () => {
     type($('#a'), 'x');
-    withStopped('blur', run);
-    expect(log.filter((entry) => entry.startsWith('change a'))).toEqual(['change a=x']);
+    withoutBlur(() => $('#b').focus());
+    expect(log).toEqual(['change a=x', 'focus b=']);
   });
 
   it('should fire nothing on a field the page has removed', () => {
@@ -445,19 +440,12 @@ describe('Enter and Space on a button', () => {
     expect(log).toEqual(expected);
   });
 
-  it.each([
-    ['', ['change i=x', 'blur i=x', 'focus b=', 'click b']],
-    [', on focusout if no blur arrives', ['change i=x', 'focus b=', 'click b']],
-  ])("should click the button a keydown handler moved focus to, after the field's change%s", (stopped, expected) => {
+  it("should click the button a keydown handler moved focus to, after the field's change", () => {
     render('<form id="f"><input id="i"><button type="button" id="b">go</button><button id="s">go</button></form>');
     type($('#i'), 'x');
-    if (stopped) {
-      withStopped('blur', () => $('#b').focus());
-    } else {
-      $('#b').focus();
-    }
+    $('#b').focus();
     events.wdioEnterKey();
-    expect(log).toEqual(expected);
+    expect(log).toEqual(['change i=x', 'blur i=x', 'focus b=', 'click b']);
   });
 });
 
@@ -601,51 +589,10 @@ describe('Tab', () => {
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
   });
 
-  it.each([
-    ['leaves the page', '<input id="a">', ''],
-    ['leaves the page, on focusout if no blur arrives', '<input id="a">', 'blur'],
-    ['moves to the next field, on focusout if no blur arrives', '<input id="a"><input id="b">', 'blur'],
-  ])("should fire the field's change when Tab %s", (_, html, stopped) => {
-    render(html);
+  it("should fire the field's change when Tab leaves the page", () => {
+    render('<input id="a">');
     type($('#a'), 'x');
-    if (stopped) {
-      withStopped(stopped, () => tab());
-    } else {
-      tab();
-    }
-    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
-  });
-
-  it.each(['', ', on focusout if no blur arrives'])(
-    "should fire the field's change when a handler cancels Tab and moves focus itself%s",
-    (stopped) => {
-      render('<input id="a"><input id="b"><input id="c">');
-      type($('#a'), 'x');
-      const trap = (event: Event) => {
-        event.preventDefault();
-        $('#c').focus();
-      };
-      $('#a').addEventListener('keydown', trap, { once: true });
-      let landed: string | undefined;
-      const press = () => {
-        landed = tab();
-      };
-      if (stopped) {
-        withStopped('blur', press);
-      } else {
-        press();
-      }
-      expect(landed).toBe('c');
-      expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
-    },
-  );
-
-  it("should fire the change and select the next field when neither blur nor focus arrives, as in WebKit's unfocused windows", () => {
-    render('<input id="a"><input id="b" value="old">');
-    type($('#a'), 'x');
-    withStopped('blur', () => withStopped('focus', () => tab()));
-    expect(focused()?.id).toBe('b');
-    expect([$('#b').selectionStart, $('#b').selectionEnd]).toEqual([0, 3]);
+    tab();
     expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
   });
 
@@ -670,14 +617,6 @@ describe('Tab', () => {
     type($('#zip'), '1');
     tab();
     expect([$('#city').selectionStart, $('#city').selectionEnd]).toEqual([0, 11]);
-  });
-
-  it("should select a text field before its focusin handlers when only focusin arrives, as in WebKit's unfocused windows", () => {
-    render('<input id="a"><input id="ph" value="+1 ">');
-    $('#ph').addEventListener('focusin', () => $('#ph').setSelectionRange(3, 3));
-    $('#a').focus();
-    withStopped('focus', () => tab());
-    expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
   });
 
   it('should leave the caret where the focus handler of the text field Tab moves to puts it', () => {

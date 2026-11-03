@@ -134,7 +134,7 @@ pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
   let label = window_state::register_window(window);
   tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
   if EMBEDDED.load(Ordering::SeqCst) {
-    focus::emulate_page_focus(dom, label);
+    focus::emulate_page_focus(dom);
   }
 }
 

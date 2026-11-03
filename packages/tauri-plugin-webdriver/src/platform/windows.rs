@@ -206,49 +206,38 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
   // Get per-window alert state from the manager
   let manager = webview.app_handle().state::<AlertStateManager>();
   let alert_state = manager.get_or_create(webview.label());
-  let label = webview.label().to_string();
 
-  let dispatch_label = label.clone();
-  let result = webview.with_webview(move |webview| unsafe {
-    let webview2 = match core_webview2(&webview) {
-      Ok(webview2) => webview2,
-      Err(e) => {
-        tracing::warn!("Failed to set up the WebView2 handlers of {label}: {e:?}");
+  let _ = webview.with_webview(move |webview| unsafe {
+    if let Ok(webview2) = core_webview2(&webview) {
+      if FOCUS_EMULATION.load(Ordering::SeqCst) {
+        emulate_page_focus(&webview2);
+      }
+
+      // Disable default script dialogs so ScriptDialogOpening event fires
+      if let Ok(settings) = webview2.Settings() {
+        if let Err(e) = settings.SetAreDefaultScriptDialogsEnabled(false) {
+          tracing::error!("Failed to disable default script dialogs: {e:?}");
+          return;
+        }
+      } else {
+        tracing::error!("Failed to get webview settings");
         return;
       }
-    };
 
-    if FOCUS_EMULATION.load(Ordering::SeqCst) {
-      emulate_page_focus(&webview2, &label);
-    }
+      let handler: ICoreWebView2ScriptDialogOpeningEventHandler =
+        ScriptDialogOpeningHandler::new(alert_state).into();
 
-    // Disable default script dialogs so ScriptDialogOpening event fires
-    if let Ok(settings) = webview2.Settings() {
-      if let Err(e) = settings.SetAreDefaultScriptDialogsEnabled(false) {
-        tracing::error!("Failed to disable default script dialogs: {e:?}");
-        return;
+      let mut token = std::mem::zeroed();
+      if let Err(e) = webview2.add_ScriptDialogOpening(&handler, &raw mut token) {
+        tracing::error!("Failed to register ScriptDialogOpening handler: {e:?}");
+      } else {
+        tracing::debug!("Registered script dialog handler for webview");
       }
-    } else {
-      tracing::error!("Failed to get webview settings");
-      return;
+
+      // Prevent handler from being dropped - leak it to keep the COM ref alive
+      std::mem::forget(handler);
     }
-
-    let handler: ICoreWebView2ScriptDialogOpeningEventHandler =
-      ScriptDialogOpeningHandler::new(alert_state).into();
-
-    let mut token = std::mem::zeroed();
-    if let Err(e) = webview2.add_ScriptDialogOpening(&handler, &raw mut token) {
-      tracing::error!("Failed to register ScriptDialogOpening handler: {e:?}");
-    } else {
-      tracing::debug!("Registered script dialog handler for webview");
-    }
-
-    // Prevent handler from being dropped - leak it to keep the COM ref alive
-    std::mem::forget(handler);
   });
-  if let Err(e) = result {
-    tracing::warn!("Failed to set up the WebView2 handlers of {dispatch_label}: {e}");
-  }
 }
 
 /// The `ICoreWebView2` behind a webview, from inside `with_webview`.
@@ -267,36 +256,29 @@ pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
     return;
   }
   for window in app.webview_windows().into_values() {
-    let label = window.label().to_string();
-    let result = window.with_webview(move |webview| unsafe {
-      match core_webview2(&webview) {
-        Ok(webview2) => emulate_page_focus(&webview2, &label),
-        Err(e) => tracing::error!("Failed to turn on focus emulation in {label}: {e:?}"),
+    let _ = window.with_webview(|webview| unsafe {
+      if let Ok(webview2) = core_webview2(&webview) {
+        emulate_page_focus(&webview2);
       }
     });
-    if let Err(e) = result {
-      tracing::error!("Failed to turn on focus emulation in {}: {e}", window.label());
-    }
   }
 }
 
 /// Makes `WebView2` treat the page as focused even while its window is in the background, where
 /// scripted focus moves otherwise fire no `focus` or `blur`.
-unsafe fn emulate_page_focus(webview2: &ICoreWebView2, label: &str) {
-  let in_label = label.to_string();
-  let handler =
-    CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, json| {
-      if let Err(e) = result {
-        tracing::error!("Failed to turn on focus emulation in {in_label}: {e:?} {json}");
-      }
-      Ok(())
-    }));
+unsafe fn emulate_page_focus(webview2: &ICoreWebView2) {
+  let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, json| {
+    if let Err(e) = result {
+      tracing::error!("Failed to turn on focus emulation: {e:?} {json}");
+    }
+    Ok(())
+  }));
   let method = HSTRING::from("Emulation.setFocusEmulationEnabled");
   let params = HSTRING::from(r#"{"enabled":true}"#);
   if let Err(e) =
     webview2.CallDevToolsProtocolMethod(PCWSTR(method.as_ptr()), PCWSTR(params.as_ptr()), &handler)
   {
-    tracing::error!("Failed to turn on focus emulation in {label}: {e:?}");
+    tracing::error!("Failed to turn on focus emulation: {e:?}");
   }
 }
 
