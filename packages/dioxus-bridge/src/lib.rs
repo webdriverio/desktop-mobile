@@ -124,9 +124,13 @@ fn install_with_registry_and_config(
 /// script so the polling loop starts up automatically.
 fn head(bridge_url: &str, embedded: Option<(u16, &str)>) -> String {
   match embedded {
-    Some((port, page_js)) => format!(
-      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};window.__WDIO_EMBEDDED_PORT={port};</script><script>{page_js}</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
-    ),
+    Some((port, page_js)) => {
+      let page_script =
+        if page_js.is_empty() { String::new() } else { format!("<script>{page_js}</script>") };
+      format!(
+        "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};window.__WDIO_EMBEDDED_PORT={port};</script>{page_script}<script type=\"module\">{GUEST_JS_BUNDLE}</script>"
+      )
+    }
     None => format!(
       "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
     ),
@@ -179,5 +183,7 @@ mod tests {
     let page = head.find("<script>window.page = 1;</script>").unwrap();
     let guest = head.find("<script type=\"module\">").unwrap();
     assert!(port < page && page < guest, "{head}");
+    let without = super::head("wdio://invoke", Some((4444, "")));
+    assert!(!without.contains("<script></script>"), "{without}");
   }
 }

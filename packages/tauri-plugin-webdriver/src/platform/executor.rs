@@ -1680,8 +1680,8 @@ where
 /// Only a script that checks for the helpers can miss them: any other script's result can be any
 /// string, the marker included.
 fn misses_element_events(script: &str, result: &Value) -> bool {
-  script.contains(ELEMENT_EVENTS_MISSING)
-    && result.get("value").and_then(Value::as_str) == Some(ELEMENT_EVENTS_MISSING)
+  result.get("value").and_then(Value::as_str) == Some(ELEMENT_EVENTS_MISSING)
+    && script.contains(ELEMENT_EVENTS_MISSING)
 }
 
 fn click_press_script(js_var: &str) -> String {

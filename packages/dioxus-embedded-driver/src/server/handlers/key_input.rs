@@ -12,7 +12,8 @@ use super::element::ELEMENT_EVENTS_JS;
 
 // The non-test functions below `key_script` are copies of tauri-plugin-wdio-webdriver's
 // key_input.rs, since a published crate can only include its own files.
-// test/scripts/key-tables.spec.ts checks the copies match.
+// test/scripts/key-tables.spec.ts checks the copies match. `element_events_script` differs: only
+// Tauri's checks for the helpers, as only Tauri can run a script in a page that lacks them.
 
 /// JS dispatching one keydown or keyup of a WebDriver key value and running its default action,
 /// picking the script as the Tauri driver's `dispatch_key_event` does.
