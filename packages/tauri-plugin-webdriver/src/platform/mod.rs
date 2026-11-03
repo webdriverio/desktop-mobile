@@ -69,8 +69,7 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
 }
 
 /// Turns on page focus emulation when a WebDriver session starts. Windows only: in a background
-/// window, `WebView2` fires no `focus`, `blur`, `focusin` or `focusout` for scripted focus moves.
-/// WebKit still fires `focusout`, which a field's owed `change` follows.
+/// window, WebKit still fires `focusout`, which a field's owed `change` follows.
 pub fn start_focus_emulation<R: Runtime>(app: &tauri::AppHandle<R>) {
   #[cfg(target_os = "windows")]
   windows::start_focus_emulation(app);

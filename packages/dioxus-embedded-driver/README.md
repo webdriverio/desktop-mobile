@@ -43,7 +43,7 @@ Build the app with `dx build --desktop` rather than `cargo build`, so the files 
    - `DIOXUS_WEBVIEW_AUTOMATION=true`
    - `WDIO_EMBEDDED_PORT=<port>` (default 4444, unique per capability)
 
-2. `wdio_dioxus_embedded_driver::install(config)` installs the bridge and starts the HTTP server on `127.0.0.1` at the port in `WDIO_EMBEDDED_PORT` (4444 if unset). It does this on every debug launch, whether or not the service is driving the app.
+2. `wdio_dioxus_embedded_driver::install(config)` installs the bridge and starts the HTTP server on `127.0.0.1` at the port in `WDIO_EMBEDDED_PORT` (4444 if unset). Without `DIOXUS_WEBVIEW_AUTOMATION=true`, as in an ordinary debug run, it does nothing.
 
 3. `@wdio/dioxus-service` polls the `/status` endpoint until the server is ready, then establishes a WebDriver session.
 
@@ -59,7 +59,7 @@ The embedded driver works on all three platforms:
 | Linux    | ✅     |
 | macOS    | ✅     |
 
-When WebdriverIO launches the app on Windows, the bridge's `with_on_window` callback turns on WebView2's focus emulation, which the driver relies on (an app with its own callback calls `wdio_dioxus::on_window` from it, or `wdio_dioxus_bridge::on_window` without `wdio-dioxus`), so the page acts as focused while its window is in the background, and focus moves fire `focus` and `blur` as they do in a window in front. The page also stays focused and visible whatever the window does: switching windows fires no window `focus` or `blur`, a minimized window fires no `visibilitychange`, and its timers aren't slowed.
+When WebdriverIO launches the app on Windows, the bridge turns on WebView2's focus emulation, which the driver relies on. The page then acts as focused while its window is in the background, so focus moves fire `focus` and `blur` as they do in a window in front. It also stays focused and visible whatever the window does: switching windows fires no window `focus` or `blur`, a minimized window fires no `visibilitychange`, and its timers aren't slowed. The bridge turns emulation on from its `with_on_window` callback, so an app with its own callback calls `wdio_dioxus::on_window` from it, or `wdio_dioxus_bridge::on_window` without `wdio-dioxus`.
 
 ## Limitations
 
