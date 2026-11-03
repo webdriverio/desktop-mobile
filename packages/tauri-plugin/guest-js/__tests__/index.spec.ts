@@ -463,116 +463,193 @@ describe('setupConsoleForwarding', () => {
   });
 });
 
-describe('setupInvokeInterception', () => {
+describe('IPC interception', () => {
+  const originalFetch = window.fetch;
+  let appFetch: ReturnType<typeof vi.fn>;
+
+  // Sends each command as Tauri's IPC does: one fetch per invoke, settled through runCallback
+  function installTauriInternals(ipcOrigin = 'ipc://localhost') {
+    const callbacks = new Map<number, (data: unknown) => void>();
+    let nextId = 1;
+    const internals = {
+      convertFileSrc: (filePath: string, protocol = 'asset') =>
+        `${ipcOrigin.replace('ipc', protocol)}/${encodeURIComponent(filePath)}`,
+      runCallback: (id: number, data: unknown) => callbacks.get(id)?.(data),
+      invoke: (cmd: string, payload: unknown = {}, options?: { headers?: Record<string, string> }) =>
+        new Promise((resolve, reject) => {
+          const callback = nextId++;
+          const error = nextId++;
+          callbacks.set(callback, resolve);
+          callbacks.set(error, reject);
+          const headers = new Headers(options?.headers);
+          headers.set('Content-Type', 'application/json');
+          headers.set('Tauri-Callback', String(callback));
+          headers.set('Tauri-Error', String(error));
+          fetch(internals.convertFileSrc(cmd, 'ipc'), { method: 'POST', body: JSON.stringify(payload), headers }).then(
+            async (response) =>
+              internals.runCallback(
+                response.headers.get('Tauri-Response') === 'ok' ? callback : error,
+                await response.json(),
+              ),
+            reject,
+          );
+        }),
+    };
+    (window as any).__TAURI_INTERNALS__ = internals;
+    return internals;
+  }
+
+  async function loadPlugin() {
+    vi.resetModules();
+    const mod = await import('../index.js');
+    await mod.init();
+  }
+
+  beforeEach(() => {
+    appFetch = vi.fn(
+      async (url: string) =>
+        new Response(JSON.stringify(`app:${url}`), {
+          headers: { 'Tauri-Response': 'ok', 'Content-Type': 'application/json' },
+        }),
+    );
+    window.fetch = appFetch as unknown as typeof fetch;
+  });
+
   afterEach(() => {
-    delete (window as any).__TAURI__;
+    window.fetch = originalFetch;
+    delete (window as any).__TAURI_INTERNALS__;
     delete (window as any).__wdio_mocks__;
+    delete (window as any).wdioTauri;
     vi.restoreAllMocks();
     vi.resetModules();
   });
 
-  it('should wrap core.invoke to intercept calls', async () => {
-    vi.resetModules();
-    const originalInvoke = vi.fn().mockResolvedValue('original-result');
-    (window as any).__TAURI__ = createTauriMock(originalInvoke);
-
-    const mod = await import('../index.js');
-    await mod.init();
-
-    expect((window as any).__TAURI__.core.invoke).not.toBe(originalInvoke);
-  });
-
-  it('should set the _wdioInvokeInterceptor flag', async () => {
-    vi.resetModules();
-    (window as any).__TAURI__ = createTauriMock();
-
-    const mod = await import('../index.js');
-    await mod.init();
-
-    expect((window as any).__TAURI__.core._wdioInvokeInterceptor).toBe(true);
-  });
-
-  it('should pass through to original invoke when no mock exists', async () => {
-    vi.resetModules();
-    const originalInvoke = vi.fn().mockResolvedValue('real-result');
-    (window as any).__TAURI__ = createTauriMock(originalInvoke);
-
-    const mod = await import('../index.js');
-    await mod.init();
-
-    const wrappedInvoke = (window as any).__TAURI__.core.invoke;
-    const result = await wrappedInvoke('some_command', { key: 'value' });
-
-    expect(result).toBe('real-result');
-    expect(originalInvoke).toHaveBeenCalledWith('some_command', { key: 'value' });
-  });
-
-  it('should use mock when window.__wdio_mocks__ has a matching command', async () => {
-    vi.resetModules();
-    const originalInvoke = vi.fn().mockResolvedValue('real-result');
+  it.each([
+    ['ipc://localhost', 'macOS and Linux'],
+    ['http://ipc.localhost', 'Windows'],
+  ])('should route a command the app invokes to its mock with %s URLs (%s)', async (ipcOrigin) => {
+    const internals = installTauriInternals(ipcOrigin);
     const mockFn = vi.fn().mockResolvedValue('mocked-result');
-    (window as any).__TAURI__ = createTauriMock(originalInvoke);
-    (window as any).__wdio_mocks__ = {
-      my_command: mockFn,
-    };
+    (window as any).__wdio_mocks__ = { 'plugin:my|command': mockFn };
+    await loadPlugin();
 
-    const mod = await import('../index.js');
-    await mod.init();
+    await expect(internals.invoke('plugin:my|command', { foo: 'bar' })).resolves.toBe('mocked-result');
 
-    const wrappedInvoke = (window as any).__TAURI__.core.invoke;
-    const result = await wrappedInvoke('my_command', { foo: 'bar' });
-
-    expect(result).toBe('mocked-result');
     expect(mockFn).toHaveBeenCalledWith({ foo: 'bar' });
-    expect(originalInvoke).not.toHaveBeenCalledWith('my_command', expect.anything());
+    expect(appFetch).not.toHaveBeenCalledWith(`${ipcOrigin}/plugin%3Amy%7Ccommand`, expect.anything());
   });
 
-  it('should propagate mock errors', async () => {
-    vi.resetModules();
-    const mockFn = vi.fn().mockRejectedValue(new Error('mock error'));
-    (window as any).__TAURI__ = createTauriMock();
+  it('should call the mock before invoke returns', async () => {
+    const internals = installTauriInternals();
+    const mockFn = vi.fn();
+    (window as any).__wdio_mocks__ = { my_command: mockFn };
+    await loadPlugin();
+
+    const pending = internals.invoke('my_command');
+
+    expect(mockFn).toHaveBeenCalledOnce();
+    await pending;
+  });
+
+  it('should reject with the error the mock throws', async () => {
+    const internals = installTauriInternals();
+    const failure = new Error('mock error');
     (window as any).__wdio_mocks__ = {
-      failing_command: mockFn,
+      failing_command: () => {
+        throw failure;
+      },
     };
+    await loadPlugin();
 
-    const mod = await import('../index.js');
-    await mod.init();
-
-    const wrappedInvoke = (window as any).__TAURI__.core.invoke;
-    await expect(wrappedInvoke('failing_command')).rejects.toThrow('mock error');
+    await expect(internals.invoke('failing_command')).rejects.toBe(failure);
   });
 
-  it('should retry when window.__TAURI__.core is not immediately available', async () => {
-    vi.resetModules();
+  it('should send a command with no mock to the app', async () => {
+    const internals = installTauriInternals();
+    (window as any).__wdio_mocks__ = { other_command: vi.fn() };
+    await loadPlugin();
+
+    await expect(internals.invoke('my_command')).resolves.toBe('app:ipc://localhost/my_command');
+  });
+
+  it('should send a mocked command to the app when the request skips mocks', async () => {
+    const internals = installTauriInternals();
+    const mockFn = vi.fn();
+    (window as any).__wdio_mocks__ = { 'plugin:event|emit': mockFn };
+    await loadPlugin();
+
+    await expect(
+      internals.invoke('plugin:event|emit', { event: 'foo' }, { headers: { 'Wdio-Skip-Mocks': '1' } }),
+    ).resolves.toBe('app:ipc://localhost/plugin%3Aevent%7Cemit');
+    expect(mockFn).not.toHaveBeenCalled();
+  });
+
+  it('should pass a binary payload to the mock unchanged', async () => {
+    installTauriInternals();
+    const mockFn = vi.fn();
+    (window as any).__wdio_mocks__ = { upload: mockFn };
+    await loadPlugin();
+    const bytes = new Uint8Array([1, 2, 3]);
+
+    void window.fetch('ipc://localhost/upload', {
+      method: 'POST',
+      body: bytes,
+      headers: { 'Content-Type': 'application/octet-stream', 'Tauri-Callback': '1', 'Tauri-Error': '2' },
+    });
+
+    expect(mockFn).toHaveBeenCalledWith(bytes);
+  });
+
+  it('should leave requests that are not IPC commands to fetch', async () => {
+    installTauriInternals();
+    await loadPlugin();
+
+    await window.fetch('https://example.com/data');
+
+    expect(appFetch).toHaveBeenCalledWith('https://example.com/data', undefined);
+  });
+
+  it("should leave fetch alone without Tauri's IPC, as in browser mode", async () => {
+    (window as any).__TAURI_INTERNALS__ = { invoke: vi.fn() };
+    await loadPlugin();
+
+    expect(window.fetch).toBe(appFetch);
+  });
+
+  it('should wrap fetch once when the plugin loads again', async () => {
+    installTauriInternals();
+    await loadPlugin();
+    const interceptedFetch = window.fetch;
+
+    await loadPlugin();
+
+    expect(window.fetch).not.toBe(appFetch);
+    expect(window.fetch).toBe(interceptedFetch);
+  });
+
+  it('should restore fetch on cleanupInvokeInterception', async () => {
+    installTauriInternals();
+    await loadPlugin();
+
+    window.wdioTauri?.cleanupInvokeInterception?.();
+
+    expect(window.fetch).toBe(appFetch);
+  });
+
+  it('should snapshot window.__TAURI__.core when the app sets it up after init', async () => {
     vi.useFakeTimers();
-
     (window as any).__TAURI__ = {};
+    await loadPlugin();
 
-    const mod = await import('../index.js');
-    const initPromise = mod.init();
-
-    (window as any).__TAURI__.core = { invoke: vi.fn().mockResolvedValue('delayed-result') };
-
+    const core = { invoke: vi.fn() };
+    (window as any).__TAURI__.core = core;
     await vi.advanceTimersByTimeAsync(500);
-    await initPromise;
 
-    expect((window as any).__TAURI__.core._wdioInvokeInterceptor).toBe(true);
+    expect((window as any).__wdio_original_core__).toBe(core);
     vi.useRealTimers();
-  });
-
-  it('should not set up interception twice', async () => {
-    vi.resetModules();
-    const originalInvoke = vi.fn().mockResolvedValue('result');
-    (window as any).__TAURI__ = createTauriMock(originalInvoke);
-
-    const mod = await import('../index.js');
-    await mod.init();
-
-    const firstWrappedInvoke = (window as any).__TAURI__.core.invoke;
-
-    await mod.init();
-
-    expect((window as any).__TAURI__.core.invoke).toBe(firstWrappedInvoke);
+    delete (window as any).__TAURI__;
+    delete (window as any).__wdio_original_core__;
+    delete (window as any).__wdio_original_tauri__;
   });
 });
 

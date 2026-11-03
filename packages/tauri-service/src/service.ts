@@ -869,18 +869,25 @@ async function emitTauriEvent(
             payload,
           },
         ];
-  // Mocks only wrap tauri.core.invoke, so calling __TAURI_INTERNALS__.invoke keeps a mock of these
-  // commands from swallowing the test's own emit
+  // Mocks see tauri.core.invoke, and every IPC request without the plugin's SKIP_MOCKS_HEADER, so this
+  // keeps a mock of these commands from swallowing the test's own emit
   await execute(
     browser,
-    (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) =>
+    (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>, headers: Record<string, string>) =>
       (
         globalThis as unknown as {
-          __TAURI_INTERNALS__: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<unknown> };
+          __TAURI_INTERNALS__: {
+            invoke: (
+              cmd: string,
+              args: Record<string, unknown>,
+              options: { headers: Record<string, string> },
+            ) => Promise<unknown>;
+          };
         }
-      ).__TAURI_INTERNALS__.invoke(cmd, cmdArgs),
+      ).__TAURI_INTERNALS__.invoke(cmd, cmdArgs, { headers }),
     command,
     args,
+    { 'Wdio-Skip-Mocks': '1' },
   );
 }
 

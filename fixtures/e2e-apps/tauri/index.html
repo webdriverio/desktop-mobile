@@ -101,6 +101,13 @@
         <div id="keys-scratch"></div>
       </div>
 
+      <div class="app-calls-section">
+        <button type="button" id="invoke-api-button">Invoke via @tauri-apps/api</button>
+        <button type="button" id="invoke-global-button">Invoke via window.__TAURI__</button>
+        <button type="button" id="emit-api-button">Emit via @tauri-apps/api</button>
+        <div class="status" id="app-call-result"></div>
+      </div>
+
       <div class="info-section">
         <p>This is a basic Tauri application for WebDriverIO testing.</p>
         <div class="status" id="status">Ready for testing</div>
@@ -118,6 +125,8 @@
       // Import WebDriverIO Tauri plugin frontend API
       // This provides window.wdioTauri for testing
       import '@wdio/tauri-plugin';
+      import { invoke } from '@tauri-apps/api/core';
+      import { emit } from '@tauri-apps/api/event';
 
       console.log('[App] Plugin imported');
       console.log('[App] window.wdioTauri available after import:', typeof window.wdioTauri !== 'undefined');
@@ -129,28 +138,8 @@
       console.warn('[Test] This is a WARN level log');
       console.error('[Test] This is an ERROR level log');
 
-      // Import Tauri API using npm module approach (recommended for v2)
-      // This is the preferred way in Tauri v2
       (async () => {
-        console.log('[App] Starting Tauri API setup...');
-        console.log('[App] window.__TAURI__ before setup:', window.__TAURI__);
-
         try {
-          const { invoke } = await import('@tauri-apps/api/core');
-          console.log('[App] Successfully imported @tauri-apps/api/core');
-
-          // Ensure window.__TAURI__ exists and expose invoke for WebDriver tests
-          if (!window.__TAURI__) {
-            console.log('[App] Creating window.__TAURI__');
-            window.__TAURI__ = {};
-          }
-          if (!window.__TAURI__.core) {
-            console.log('[App] Creating window.__TAURI__.core');
-            window.__TAURI__.core = {};
-          }
-          window.__TAURI__.core.invoke = invoke;
-          console.log('[App] window.__TAURI__.core.invoke set successfully');
-
           // Listen for log events from Rust backend and log via console.log
           // This ensures logs are captured by WebDriver via browser console protocol
           const { listen } = await import('@tauri-apps/api/event');
@@ -169,17 +158,8 @@
           });
           console.log('[App] Log event listener setup complete');
         } catch (error) {
-          console.warn('[App] Failed to import @tauri-apps/api/core, using global API:', error);
-          // Fallback: ensure window.__TAURI__.core.invoke exists (should be available with withGlobalTauri: true)
-          if (!window.__TAURI__?.core?.invoke) {
-            console.error('[App] Tauri API not available. Make sure withGlobalTauri is enabled in tauri.conf.json');
-          } else {
-            console.log('[App] Using global Tauri API');
-          }
+          console.error('[App] Failed to set up the log event listener:', error);
         }
-
-        console.log('[App] Final window.wdioTauri check:', typeof window.wdioTauri !== 'undefined');
-        console.log('[App] Final window.__TAURI__ check:', window.__TAURI__);
       })();
 
       let count = 0;
@@ -255,6 +235,28 @@
           window.__keysInputEvents.push({ type: ev.type, value: ev.target.value });
         });
       }
+
+      // Each button calls a command as an app does, so a spec can check that mocks see the app's own calls.
+      const appCallResult = document.getElementById('app-call-result');
+      function showAppCallResult(call) {
+        call.then(
+          (value) => {
+            appCallResult.textContent = JSON.stringify(value ?? null);
+          },
+          (error) => {
+            appCallResult.textContent = `Error: ${error}`;
+          },
+        );
+      }
+      document.getElementById('invoke-api-button').addEventListener('click', () => {
+        showAppCallResult(invoke('get_platform_info'));
+      });
+      document.getElementById('invoke-global-button').addEventListener('click', () => {
+        showAppCallResult(window.__TAURI__.core.invoke('get_platform_info'));
+      });
+      document.getElementById('emit-api-button').addEventListener('click', () => {
+        showAppCallResult(emit('wdio:app-emit', { from: 'app' }));
+      });
 
       // The backend re-emits deep links as deeplink-received; get_deep_links returns launch links.
       window.receivedDeeplinks = [];
