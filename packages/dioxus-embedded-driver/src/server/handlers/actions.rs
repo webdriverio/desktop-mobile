@@ -735,11 +735,11 @@ pub async fn release(
 /// Runs every script and returns the first error.
 async fn eval_all<Fut: Future<Output = Result<(), WebDriverErrorResponse>>>(
   scripts: Vec<String>,
-  mut eval: impl FnMut(String) -> Fut,
+  mut run: impl FnMut(String) -> Fut,
 ) -> Result<(), WebDriverErrorResponse> {
   let mut first_error = None;
   for script in scripts {
-    if let Err(error) = eval(script).await {
+    if let Err(error) = run(script).await {
       first_error.get_or_insert(error);
     }
   }

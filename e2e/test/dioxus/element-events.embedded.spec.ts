@@ -372,7 +372,7 @@ describe('Dioxus element events (embedded)', () => {
     } finally {
       await browser.releaseActions();
     }
-    // Chrome clicks too, but Dioxus forgets where a button went down once its Perform Actions call
+    // No click, unlike Chrome: Dioxus forgets where a button went down once its Perform Actions call
     // ends. Expect the click once #754 fixes that.
     expect(await fieldEvents()).toEqual(['keydown ShiftLeft', 'mouseup shiftKey=true', 'keyup ShiftLeft']);
   });
