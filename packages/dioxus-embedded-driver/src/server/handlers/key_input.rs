@@ -12,8 +12,8 @@ use super::element::ELEMENT_EVENTS_JS;
 
 // The non-test functions below `key_script` are copies of tauri-plugin-wdio-webdriver's
 // key_input.rs, since a published crate can only include its own files.
-// test/scripts/key-tables.spec.ts checks the copies match. `element_events_script` differs: only
-// Tauri's checks for the helpers, as only Tauri can run a script in a page that lacks them.
+// test/scripts/key-tables.spec.ts checks the copies match. `element_events_script` isn't a copy:
+// only Tauri's checks for missing helpers.
 
 /// JS dispatching one keydown or keyup of a WebDriver key value and running its default action,
 /// picking the script as the Tauri driver's `dispatch_key_event` does.
@@ -156,7 +156,7 @@ fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
 /// JS dispatching one keydown or keyup to the deep focused element, then running `after_dispatch`,
 /// which can read `canceled`, and `default_action` unless a handler canceled the event. As in
 /// Chrome, the default action goes to the element focused after the event, as a handler can move
-/// focus, with the event's target in `keydownTarget`. A key that acts takes the helpers from the page.
+/// focus, with the event's target in `keydownTarget`.
 fn key_event_script(
   key: &str,
   code: &str,
@@ -617,7 +617,7 @@ fn is_identifier_char(c: char) -> bool {
   c.is_ascii_alphanumeric() || c == '_' || c == '$'
 }
 
-/// The names `element-events.js` declares at the top level.
+/// The names `element-events.js` declares with `function` or `const` at the start of a line.
 fn element_events_names() -> &'static [&'static str] {
   static NAMES: OnceLock<Vec<&'static str>> = OnceLock::new();
   NAMES.get_or_init(|| {
@@ -637,8 +637,8 @@ fn mentions(js: &str, name: &str) -> bool {
   })
 }
 
-/// `body` as a script that takes the helpers it calls from the page, where the bridge's page script
-/// installed them.
+/// `body` as a script that takes the helpers it calls from the page. The bridge installs them from
+/// the `<head>`, so this doesn't check for them.
 pub(crate) fn element_events_script(body: &str) -> String {
   let names: Vec<&str> =
     element_events_names().iter().copied().filter(|name| mentions(body, name)).collect();
@@ -658,8 +658,7 @@ pub(crate) fn element_events_script(body: &str) -> String {
   )
 }
 
-/// JS installing the helpers in the page, unless they're there already. The bridge runs it in each
-/// page from the `<head>`.
+/// JS installing the helpers in the page, unless they're there already.
 pub(crate) fn install_element_events_js() -> &'static str {
   static SCRIPT: OnceLock<String> = OnceLock::new();
   SCRIPT.get_or_init(|| {

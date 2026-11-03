@@ -54,8 +54,8 @@ pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Confi
   install_with_registry_and_config(config, registry, None)
 }
 
-/// Variant of [`install`] for `wdio-dioxus-embedded-driver`: also registers
-/// the commands its guest-js polling loop uses, and starts that loop.
+/// Variant of [`install`] that also registers the embedded driver's polling commands and starts its
+/// loop. The driver itself uses [`install_with_embedded_port_registry_and_page_js`].
 pub fn install_with_embedded_port(config: Config, port: u16) -> Config {
   install_with_embedded_port_and_registry(config, CommandRegistry::new(), port)
 }
@@ -71,9 +71,8 @@ pub fn install_with_embedded_port_and_registry(
   install_with_embedded_port_registry_and_page_js(config, registry, port, "")
 }
 
-/// Like [`install_with_embedded_port_and_registry`], and also runs `page_js` in each page, from its
-/// own `<script>` element in the `<head>`, so it mustn't contain `</script`. The embedded driver
-/// installs its page helpers this way.
+/// Like [`install_with_embedded_port_and_registry`], and also runs `page_js` in each page, in its
+/// own `<script>` in the `<head>`, so `page_js` mustn't contain `</script`.
 pub fn install_with_embedded_port_registry_and_page_js(
   config: Config,
   registry: CommandRegistry,

@@ -3,7 +3,8 @@
 // a user's input causes in a browser. A published crate can only include its own files, so
 // tauri-plugin-wdio-webdriver and wdio-dioxus-embedded-driver each keep an identical copy.
 // test/scripts/element-events.spec.ts tests it and checks the copies match.
-// The drivers export only declarations that start a line with `function` or `const`.
+// Declare top-level names with `function` or `const` at the start of a line: the drivers install
+// only those.
 
 // The inputs that take typed text. Chromium counts only these for implicit submission, where the
 // HTML spec also counts the date and time inputs.

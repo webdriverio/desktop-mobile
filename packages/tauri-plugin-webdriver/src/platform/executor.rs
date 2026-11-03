@@ -336,8 +336,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
   /// Execute JavaScript as is and return the result as JSON
   async fn evaluate_js_raw(&self, script: &str) -> Result<Value, WebDriverErrorResponse>;
 
-  /// Execute JavaScript and return the result as JSON. A script that finds the element helpers
-  /// missing runs again once they're installed.
+  /// Execute JavaScript and return the result as JSON, rerunning a script that found the element
+  /// helpers missing.
   async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
     run_with_element_events(script, |script| self.evaluate_js_raw(script)).await
   }
@@ -1646,10 +1646,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // Helper Functions for Default Implementations
 // =============================================================================
 
-/// Runs `script` with `run`. A script that calls the element helpers hands back
-/// [`ELEMENT_EVENTS_MISSING`] when the page has none, before doing anything else, so this installs
-/// them and runs the script again. The plugin's init script installs them in every document, so
-/// this happens only in a document that script didn't reach.
+/// Runs `script`, and if it returns [`ELEMENT_EVENTS_MISSING`], installs the helpers and runs it
+/// again. That only happens in a document the plugin's init script didn't reach.
 async fn run_with_element_events<'a, F, Fut>(
   script: &'a str,
   run: F,
@@ -1677,8 +1675,8 @@ where
   Ok(result)
 }
 
-/// Only a script that checks for the helpers can miss them: any other script's result can be any
-/// string, the marker included.
+/// Only a script that checks for the helpers can miss them; any other script might return the
+/// marker string as its result.
 fn misses_element_events(script: &str, result: &Value) -> bool {
   result.get("value").and_then(Value::as_str) == Some(ELEMENT_EVENTS_MISSING)
     && script.contains(ELEMENT_EVENTS_MISSING)

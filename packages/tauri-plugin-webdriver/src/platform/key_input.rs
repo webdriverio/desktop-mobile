@@ -296,7 +296,7 @@ fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
 /// JS dispatching one keydown or keyup to the deep focused element, then running `after_dispatch`,
 /// which can read `canceled`, and `default_action` unless a handler canceled the event. As in
 /// Chrome, the default action goes to the element focused after the event, as a handler can move
-/// focus, with the event's target in `keydownTarget`. A key that acts takes the helpers from the page.
+/// focus, with the event's target in `keydownTarget`.
 fn key_event_script(
   key: &str,
   code: &str,
@@ -673,7 +673,7 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
   }
 }
 
-/// Page-side helpers for focus moves and form events, which a page installs once as one global.
+/// Page-side helpers for focus moves and form events, installed once per page as one global.
 pub const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
 const ELEMENT_EVENTS_GLOBAL: &str = "__wdio_element_events";
@@ -686,7 +686,7 @@ fn is_identifier_char(c: char) -> bool {
   c.is_ascii_alphanumeric() || c == '_' || c == '$'
 }
 
-/// The names `element-events.js` declares at the top level.
+/// The names `element-events.js` declares with `function` or `const` at the start of a line.
 fn element_events_names() -> &'static [&'static str] {
   static NAMES: OnceLock<Vec<&'static str>> = OnceLock::new();
   NAMES.get_or_init(|| {
@@ -706,9 +706,8 @@ fn mentions(js: &str, name: &str) -> bool {
   })
 }
 
-/// `body` as a script that takes the helpers it calls from the page. In a document the plugin's init
-/// script didn't reach, it returns [`ELEMENT_EVENTS_MISSING`] before doing anything, so the executor
-/// can install them and rerun it.
+/// `body` as a script that takes the helpers it calls from the page, or returns
+/// [`ELEMENT_EVENTS_MISSING`] before doing anything if the page has none.
 pub fn element_events_script(body: &str) -> String {
   let names: Vec<&str> =
     element_events_names().iter().copied().filter(|name| mentions(body, name)).collect();
@@ -731,8 +730,7 @@ pub fn element_events_script(body: &str) -> String {
   )
 }
 
-/// JS installing the helpers in the page, unless they're there already. The plugin runs it in every
-/// document as an init script, and the executor in a document that script didn't reach.
+/// JS installing the helpers in the page, unless they're there already.
 pub fn install_element_events_js() -> &'static str {
   static SCRIPT: OnceLock<String> = OnceLock::new();
   SCRIPT.get_or_init(|| {

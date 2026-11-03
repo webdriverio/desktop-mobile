@@ -526,7 +526,7 @@ pub async fn take_screenshot(
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/// Page-side helpers for focus moves and form events, which a page installs once as one global.
+/// Page-side helpers for focus moves and form events, installed once per page as one global.
 pub(crate) const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
 fn click_press_script(js_var: &str) -> String {
