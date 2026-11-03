@@ -72,16 +72,8 @@ jobs:
         run: pnpm turbo run build --filter=./packages/* --filter=./e2e
         shell: bash
 
-      # Type-check every package and the E2E suite (tsc --noEmit, full strict tsconfigs).
-      # The bundler build only checks files reachable from the entry points, and tsx runs
-      # the E2E specs and configs without checking them. It reuses the dist/ built above, so
-      # its ^build tasks are cache hits.
-      #
-      # The two fixtures with a typecheck script (flutter-app-example,
-      # react-native-app-example) type-check against installed tarballs, so they need a
-      # packaged build and are covered by the package tests.
-      - name: 🔎 Typecheck Packages and E2E
-        run: pnpm turbo run typecheck --filter=./packages/* --filter=./e2e
+      - name: 🔎 Typecheck
+        run: pnpm turbo run typecheck
         shell: bash
 
       # Upload build artifacts, but only from Linux
