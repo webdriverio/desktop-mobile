@@ -67,8 +67,7 @@ fn deep_active_element_js(var: &str) -> String {
   )
 }
 
-/// JS expression that is true when `el` takes typed text: a textarea or a text-like input. It needs
-/// `element-events.js` in scope.
+/// JS expression that is true when `el` takes typed text. It needs `element-events.js` in scope.
 fn is_text_field_js(el: &str) -> String {
   format!(
     "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes({el}.type)))"

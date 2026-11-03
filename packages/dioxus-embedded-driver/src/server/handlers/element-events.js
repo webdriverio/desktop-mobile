@@ -149,8 +149,7 @@ function wdioKeyClick(el) {
   }
 }
 
-// Enter's default action on `el`, the element focused after the keydown, as a browser's keypress goes
-// there.
+// Enter's default action on `el`, the element focused after the keydown, as in a browser.
 function wdioEnterKey(el) {
   wdioCommitOnEnter(el);
   wdioSubmitOnEnter(el);
