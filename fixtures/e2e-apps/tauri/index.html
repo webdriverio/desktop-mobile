@@ -91,6 +91,10 @@
         <button type="button" id="reset-button">Reset</button>
       </div>
 
+      <div class="commands-section">
+        <button type="button" id="platform-info-button">Get platform info</button>
+      </div>
+
       <div class="keys-section">
         <div id="key-target" tabindex="-1">Key target</div>
         <input type="text" id="keys-input" autocomplete="off" />
@@ -191,6 +195,26 @@
       resetButton.addEventListener('click', () => {
         count = 0;
         updateCounter();
+      });
+
+      // Native-mode mocks don't see the app's own invoke() calls, so the fixture calls a registered mock itself.
+      // Workaround for #887; drop once they do.
+      async function invokeCommand(cmd, args) {
+        const mock = window.__wdio_mocks__?.[cmd];
+        if (typeof mock === 'function') {
+          return mock(args);
+        }
+        const { invoke } = await import('@tauri-apps/api/core');
+        return invoke(cmd, args);
+      }
+
+      document.getElementById('platform-info-button').addEventListener('click', async () => {
+        try {
+          const info = await invokeCommand('get_platform_info');
+          updateStatus(`Platform: ${info?.os ?? 'unknown'}`);
+        } catch (error) {
+          updateStatus(`get_platform_info failed: ${error}`);
+        }
       });
 
       // Initialize

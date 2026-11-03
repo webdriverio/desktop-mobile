@@ -92,4 +92,29 @@ describe('Electron browser-mode E2E', () => {
     await again.update();
     expect(again).toHaveBeenCalledTimes(1);
   });
+
+  it('should run a withImplementation callback in the page, then restore the implementation', async () => {
+    type PageGlobals = {
+      electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } };
+    };
+    const mock = await browser.electron.mock('app:get-version');
+    // mock(channel) returns an existing mock unchanged, calls included
+    await mock.mockClear();
+    await mock.mockResolvedValue('1.0.0-default');
+
+    const result = await mock.withImplementation(
+      () => '2.0.0-temporary',
+      () => (globalThis as unknown as PageGlobals).electron.ipcRenderer.invoke('app:get-version', 'callback'),
+    );
+
+    expect(result).toBe('2.0.0-temporary');
+    expect(mock.mock.calls).toEqual([['callback']]);
+
+    await $('[data-testid="fetch-version"]').click();
+
+    await browser.waitUntil(async () => (await $('[data-testid="version-output"]').getText()) === '1.0.0-default', {
+      timeout: 5000,
+      timeoutMsg: 'expected the default implementation after withImplementation',
+    });
+  });
 });
