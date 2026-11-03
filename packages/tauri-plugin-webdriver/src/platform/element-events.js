@@ -5,7 +5,7 @@
 // test/scripts/element-events.spec.ts tests it and checks the copies match.
 
 // The inputs that take typed text. Chromium counts only these for implicit submission, where the
-// HTML spec also counts the date and time inputs. Tauri's key_input.rs reads this declaration.
+// HTML spec also counts the date and time inputs.
 const WDIO_TEXT_FIELD_TYPES = ['text', 'search', 'url', 'tel', 'email', 'password', 'number'];
 
 const WDIO_CLEARABLE_INPUT_TYPES = [
@@ -139,10 +139,8 @@ function wdioKeyClick(el) {
   }
 }
 
-// Enter's default action. It goes to the element focused after the keydown, as a browser's keypress
-// does.
-function wdioEnterKey() {
-  const el = wdioDeepActiveElement();
+// Enter's default action on `el`, the element focused after the keydown, as in a browser.
+function wdioEnterKey(el) {
   wdioCommitOnEnter(el);
   wdioSubmitOnEnter(el);
   wdioKeyClick(el);
@@ -165,10 +163,7 @@ function wdioSpaceUp(el, blocked) {
 // Tab's default action. After the last stop, or before the first with Shift, focus leaves the page,
 // as Chrome moves it to the browser's own controls.
 function wdioTabKey(event) {
-  if (event.ctrlKey || event.altKey || event.metaKey) {
-    return;
-  }
-  if (event.defaultPrevented) {
+  if (event.ctrlKey || event.altKey || event.metaKey || event.defaultPrevented) {
     return;
   }
   const start = wdioDeepActiveElement();

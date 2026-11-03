@@ -208,21 +208,10 @@ pub fn deep_active_element_js(var: &str) -> String {
   )
 }
 
-/// `element-events.js`'s text field types, for scripts that don't paste that file.
-fn text_field_types_js() -> &'static str {
-  const DECLARATION: &str = "const WDIO_TEXT_FIELD_TYPES = ";
-  let start =
-    ELEMENT_EVENTS_JS.find(DECLARATION).expect("element-events.js declares WDIO_TEXT_FIELD_TYPES")
-      + DECLARATION.len();
-  let end = start + ELEMENT_EVENTS_JS[start..].find(';').expect("the declaration ends with a ;");
-  &ELEMENT_EVENTS_JS[start..end]
-}
-
-/// JS expression that is true when `el` takes typed text: a textarea or a text-like input.
+/// JS expression that is true when `el` takes typed text. It needs `element-events.js` in scope.
 pub fn is_text_field_js(el: &str) -> String {
-  let types = text_field_types_js();
   format!(
-    "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && {types}.indexOf({el}.type) !== -1))"
+    "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes({el}.type)))"
   )
 }
 
@@ -244,36 +233,19 @@ pub fn build_special_key_script(
 ) -> String {
   let default_action = match js_key {
     _ if !is_down => String::new(),
-    "Backspace" | "Delete" => {
-      on_focus_after_keydown_js(&with_element_events_js(&delete_js(js_key == "Backspace")))
-    }
-    // Chrome steps the radio group of the keydown's target, wherever a handler moved focus.
+    "Backspace" | "Delete" => delete_js(js_key == "Backspace"),
     "ArrowDown" | "ArrowRight" => radio_step_js(true),
     "ArrowUp" | "ArrowLeft" => radio_step_js(false),
-    _ => String::new(),
-  };
-  let after_dispatch = match js_key {
-    _ if !is_down => String::new(),
     "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => enter_js(modifiers.shift),
-    "Tab" => tab_js(),
     _ => String::new(),
   };
+  let after_dispatch = if is_down && js_key == "Tab" { tab_js() } else { String::new() };
   key_event_script(js_key, js_code, key_code, is_down, modifiers, &after_dispatch, &default_action)
-}
-
-fn with_element_events_js(js: &str) -> String {
-  format!("{{\n{ELEMENT_EVENTS_JS}\n{js}\n}}")
-}
-
-/// `action` on the element focused after the keydown: a handler can move focus, and Chrome then
-/// types, deletes and selects there.
-fn on_focus_after_keydown_js(action: &str) -> String {
-  format!("{}\n{action}", deep_active_element_js("activeEl"))
 }
 
 /// JS for Tab's default action. `wdioTabKey` reads the keydown's cancellation and modifiers itself.
 fn tab_js() -> String {
-  with_element_events_js("wdioTabKey(keyEvent);")
+  "wdioTabKey(keyEvent);".to_string()
 }
 
 /// JS dispatching a synthetic printable-character `KeyboardEvent` plus the insertion or Ctrl/Meta+A
@@ -303,11 +275,11 @@ pub fn build_printable_key_script(
   let default_action = if !is_down {
     String::new()
   } else if is_select_all {
-    on_focus_after_keydown_js(&select_all_js())
+    select_all_js()
   } else if modifiers.ctrl || modifiers.meta || modifiers.alt {
     String::new()
   } else {
-    on_focus_after_keydown_js(&with_element_events_js(&insert_text_js("activeEl", &js_string(key))))
+    insert_text_js("activeEl", &js_string(key))
   };
   let after_dispatch = if key == " " { space_js(is_down, modifiers) } else { String::new() };
   key_event_script(key, code, key_code, is_down, modifiers, &after_dispatch, &default_action)
@@ -317,11 +289,13 @@ pub fn build_printable_key_script(
 fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
   let call = if is_down { "wdioSpaceDown" } else { "wdioSpaceUp" };
   let held = modifiers.ctrl || modifiers.meta || modifiers.alt;
-  with_element_events_js(&format!("{call}(activeEl, canceled || {held});"))
+  format!("{call}(activeEl, canceled || {held});")
 }
 
 /// JS dispatching one keydown or keyup to the deep focused element, then running `after_dispatch`,
-/// which can read `canceled`, and `default_action` unless a handler canceled the event.
+/// which can read `canceled`, and `default_action` unless a handler canceled the event. As in
+/// Chrome, the default action goes to the element focused after the event, as a handler can move
+/// focus, with the event's target in `keydownTarget`. A key that acts carries element-events.js once.
 fn key_event_script(
   key: &str,
   code: &str,
@@ -331,13 +305,25 @@ fn key_event_script(
   after_dispatch: &str,
   default_action: &str,
 ) -> String {
-  let active_element = deep_active_element_js("activeEl");
+  let acts = !(after_dispatch.is_empty() && default_action.is_empty());
+  let helpers = if acts { ELEMENT_EVENTS_JS } else { "" };
+  let refocus = if default_action.is_empty() {
+    ""
+  } else {
+    "var keydownTarget = activeEl;\n                activeEl = wdioDeepActiveElement();"
+  };
+  let active_element = if acts {
+    "var activeEl = wdioDeepActiveElement();".to_string()
+  } else {
+    deep_active_element_js("activeEl")
+  };
   let event_type = if is_down { "keydown" } else { "keyup" };
   let key = js_string(key);
   let code = js_string(code);
   let ModifierState { ctrl, shift, alt, meta } = *modifiers;
   format!(
     r"(function() {{
+                {helpers}
                 {active_element}
                 var keyEvent = new KeyboardEvent('{event_type}', {{
                     key: {key},
@@ -357,6 +343,7 @@ fn key_event_script(
                 if (canceled) {{
                     return true;
                 }}
+                {refocus}
                 {default_action}
                 return true;
             }})()"
@@ -419,15 +406,15 @@ fn delete_js(backward: bool) -> String {
   )
 }
 
-/// JS moving the checked radio to the next (`forward`) or previous button of the focused radio's
-/// group, firing `change`.
+/// JS moving the checked radio to the next (`forward`) or previous button of the group of the radio
+/// that got the keydown, firing `change`. Chrome steps from that radio wherever a handler moved focus.
 fn radio_step_js(forward: bool) -> String {
   format!(
-    r#"if (activeEl.tagName === 'INPUT' && activeEl.type === 'radio' && activeEl.name) {{
-                    var radios = Array.from(activeEl.getRootNode().querySelectorAll(
-                        'input[type="radio"][name="' + CSS.escape(activeEl.name) + '"]'
+    r#"if (keydownTarget.tagName === 'INPUT' && keydownTarget.type === 'radio' && keydownTarget.name) {{
+                    var radios = Array.from(keydownTarget.getRootNode().querySelectorAll(
+                        'input[type="radio"][name="' + CSS.escape(keydownTarget.name) + '"]'
                     ));
-                    var currentIndex = radios.indexOf(activeEl);
+                    var currentIndex = radios.indexOf(keydownTarget);
                     if (currentIndex !== -1 && radios.length > 1) {{
                         var nextIndex = {forward}
                             ? (currentIndex + 1) % radios.length
@@ -441,23 +428,20 @@ fn radio_step_js(forward: bool) -> String {
   )
 }
 
-/// JS for Enter's keydown. Unless a handler canceled the key, it acts where focus is after the
-/// keydown's handlers.
+/// JS for Enter's keydown: breaks the line in a textarea or contenteditable, and otherwise commits,
+/// submits or clicks through `wdioEnterKey`.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
-  with_element_events_js(&format!(
-    r"if (!canceled) {{
-                    activeEl = wdioDeepActiveElement();
-                    if (activeEl.tagName === 'TEXTAREA') {{
-                        {insert_newline}
-                    }} else if (activeEl.isContentEditable) {{
-                        document.execCommand('{command}', false, null);
-                    }} else {{
-                        wdioEnterKey();
-                    }}
+  format!(
+    r"if (activeEl.tagName === 'TEXTAREA') {{
+                    {insert_newline}
+                }} else if (activeEl.isContentEditable) {{
+                    document.execCommand('{command}', false, null);
+                }} else {{
+                    wdioEnterKey(activeEl);
                 }}"
-  ))
+  )
 }
 
 /// JS for Ctrl/Meta+A: selects a text field's value, or everything else.
@@ -473,14 +457,17 @@ fn select_all_js() -> String {
 }
 
 /// JS inserting the string expression `text_js` at `el`'s selection, replacing any selected range,
-/// and firing `input` if the value changed. Only editable text fields and contenteditable take text.
-/// A text field whose value changes records the `change` it owes, so this needs `element-events.js`
-/// in scope.
+/// and firing `input`. Only editable text fields and contenteditable take text. A text field the
+/// insertion edits records the `change` it owes, so this needs `element-events.js` in scope.
 fn insert_text_js(el: &str, text_js: &str) -> String {
   let text_field = is_editable_text_field_js(el);
   format!(
     r"var insertedText = {text_js};
                 if ({text_field}) {{
+                    if ({el}.type === 'number') {{
+                        // Chrome's number input drops any other character, such as a letter.
+                        insertedText = insertedText.replace(/[^0-9.eE+-]/g, '');
+                    }}
                     var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                         {el}.tagName === 'INPUT'
                             ? window.HTMLInputElement.prototype
@@ -494,6 +481,9 @@ fn insert_text_js(el: &str, text_js: &str) -> String {
                         selStart = {el}.selectionStart;
                         selEnd = {el}.selectionEnd;
                     }} catch (e) {{}}
+                    // Chrome fires `input` for any insertion, even one that leaves the value as it
+                    // was. Without a selection API, the text went in only if the value changed.
+                    var edited = true;
                     if (typeof selStart === 'number' && typeof selEnd === 'number') {{
                         nativeInputValueSetter.call(
                             {el},
@@ -503,8 +493,9 @@ fn insert_text_js(el: &str, text_js: &str) -> String {
                         {el}.setSelectionRange(caret, caret);
                     }} else {{
                         nativeInputValueSetter.call({el}, currentValue + insertedText);
+                        edited = {el}.value !== currentValue;
                     }}
-                    if ({el}.value !== currentValue) {{
+                    if (edited) {{
                         wdioRecordPendingChange({el}, currentValue);
                         {el}.dispatchEvent(new InputEvent('input', {{
                             bubbles: true,
@@ -1142,7 +1133,6 @@ mod tests {
       assert!(script
         .contains("currentValue.slice(0, selStart) + insertedText + currentValue.slice(selEnd)"));
       assert!(script.contains("setSelectionRange(caret, caret)"));
-      assert!(script.contains("if (activeEl.value !== currentValue)"));
     }
   }
 
@@ -1150,9 +1140,7 @@ mod tests {
   fn only_text_fields_and_editors_take_typed_text() {
     let field = is_text_field_js("el");
     assert!(field.contains("el.tagName === 'TEXTAREA'"));
-    assert!(field.contains(
-      "['text', 'search', 'url', 'tel', 'email', 'password', 'number'].indexOf(el.type)"
-    ));
+    assert!(field.contains("el.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(el.type)"));
     let insert = insert_text_js("activeEl", &js_string("x"));
     assert!(insert.contains(&format!("if ({})", is_editable_text_field_js("activeEl"))));
     let script = build_insert_run_script("x");
@@ -1186,12 +1174,18 @@ mod tests {
   fn key_scripts_target_the_deep_active_element() {
     let none = mods(false, false, false, false);
     for script in [
-      build_special_key_script("Enter", "Enter", 13, true, &none),
-      build_printable_key_script(" ", "Space", 32, true, &none),
+      build_special_key_script("Escape", "Escape", 27, true, &none),
       build_insert_run_script("x"),
       build_send_keys_start_script("v", "", None),
     ] {
       assert!(script.contains("activeEl.shadowRoot.activeElement"), "{script}");
+    }
+    for script in [
+      build_special_key_script("Enter", "Enter", 13, true, &none),
+      build_printable_key_script(" ", "Space", 32, true, &none),
+    ] {
+      let body = after_helpers(&script).trim_start();
+      assert!(body.starts_with("var activeEl = wdioDeepActiveElement();"), "{script}");
     }
   }
 
@@ -1265,8 +1259,8 @@ mod tests {
       true,
       &mods(false, false, false, false),
     );
-    assert!(script.contains("CSS.escape(activeEl.name)"));
-    assert!(script.contains("activeEl.getRootNode().querySelectorAll("));
+    assert!(script.contains("CSS.escape(keydownTarget.name)"));
+    assert!(script.contains("keydownTarget.getRootNode().querySelectorAll("));
   }
 
   #[test]
@@ -1509,18 +1503,15 @@ mod tests {
     let shift = mods(false, true, false, false);
     for modifiers in [none, shift] {
       let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
-      let dispatch = enter.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
-      let helpers = enter.find(&format!("{{\n{ELEMENT_EVENTS_JS}")).unwrap();
-      let action = &enter[helpers + ELEMENT_EVENTS_JS.len()..];
-      let uncanceled = action.find("if (!canceled) {").unwrap();
-      let refocus = action.find("activeEl = wdioDeepActiveElement();").unwrap();
-      let textarea = action.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
-      let editor = action.find("} else if (activeEl.isContentEditable) {").unwrap();
-      let enter_key = action.find("wdioEnterKey();").unwrap();
-      let guard = action.find("if (canceled) {").unwrap();
-      assert!(dispatch < helpers, "{enter}");
-      assert!(uncanceled < refocus && refocus < textarea, "{enter}");
-      assert!(textarea < editor && editor < enter_key && enter_key < guard, "{enter}");
+      let body = after_helpers(&enter);
+      let dispatch = body.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
+      let guard = body.find("if (canceled) {").unwrap();
+      let refocus = guard + body[guard..].find("activeEl = wdioDeepActiveElement();").unwrap();
+      let textarea = body.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
+      let editor = body.find("} else if (activeEl.isContentEditable) {").unwrap();
+      let enter_key = body.find("wdioEnterKey(activeEl);").unwrap();
+      assert!(dispatch < guard && guard < refocus, "{enter}");
+      assert!(refocus < textarea && textarea < editor && editor < enter_key, "{enter}");
     }
     for held in [
       mods(true, false, false, false),
@@ -1559,12 +1550,12 @@ mod tests {
   #[test]
   fn edits_that_change_a_text_field_record_the_change_it_owes() {
     let record = "wdioRecordPendingChange(activeEl, currentValue);";
-    for (edit, changes) in [
-      (insert_text_js("activeEl", &js_string("x")), "if (activeEl.value !== currentValue) {"),
+    for (edit, edits) in [
+      (insert_text_js("activeEl", &js_string("x")), "if (edited) {"),
       (delete_js(true), "if (removeStart !== removeEnd) {"),
       (delete_js(false), "if (removeStart !== removeEnd) {"),
     ] {
-      assert!(edit.find(changes).unwrap() < edit.find(record).unwrap(), "{edit}");
+      assert!(edit.find(edits).unwrap() < edit.find(record).unwrap(), "{edit}");
     }
     let none = mods(false, false, false, false);
     let ctrl = mods(true, false, false, false);
@@ -1590,22 +1581,52 @@ mod tests {
   fn typing_deleting_and_select_all_act_on_the_element_focused_after_the_keydown() {
     let none = mods(false, false, false, false);
     let ctrl = mods(true, false, false, false);
-    let lookup = deep_active_element_js("activeEl");
+    let lookup = "activeEl = wdioDeepActiveElement();";
     for (script, action) in [
       (build_printable_key_script("x", "KeyX", 88, true, &none), "var insertedText ="),
       (build_printable_key_script("a", "KeyA", 65, true, &ctrl), "activeEl.select();"),
       (build_special_key_script("Backspace", "Backspace", 8, true, &none), "var removeStart ="),
       (build_special_key_script("Delete", "Delete", 46, true, &none), "var removeStart ="),
     ] {
-      let guard = script.find("if (canceled) {").unwrap();
-      let acts = script.find(action).unwrap();
-      assert!(guard < acts && script[guard..acts].contains(&lookup), "{script}");
+      let body = after_helpers(&script);
+      let guard = body.find("if (canceled) {").unwrap();
+      let acts = body.find(action).unwrap();
+      assert!(guard < acts && body[guard..acts].contains(lookup), "{script}");
+    }
+    let arrow = build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none);
+    let body = after_helpers(&arrow);
+    let target = body.find("var keydownTarget = activeEl;").unwrap();
+    let step = body.find("if (keydownTarget.tagName === 'INPUT'").unwrap();
+    assert!(body[target..step].contains(lookup) && !body[step..].contains("activeEl"), "{arrow}");
+    let up = build_printable_key_script("x", "KeyX", 88, false, &none);
+    assert!(!up.contains(lookup), "{up}");
+  }
+
+  #[test]
+  fn keys_that_act_carry_the_helpers_once() {
+    let none = mods(false, false, false, false);
+    let ctrl = mods(true, false, false, false);
+    for script in [
+      build_printable_key_script(" ", "Space", 32, true, &none),
+      build_printable_key_script(" ", "Space", 32, false, &none),
+      build_printable_key_script("x", "KeyX", 88, true, &none),
+      build_printable_key_script("a", "KeyA", 65, true, &ctrl),
+      build_special_key_script("Backspace", "Backspace", 8, true, &none),
+      build_special_key_script("Enter", "Enter", 13, true, &none),
+      build_special_key_script("Tab", "Tab", 9, true, &ctrl),
+      build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none),
+    ] {
+      assert!(script.starts_with(&format!("(function() {{\n                {ELEMENT_EVENTS_JS}")));
+      assert_eq!(script.matches(ELEMENT_EVENTS_JS).count(), 1, "{script}");
     }
     for script in [
-      build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none),
       build_printable_key_script("x", "KeyX", 88, false, &none),
+      build_printable_key_script("x", "KeyX", 88, true, &ctrl),
+      build_special_key_script("Escape", "Escape", 27, true, &none),
+      build_special_key_script("Enter", "Enter", 13, true, &ctrl),
+      build_special_key_script("Tab", "Tab", 9, false, &none),
     ] {
-      assert_eq!(script.matches(&lookup).count(), 1, "{script}");
+      assert!(!script.contains("wdio"), "{script}");
     }
   }
 
@@ -1614,11 +1635,11 @@ mod tests {
     let none = mods(false, false, false, false);
     for modifiers in [none, mods(false, true, false, false), mods(true, false, false, false)] {
       let script = build_special_key_script("Tab", "Tab", 9, true, &modifiers);
-      let dispatch = script.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
-      let tab = script.find("wdioTabKey(keyEvent);").unwrap();
-      let guard = script.find("if (canceled) {").unwrap();
+      let body = after_helpers(&script);
+      let dispatch = body.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
+      let tab = body.find("wdioTabKey(keyEvent);").unwrap();
+      let guard = body.find("if (canceled) {").unwrap();
       assert!(dispatch < tab && tab < guard, "{script}");
-      assert!(script.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\nwdioTabKey(")), "{script}");
     }
     let tab_up = build_special_key_script("Tab", "Tab", 9, false, &none);
     let enter = build_special_key_script("Enter", "Enter", 13, true, &none);

@@ -88,6 +88,17 @@ describe('Dioxus element events (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input abc', 'input ab', 'input a', 'change a', 'blur a']);
   });
 
+  it('should fire change on Tab and on Enter in a field key actions edited, as Chrome does', async () => {
+    await fillChangeScratch();
+    await browser.$('#fresh-field').click();
+    await browser.keys(['x', Key.Tab]);
+    expect(await focusedId()).toBe('fresh-other');
+    await browser.$('#fresh-field').click();
+    await browser.keys(['y', Key.Enter]);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x', 'input xy', 'change xy', 'blur xy']);
+  });
+
   it('should type and delete in the field a keydown handler moves focus to, as Chrome does', async () => {
     await fillChangeScratch('pq');
     await browser.execute(

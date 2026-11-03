@@ -1100,7 +1100,7 @@ mod tests {
     assert!(is_skipped_key("\r") && map_special_key("\r").is_none());
     let newline = key_script("\n", true, &m);
     assert!(event_init(&newline).starts_with(r#"key: "Enter", code: "Enter", keyCode: 13,"#));
-    assert!(newline.contains("wdioEnterKey();"));
+    assert!(newline.contains("wdioEnterKey(activeEl);"));
     let backspace = key_script("\u{8}", true, &m);
     assert!(
       event_init(&backspace).starts_with(r#"key: "Backspace", code: "Backspace", keyCode: 8,"#)
