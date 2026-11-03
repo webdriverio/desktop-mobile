@@ -128,7 +128,21 @@ const baseCapability: ElectrobunCapability = {
 const capabilities =
   testType === 'multiremote'
     ? { instanceA: { capabilities: { ...baseCapability } }, instanceB: { capabilities: { ...baseCapability } } }
-    : [baseCapability];
+    : [
+        {
+          ...baseCapability,
+          // Checked by mock-options.spec.ts. The prefixes keep reset and restore to the mocks it makes for
+          // them, so a restore can't hide whether clear and reset ran.
+          'wdio:electrobunServiceOptions': {
+            ...electrobunServiceOptions,
+            clearMocks: true,
+            resetMocks: true,
+            resetMocksPrefix: 'mockOptionsReset',
+            restoreMocks: true,
+            restoreMocksPrefix: 'mockOptionsRestore',
+          },
+        },
+      ];
 
 const logDirName = getLogDirName(testType, 'electrobun');
 const logDir = join(__dirname, 'logs', logDirName);
