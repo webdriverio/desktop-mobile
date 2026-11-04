@@ -89,6 +89,8 @@ run_tests_in_container() {
 
     echo -e "${YELLOW}=== Running tests for $distro ===${NC}"
 
+    local docker_exit_code=0
+
     # The in-container logic lives in container-test.sh (reached through the
     # workspace bind mount) instead of an inline `bash -c` string -- an
     # unescaped double quote in an inline script truncates it silently and
@@ -101,10 +103,7 @@ run_tests_in_container() {
         -w /workspace \
         "tauri-distro-test:$distro" \
         bash /workspace/fixtures/package-tests/tauri-app/docker/container-test.sh \
-        2>&1 | tee "/tmp/docker-test-$distro.log"
-
-    # Check the exit code of docker run (PIPESTATUS[0]), not tee (PIPESTATUS[1])
-    local docker_exit_code=${PIPESTATUS[0]}
+        2>&1 | tee "/tmp/docker-test-$distro.log" || docker_exit_code=$?
 
     # Copy logs from mounted volume to repo for upload
     if [ -d "$log_dir" ]; then
