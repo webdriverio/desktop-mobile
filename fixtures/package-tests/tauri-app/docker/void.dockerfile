@@ -9,7 +9,7 @@ RUN mkdir -p /etc/xbps.d && \
 
 # Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
 RUN xbps-install -Syu xbps && \
-    ( xbps-install -Su || true ) && \
+    ( xbps-install -Suy || true ) && \
     xbps-install -y \
         curl \
         ca-certificates \

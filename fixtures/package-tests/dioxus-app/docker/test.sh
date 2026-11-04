@@ -65,12 +65,14 @@ test_dockerfile() {
     echo -e "${YELLOW}=== Testing $distro ===${NC}"
 
     # Try to build the Docker image
-    if docker build \
+    docker build \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --progress=plain \
         -f "$SCRIPT_DIR/$dockerfile" \
         -t "dioxus-distro-test:$distro" \
-        "$REPO_ROOT" 2>&1 | tee "/tmp/docker-build-$distro.log"; then
+        "$REPO_ROOT" 2>&1 | tee "/tmp/docker-build-$distro.log"
+    # Check the exit code of docker build (PIPESTATUS[0]), not tee (PIPESTATUS[1])
+    if [ "${PIPESTATUS[0]}" -eq 0 ]; then
         echo -e "${GREEN}✓ Build succeeded for $distro${NC}"
         return 0
     else

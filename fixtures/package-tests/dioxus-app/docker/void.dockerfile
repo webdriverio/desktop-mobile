@@ -12,7 +12,7 @@ RUN mkdir -p /etc/xbps.d && \
 # create fine on it (unlike Arch, which tracks the absolute newest Node whose
 # stricter undici broke WDIO's session POST and therefore pins an LTS tarball).
 RUN xbps-install -Syu xbps && \
-    ( xbps-install -Su || true ) && \
+    ( xbps-install -Suy || true ) && \
     xbps-install -y \
         curl \
         ca-certificates \
