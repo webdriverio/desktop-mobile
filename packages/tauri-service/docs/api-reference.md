@@ -461,9 +461,9 @@ console.log(after); // 'default'
 
 ### Mock Properties
 
-- `mock.calls` - Array of call arguments
-- `mock.results` - Array of call results
-- `__isTauriMock` - Boolean flag identifying Tauri mocks
+- `mock.mock.calls` - Array of call arguments
+- `mock.mock.results` - Array of call results
+- `mock.__isTauriMock` - Boolean flag identifying Tauri mocks
 
 ---
 
