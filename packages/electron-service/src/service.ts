@@ -694,8 +694,8 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
           mockStore.setMock(browser, newMock);
           return newMock;
         }
-        // As in native mode, an existing mock comes back reset. Concurrent mock(channel) callers
-        // share one liveness check, re-registration after a navigation, and reset.
+        // As in native mode, mock() resets an existing mock. Concurrent calls share one liveness check,
+        // re-registration and reset.
         let inflight = pendingRegistrations.get(browser);
         if (!inflight) {
           inflight = new Map();
