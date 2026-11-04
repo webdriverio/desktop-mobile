@@ -142,20 +142,17 @@ describe('Command Mocking', () => {
     const mock = await browser.tauri.mock('save_data');
     await mock.mockReturnValue({ success: true });
 
-    // Call the command multiple times
-    await browser.tauri.execute(({ core }) => {
-      core.invoke('save_data', { data: 'test1' });
-      core.invoke('save_data', { data: 'test2' });
+    await browser.tauri.execute(async ({ core }) => {
+      await core.invoke('save_data', { data: 'test1' });
+      await core.invoke('save_data', { data: 'test2' });
     });
 
-    expect(mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mock.mock.calls).toEqual([[{ data: 'test1' }], [{ data: 'test2' }]]);
   });
 
   it('should mock command with implementation', async () => {
     const mock = await browser.tauri.mock('calculate');
-    await mock.mockImplementation((a, b) => {
-      return a + b;
-    });
+    await mock.mockImplementation(({ a, b }) => a + b);
 
     const result = await browser.tauri.execute(({ core }) => {
       return core.invoke('calculate', { a: 5, b: 3 });

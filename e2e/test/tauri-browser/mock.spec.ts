@@ -30,6 +30,6 @@ describe('Tauri browser-mode E2E', () => {
 
     await mock.update();
     expect(mock).toHaveBeenCalledTimes(1);
-    expect(mock.mock.calls[0][0]).toEqual({ name: 'WDIO' });
+    expect(mock.mock.calls).toEqual([[{ name: 'WDIO' }]]);
   });
 });
