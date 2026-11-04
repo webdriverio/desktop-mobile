@@ -2,10 +2,9 @@ FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
-# Two mirrors, as either can be down: xbps skips one whose index fails to sync. While both are synced,
-# bestmatching takes each package's newest version (Fastly's on a tie), so Fastly's cached index rarely
-# holds it back. CONNECTION_TIMEOUT is xbps's connect timeout in ms. The sed keeps each config's
-# per-architecture path.
+# With two mirrors, xbps skips one whose index fails to sync. bestmatching takes each package's newest
+# version from either index, so while both are synced, Fastly's cache seldom pins an old one. xbps reads
+# CONNECTION_TIMEOUT, in ms. The sed keeps each config's per-architecture path.
 ARG CONNECTION_TIMEOUT=30000
 RUN mkdir -p /etc/xbps.d && \
     cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
