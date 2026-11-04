@@ -206,13 +206,13 @@ describe('triggerDeeplink Command', () => {
       ['crabnebula', 'linux'],
       ['crabnebula', 'win32'],
     ] as const)(
-      'should refuse to open the URL through the OS for %s on %s when another instance runs the same app',
+      'should refuse to open the URL through the OS for %s on %s when two instances run the same app',
       async (provider, platform) => {
         mockPlatform(platform);
         const browser = createBrowser();
 
         await expect(
-          triggerDeeplink.call({ browser, provider, sharesApp: true }, 'myapp://standard'),
+          triggerDeeplink.call({ browser, provider, instancesShareApp: true }, 'myapp://standard'),
         ).rejects.toMatchObject({
           message: expect.stringContaining(
             `triggerDeeplink() can't reach a multiremote instance with the ${provider} provider on ${platform}`,
@@ -226,11 +226,11 @@ describe('triggerDeeplink Command', () => {
       ['embedded', 'linux'],
       ['crabnebula', 'darwin'],
     ] as const)(
-      'should still emit in the app for %s on %s when another instance runs the same app',
+      'should still emit in the app for %s on %s when two instances run the same app',
       async (provider, platform) => {
         mockPlatform(platform);
         const browser = createBrowser();
-        await triggerDeeplink.call({ browser, provider, sharesApp: true }, 'myapp://test');
+        await triggerDeeplink.call({ browser, provider, instancesShareApp: true }, 'myapp://test');
 
         expect(browser.execute).toHaveBeenCalledWith(expect.any(Function), 'myapp://test');
       },

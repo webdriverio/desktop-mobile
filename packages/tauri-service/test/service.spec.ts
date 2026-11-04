@@ -1170,7 +1170,7 @@ describe('TauriWorkerService', () => {
       expect(context.provider).toBe('external');
     });
 
-    describe('sharesApp', () => {
+    describe('instancesShareApp', () => {
       const app = (application: string) => ({ 'tauri:options': { application } });
 
       async function startMultiremote(requested: Record<string, Record<string, unknown>>) {
@@ -1193,54 +1193,54 @@ describe('TauriWorkerService', () => {
         return { root, ...instances };
       }
 
-      async function sharesAppFor(browser: WebdriverIO.Browser): Promise<boolean | undefined> {
+      async function instancesShareAppFor(browser: WebdriverIO.Browser): Promise<boolean | undefined> {
         vi.mocked(triggerDeeplink).mockClear();
         await (browser as any).tauri.triggerDeeplink('myapp://test');
-        return vi.mocked(triggerDeeplink).mock.contexts[0].sharesApp;
+        return vi.mocked(triggerDeeplink).mock.contexts[0].instancesShareApp;
       }
 
       it('should be set on each instance and the root when two instances run the same app', async () => {
         const { root, browserA, browserB } = await startMultiremote({ browserA: app('/one'), browserB: app('/one') });
 
-        expect(await sharesAppFor(browserA)).toBe(true);
-        expect(await sharesAppFor(browserB)).toBe(true);
-        expect(await sharesAppFor(root)).toBe(true);
+        expect(await instancesShareAppFor(browserA)).toBe(true);
+        expect(await instancesShareAppFor(browserB)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
       });
 
-      it('should be set only on the instances that share an app, and on the root', async () => {
-        const { root, browserA, browserB, browserC } = await startMultiremote({
+      it('should be set on an instance whose own app is not shared', async () => {
+        const { root, browserC } = await startMultiremote({
           browserA: app('/one'),
           browserB: app('/one'),
           browserC: app('/two'),
         });
 
-        expect(await sharesAppFor(browserA)).toBe(true);
-        expect(await sharesAppFor(browserB)).toBe(true);
-        expect(await sharesAppFor(browserC)).toBe(false);
-        expect(await sharesAppFor(root)).toBe(true);
+        expect(await instancesShareAppFor(browserC)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
       });
 
       it('should not be set when each instance runs its own app', async () => {
         const { root, browserA, browserB } = await startMultiremote({ browserA: app('/one'), browserB: app('/two') });
 
-        expect(await sharesAppFor(browserA)).toBe(false);
-        expect(await sharesAppFor(browserB)).toBe(false);
-        expect(await sharesAppFor(root)).toBe(false);
+        expect(await instancesShareAppFor(browserA)).toBe(false);
+        expect(await instancesShareAppFor(browserB)).toBe(false);
+        expect(await instancesShareAppFor(root)).toBe(false);
       });
 
-      it("should fall back to the instance's appBinaryPath", async () => {
-        const options = { 'wdio:tauriServiceOptions': { appBinaryPath: '/one' } };
-        const { root, browserA } = await startMultiremote({ browserA: options, browserB: options });
+      it('should treat two spellings of one path as the same app', async () => {
+        const { root, browserA } = await startMultiremote({
+          browserA: app('/one/app'),
+          browserB: app('/one/../one/app'),
+        });
 
-        expect(await sharesAppFor(browserA)).toBe(true);
-        expect(await sharesAppFor(root)).toBe(true);
+        expect(await instancesShareAppFor(browserA)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
       });
 
       it("should not be set when the instances' apps are unknown", async () => {
         const { root, browserA } = await startMultiremote({ browserA: {}, browserB: {} });
 
-        expect(await sharesAppFor(browserA)).toBe(false);
-        expect(await sharesAppFor(root)).toBe(false);
+        expect(await instancesShareAppFor(browserA)).toBe(false);
+        expect(await instancesShareAppFor(root)).toBe(false);
       });
 
       it('should not be set outside multiremote', async () => {
@@ -1248,7 +1248,7 @@ describe('TauriWorkerService', () => {
         const service = new TauriWorkerService({ driverProvider: 'external' }, app('/one'));
         await service.before(app('/one'), [], mockBrowser);
 
-        expect(await sharesAppFor(mockBrowser)).toBe(false);
+        expect(await instancesShareAppFor(mockBrowser)).toBe(false);
       });
     });
   });

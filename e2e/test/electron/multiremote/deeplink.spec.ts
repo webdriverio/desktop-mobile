@@ -10,8 +10,11 @@ declare global {
 type InstanceName = 'browserA' | 'browserB';
 
 // Protocol handlers need the packaged app. On macOS the URL goes through `open`, which can't pick an instance.
-// Workaround for webdriverio/webdriverio#16242; drop once a release with it is in the catalog.
-const canTargetInstances = process.env.BINARY !== 'false' && process.platform === 'linux';
+const canTargetInstances =
+  process.env.BINARY !== 'false' &&
+  process.platform !== 'darwin' &&
+  // Workaround for webdriverio/webdriverio#16242; drop once a release with it is in the catalog
+  process.platform !== 'win32';
 
 const root = () => multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
 const instance = (name: InstanceName) => root().getInstance(name);

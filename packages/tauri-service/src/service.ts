@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { forEachInstance, requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
@@ -61,7 +62,7 @@ export default class TauriWorkerService {
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
-  private instanceApps = new Map<WebdriverIO.Browser, string | undefined>();
+  private instancesShareApp = false;
 
   constructor(options: TauriServiceOptions & TauriServiceGlobalOptions, capabilities: TauriCapabilities) {
     // Options may be supplied service-level (services: [['tauri', {...}]]) or capability-level
@@ -123,6 +124,7 @@ export default class TauriWorkerService {
         log.info('Initializing standard browser');
       }
 
+      const instanceApps: string[] = [];
       await forEachInstance(
         browser,
         async (instance, { name, caps }) => {
@@ -133,11 +135,9 @@ export default class TauriWorkerService {
           this.addTauriApi(instance);
           this.patchBrowserExecute(instance);
           const instanceOptions = (caps as TauriCapabilities | undefined)?.['wdio:tauriServiceOptions'];
-          if (name !== undefined) {
-            this.instanceApps.set(
-              instance,
-              (caps as TauriCapabilities | undefined)?.['tauri:options']?.application ?? instanceOptions?.appBinaryPath,
-            );
+          const app = (caps as TauriCapabilities | undefined)?.['tauri:options']?.application;
+          if (name !== undefined && app) {
+            instanceApps.push(resolve(app));
           }
           setCurrentWindowLabel(instance, instanceOptions?.windowLabel || this.windowLabel);
           setSessionProvider(instance, this.driverProvider);
@@ -168,6 +168,7 @@ export default class TauriWorkerService {
         },
         capabilities,
       );
+      this.instancesShareApp = new Set(instanceApps).size < instanceApps.length;
 
       // Wait for the plugin to fully initialize (specifically attachConsole())
       // This ensures frontend console logs will be captured
@@ -483,17 +484,6 @@ export default class TauriWorkerService {
     (browser as WebdriverIO.Browser & { tauri: TauriServiceAPI }).tauri = this.getTauriAPI(browser, browserMode);
   }
 
-  private sharesApp(browser: WebdriverIO.Browser): boolean {
-    const apps = [...this.instanceApps].filter(
-      (entry): entry is [WebdriverIO.Browser, string] => entry[1] !== undefined,
-    );
-    if (!this.instanceApps.has(browser)) {
-      return new Set(apps.map(([, app]) => app)).size < apps.length;
-    }
-    const own = this.instanceApps.get(browser);
-    return apps.some(([instance, app]) => instance !== browser && app === own);
-  }
-
   /**
    * Get Tauri API object for a browser instance
    * Handles both standard and multiremote browsers
@@ -542,7 +532,7 @@ export default class TauriWorkerService {
           throw new Error('browser.tauri.triggerDeeplink() is not supported in browser mode.');
         }
         return triggerDeeplink.call(
-          { browser, provider: this.driverProvider, sharesApp: this.sharesApp(browser) },
+          { browser, provider: this.driverProvider, instancesShareApp: this.instancesShareApp },
           url,
         );
       },
