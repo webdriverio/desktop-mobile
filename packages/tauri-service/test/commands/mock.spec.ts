@@ -49,6 +49,17 @@ describe('mock Command', () => {
     expect(retrievedMock.mockReset).toHaveBeenCalled();
   });
 
+  it('should make a fresh mock when the existing mock is dropped as its window has closed', async () => {
+    mockedCommand.mockReset = vi.fn(async () => mockStore.deleteMock(browserWithTauri, 'tauri.get_platform_info'));
+    mockStore.setMock(browserWithTauri, mockedCommand);
+    const freshMock = createMockedCommand();
+    (createMock as Mock).mockReturnValue(freshMock);
+
+    const retrievedMock = await mock.call({ browser: browserWithTauri }, 'get_platform_info');
+    expect(retrievedMock).toBe(freshMock);
+    expect(mockStore.getMock(browserWithTauri, 'tauri.get_platform_info')).toBe(freshMock);
+  });
+
   it('should throw when no browser context is available', async () => {
     await expect(mock.call({}, 'get_platform_info')).rejects.toThrow('mock requires a valid browser context');
     expect(createMock).not.toHaveBeenCalled();

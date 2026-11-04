@@ -28,20 +28,23 @@ vi.mock('../src/commands/execute.js', () => ({
 import { execute as tauriExecute } from '../src/commands/execute.js';
 import { createMock } from '../src/mock.js';
 import mockStore from '../src/mockStore.js';
+import { clearWindowState, setCurrentWindowLabel } from '../src/window.js';
 
 const mockExecute = vi.mocked(tauriExecute);
 
 function makeBrowser(): WebdriverIO.Browser {
-  return { isMultiremote: false } as unknown as WebdriverIO.Browser;
+  return { isMultiremote: false, sessionId: 'test-session' } as unknown as WebdriverIO.Browser;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearWindowState();
   mockExecute.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
   vi.clearAllMocks();
+  clearWindowState();
 });
 
 describe('createMock', () => {
@@ -358,6 +361,127 @@ describe('createMock', () => {
       mockExecute.mockResolvedValueOnce({ calls: [], results: [], invocationCallOrder: [] });
       const result = await wrapper.update();
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('window routing', () => {
+    it('should route every mock operation to the window the mock was registered in', async () => {
+      const browser = makeBrowser();
+      mockExecute.mockResolvedValueOnce('main');
+      const mock = await createMock('read_clipboard', browser);
+
+      setCurrentWindowLabel(browser, 'settings');
+      mockExecute.mockClear();
+
+      await mock.mockReturnValue('clip');
+      await mock.mockReturnValueOnce('clip-once');
+      await mock.mockResolvedValue('res');
+      await mock.mockResolvedValueOnce('res-once');
+      await mock.mockRejectedValue(new Error('err'));
+      await mock.mockRejectedValueOnce(new Error('err-once'));
+      await mock.mockImplementation(() => 'impl');
+      await mock.mockImplementationOnce(() => 'impl-once');
+      await mock.mockReturnThis();
+      mockExecute.mockResolvedValueOnce({ calls: [], results: [], invocationCallOrder: [] });
+      await mock.update();
+      await mock.mockClear();
+      await mock.mockReset();
+      mockExecute.mockResolvedValueOnce('cb-result');
+      await mock.withImplementation(
+        () => 'temp',
+        () => 'cb-result',
+      );
+      await mock.mockRestore();
+
+      // 15, as withImplementation syncs the mock once its callback returns.
+      expect(mockExecute).toHaveBeenCalledTimes(15);
+      for (const call of mockExecute.mock.calls) {
+        expect(call[0]).toBe(browser);
+        expect(call[2]).toEqual({ windowLabel: 'main', __wdioOptions__: true });
+      }
+    });
+
+    it('should use the window label the registration script returns', async () => {
+      const browser = makeBrowser();
+      mockExecute.mockResolvedValueOnce('popup');
+
+      const mock = await createMock('read_clipboard', browser);
+      setCurrentWindowLabel(browser, 'settings');
+      mockExecute.mockClear();
+
+      await mock.mockReturnValue('from-popup');
+      await mock.mockRestore();
+
+      expect(mockExecute).toHaveBeenCalledTimes(2);
+      for (const call of mockExecute.mock.calls) {
+        expect(call[2]).toEqual({ windowLabel: 'popup', __wdioOptions__: true });
+      }
+    });
+
+    it("should follow the session's window when registration returns no label", async () => {
+      const mock = await createMock('read_clipboard', makeBrowser());
+      mockExecute.mockClear();
+
+      await mock.mockReturnValue('x');
+      await mock.mockRestore();
+
+      expect(mockExecute).toHaveBeenCalledTimes(2);
+      for (const call of mockExecute.mock.calls) {
+        expect(call[2]).toStrictEqual({ windowLabel: undefined, __wdioOptions__: true });
+      }
+    });
+
+    const pluginError =
+      'Promise error: Failed to execute script: Execute error: Window with label \'popup\' not found. Available windows: ["main"]';
+    describe.each([
+      ['embedded', "Window 'popup' not found. Available: [main]"],
+      // execute() rethrows the plugin's error inside its own parse error.
+      [
+        'external',
+        `Failed to parse execute result: ${pluginError}, raw result: ${JSON.stringify({ __wdio_error__: pluginError })}`,
+      ],
+    ])('once the mock window has closed (%s provider)', (_provider, closedError) => {
+      async function mockInClosedWindow() {
+        mockExecute.mockResolvedValueOnce('popup');
+        const mock = await createMock('read_clipboard', makeBrowser());
+        mockExecute.mockResolvedValueOnce({ calls: [['a']], results: [], invocationCallOrder: [1] });
+        await mock.update();
+        mockExecute.mockRejectedValue(new Error(closedError));
+        return mock;
+      }
+
+      it('should keep the calls synced before it closed, and drop the mock from the store', async () => {
+        const mock = await mockInClosedWindow();
+        await mock.update();
+        expect(mock.mock.calls).toEqual([['a']]);
+        expect(mockStore.deleteMock).toHaveBeenCalledWith(expect.anything(), 'tauri.read_clipboard');
+      });
+
+      it('should clear, reset and restore without an error, and leave the app and store alone once dropped', async () => {
+        const mock = await mockInClosedWindow();
+        await mock.mockClear();
+        expect(mock.mock.calls).toEqual([]);
+        expect(mockStore.deleteMock).toHaveBeenCalledOnce();
+        mockExecute.mockClear();
+        await mock.mockReset();
+        await mock.mockRestore();
+        expect(mockExecute).not.toHaveBeenCalled();
+        expect(mockStore.deleteMock).toHaveBeenCalledOnce();
+      });
+
+      it('should still reject a setter', async () => {
+        const mock = await mockInClosedWindow();
+        await expect(mock.mockReturnValue('x')).rejects.toMatchObject({ message: closedError });
+      });
+    });
+
+    it('should still reject an update that fails for another reason', async () => {
+      mockExecute.mockResolvedValueOnce('popup');
+      const mock = await createMock('read_clipboard', makeBrowser());
+      mockExecute.mockRejectedValueOnce(new Error('Direct eval HTTP error: 500 Internal Server Error'));
+      await expect(mock.update()).rejects.toMatchObject({
+        message: 'Direct eval HTTP error: 500 Internal Server Error',
+      });
     });
   });
 });
