@@ -680,10 +680,6 @@ describe('Tauri Mocking', () => {
 
         await browser.$('#platform-info-button').click();
 
-        await browser.waitUntil(async () => mockGetPlatformInfo.mock.calls.length > 0, {
-          timeout: 5000,
-          timeoutMsg: 'expected the click to sync the mock call without update()',
-        });
         expect(mockGetPlatformInfo).toHaveBeenCalledTimes(1);
       });
 
