@@ -92,10 +92,12 @@ Mock a specific Tauri backend command. Returns a TauriMock object for configurin
 const mock = await browser.tauri.mock('read_file');
 await mock.mockReturnValue('mocked file content');
 
-// Now calling invoke('read_file', ...) returns 'mocked file content'
+// invoke('read_file') now returns 'mocked file content', in the app and in execute()
 const content = await browser.tauri.execute(({ core }) => core.invoke('read_file'));
 expect(content).toBe('mocked file content');
 ```
+
+The mock sees every call to the command in that window: the app's `invoke()` from `@tauri-apps/api/core`, `window.__TAURI__.core.invoke`, the helpers built on them (mock `plugin:event|emit` to see the app's `emit()` calls), and `core.invoke` in `browser.tauri.execute()`. A call from the app passes the mock its arguments as Tauri sends them over IPC: a JSON copy of the arguments, or the bytes of a binary payload.
 
 **Browser Mode:** Works in browser mode — this is the primary testing API in browser mode. The `command` argument is the Tauri command name (matching what the frontend passes to `invoke()`). Trigger the command via a UI interaction or `browser.execute(() => window.__TAURI_INTERNALS__.invoke('command-name'))`, then call `update()` and assert.
 

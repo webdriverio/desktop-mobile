@@ -635,10 +635,8 @@ export default class TauriWorkerService {
       const scriptString = typeof script === 'function' ? script.toString() : script;
 
       if (isEmbedded) {
-        // Tauri embedded WebDriver's execute/sync is W3C-compliant (wraps the script as a
-        // function body) and awaits the result internally, so async functions work over the
-        // sync endpoint. Pass the script through untouched — WebdriverIO will handle function
-        // serialization via its standard polyfill wrapper.
+        // The embedded driver awaits a returned promise on both script endpoints, so
+        // WebdriverIO's own execute works whichever endpoint it sends the script to.
         return (originalExecute as unknown as (s: typeof script, ...a: typeof args) => Promise<ReturnValue>)(
           script,
           ...args,
@@ -869,18 +867,25 @@ async function emitTauriEvent(
             payload,
           },
         ];
-  // Mocks only wrap tauri.core.invoke, so calling __TAURI_INTERNALS__.invoke keeps a mock of these
-  // commands from swallowing the test's own emit
+  // Calling __TAURI_INTERNALS__.invoke, not tauri.core.invoke, with the plugin's SKIP_MOCKS_HEADER keeps
+  // a mock of these commands from swallowing the test's own emit
   await execute(
     browser,
-    (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) =>
+    (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>, headers: Record<string, string>) =>
       (
         globalThis as unknown as {
-          __TAURI_INTERNALS__: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<unknown> };
+          __TAURI_INTERNALS__: {
+            invoke: (
+              cmd: string,
+              args: Record<string, unknown>,
+              options: { headers: Record<string, string> },
+            ) => Promise<unknown>;
+          };
         }
-      ).__TAURI_INTERNALS__.invoke(cmd, cmdArgs),
+      ).__TAURI_INTERNALS__.invoke(cmd, cmdArgs, { headers }),
     command,
     args,
+    { 'Wdio-Skip-Mocks': '1' },
   );
 }
 
