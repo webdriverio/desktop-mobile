@@ -59,6 +59,10 @@ Check npm or each package's `package.json` for current version numbers.
 - ⚠️ Security Only - Only critical security fixes (none currently)
 - ❌ Unsupported - No longer maintained
 
+### WebdriverIO Versions
+
+Each service supports the current WebdriverIO major and the previous one, as its `webdriverio` peer range shows. When a new WebdriverIO major ships, the services' next major release moves their support up: it adds the new major and drops the oldest.
+
 ## Best Practices for Users
 
 ### Pin Versions for Stability

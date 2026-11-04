@@ -4,6 +4,7 @@ name: WebdriverIO v9
 # - build, typecheck and unit tests on the `minimum` catalog: nightly, and on PRs that touch the packages;
 # - the Linux package tests, with the fixtures' webdriverio and @wdio/* from `minimum`: weekly, when dispatched, on
 #   a PR with the ci:wdio-maintenance label, and when a label that sets up a release is added to a PR.
+# At the next WebdriverIO major, see docs/setup.md#webdriverio-majors for what to change here.
 
 on:
   schedule:

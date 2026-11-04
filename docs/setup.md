@@ -193,6 +193,25 @@ pnpm catalog:update --minimum
 
 The update process shows available updates, lets you select which to apply, updates `pnpm-workspace.yaml`, then runs `pnpm install`.
 
+### WebdriverIO Majors
+
+The services support two WebdriverIO majors at once: their `webdriverio` and `@wdio/*` peer ranges allow the current major and the previous one. The `default` catalog holds the current major, and `minimum` holds the previous one.
+
+CI runs on the current major. The `wdio-v9.yml` workflow checks the previous one:
+
+- It builds, type-checks and unit-tests the packages on `minimum` nightly, and on PRs that touch them.
+- It runs the Linux package tests, with the fixtures' WebdriverIO packages from `minimum`, weekly, when dispatched, on a PR with the `ci:wdio-maintenance` label, and when a release label is added to a PR.
+
+To run a package test on the previous major locally, pass `--wdio-catalog=minimum`, as in `pnpm test:package:electron -- --wdio-catalog=minimum`.
+
+When a new WebdriverIO major ships:
+
+1. Move `default` to the new major and `minimum` to the one before it, and move the services' peer ranges with them. Dropping the oldest major is a breaking change for the services.
+2. Match the packages' Node `engines` to the new `webdriverio`'s.
+3. Rename `wdio-v9.yml`, its workflow name and its `v9` job names after the new previous major. The `ci:wdio-maintenance` label keeps its name.
+4. Drop the job-wide Xvfb (`.github/workflows/actions/start-xvfb`) if the new previous major starts its own display, as v10 does.
+5. Update the two checks on the `minimum` catalog in `test/scripts/switch-catalog.spec.ts`: the major it holds, and the WebdriverIO packages it may lack.
+
 ## Turborepo Caching
 
 Turborepo caches task outputs to speed up subsequent runs.
