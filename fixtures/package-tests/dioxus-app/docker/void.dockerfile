@@ -2,9 +2,11 @@ FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
-# Every xbps-install below runs this wrapper: Fastly's CDN mirror first, then repo-default if a download
-# fails or stalls
-COPY fixtures/package-tests/dioxus-app/docker/xbps-install.sh /usr/local/bin/xbps-install
+# Fastly's CDN mirror first, then repo-default. xbps skips a mirror whose index fails to sync, and takes
+# each package from the first mirror that has it. Either way, it checks every package's signature.
+RUN mkdir -p /etc/xbps.d && \
+    printf 'repository=https://%s/current\n' repo-fastly.voidlinux.org repo-default.voidlinux.org \
+        >/etc/xbps.d/00-repository-main.conf
 
 # Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
 # Void's nodejs tracks the current LTS line, which WDIO supports — sessions
