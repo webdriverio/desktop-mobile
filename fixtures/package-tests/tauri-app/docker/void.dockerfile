@@ -2,15 +2,17 @@ FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
-# repo-default alone has had outages. xbps skips a mirror whose index fails to sync, giving up on a
-# connection after 30 s, and takes each package from the first mirror that has it, checking its signature
-# either way. The sed keeps each config's path, which varies by architecture.
+# Two mirrors, as either can be down: xbps skips one whose index fails to sync, and bestmatching takes
+# each package's newest version, from Fastly on a tie, so Fastly's cached index can't hold it back.
+# CONNECTION_TIMEOUT is xbps's connect timeout in ms. The sed keeps each config's per-architecture path.
 ARG CONNECTION_TIMEOUT=30000
 RUN mkdir -p /etc/xbps.d && \
     cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
     sed -i 's|^repository=https://[^/]*/\(.*\)$|repository=https://repo-fastly.voidlinux.org/\1\nrepository=https://repo-default.voidlinux.org/\1|' \
         /etc/xbps.d/*-repository-*.conf && \
-    grep -q '^repository=https://repo-fastly\.voidlinux\.org/' /etc/xbps.d/*-repository-*.conf
+    grep -q '^repository=https://repo-fastly\.voidlinux\.org/' /etc/xbps.d/*-repository-*.conf && \
+    grep -q '^repository=https://repo-default\.voidlinux\.org/' /etc/xbps.d/*-repository-*.conf && \
+    echo 'bestmatching=true' >/etc/xbps.d/bestmatching.conf
 
 # Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
 RUN xbps-install -Syu xbps && \
