@@ -21,7 +21,7 @@ use super::key_input::{
 };
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
-use crate::webdriver::element::ELEMENT_KEY;
+use crate::webdriver::element::{ELEMENT_KEY, ELEMENT_VAR_PREFIX};
 
 /// Run a script and return its result, or a WebDriver error.
 pub(super) async fn eval(script: String, timeout_ms: u64) -> Result<Value, WebDriverErrorResponse> {
@@ -119,7 +119,7 @@ pub async fn find(
     let t = &sessions.get(&session_id)?.timeouts;
     (t.script_ms, t.implicit_ms)
   };
-  let var = format!("__wdio_elem_{}", Uuid::new_v4().simple());
+  let var = format!("{ELEMENT_VAR_PREFIX}{}", Uuid::new_v4().simple());
   let script = format!(
     "window.{var} = {}; return window.{var} !== null && window.{var} !== undefined ? '{}' : null",
     js_locator(&req.using, &req.value),
@@ -159,7 +159,7 @@ pub async fn find_all(
   let prefix = Uuid::new_v4().simple().to_string();
   let locator = js_locator_all(&req.using, &req.value);
   let script = format!(
-    "return (function(){{ var elems = {locator}; var vars = []; for(var i=0;i<elems.length;i++) {{ var k='__wdio_elem_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
+    "return (function(){{ var elems = {locator}; var vars = []; for(var i=0;i<elems.length;i++) {{ var k='{ELEMENT_VAR_PREFIX}{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
   let deadline = tokio::time::Instant::now() + Duration::from_millis(implicit_ms);
   loop {

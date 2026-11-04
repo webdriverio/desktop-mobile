@@ -15,7 +15,8 @@ function __wdioScriptResultRefs(idPrefix, varPrefix) {
 
   function nodeRef(value) {
     // Chromium's <embed> and <object> elements are callable, so their typeof is 'function'
-    if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
+    const callableNode = typeof value === 'function' && Boolean(value.nodeName);
+    if (value === null || (typeof value !== 'object' && !callableNode)) {
       return undefined;
     }
     let key;
@@ -49,7 +50,7 @@ function __wdioScriptResultRefs(idPrefix, varPrefix) {
     return Array.from({ length: value.length }, (_, i) => value[i]);
   }
 
-  // A result JSON.stringify rejects, such as a cycle, comes back as it is, to fail as it did before.
+  // A result JSON.stringify rejects, such as a cycle, comes back as it is, so the transport reports the error.
   function withRefs(value) {
     const first = count;
     let replaced = false;

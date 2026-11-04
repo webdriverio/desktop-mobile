@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const TAURI_COPY = 'packages/tauri-plugin-webdriver/src/platform/script-result-refs.js';
@@ -31,6 +31,12 @@ let refs: ScriptResultRefs;
 beforeEach(() => {
   document.body.innerHTML = '<div id="first"></div><div id="second"></div><div id="host"></div>';
   refs = scriptResultRefs('5f0c-11e4', '__test_el_');
+});
+
+afterEach(() => {
+  for (const name of Object.keys(page).filter((key) => key.startsWith('__test_el_'))) {
+    delete page[name];
+  }
 });
 
 function byId(id: string) {
@@ -76,8 +82,9 @@ describe('script-result-refs.js', () => {
       expect(page.__test_el_5f0c11e40).toBe(callable);
     });
 
-    it('should leave a plain function alone', () => {
+    it('should leave a function alone unless it has a nodeName, as chromedriver does', () => {
       expect(refs.nodeRef(() => undefined)).toBeUndefined();
+      expect(refs.nodeRef(Object.assign(() => undefined, { nodeType: 1 }))).toBeUndefined();
     });
 
     it('should number the nodes in the order it meets them', () => {

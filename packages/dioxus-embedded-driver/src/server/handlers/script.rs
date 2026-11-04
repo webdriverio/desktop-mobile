@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
-use crate::webdriver::element::{ELEMENT_KEY, SCRIPT_REF_VAR_PREFIX};
+use crate::webdriver::element::{ELEMENT_KEY, ELEMENT_VAR_PREFIX};
 use crate::webdriver::session::Session;
 
 const SCRIPT_RESULT_REFS_JS: &str = include_str!("script-result-refs.js");
@@ -48,7 +48,7 @@ async fn run_script(
 
 fn script_result_refs_js(ref_prefix: &str) -> String {
   format!(
-    "{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '{SCRIPT_REF_VAR_PREFIX}');"
+    "{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '{ELEMENT_VAR_PREFIX}');"
   )
 }
 

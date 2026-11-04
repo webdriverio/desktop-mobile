@@ -7,8 +7,8 @@ use uuid::Uuid;
 pub const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
 const SHADOW_KEY: &str = "shadow-6066-11e4-a52e-4f735466cecf";
 
-/// Where the script result serialiser keeps a node, followed by the node's ID without hyphens.
-pub const SCRIPT_REF_VAR_PREFIX: &str = "__wdio_elem_";
+/// Each element's node is kept on `window` under this prefix and its ID without hyphens.
+pub const ELEMENT_VAR_PREFIX: &str = "__wdio_elem_";
 
 /// Stores element references (JS variable names) per session.
 #[derive(Debug, Default)]
@@ -41,7 +41,7 @@ impl ElementStore {
         for key in [ELEMENT_KEY, SHADOW_KEY] {
           if let Some(id) = entries.get(key).and_then(Value::as_str) {
             if is_script_ref_id(id, ref_prefix) {
-              let js_var = format!("{SCRIPT_REF_VAR_PREFIX}{}", id.replace('-', ""));
+              let js_var = format!("{ELEMENT_VAR_PREFIX}{}", id.replace('-', ""));
               self.elements.insert(id.to_string(), js_var);
             }
           }

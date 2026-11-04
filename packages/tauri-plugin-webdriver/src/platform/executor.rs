@@ -1663,9 +1663,32 @@ pub fn script_result_refs_js(ref_prefix: &str) -> String {
   format!("{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '{ELEMENT_VAR_PREFIX}');")
 }
 
+/// The refs helper an async wrapper needs, and the expression that hands back its result, held in
+/// `result_var`. Execute Async Script gets references. DirectEval (`None`) has no session to register
+/// them in, so its result goes back as it is.
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+pub fn async_script_result_js(ref_prefix: Option<&str>, result_var: &str) -> (String, String) {
+  match ref_prefix {
+    Some(prefix) => (script_result_refs_js(prefix), format!("__wdio_refs.withRefs({result_var})")),
+    None => (String::new(), result_var.to_owned()),
+  }
+}
+
 #[cfg(test)]
 mod script_result_refs_tests {
   use super::*;
+
+  #[test]
+  #[cfg(any(target_os = "windows", target_os = "linux"))]
+  fn async_script_result_js_adds_references_only_for_execute_async_script() {
+    let (refs_js, result_js) = async_script_result_js(Some("5f0c"), "r");
+    assert_eq!(refs_js, script_result_refs_js("5f0c"));
+    assert_eq!(result_js, "__wdio_refs.withRefs(r)");
+
+    let (refs_js, result_js) = async_script_result_js(None, "r");
+    assert!(refs_js.is_empty());
+    assert_eq!(result_js, "r");
+  }
 
   #[test]
   fn script_result_refs_keep_nodes_under_find_elements_variable_prefix() {
