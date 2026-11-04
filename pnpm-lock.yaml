@@ -369,11 +369,11 @@ importers:
         specifier: ^4.1.0
         version: 4.1.0(@appium/logger@2.0.12)(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       appium-uiautomator2-driver:
-        specifier: ^9.0.1
-        version: 9.0.1(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        specifier: ^8.7.0
+        version: 8.7.3(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       appium-xcuitest-driver:
-        specifier: ^13.0.4
-        version: 13.0.4(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        specifier: ^12.20.0
+        version: 12.22.8(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -962,11 +962,11 @@ importers:
         specifier: ^3.9.0
         version: 3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       appium-uiautomator2-driver:
-        specifier: ^9.0.1
-        version: 9.0.1(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        specifier: ^8.7.0
+        version: 8.7.3(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       appium-xcuitest-driver:
-        specifier: ^13.0.4
-        version: 13.0.4(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        specifier: ^12.20.0
+        version: 12.22.8(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -4299,22 +4299,6 @@ packages:
       - portscanner
       - teen_process
 
-  appium-uiautomator2-driver@9.0.1:
-    resolution: {integrity: sha512-0MsyNPb1bxc4F2AyAsvlwEMe4gvf6gcF4QGSole52xjKO2qD2el4zl4bvBmF12GhmKqcTkBcXmDMLD5ZIyBZGw==}
-    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0, npm: '>=10'}
-    peerDependencies:
-      appium: ^4.0.0-beta.6
-    bundledDependencies:
-      - '@appium/css-locator-to-native'
-      - appium-adb
-      - appium-android-driver
-      - appium-uiautomator2-server
-      - asyncbox
-      - axios
-      - io.appium.settings
-      - portscanner
-      - teen_process
-
   appium-webdriveragent@15.1.6:
     resolution: {integrity: sha512-CTiRQbI5t7I3+w2rqO0TizoV2UhRUwsfi9J+m4Dh4s2qGk+s+crFyyYylck4OhuFIXXGgr0DJvxBwiDs1XeGyQ==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
@@ -4329,19 +4313,21 @@ packages:
     peerDependencies:
       appium: ^3.0.0-rc.2
 
-  appium-xcuitest-driver@13.0.4:
-    resolution: {integrity: sha512-VQsyouiy8o/01Nz+Qx2y6P4TZ0q9T3i2128uE1lZKpuPSdjD9bwdOhBnS1pUNthv6zQzSPoK3x1ecrjdIV3W/A==}
-    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0, npm: '>=10'}
+  appium-xcuitest-driver@12.22.8:
+    resolution: {integrity: sha512-aLZLEAXQe8HXiP197tmg/WvVPZ2T8DFnOQaq1wJi6NejMLdtS6FK2+LrmMJADNp0mXxxeCgYMntBIqQnwLuTqw==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
     peerDependencies:
-      appium: ^4.0.0-beta.6
+      appium: ^3.0.0-rc.2
     bundledDependencies:
       - '@appium/css-locator-to-native'
       - '@appium/strongbox'
-      - appium-ios-remotexpc
+      - '@colors/colors'
+      - appium-ios-device
       - appium-ios-simulator
       - appium-remote-debugger
       - appium-webdriveragent
       - appium-xcode
+      - async-lock
       - asyncbox
       - axios
       - commander
@@ -4354,6 +4340,7 @@ packages:
       - teen_process
       - winston
       - ws
+      - appium-ios-remotexpc
 
   appium@3.9.0:
     resolution: {integrity: sha512-OGOk9PURzjLoaP76Vm7gbZ4xK6MSskX64xHwMNs+g8gMbW+EHPoN2uFJRLGWW0ChaanhJklwux01BTg1gz4RqA==}
@@ -10752,14 +10739,6 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  appium-uiautomator2-driver@9.0.1(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
-    dependencies:
-      appium: 3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
-    optionalDependencies:
-      sharp: 0.35.5(@types/node@26.6.6)
-    transitivePeerDependencies:
-      - '@types/node'
-
   appium-webdriveragent@15.1.6(@appium/logger@2.0.12)(@types/node@26.6.6)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.6)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -10831,7 +10810,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  appium-xcuitest-driver@13.0.4(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
+  appium-xcuitest-driver@12.22.8(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
     dependencies:
       appium: 3.9.0(@types/node@26.6.6)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     optionalDependencies:

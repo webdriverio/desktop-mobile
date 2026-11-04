@@ -121,7 +121,7 @@ const baseCapability: ElectrobunCapability = {
   browserName: 'electrobun',
   // macOS/CEF pins the driver to the bundled Chromium major (bump alongside the CEF pin);
   // Windows/Linux force classic WebDriver. Why, per platform: launcher.ts.
-  ...(process.platform === 'darwin' ? { browserVersion: '147' } : { 'wdio:enforceWebDriverClassic': true }),
+  ...(process.platform === 'darwin' ? { browserVersion: '156' } : { 'wdio:enforceWebDriverClassic': true }),
   'wdio:electrobunServiceOptions': electrobunServiceOptions,
 };
 
