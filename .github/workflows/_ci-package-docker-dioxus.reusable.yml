@@ -65,8 +65,9 @@ jobs:
       - name: Copy logs to workspace
         if: always()
         run: |
-          # Copy Docker test logs to workspace for upload
+          # Copy the Docker build and test logs to workspace for upload
           mkdir -p fixtures/package-tests/dioxus-app/logs-docker/
+          cp /tmp/docker-build-${{ inputs.distro }}.log fixtures/package-tests/dioxus-app/logs-docker/ 2>/dev/null || true
           cp /tmp/docker-test-${{ inputs.distro }}.log fixtures/package-tests/dioxus-app/logs-docker/ 2>/dev/null || true
           # Copy any test logs that were captured
           cp -r /tmp/dioxus-test-logs-${{ inputs.distro }}/* fixtures/package-tests/dioxus-app/logs-docker/ 2>/dev/null || true

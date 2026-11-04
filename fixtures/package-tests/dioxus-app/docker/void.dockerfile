@@ -1,4 +1,4 @@
-FROM voidlinux/voidlinux:latest
+FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
@@ -7,12 +7,12 @@ RUN mkdir -p /etc/xbps.d && \
     cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
     sed -i 's|https://[^/]*/|https://repo-default.voidlinux.org/|g' /etc/xbps.d/*-repository-*.conf
 
-# Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
+# Install basic requirements, after upgrading the image's packages so new ones install against current libraries
 # Void's nodejs tracks the current LTS line, which WDIO supports — sessions
 # create fine on it (unlike Arch, which tracks the absolute newest Node whose
 # stricter undici broke WDIO's session POST and therefore pins an LTS tarball).
 RUN xbps-install -Syu xbps && \
-    ( xbps-install -Suy || true ) && \
+    xbps-install -uy && \
     xbps-install -y \
         curl \
         ca-certificates \
@@ -31,9 +31,6 @@ RUN xbps-install -Syu xbps && \
 # bridge crate into the binary
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Upgrade util-linux packages first to avoid dependency conflicts
-RUN xbps-install -yf util-linux util-linux-common libblkid libuuid libmount libfdisk libsmartcols || true
 
 # Dioxus desktop renders through Wry → WebKitGTK; these are the build deps.
 # The 'embedded' driver needs NO system WebKitWebDriver binary, so no

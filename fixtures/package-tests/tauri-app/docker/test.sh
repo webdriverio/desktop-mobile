@@ -21,6 +21,8 @@
 #   TARBALLS_DIR="$(pwd)/dist/tarballs" fixtures/package-tests/tauri-app/docker/test.sh all test
 
 set -e
+# So `docker build | tee` fails when the build does
+set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
@@ -61,14 +63,12 @@ test_dockerfile() {
     echo -e "${YELLOW}=== Testing $distro ===${NC}"
 
     # Try to build the Docker image
-    docker build \
+    if docker build \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --progress=plain \
         -f "$SCRIPT_DIR/$dockerfile" \
         -t "tauri-distro-test:$distro" \
-        "$REPO_ROOT" 2>&1 | tee "/tmp/docker-build-$distro.log"
-    # Check the exit code of docker build (PIPESTATUS[0]), not tee (PIPESTATUS[1])
-    if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+        "$REPO_ROOT" 2>&1 | tee "/tmp/docker-build-$distro.log"; then
         echo -e "${GREEN}✓ Build succeeded for $distro${NC}"
         return 0
     else
