@@ -97,7 +97,7 @@ const content = await browser.tauri.execute(({ core }) => core.invoke('read_file
 expect(content).toBe('mocked file content');
 ```
 
-The mock sees every call to the command in that window: the app's `invoke()` from `@tauri-apps/api/core`, `window.__TAURI__.core.invoke`, the helpers built on them (mock `plugin:event|emit` to see the app's `emit()` calls), and `core.invoke` in `browser.tauri.execute()`. A call from the app passes the mock its arguments as Tauri sends them over IPC: a JSON copy of the arguments, or the bytes of a binary payload.
+The mock sees every call to the command in the mock's window: the app's `invoke()` from `@tauri-apps/api/core`, `window.__TAURI__.core.invoke`, the helpers built on them (mock `plugin:event|emit` to see the app's `emit()` calls), and `core.invoke` in `browser.tauri.execute()`. A call from the app passes the mock its arguments as Tauri sends them over IPC: a JSON copy of the arguments, or the bytes of a binary payload.
 
 **Note:** A mock stays in the window that was selected when `mock()` created it, even after `switchWindow()`. Each command has one mock, so `mock()` on a command that's already mocked returns that mock, in its original window, unless that window has closed. To mock the command in another window instead, call `mockRestore()`, switch windows and call `mock()` again.
 
