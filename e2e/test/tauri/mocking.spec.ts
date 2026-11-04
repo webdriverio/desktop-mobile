@@ -678,7 +678,7 @@ describe('Tauri Mocking', () => {
       it('should auto-synchronize mock calls after a click', async () => {
         const mockGetPlatformInfo = await browser.tauri.mock('get_platform_info');
 
-        await browser.$('#platform-info-button').click();
+        await browser.$('#invoke-api-button').click();
 
         expect(mockGetPlatformInfo).toHaveBeenCalledTimes(1);
       });
