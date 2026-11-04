@@ -2,11 +2,14 @@ FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
-# Fastly's CDN mirror first, then repo-default. xbps skips a mirror whose index fails to sync, and takes
-# each package from the first mirror that has it. Either way, it checks every package's signature.
+# repo-default alone has had outages. xbps skips a mirror whose index fails to sync, giving up on a
+# connection after 30 s rather than 5 minutes, and takes each package from the first mirror that has it,
+# checking its signature either way. The sed keeps each config's path, which varies by architecture.
+ENV CONNECTION_TIMEOUT=30000
 RUN mkdir -p /etc/xbps.d && \
-    printf 'repository=https://%s/current\n' repo-fastly.voidlinux.org repo-default.voidlinux.org \
-        >/etc/xbps.d/00-repository-main.conf
+    cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
+    sed -i 's|^repository=https://[^/]*/\(.*\)$|repository=https://repo-fastly.voidlinux.org/\1\nrepository=https://repo-default.voidlinux.org/\1|' \
+        /etc/xbps.d/*-repository-*.conf
 
 # Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
 RUN xbps-install -Syu xbps && \
