@@ -44,7 +44,7 @@ describe('Tauri browser-mode E2E', () => {
 
     expect(result).toBe('Hello, temporary');
     expect(mock).toHaveBeenCalledTimes(1);
-    expect(mock.mock.calls[0][0]).toEqual({ name: 'callback' });
+    expect(mock.mock.calls).toEqual([[{ name: 'callback' }]]);
 
     await $('[data-testid="send-greeting"]').click();
 

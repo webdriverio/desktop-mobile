@@ -98,8 +98,6 @@ describe('Electron browser-mode E2E', () => {
       electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } };
     };
     const mock = await browser.electron.mock('app:get-version');
-    // mock(channel) returns an existing mock unchanged, calls included
-    await mock.mockClear();
     await mock.mockResolvedValue('1.0.0-default');
 
     const result = await mock.withImplementation(
