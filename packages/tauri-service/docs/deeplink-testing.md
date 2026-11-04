@@ -140,6 +140,12 @@ The in-app event skips the OS, so a few things differ from a real launch:
 - Your app's capabilities must allow `wdio:allow-emit-deep-link`, which `wdio:default` includes.
 - Rust `on_open_url` handlers run on the main thread on every platform, as a real deep link runs them on macOS and Windows. On Linux, a real deep link runs them on the single-instance plugin's D-Bus thread. `triggerDeeplink()` returns without waiting for them, so wait for their effect in your test.
 
+## Multiremote
+
+With the `embedded` provider, and CrabNebula on macOS, an instance's `triggerDeeplink()` reaches only that instance's app, and the root's reaches every instance once.
+
+With `external`, and CrabNebula on Windows and Linux, the URL opens through the OS, which can't pick one of two copies of the same app: it starts another copy instead. So in a session where two instances run the same app, `triggerDeeplink()` throws, on every instance and on the root. When each instance runs a different app, it still works, but the OS opens the URL in the app that handles its scheme, whichever instance called, and a root call opens it only once.
+
 ## App Implementation
 
 ### Frontend Deep Link Listener

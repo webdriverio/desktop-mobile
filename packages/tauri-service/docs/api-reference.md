@@ -216,6 +216,8 @@ await browser.waitUntil(async () => {
 
 See [Deeplink Testing](./deeplink-testing.md) for full usage guide.
 
+**Multiremote:** With the `embedded` provider, and CrabNebula on macOS, an instance's call reaches only that instance, and the root's reaches every instance. On the OS route, it throws in a session where two instances run the same app. See [Multiremote](./deeplink-testing.md#multiremote).
+
 **Browser Mode:** Not available. There is no Tauri process to receive the deeplink.
 
 ---

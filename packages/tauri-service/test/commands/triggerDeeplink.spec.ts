@@ -200,6 +200,54 @@ describe('triggerDeeplink Command', () => {
       );
     });
 
+    it.each([
+      ['external', 'linux'],
+      ['external', 'win32'],
+      ['crabnebula', 'linux'],
+      ['crabnebula', 'win32'],
+    ] as const)(
+      'should refuse to open the URL through the OS for %s on %s when two instances run the same app',
+      async (provider, platform) => {
+        mockPlatform(platform);
+        const browser = createBrowser();
+
+        await expect(
+          triggerDeeplink.call({ browser, provider, instancesShareApp: true }, 'myapp://standard'),
+        ).rejects.toMatchObject({
+          message: expect.stringContaining(
+            `triggerDeeplink() can't reach a multiremote instance with the ${provider} provider on ${platform}`,
+          ),
+        });
+        expect(spawn).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should open the URL through the OS when no two instances run the same app', async () => {
+      mockPlatform('linux');
+      const browser = createBrowser();
+      await triggerDeeplink.call({ browser, provider: 'external', instancesShareApp: false }, 'myapp://standard');
+
+      expect(spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['myapp://standard']),
+        expect.objectContaining({ detached: true, stdio: 'ignore' }),
+      );
+    });
+
+    it.each([
+      ['embedded', 'linux'],
+      ['crabnebula', 'darwin'],
+    ] as const)(
+      'should still emit in the app for %s on %s when two instances run the same app',
+      async (provider, platform) => {
+        mockPlatform(platform);
+        const browser = createBrowser();
+        await triggerDeeplink.call({ browser, provider, instancesShareApp: true }, 'myapp://test');
+
+        expect(browser.execute).toHaveBeenCalledWith(expect.any(Function), 'myapp://test');
+      },
+    );
+
     it('should throw when browser context is missing in embedded mode', async () => {
       await expect(triggerDeeplink.call({ provider: 'embedded' }, 'myapp://test')).rejects.toThrow(
         'embedded deeplink injection requires browser context',

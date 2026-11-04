@@ -7,10 +7,16 @@
  */
 type ContextAccessor = () => { execute<T>(fn: (context: unknown) => T | undefined): Promise<T | undefined> };
 
+type BrowserAccessor = () => WebdriverIO.Browser;
+
 /**
- * Create deeplink test helpers for a given context accessor
+ * Create deeplink test helpers for a given context accessor.
+ * In multiremote, pass the instance to wait on: the root runs `waitUntil` on every instance.
  */
-export function createDeeplinkHelpers(contextAccessor: ContextAccessor) {
+export function createDeeplinkHelpers(
+  contextAccessor: ContextAccessor,
+  browserAccessor: BrowserAccessor = () => browser,
+) {
   const getContext = contextAccessor;
 
   /**
@@ -18,7 +24,7 @@ export function createDeeplinkHelpers(contextAccessor: ContextAccessor) {
    */
   async function waitForDeeplink(expectedCount = 1, timeoutMsg = 'App did not receive the deeplink') {
     const ctx = getContext();
-    await browser.waitUntil(
+    await browserAccessor().waitUntil(
       async () => {
         const count = (await ctx.execute(() => (globalThis as { deeplinkCount?: number }).deeplinkCount)) ?? 0;
         return count >= expectedCount;
@@ -37,9 +43,10 @@ export function createDeeplinkHelpers(contextAccessor: ContextAccessor) {
     const ctx = getContext();
     let previousCount = (await ctx.execute(() => (globalThis as { deeplinkCount?: number }).deeplinkCount)) ?? 0;
 
-    await browser.waitUntil(
+    const waitOn = browserAccessor();
+    await waitOn.waitUntil(
       async () => {
-        await browser.pause(1000);
+        await waitOn.pause(1000);
         const currentCount = (await ctx.execute(() => (globalThis as { deeplinkCount?: number }).deeplinkCount)) ?? 0;
         const isStable = currentCount === previousCount;
         previousCount = currentCount;

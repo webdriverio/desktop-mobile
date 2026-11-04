@@ -17,6 +17,7 @@ interface TauriInternals {
 interface TauriServiceContext {
   browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   provider: DriverProvider;
+  instancesShareApp?: boolean;
 }
 
 /**
@@ -39,6 +40,7 @@ interface TauriServiceContext {
  * @param url - The deeplink URL to trigger (e.g., 'myapp://open?path=/test')
  * @returns A promise that resolves when the deeplink has been triggered
  * @throws Error if the URL is invalid or uses http/https/file protocols
+ * @throws Error on the OS route when two multiremote instances run the same app
  *
  * @example
  * ```ts
@@ -78,6 +80,14 @@ export async function triggerDeeplink(this: TauriServiceContext, url: string): P
       log.error(`Failed to inject deeplink via browser.execute: ${error}`);
       throw new Error(`Failed to inject deeplink: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  if (this.instancesShareApp) {
+    throw new Error(
+      `triggerDeeplink() can't reach a multiremote instance with the ${provider} provider on ${platform} when two instances run the same app. ` +
+        "It opens the URL through the OS, which can't tell the copies apart, so the URL starts another copy. " +
+        'Use the embedded provider, or test deeplinks without multiremote.',
+    );
   }
 
   const { command, args } = getPlatformCommand(validatedUrl, platform);

@@ -1174,6 +1174,88 @@ describe('TauriWorkerService', () => {
       expect(context.browser).toBe(mrBrowser);
       expect(context.provider).toBe('external');
     });
+
+    describe('instancesShareApp', () => {
+      const app = (application: string) => ({ 'tauri:options': { application } });
+
+      async function startMultiremote(requested: Record<string, Record<string, unknown>>) {
+        const instances = Object.fromEntries(
+          Object.entries(requested).map(([name, requestedCapabilities]) => [
+            name,
+            createMockBrowser({ sessionId: `session-${name}`, requestedCapabilities }),
+          ]),
+        );
+        const root = createMockBrowser({
+          isMultiremote: true,
+          instances: Object.keys(instances),
+          getInstance: (name: string) => instances[name],
+        });
+        const capabilities = Object.fromEntries(
+          Object.keys(instances).map((name) => [name, { capabilities: {} }]),
+        ) as unknown as TauriCapabilities;
+        const service = new TauriWorkerService({ driverProvider: 'external' }, capabilities);
+        await service.before(capabilities, [], root);
+        return { root, ...instances };
+      }
+
+      async function instancesShareAppFor(browser: WebdriverIO.Browser): Promise<boolean | undefined> {
+        vi.mocked(triggerDeeplink).mockClear();
+        await (browser as unknown as { tauri: TauriServiceAPI }).tauri.triggerDeeplink('myapp://test');
+        return vi.mocked(triggerDeeplink).mock.contexts[0].instancesShareApp;
+      }
+
+      it('should be set on each instance and the root when two instances run the same app', async () => {
+        const { root, browserA, browserB } = await startMultiremote({ browserA: app('/one'), browserB: app('/one') });
+
+        expect(await instancesShareAppFor(browserA)).toBe(true);
+        expect(await instancesShareAppFor(browserB)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
+      });
+
+      it('should be set on an instance whose own app is not shared', async () => {
+        const { root, browserC } = await startMultiremote({
+          browserA: app('/one'),
+          browserB: app('/one'),
+          browserC: app('/two'),
+        });
+
+        expect(await instancesShareAppFor(browserC)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
+      });
+
+      it('should not be set when each instance runs its own app', async () => {
+        const { root, browserA, browserB } = await startMultiremote({ browserA: app('/one'), browserB: app('/two') });
+
+        expect(await instancesShareAppFor(browserA)).toBe(false);
+        expect(await instancesShareAppFor(browserB)).toBe(false);
+        expect(await instancesShareAppFor(root)).toBe(false);
+      });
+
+      it('should treat two spellings of one path as the same app', async () => {
+        const { root, browserA } = await startMultiremote({
+          browserA: app('/one/app'),
+          browserB: app('/one/../one/app'),
+        });
+
+        expect(await instancesShareAppFor(browserA)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
+      });
+
+      it("should not be set when the instances' apps are unknown", async () => {
+        const { root, browserA } = await startMultiremote({ browserA: {}, browserB: {} });
+
+        expect(await instancesShareAppFor(browserA)).toBe(false);
+        expect(await instancesShareAppFor(root)).toBe(false);
+      });
+
+      it('should not be set outside multiremote', async () => {
+        const mockBrowser = createMockBrowser();
+        const service = new TauriWorkerService({ driverProvider: 'external' }, app('/one'));
+        await service.before(app('/one'), [], mockBrowser);
+
+        expect(await instancesShareAppFor(mockBrowser)).toBe(false);
+      });
+    });
   });
 
   describe('tauri.isMockFunction()', () => {
