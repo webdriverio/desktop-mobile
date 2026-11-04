@@ -61,13 +61,25 @@ describe('Execute Async Script (embedded)', () => {
       });
 
       after(async () => {
+        await browser.execute(() => {
+          const page = window as unknown as { __wdioGarbageTimer?: number; __wdioGarbage?: unknown };
+          clearInterval(page.__wdioGarbageTimer);
+          delete page.__wdioGarbage;
+        });
         await browser.setTimeouts(undefined, undefined, originalScriptTimeout);
       });
 
       it('should fail with a script timeout when the script never calls done', async () => {
-        await expect(
-          browser.executeAsyncScript('window.__wdioScriptStartedAt = Date.now();', []),
-        ).rejects.toMatchObject({ name: 'script timeout' });
+        // Allocating while the script waits makes the page collect garbage, which would free a promise only
+        // `done` refers to.
+        const neverCallsDone = `
+          window.__wdioScriptStartedAt = Date.now();
+          clearInterval(window.__wdioGarbageTimer);
+          window.__wdioGarbageTimer = setInterval(function () {
+            window.__wdioGarbage = new Array(1e5).fill(Math.random());
+          }, 10);`;
+
+        await expect(browser.executeAsyncScript(neverCallsDone, [])).rejects.toMatchObject({ name: 'script timeout' });
 
         // WebdriverIO retries a timed-out script, so time only the last attempt, in the page.
         const waited = await browser.execute(
