@@ -27,6 +27,40 @@ describe('Tauri Mocking', () => {
       expect(mockWriteClipboard).toHaveBeenCalledTimes(1);
       expect(mockWriteClipboard).toHaveBeenCalledWith({ content: 'test content' });
     });
+
+    describe("on the app's own calls", () => {
+      afterEach(async () => {
+        await browser.tauri.restoreAllMocks();
+      });
+
+      for (const [button, via] of [
+        ['#invoke-api-button', "invoke() from '@tauri-apps/api/core'"],
+        ['#invoke-global-button', 'window.__TAURI__.core.invoke'],
+      ] as const) {
+        it(`should mock a command the app invokes through ${via}`, async () => {
+          const mockGetPlatformInfo = await browser.tauri.mock('get_platform_info');
+          await mockGetPlatformInfo.mockReturnValue({ os: `mocked for ${button}` });
+
+          await browser.$(button).click();
+
+          await expect(browser.$('#app-call-result')).toHaveText(JSON.stringify({ os: `mocked for ${button}` }));
+          await mockGetPlatformInfo.update();
+          expect(mockGetPlatformInfo).toHaveBeenCalledTimes(1);
+        });
+      }
+
+      it("should mock plugin:event|emit for the app's emit()", async () => {
+        const mockEmit = await browser.tauri.mock('plugin:event|emit');
+
+        await browser.$('#emit-api-button').click();
+
+        await browser.waitUntil(async () => (await mockEmit.update()).mock.calls.length > 0, {
+          timeout: 5000,
+          timeoutMsg: "expected the mock to see the app's emit()",
+        });
+        expect(mockEmit).toHaveBeenCalledWith({ event: 'wdio:app-emit', payload: { from: 'app' } });
+      });
+    });
   });
 
   describe('browser.tauri.clearAllMocks', () => {
