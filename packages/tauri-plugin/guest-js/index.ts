@@ -153,16 +153,12 @@ export async function execute(script: string, options?: ExecuteOptions, argsJson
   let scriptToSend: string;
 
   if (isFunctionSource(trimmed)) {
-    // Build a minimal tauri object with a mock-routing invoke. We deliberately avoid
-    // spreading/Object.assign on window.__TAURI__ or window.__TAURI__.core because on
-    // macOS/WKWebView those objects can have non-configurable/non-writable own data properties that
-    // trigger Proxy invariant violations when iterated. Only core.invoke is needed by scripts.
+    // Scripts get a minimal tauri object: core.invoke, routed to the mocks, is all they use.
     scriptToSend = `
     (async () => {
       const __wdio_args = ${argsJson ?? '[]'};
 
-      // Resolve the real invoke: prefer the snapshotted original (set by init() before any
-      // Proxy was installed), fall back to window.__TAURI__.core.invoke.
+      // Use init()'s snapshot of window.__TAURI__.core, waiting up to 5 s for it.
       const __wdio_core_ref = window.__wdio_original_core__;
       let __wdio_invoke_real;
       if (__wdio_core_ref && typeof __wdio_core_ref.invoke === 'function') {
@@ -421,10 +417,8 @@ function setupConsoleForwarding(): void {
   }
 }
 
-/**
- * Snapshot window.__TAURI__ and its core, which execute() scripts call invoke through,
- * waiting for an app that sets them up after init()
- */
+// execute() scripts call invoke through this snapshot. Retries for an app that sets up
+// window.__TAURI__ after init().
 function snapshotTauriCore(attempt = 1): void {
   const core = window.__TAURI__?.core;
   if (core && typeof core === 'object') {
@@ -440,11 +434,8 @@ const SKIP_MOCKS_HEADER = 'Wdio-Skip-Mocks';
 
 let uninstallIpcInterception: (() => void) | undefined;
 
-/**
- * Route the commands the app invokes to the mocks in window.__wdio_mocks__.
- * Tauri makes __TAURI_INTERNALS__.invoke read-only and freezes window.__TAURI__, so this wraps the
- * fetch that Tauri's IPC sends each command through, and settles a mocked command with runCallback.
- */
+// Tauri makes __TAURI_INTERNALS__.invoke read-only and freezes window.__TAURI__, so mocks hook the
+// fetch that Tauri's IPC sends each command through.
 function setupIpcInterception(): void {
   const internals = window.__TAURI_INTERNALS__;
   const realFetch: typeof fetch & { __wdioIpcInterceptor?: true } = window.fetch;
@@ -505,8 +496,8 @@ function callMock(command: string, init: RequestInit | undefined): Promise<never
   return new Promise<never>(() => {});
 }
 
-// The plugin's execute command waits in Rust for its script's result, which the script emits as a
-// wdio-result-<id> event, so a mock of the emit commands must not take it
+// The plugin's execute command waits in Rust for a wdio-result-<id> event from its script, so emit
+// mocks must let it through.
 function isExecuteResultEmit(command: string, args: unknown): boolean {
   const event = (args as { event?: unknown } | null | undefined)?.event;
   return command.startsWith('plugin:event|') && typeof event === 'string' && event.startsWith('wdio-result-');

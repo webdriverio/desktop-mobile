@@ -92,7 +92,7 @@ Mock a specific Tauri backend command. Returns a TauriMock object for configurin
 const mock = await browser.tauri.mock('read_file');
 await mock.mockReturnValue('mocked file content');
 
-// The app's own invoke('read_file', ...) calls now return 'mocked file content', and so does core.invoke
+// invoke('read_file') now returns 'mocked file content', in the app and in execute()
 const content = await browser.tauri.execute(({ core }) => core.invoke('read_file'));
 expect(content).toBe('mocked file content');
 ```

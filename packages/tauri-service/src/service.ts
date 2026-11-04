@@ -869,8 +869,8 @@ async function emitTauriEvent(
             payload,
           },
         ];
-  // Mocks see tauri.core.invoke, and every IPC request without the plugin's SKIP_MOCKS_HEADER, so this
-  // keeps a mock of these commands from swallowing the test's own emit
+  // Calling __TAURI_INTERNALS__.invoke, not tauri.core.invoke, with the plugin's SKIP_MOCKS_HEADER keeps
+  // a mock of these commands from swallowing the test's own emit
   await execute(
     browser,
     (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>, headers: Record<string, string>) =>
