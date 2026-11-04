@@ -439,7 +439,6 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
 }
 
 impl<R: Runtime + 'static> LinuxExecutor<R> {
-  /// Runs an async script. With a `ref_prefix`, a DOM node in the result comes back as a reference.
   async fn run_async_script(
     &self,
     script: &str,

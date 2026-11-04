@@ -31,8 +31,7 @@ impl ElementStore {
     self.insert(Uuid::new_v4().to_string())
   }
 
-  /// Registers the element and shadow root references in a script result whose IDs the result
-  /// serialiser made from `ref_prefix`. It kept their nodes where `js_ref` points.
+  /// Registers the references in a script result whose IDs the serialiser made from `ref_prefix`.
   pub fn register_script_refs(&mut self, result: &Value, ref_prefix: &str) {
     match result {
       Value::Array(items) => {

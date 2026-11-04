@@ -46,16 +46,12 @@ async fn run_script(
   }
 }
 
-/// JS defining `__wdio_refs`, which turns the DOM nodes in a script result into references with IDs
-/// that start with `ref_prefix`, kept in the variables `ElementStore::register_script_refs` records.
 fn script_result_refs_js(ref_prefix: &str) -> String {
   format!(
     "{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '{SCRIPT_REF_VAR_PREFIX}');"
   )
 }
 
-/// Runs a script whose result may carry references from `script_result_refs_js`, and registers
-/// them so later element commands find their nodes.
 async fn run_script_with_refs(
   state: &AppState,
   session_id: &str,

@@ -57,8 +57,6 @@ pub async fn execute_async<R: Runtime + 'static>(
   Ok(WebDriverResponse::success(result))
 }
 
-/// Registers the references a script result carries for its DOM nodes, so later element commands
-/// find them.
 async fn register_script_refs<R: Runtime>(
   state: &AppState<R>,
   session_id: &str,

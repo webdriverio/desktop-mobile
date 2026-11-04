@@ -1656,8 +1656,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
 const SCRIPT_RESULT_REFS_JS: &str = include_str!("script-result-refs.js");
 
-/// JS defining `__wdio_refs`, which turns the DOM nodes in a script result into references with IDs
-/// that start with `ref_prefix`. It keeps each node where Find Element keeps the ones it finds, so
+/// Keeps each node where Find Element keeps its own (`__wd_el_<id>`), so
 /// [`crate::webdriver::element::ElementStore::register_script_refs`] can register the IDs.
 pub fn script_result_refs_js(ref_prefix: &str) -> String {
   format!("{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '__wd_el_');")

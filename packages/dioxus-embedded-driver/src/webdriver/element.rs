@@ -29,8 +29,7 @@ impl ElementStore {
     id
   }
 
-  /// Registers the element and shadow root references in a script result whose IDs the result
-  /// serialiser made from `ref_prefix`, with the variables it kept their nodes in.
+  /// Registers the references in a script result whose IDs the serialiser made from `ref_prefix`.
   pub fn register_script_refs(&mut self, result: &Value, ref_prefix: &str) {
     match result {
       Value::Array(items) => {
