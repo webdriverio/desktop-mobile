@@ -25,7 +25,7 @@
 # cargo install, which is slower.
 
 set -e
-# So `docker build | tee` fails when the build does
+# So the `docker … | tee` pipelines fail when docker does
 set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
