@@ -40,8 +40,22 @@ runs:
       shell: bash
       run: node scripts/switch-catalog.ts minimum --wdio-only
 
-    # v9 wraps each worker in xvfb-run when DISPLAY is unset, and Ubuntu 26.04's xvfb-run closes its IPC fd.
-    # Workaround for webdriverio/webdriverio#15685; drop once v9 is no longer supported.
+    - name: 🔍 Check the resolved WebdriverIO version
+      if: inputs.wdio-v9 == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        versions=$(pnpm ls -r --depth 0 --json webdriverio | jq -r '.[]
+          | select(.path | contains("/fixtures/") | not)
+          | "\(.name) \(((.dependencies // {}) + (.devDependencies // {})).webdriverio.version // empty)"')
+        echo "$versions"
+        if [ -z "$versions" ] || grep -v ' 9\.' <<<"$versions" >/dev/null; then
+          echo "::error title=Not on WebdriverIO v9::every workspace package should resolve webdriverio 9.x"
+          exit 1
+        fi
+
+    # v9 starts no display for the launcher, and the drivers the Tauri and Dioxus launchers spawn need one,
+    # so start one for the job. Drop once v9 is no longer supported.
     - name: 🖥️ Start Xvfb for WebdriverIO v9 (Linux)
       if: inputs.wdio-v9 == 'true' && runner.os == 'Linux'
       shell: bash

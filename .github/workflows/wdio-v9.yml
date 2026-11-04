@@ -87,23 +87,7 @@ jobs:
         uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: "24"
-
-      - name: 🔀 Switch to WebdriverIO v9
-        shell: bash
-        run: node scripts/switch-catalog.ts minimum --wdio-only
-
-      - name: 🔍 Check the resolved WebdriverIO version
-        shell: bash
-        run: |
-          set -euo pipefail
-          versions=$(pnpm ls -r --depth 0 --json webdriverio | jq -r '.[]
-            | select(.path | contains("/fixtures/") | not)
-            | "\(.name) \(((.dependencies // {}) + (.devDependencies // {})).webdriverio.version // empty)"')
-          echo "$versions"
-          if [ -z "$versions" ] || grep -v ' 9\.' <<<"$versions" >/dev/null; then
-            echo "::error title=Not on WebdriverIO v9::every workspace package should resolve webdriverio 9.x"
-            exit 1
-          fi
+          wdio-v9: true
 
       # E2E is typed against v10 and runs through tsx, so only the packages are type-checked.
       - name: 🏗️ Build, typecheck and test the packages
