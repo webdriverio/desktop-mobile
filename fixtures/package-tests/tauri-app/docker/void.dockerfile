@@ -12,7 +12,6 @@ RUN xbps-install -Syu xbps && \
     xbps-install -uy && \
     xbps-install -y \
         curl \
-        ca-certificates \
         sudo \
         git \
         bash \
