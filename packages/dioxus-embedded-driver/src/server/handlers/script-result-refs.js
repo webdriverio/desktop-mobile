@@ -9,6 +9,10 @@
 function __wdioScriptResultRefs(idPrefix, varPrefix) {
   let count = 0;
 
+  function varOf(id) {
+    return varPrefix + id.replace(/-/g, '');
+  }
+
   // The reference for a DOM element or shadow root, or undefined for any other value.
   function nodeRef(value) {
     if (value === null || typeof value !== 'object') {
@@ -23,8 +27,15 @@ function __wdioScriptResultRefs(idPrefix, varPrefix) {
       return undefined;
     }
     const id = `${idPrefix}-${count++}`;
-    window[varPrefix + id.replace(/-/g, '')] = value;
+    window[varOf(id)] = value;
     return { [key]: id };
+  }
+
+  // Drops the nodes kept for the references numbered `first` and up, which no result will carry.
+  function discard(first) {
+    for (let n = first; n < count; n++) {
+      delete window[varOf(`${idPrefix}-${n}`)];
+    }
   }
 
   // A collection, such as a NodeList, as an array, or undefined. Like chromedriver, it matches any
@@ -36,13 +47,15 @@ function __wdioScriptResultRefs(idPrefix, varPrefix) {
     if (typeof value[Symbol.iterator] !== 'function' || typeof value.length !== 'number') {
       return undefined;
     }
-    return Array.from(value);
+    // By index up to `length`, as chromedriver copies it: an iterator that never ends would hang the page.
+    return Array.from({ length: value.length }, (_, i) => value[i]);
   }
 
   // The value as JSON.stringify sends it, with a reference for each node in place of `{}` and an
   // array for each collection. A value JSON.stringify rejects, such as a cycle, comes back as it
-  // is, to fail as it would without this.
+  // is, to fail as it would without this, and the nodes kept for it are dropped.
   function withRefs(value) {
+    const first = count;
     let replaced = false;
     let json;
     try {
@@ -55,10 +68,11 @@ function __wdioScriptResultRefs(idPrefix, varPrefix) {
         return replacement;
       });
     } catch {
+      discard(first);
       return value;
     }
     return replaced ? JSON.parse(json) : value;
   }
 
-  return { listOf, nodeRef, withRefs };
+  return { discard, listOf, nodeRef, withRefs };
 }

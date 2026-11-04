@@ -1163,6 +1163,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                         var serialized = serializeValue(raw_result);
                         window['{result_var}'] = {{ __wd_success: true, __wd_value: serialized }};
                     }} catch (e) {{
+                        __wdio_refs.discard(0);
                         window['{result_var}'] = {{ __wd_success: false, __wd_error: e.message || String(e) }};
                     }}
                 }})();

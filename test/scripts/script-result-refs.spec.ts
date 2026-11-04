@@ -13,6 +13,7 @@ const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
 const SHADOW_KEY = 'shadow-6066-11e4-a52e-4f735466cecf';
 
 type ScriptResultRefs = {
+  discard(first: number): void;
   listOf(value: unknown): unknown[] | undefined;
   nodeRef(value: unknown): Record<string, string> | undefined;
   withRefs(value: unknown): unknown;
@@ -107,6 +108,19 @@ describe('script-result-refs.js', () => {
       expect(refs.listOf(new Uint8Array([1, 2]))).toEqual([1, 2]);
     });
 
+    it('should copy a collection by index up to its length, not through its iterator', () => {
+      const collection = {
+        0: 'a',
+        1: 'b',
+        length: 2,
+        *[Symbol.iterator]() {
+          yield* ['x', 'y', 'z'];
+        },
+      };
+
+      expect(refs.listOf(collection)).toEqual(['a', 'b']);
+    });
+
     it.each([
       ['an array', () => [byId('first')]],
       ['an element', () => byId('first')],
@@ -116,6 +130,18 @@ describe('script-result-refs.js', () => {
       ['a string', () => 'ab'],
     ])('should return undefined for %s', (_name, value) => {
       expect(refs.listOf(value())).toBeUndefined();
+    });
+  });
+
+  describe('discard', () => {
+    it('should drop the nodes kept for the references from the given number up', () => {
+      refs.nodeRef(byId('first'));
+      refs.nodeRef(byId('second'));
+
+      refs.discard(1);
+
+      expect(page.__test_el_5f0c11e40).toBe(byId('first'));
+      expect('__test_el_5f0c11e41' in page).toBe(false);
     });
   });
 
@@ -165,11 +191,15 @@ describe('script-result-refs.js', () => {
       expect(refs.withRefs(undefined)).toBeUndefined();
     });
 
-    it('should return a result JSON.stringify rejects as it is', () => {
+    it('should return a result JSON.stringify rejects as it is, and drop only the nodes it kept', () => {
+      const cycleRefs = scriptResultRefs('cycle', '__test_el_');
       const cyclic: Record<string, unknown> = { el: byId('first') };
       cyclic.self = cyclic;
+      cycleRefs.nodeRef(byId('second'));
 
-      expect(refs.withRefs(cyclic)).toBe(cyclic);
+      expect(cycleRefs.withRefs(cyclic)).toBe(cyclic);
+      expect(page.__test_el_cycle0).toBe(byId('second'));
+      expect('__test_el_cycle1' in page).toBe(false);
     });
   });
 });
