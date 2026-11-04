@@ -106,17 +106,28 @@ export function specMajor(spec: string): number | undefined {
   return major === undefined ? undefined : Number(major);
 }
 
-// The versions of a package a pnpm install resolved, from the `<name>@<version>` directories in its virtual store.
-export function installedVersions(nodeModulesDir: string, name: string): string[] {
-  const storeDir = path.join(nodeModulesDir, '.pnpm');
-  if (!fs.existsSync(storeDir)) {
-    return [];
-  }
-  const prefix = `${name.replace('/', '+')}@`;
-  return fs
-    .readdirSync(storeDir)
-    .filter((entry) => entry.startsWith(prefix))
-    .map((entry) => entry.slice(prefix.length).split('_')[0]);
+interface DependencyTree {
+  version?: string;
+  dependencies?: Record<string, DependencyTree>;
+  devDependencies?: Record<string, DependencyTree>;
+  optionalDependencies?: Record<string, DependencyTree>;
+}
+
+// The versions of a package in `pnpm ls <name> --depth Infinity --json`'s output, which works with any node linker.
+export function versionsInTree(projects: DependencyTree[], name: string): string[] {
+  const versions = new Set<string>();
+  const visit = (node: DependencyTree) => {
+    for (const deps of [node.dependencies, node.devDependencies, node.optionalDependencies]) {
+      for (const [dep, child] of Object.entries(deps ?? {})) {
+        if (dep === name && child.version) {
+          versions.add(child.version);
+        }
+        visit(child);
+      }
+    }
+  };
+  projects.forEach(visit);
+  return [...versions];
 }
 
 // Expands only trailing `dir/*` globs, the only kind pnpm-workspace.yaml uses.

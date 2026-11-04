@@ -18,7 +18,7 @@ import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { readCatalogs } from './strip-fixture-catalogs.ts';
-import { installedVersions, pinWdioToCatalog, specMajor } from './switch-catalog.ts';
+import { pinWdioToCatalog, specMajor, versionsInTree } from './switch-catalog.ts';
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
@@ -647,7 +647,8 @@ async function testExample(
 
     if (wdioCatalog) {
       const major = specMajor(wdioCatalog.versions.webdriverio);
-      const versions = installedVersions(join(packageDir, 'node_modules'), 'webdriverio');
+      const tree = execSync('pnpm ls webdriverio --depth Infinity --json', { cwd: packageDir, encoding: 'utf-8' });
+      const versions = versionsInTree(JSON.parse(tree), 'webdriverio');
       if (versions.length === 0 || versions.some((version) => specMajor(version) !== major)) {
         throw new Error(
           `Expected only webdriverio ${major}.x in ${packageName}, from the '${wdioCatalog.name}' catalog, but found ${versions.join(', ') || 'none'}`,

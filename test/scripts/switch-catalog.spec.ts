@@ -4,11 +4,11 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readCatalogs } from '../../scripts/strip-fixture-catalogs.ts';
 import {
-  installedVersions,
   pinWdioToCatalog,
   specMajor,
   switchCatalog,
   switchDependencies,
+  versionsInTree,
 } from '../../scripts/switch-catalog.ts';
 
 const REPO_ROOT = new URL('../..', import.meta.url).pathname;
@@ -149,36 +149,34 @@ describe('specMajor', () => {
   });
 });
 
-describe('installedVersions', () => {
-  let nodeModulesDir: string;
+describe('versionsInTree', () => {
+  // The shape of `pnpm ls webdriverio --depth Infinity --json`: only the branches that lead to the package.
+  const tree = [
+    {
+      name: 'fixture',
+      dependencies: {
+        '@wdio/cli': { version: '9.33.1', dependencies: { webdriverio: { version: '9.33.1' } } },
+      },
+      devDependencies: {
+        '@wdio/local-runner': {
+          version: '9.33.1',
+          dependencies: { '@wdio/runner': { version: '9.33.1', dependencies: { webdriverio: { version: '10.1.0' } } } },
+        },
+        webdriverio: { version: '9.33.1' },
+      },
+    },
+  ];
 
-  beforeEach(() => {
-    nodeModulesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'installed-versions-'));
-    for (const entry of [
-      'webdriverio@9.33.1_bufferutil@4.1.0',
-      'webdriverio@10.1.0',
-      'webdriverio-extra@1.0.0',
-      '@wdio+cli@9.33.1',
-      'node_modules',
-    ]) {
-      fs.mkdirSync(path.join(nodeModulesDir, '.pnpm', entry), { recursive: true });
-    }
-  });
-
-  afterEach(() => {
-    fs.rmSync(nodeModulesDir, { recursive: true, force: true });
-  });
-
-  it("should list each version of the package in pnpm's virtual store", () => {
-    expect(installedVersions(nodeModulesDir, 'webdriverio').sort()).toEqual(['10.1.0', '9.33.1']);
+  it('should list each version of the package anywhere in the tree, once', () => {
+    expect(versionsInTree(tree, 'webdriverio').sort()).toEqual(['10.1.0', '9.33.1']);
   });
 
   it('should find a scoped package', () => {
-    expect(installedVersions(nodeModulesDir, '@wdio/cli')).toEqual(['9.33.1']);
+    expect(versionsInTree(tree, '@wdio/runner')).toEqual(['9.33.1']);
   });
 
-  it('should return nothing without a virtual store', () => {
-    expect(installedVersions(path.join(nodeModulesDir, 'missing'), 'webdriverio')).toEqual([]);
+  it('should return nothing when the tree has no such package', () => {
+    expect(versionsInTree([{ dependencies: { yaml: { version: '2.9.1' } } }], 'webdriverio')).toEqual([]);
   });
 });
 
