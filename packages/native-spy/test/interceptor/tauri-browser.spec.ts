@@ -64,7 +64,7 @@ describe('TauriAdapter.buildBrowserIpcInjectionScript', () => {
     await expect(invoke('greet', { name: 'world' })).resolves.toBe('hello');
   });
 
-  it('should record the args alone, as native mode does', async () => {
+  it('should pass the mock the args without InvokeOptions', async () => {
     const script = adapter.buildBrowserIpcInjectionScript();
     const window = runInBrowserContext(script);
     const spy = window.__wdio_spy__ as { fn: () => ((...a: unknown[]) => unknown) & { mock: { calls: unknown[][] } } };

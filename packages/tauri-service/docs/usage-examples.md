@@ -152,9 +152,7 @@ describe('Command Mocking', () => {
 
   it('should mock command with implementation', async () => {
     const mock = await browser.tauri.mock('calculate');
-    await mock.mockImplementation(({ a, b }) => {
-      return a + b;
-    });
+    await mock.mockImplementation(({ a, b }) => a + b);
 
     const result = await browser.tauri.execute(({ core }) => {
       return core.invoke('calculate', { a: 5, b: 3 });
