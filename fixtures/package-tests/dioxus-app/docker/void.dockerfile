@@ -15,15 +15,14 @@ RUN mkdir -p /etc/xbps.d && \
     grep -q '^repository=https://repo-default\.voidlinux\.org/' /etc/xbps.d/*-repository-*.conf && \
     echo 'bestmatching=true' >/etc/xbps.d/bestmatching.conf
 
-# Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
+# Install basic requirements, after upgrading the image's packages so new ones install against current libraries
 # Void's nodejs tracks the current LTS line, which WDIO supports — sessions
 # create fine on it (unlike Arch, which tracks the absolute newest Node whose
 # stricter undici broke WDIO's session POST and therefore pins an LTS tarball).
 RUN xbps-install -Syu xbps && \
-    ( xbps-install -Su || true ) && \
+    xbps-install -uy && \
     xbps-install -y \
         curl \
-        ca-certificates \
         sudo \
         git \
         bash \
