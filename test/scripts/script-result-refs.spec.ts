@@ -36,6 +36,18 @@ function byId(id: string) {
   return document.getElementById(id) as HTMLElement;
 }
 
+function formWithInput() {
+  const form = document.createElement('form');
+  form.innerHTML = '<input name="a">';
+  return form;
+}
+
+function selectWithOption() {
+  const select = document.createElement('select');
+  select.innerHTML = '<option>a</option>';
+  return select;
+}
+
 describe('script-result-refs.js', () => {
   it('should be the same in both embedded driver crates', () => {
     expect(readFileSync(join(REPO_ROOT, DIOXUS_COPY), 'utf8'), `copy ${TAURI_COPY} over ${DIOXUS_COPY}`).toBe(source);
@@ -80,10 +92,28 @@ describe('script-result-refs.js', () => {
       expect(refs.listOf(document.getElementsByTagName('div'))).toEqual([first, second, byId('host')]);
     });
 
+    it('should return a NodeList from another frame as an array', () => {
+      const frame = document.createElement('iframe');
+      document.body.append(frame);
+      const frameDocument = frame.contentDocument as Document;
+      frameDocument.body.innerHTML = '<p></p><p></p>';
+      const paragraphs = frameDocument.querySelectorAll('p');
+
+      expect(paragraphs instanceof NodeList).toBe(false);
+      expect(refs.listOf(paragraphs)).toEqual(Array.from(paragraphs));
+    });
+
+    it('should return any other iterable object with a numeric length as an array', () => {
+      expect(refs.listOf(new Uint8Array([1, 2]))).toEqual([1, 2]);
+    });
+
     it.each([
       ['an array', () => [byId('first')]],
       ['an element', () => byId('first')],
+      ['a form element, which is iterable', () => formWithInput()],
+      ['a select element, which is iterable', () => selectWithOption()],
       ['a plain object keyed by index', () => ({ 0: byId('first'), length: 1 })],
+      ['a string', () => 'ab'],
     ])('should return undefined for %s', (_name, value) => {
       expect(refs.listOf(value())).toBeUndefined();
     });
@@ -111,6 +141,10 @@ describe('script-result-refs.js', () => {
       expect(refs.withRefs({ divs: document.getElementsByTagName('div') })).toEqual({
         divs: [{ [ELEMENT_KEY]: '5f0c-11e4-2' }, { [ELEMENT_KEY]: '5f0c-11e4-3' }, { [ELEMENT_KEY]: '5f0c-11e4-4' }],
       });
+    });
+
+    it('should send a form element as a reference, not as a list of its controls', () => {
+      expect(refs.withRefs({ form: formWithInput() })).toEqual({ form: { [ELEMENT_KEY]: '5f0c-11e4-0' } });
     });
 
     it('should send the rest of a result with nodes as JSON.stringify does', () => {

@@ -27,24 +27,27 @@ function __wdioScriptResultRefs(idPrefix, varPrefix) {
     return { [key]: id };
   }
 
-  // A NodeList or HTMLCollection as an array, as chromedriver sends it, or undefined for any other
-  // value. JSON.stringify would send it as an object keyed by index.
+  // A collection, such as a NodeList, as an array, or undefined. Like chromedriver, it matches any
+  // iterable object with a numeric length, from any frame, except nodes: forms and selects are iterable.
   function listOf(value) {
-    if (value instanceof NodeList || value instanceof HTMLCollection) {
-      return Array.from(value);
+    if (value === null || typeof value !== 'object' || Array.isArray(value) || typeof value.nodeType === 'number') {
+      return undefined;
     }
-    return undefined;
+    if (typeof value[Symbol.iterator] !== 'function' || typeof value.length !== 'number') {
+      return undefined;
+    }
+    return Array.from(value);
   }
 
   // The value as JSON.stringify sends it, with a reference for each node in place of `{}` and an
-  // array for each NodeList or HTMLCollection. A value JSON.stringify rejects, such as a cycle,
-  // comes back as it is, to fail as it would without this.
+  // array for each collection. A value JSON.stringify rejects, such as a cycle, comes back as it
+  // is, to fail as it would without this.
   function withRefs(value) {
     let replaced = false;
     let json;
     try {
       json = JSON.stringify(value, (_key, item) => {
-        const replacement = listOf(item) ?? nodeRef(item);
+        const replacement = nodeRef(item) ?? listOf(item);
         if (replacement === undefined) {
           return item;
         }
