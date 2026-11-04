@@ -635,10 +635,8 @@ export default class TauriWorkerService {
       const scriptString = typeof script === 'function' ? script.toString() : script;
 
       if (isEmbedded) {
-        // Tauri embedded WebDriver's execute/sync is W3C-compliant (wraps the script as a
-        // function body) and awaits the result internally, so async functions work over the
-        // sync endpoint. Pass the script through untouched — WebdriverIO will handle function
-        // serialization via its standard polyfill wrapper.
+        // The embedded driver awaits a returned promise on both script endpoints, so
+        // WebdriverIO's own execute works whichever endpoint it sends the script to.
         return (originalExecute as unknown as (s: typeof script, ...a: typeof args) => Promise<ReturnValue>)(
           script,
           ...args,

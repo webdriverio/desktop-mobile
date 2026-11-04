@@ -76,12 +76,15 @@ describe('Execute Async Script (embedded)', () => {
       });
 
       it('should fail with a script timeout when the script never calls done', async () => {
-        const started = Date.now();
+        await expect(
+          browser.executeAsyncScript('window.__wdioScriptStartedAt = Date.now();', []),
+        ).rejects.toMatchObject({ name: 'script timeout' });
 
-        await expect(browser.executeAsyncScript('var done = arguments[0];', [])).rejects.toMatchObject({
-          name: 'script timeout',
-        });
-        expect(Date.now() - started).toBeGreaterThanOrEqual(scriptTimeoutMs);
+        // WebdriverIO retries a timed-out script, so time only the last attempt, in the page.
+        const waited = await browser.execute(
+          () => Date.now() - (window as unknown as { __wdioScriptStartedAt: number }).__wdioScriptStartedAt,
+        );
+        expect(waited).toBeGreaterThanOrEqual(scriptTimeoutMs);
       });
     });
   });
