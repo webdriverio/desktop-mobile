@@ -989,14 +989,18 @@ describe('TauriWorkerService', () => {
         await runInApp({ invoke: ipcInvoke });
 
         expect(ipcInvoke).toHaveBeenCalledTimes(1);
-        expect(ipcInvoke).toHaveBeenCalledWith(command, args);
+        expect(ipcInvoke).toHaveBeenCalledWith(command, args, expect.anything());
       });
 
       it("should bypass the user's mocks of the event commands", async () => {
         await emit('main');
-        const mockAwareInvoke = await runInApp({ invoke: vi.fn().mockResolvedValue(undefined) });
+        const ipcInvoke = vi.fn().mockResolvedValue(undefined);
+        const mockAwareInvoke = await runInApp({ invoke: ipcInvoke });
 
         expect(mockAwareInvoke).not.toHaveBeenCalled();
+        expect(ipcInvoke).toHaveBeenCalledWith(expect.any(String), expect.anything(), {
+          headers: { 'Wdio-Skip-Mocks': '1' },
+        });
       });
 
       it('should rethrow a failed emit unchanged, without syncing mocks, outside multiremote', async () => {
@@ -1040,6 +1044,7 @@ describe('TauriWorkerService', () => {
           const emitTo = [
             'plugin:event|emit_to',
             { target: { kind: 'AnyLabel', label: 'main' }, event: 'foo', payload: 'payload' },
+            { 'Wdio-Skip-Mocks': '1' },
           ];
           expect(vi.mocked(executeCommand).mock.calls.map(([b, , ...args]) => [b, ...args])).toEqual([
             [instances.browserA, ...emitTo],

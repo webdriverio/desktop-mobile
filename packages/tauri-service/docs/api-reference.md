@@ -92,10 +92,14 @@ Mock a specific Tauri backend command. Returns a TauriMock object for configurin
 const mock = await browser.tauri.mock('read_file');
 await mock.mockReturnValue('mocked file content');
 
-// Now calling invoke('read_file', ...) returns 'mocked file content'
+// invoke('read_file') now returns 'mocked file content', in the app and in execute()
 const content = await browser.tauri.execute(({ core }) => core.invoke('read_file'));
 expect(content).toBe('mocked file content');
 ```
+
+The mock sees every call to the command in the mock's window: the app's `invoke()` from `@tauri-apps/api/core`, `window.__TAURI__.core.invoke`, the helpers built on them (mock `plugin:event|emit` to see the app's `emit()` calls), and `core.invoke` in `browser.tauri.execute()`. A call from the app passes the mock its arguments as Tauri sends them over IPC: a JSON copy of the arguments, or the bytes of a binary payload.
+
+**Note:** A mock stays in the window that was selected when `mock()` created it, even after `switchWindow()`. Each command has one mock, so `mock()` on a command that's already mocked returns that mock, in its original window, unless that window has closed. To mock the command in another window instead, call `mockRestore()`, switch windows and call `mock()` again.
 
 **Browser Mode:** Works in browser mode — this is the primary testing API in browser mode. The `command` argument is the Tauri command name (matching what the frontend passes to `invoke()`). Trigger the command via a UI interaction or `browser.execute(() => window.__TAURI_INTERNALS__.invoke('command-name'))`, then call `update()` and assert.
 
@@ -218,7 +222,7 @@ See [Deeplink Testing](./deeplink-testing.md) for full usage guide.
 
 ### `browser.tauri.switchWindow(label)`
 
-Switch the active Tauri window for subsequent operations. Changes the window that `browser.tauri.execute()` and other Tauri-specific operations target.
+Switch the active Tauri window for subsequent operations. Changes the window that `browser.tauri.execute()` and other Tauri-specific operations target. Existing mocks stay in the window they were created in.
 
 **Parameters:**
 - `label` (string) - The window label to switch to (e.g., `'main'`, `'settings'`)
@@ -440,7 +444,7 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 
 ### `withImplementation(implFn, callbackFn)`
 
-Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's frontend like an `execute()` script, and receives the same `{ core: { invoke } }`. The implementation is restored when the callback returns, or when its promise settles. Mocks are per window, so this rejects if the command isn't mocked in the current window.
+Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the mock's window like an `execute()` script, and receives the same `{ core: { invoke } }`. The implementation is restored when the callback returns, or when its promise settles.
 
 **Example:**
 ```typescript

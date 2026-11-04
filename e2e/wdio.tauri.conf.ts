@@ -119,12 +119,7 @@ switch (envContext.testType) {
     // - window tests (require splash)
     // - deeplink tests (require single-instance)
     // - embedded-only tests (*.embedded.spec.ts, not applicable to tauri-driver)
-    exclude = [
-      './test/tauri/window.spec.ts',
-      './test/tauri/deeplink.spec.ts',
-      './test/tauri/logging.embedded.spec.ts',
-      './test/tauri/special-keys.embedded.spec.ts',
-    ];
+    exclude = ['./test/tauri/window.spec.ts', './test/tauri/deeplink.spec.ts', './test/tauri/*.embedded.spec.ts'];
     break;
 }
 

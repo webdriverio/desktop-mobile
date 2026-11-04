@@ -137,41 +137,6 @@
       console.log('[App] Plugin imported');
       console.log('[App] window.wdioTauri available after import:', typeof window.wdioTauri !== 'undefined');
 
-      // Import Tauri API using npm module approach (recommended for v2)
-      // This is the preferred way in Tauri v2
-      (async () => {
-        console.log('[App] Starting Tauri API setup...');
-        console.log('[App] window.__TAURI__ before setup:', window.__TAURI__);
-
-        try {
-          const { invoke } = await import('@tauri-apps/api/core');
-          console.log('[App] Successfully imported @tauri-apps/api/core');
-
-          // Ensure window.__TAURI__ exists and expose invoke for WebDriver tests
-          if (!window.__TAURI__) {
-            console.log('[App] Creating window.__TAURI__');
-            window.__TAURI__ = {};
-          }
-          if (!window.__TAURI__.core) {
-            console.log('[App] Creating window.__TAURI__.core');
-            window.__TAURI__.core = {};
-          }
-          window.__TAURI__.core.invoke = invoke;
-          console.log('[App] window.__TAURI__.core.invoke set successfully');
-        } catch (error) {
-          console.warn('[App] Failed to import @tauri-apps/api/core, using global API:', error);
-          // Fallback: ensure window.__TAURI__.core.invoke exists (should be available with withGlobalTauri: true)
-          if (!window.__TAURI__?.core?.invoke) {
-            console.error('[App] Tauri API not available. Make sure withGlobalTauri is enabled in tauri.conf.json');
-          } else {
-            console.log('[App] Using global Tauri API');
-          }
-        }
-
-        console.log('[App] Final window.wdioTauri check:', typeof window.wdioTauri !== 'undefined');
-        console.log('[App] Final window.__TAURI__ check:', window.__TAURI__);
-      })();
-
       let count = 0;
       const counterElement = document.getElementById('counter');
       const incrementButton = document.getElementById('increment-button');

@@ -237,7 +237,8 @@ export interface TauriServiceAPI {
   /**
    * Switch the active Tauri window for subsequent operations.
    * Changes the window that browser.tauri.execute() and other
-   * Tauri-specific operations target.
+   * Tauri-specific operations target. Existing mocks stay in the
+   * window they were created in.
    *
    * @param label - The window label to switch to (e.g., 'main', 'settings')
    * @returns Promise that resolves when the window switch is complete

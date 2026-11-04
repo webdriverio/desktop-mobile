@@ -266,6 +266,8 @@ await browser.tauri.execute(({ core }) => core.invoke('my_command'));
 const mock = await browser.tauri.mock('my_command');
 ```
 
+4. The app's CSP allows Tauri's IPC: `connect-src` includes `ipc:` and `http://ipc.localhost`. If it doesn't, Tauri falls back to its `postMessage` IPC, and mocks no longer see the commands the app invokes.
+
 ### Plugin Compilation Errors
 
 If you get Rust compilation errors:
@@ -307,7 +309,7 @@ The plugin consists of two parts:
 2. **Frontend JavaScript** (`packages/tauri-plugin/guest-js/`)
    - Auto-initializes on import
    - Exposes `window.wdioTauri` API
-   - Intercepts `window.__TAURI__.core.invoke` for mocking
+   - Routes the commands the app invokes to `browser.tauri.mock()` mocks
    - Forwards console logs to Tauri logger
 
 ### Plugin Lifecycle
