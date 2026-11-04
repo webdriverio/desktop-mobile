@@ -494,12 +494,22 @@ function callMock(command: string, init: RequestInit | undefined): Promise<never
 
   const body = init?.body;
   const args = typeof body === 'string' && headers.get('Content-Type') === 'application/json' ? JSON.parse(body) : body;
+  if (isExecuteResultEmit(command, args)) {
+    return undefined;
+  }
   new Promise((resolve) => resolve((mock as (args: unknown) => unknown)(args))).then(
     (value) => window.__TAURI_INTERNALS__?.runCallback?.(Number(callbackId), value),
     (reason) => window.__TAURI_INTERNALS__?.runCallback?.(Number(errorId), reason),
   );
   // Left pending, so Tauri neither reads a response nor falls back to resending the command over postMessage
   return new Promise<never>(() => {});
+}
+
+// The plugin's execute command waits in Rust for its script's result, which the script emits as a
+// wdio-result-<id> event, so a mock of the emit commands must not take it
+function isExecuteResultEmit(command: string, args: unknown): boolean {
+  const event = (args as { event?: unknown } | null | undefined)?.event;
+  return command.startsWith('plugin:event|') && typeof event === 'string' && event.startsWith('wdio-result-');
 }
 
 /**

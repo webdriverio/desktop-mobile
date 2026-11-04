@@ -584,6 +584,18 @@ describe('IPC interception', () => {
     expect(mockFn).not.toHaveBeenCalled();
   });
 
+  it("should send the plugin's execute results to the app while plugin:event|emit is mocked", async () => {
+    const internals = installTauriInternals();
+    const mockFn = vi.fn();
+    (window as any).__wdio_mocks__ = { 'plugin:event|emit': mockFn };
+    await loadPlugin();
+
+    await expect(
+      internals.invoke('plugin:event|emit', { event: 'wdio-result-1234', payload: { success: true } }),
+    ).resolves.toBe('app:ipc://localhost/plugin%3Aevent%7Cemit');
+    expect(mockFn).not.toHaveBeenCalled();
+  });
+
   it('should pass a binary payload to the mock unchanged', async () => {
     installTauriInternals();
     const mockFn = vi.fn();
