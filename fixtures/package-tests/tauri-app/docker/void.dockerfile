@@ -2,25 +2,33 @@ FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
-# Configure repository mirror to avoid SSL certificate issues
+# Fastly's CDN mirror first: repo-default is a single server and has had outages. xbps checks every
+# package's signature, whichever mirror sends it.
 RUN mkdir -p /etc/xbps.d && \
     cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
-    sed -i 's|https://[^/]*/|https://repo-default.voidlinux.org/|g' /etc/xbps.d/*-repository-*.conf
+    sed -i 's|https://[^/]*/|https://repo-fastly.voidlinux.org/|g' /etc/xbps.d/*-repository-*.conf
 
-# Install basic requirements, after upgrading the image's packages so new ones install against current libraries
-RUN xbps-install -Syu xbps && \
-    xbps-install -uy && \
-    xbps-install -y \
-        curl \
-        sudo \
-        git \
-        bash \
-        nodejs \
-        gcc \
-        make \
-        pkg-config \
-        openssl-devel \
-        xorg-server-xvfb && \
+# Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files).
+# If Fastly fails, install again from repo-default, which the later steps then use too.
+RUN mirror() { sed -i "s|https://[^/]*/|https://$1/|g" /etc/xbps.d/*-repository-*.conf; } && \
+    install_base() { \
+        xbps-install -Syu xbps && \
+        ( xbps-install -Su || true ) && \
+        xbps-install -y \
+            curl \
+            ca-certificates \
+            sudo \
+            git \
+            bash \
+            nodejs \
+            gcc \
+            make \
+            pkg-config \
+            openssl-devel \
+            xorg-server-xvfb; \
+    } && \
+    { install_base || { echo 'Fastly mirror failed, installing from repo-default' && \
+        mirror repo-default.voidlinux.org && install_base; }; } && \
     xbps-remove -O
 
 # Install Rust toolchain (needed for tauri-driver)
