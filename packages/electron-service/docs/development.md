@@ -16,11 +16,7 @@ The project uses a catalog system to manage Electron versions across three catal
 
 See [Dependency Management](../../docs/setup.md#dependency-management) for catalog switching and update commands.
 
-For the `next` catalog specifically, the update process:
-- Fetches the latest `electron-nightly` version from npm
-- Compares all available tags (next, beta, alpha, latest) by full semantic version
-- Prioritizes cutting-edge tags in order: next > beta > alpha > latest
-- Removes the `electron` dependency (only `electron-nightly` is used in this catalog)
+In the `next` catalog, `pnpm catalog:update --next` pins `electron-nightly` to its newest nightly, and `pnpm catalog:next` replaces each package's `electron` dependency with `electron-nightly`.
 
 ## Development Mode
 

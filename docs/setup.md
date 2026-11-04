@@ -159,17 +159,17 @@ To use a catalog dependency:
 
 The project uses three catalogs to test against different versions of key dependencies:
 
-| Catalog   | Purpose                                                    |
-| --------- | ---------------------------------------------------------- |
-| `default` | Stable production versions — the reliable baseline         |
-| `next`    | Latest/nightly versions — validates upcoming compatibility |
-| `minimum` | Lowest supported versions — ensures backward compatibility |
+| Catalog   | Purpose                                                                                |
+| --------- | -------------------------------------------------------------------------------------- |
+| `default` | Stable production versions — the reliable baseline                                     |
+| `next`    | Electron nightly and WebdriverIO's upcoming release — validates upcoming compatibility |
+| `minimum` | Lowest supported versions — ensures backward compatibility                             |
 
 ### Switching Catalogs
 
 ```bash
 pnpm catalog:default   # Switch all packages to stable versions
-pnpm catalog:next      # Switch all packages to latest/nightly versions
+pnpm catalog:next      # Switch all packages to upcoming versions
 pnpm catalog:minimum   # Switch all packages to lowest supported versions
 ```
 
@@ -192,6 +192,8 @@ pnpm catalog:update --minimum
 ```
 
 The update process shows available updates, lets you select which to apply, updates `pnpm-workspace.yaml`, then runs `pnpm install`.
+
+In the `next` catalog, it pins each WebdriverIO package to the newer of its `next` and `latest` tags. WebdriverIO's `next` tag stays on its last prerelease after a stable release, so taking the tag alone would sometimes go back a version. It also skips a version younger than pnpm's `minimumReleaseAge` (24 hours by default), which `pnpm install` would refuse.
 
 ## Turborepo Caching
 
