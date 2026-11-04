@@ -1,7 +1,7 @@
 name: WebdriverIO v9
 
 # The services support WebdriverIO v9 and v10, and CI runs v10. This workflow switches
-# webdriverio and @wdio/* to the `minimum` catalog (v9) and runs the checks again:
+# webdriverio and @wdio/* to the `minimum` catalog (v9) and runs:
 # - build, typecheck and unit tests: nightly, and on PRs that touch the packages;
 # - the Linux E2E and browser-mode suites: when dispatched, or on a PR that changes this file.
 

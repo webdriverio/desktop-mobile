@@ -36,12 +36,11 @@ function sortDependencies(deps: Record<string, string> | undefined): Record<stri
   );
 }
 
-// A dep missing from the target catalog falls back to `catalog:default` rather than a broken `catalog:<missing>` ref.
+// A dep the target catalog lacks stays on `catalog:default`: `catalog:<target>` wouldn't resolve.
 export function catalogRef(dep: string, target: CatalogName, catalogs: Catalogs): string {
   return catalogs[target]?.[dep] ? `catalog:${target}` : 'catalog:default';
 }
 
-/** Points the package's `default`-catalog deps at the target catalog, in place. Returns whether anything changed. */
 export function switchDependencies(
   packageJson: PackageJson,
   target: CatalogName,
@@ -86,7 +85,7 @@ export function switchDependencies(
   return changed;
 }
 
-/** Lists the workspace's package directories, relative to the root. Only trailing `dir/*` globs are expanded. */
+// Expands only trailing `dir/*` globs, the only kind pnpm-workspace.yaml uses.
 export function listWorkspacePackages(rootDir: string): string[] {
   const workspace = yaml.parse(fs.readFileSync(path.join(rootDir, 'pnpm-workspace.yaml'), 'utf8')) as {
     packages?: string[];
@@ -113,7 +112,6 @@ export function listWorkspacePackages(rootDir: string): string[] {
   return [...packages].sort();
 }
 
-/** Rewrites every workspace package.json for the target catalog. Returns the packages it changed. */
 export function switchCatalog(rootDir: string, target: CatalogName, { wdioOnly = false } = {}): string[] {
   const catalogs = readCatalogs(rootDir);
   const updated: string[] = [];

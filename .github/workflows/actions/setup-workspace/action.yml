@@ -6,7 +6,7 @@ inputs:
     required: false
     default: "24"
   wdio-v9:
-    description: "Switch webdriverio and @wdio/* to the minimum catalog (WebdriverIO v9) and, on Linux, start a display for the job"
+    description: "Switch webdriverio and @wdio/* to WebdriverIO v9 (the minimum catalog), check the version and, on Linux, start a display for the job"
     required: false
     default: "false"
 
@@ -54,8 +54,8 @@ runs:
           exit 1
         fi
 
-    # v9 starts no display for the launcher, and the drivers the Tauri and Dioxus launchers spawn need one,
-    # so start one for the job. Drop once v9 is no longer supported.
+    # v9 starts a display only for its workers, and the Tauri and Dioxus launchers spawn drivers that need one.
+    # Drop once v9 is no longer supported.
     - name: 🖥️ Start Xvfb for WebdriverIO v9 (Linux)
       if: inputs.wdio-v9 == 'true' && runner.os == 'Linux'
       shell: bash

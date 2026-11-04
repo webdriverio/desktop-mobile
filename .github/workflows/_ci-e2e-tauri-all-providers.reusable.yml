@@ -49,7 +49,7 @@ on:
         type: boolean
         default: true
       wdio-v9:
-        description: "Run on WebdriverIO v9 (the minimum catalog) instead of the default"
+        description: "Run on WebdriverIO v9 (the minimum catalog)"
         type: boolean
         default: false
     # Declared explicitly so a caller can pass only a subset — the mirror run passes just CN_API_KEY.

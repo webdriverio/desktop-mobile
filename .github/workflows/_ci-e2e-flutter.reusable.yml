@@ -43,7 +43,7 @@ on:
         type: string
         required: false
       wdio-v9:
-        description: "Run on WebdriverIO v9 (the minimum catalog) instead of the default"
+        description: "Run on WebdriverIO v9 (the minimum catalog)"
         type: boolean
         default: false
 

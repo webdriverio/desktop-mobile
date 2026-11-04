@@ -101,4 +101,4 @@ The model comes from the `OLLAMA_MODEL` repository variable: `releasekit.config.
 - **`ci.yml`** - Build, test, lint
 - **`crate-drift.yml`** - Nightly build of our Rust crates' current source against fresh dependencies
 - **`release-preview.yml`** - Preview release outcome on PRs with release labels
-- **`wdio-v9.yml`** - Builds, type-checks and unit-tests the packages on WebdriverIO v9 nightly and on PRs that touch them. Dispatch it to run the Linux E2E and browser-mode suites on v9 too
+- **`wdio-v9.yml`** - Builds, type-checks and unit-tests the packages on WebdriverIO v9, nightly and on PRs that touch them. Dispatch it to run the Linux E2E and browser-mode suites on v9 too
