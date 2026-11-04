@@ -148,12 +148,12 @@ describe('Command Mocking', () => {
       core.invoke('save_data', { data: 'test2' });
     });
 
-    expect(mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mock.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it('should mock command with implementation', async () => {
     const mock = await browser.tauri.mock('calculate');
-    await mock.mockImplementation((a, b) => {
+    await mock.mockImplementation(({ a, b }) => {
       return a + b;
     });
 

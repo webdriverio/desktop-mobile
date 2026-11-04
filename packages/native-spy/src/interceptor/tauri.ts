@@ -174,7 +174,7 @@ ${WDIO_MOCK_SETUP_SCRIPT}
   window.__TAURI_INTERNALS__.invoke = function(cmd, args) {
     var mock = window.__wdio_mocks__ && window.__wdio_mocks__[cmd];
     if (mock && typeof mock === 'function') {
-      // The mock gets the args alone, as in native mode, so both modes record the same calls.
+      // As in native mode, the mock gets the args alone.
       var mockResult = Promise.resolve().then(function() { return mock(args); });
       if (cmd && cmd.indexOf('plugin:event|') === 0) {
         return mockResult.then(function() { return __wdio_handle_plugin_event__(cmd, args); });
