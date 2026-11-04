@@ -65,14 +65,14 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     browserToUse,
     interceptor.buildRegistrationScript(command),
   );
-  // Without a label, the mock's calls follow the session's window, as execute()'s do.
+  // Without a label, the mock's scripts run in the session's window, as execute()'s do.
   const windowLabel =
     typeof registeredWindowLabel === 'string' && registeredWindowLabel.length > 0 ? registeredWindowLabel : undefined;
   const executeOptions = { windowLabel, __wdioOptions__: true } as TauriExecuteOptions;
   const executeInMockWindow = <T>(script: string): Promise<T> =>
     tauriExecute<T, [TauriExecuteOptions]>(browserToUse, script, executeOptions);
-  // A closed window takes the mock's in-app half with it, so from then on syncing, clearing and
-  // restoring skip the app. The setters still throw, as there's nothing left to configure.
+  // A closed window takes the mock's in-app half with it, so from then on syncing, clearing, resetting
+  // and restoring skip the app. The setters still throw, as there's nothing left to configure.
   let windowClosed = false;
   const executeUnlessWindowClosed = async <T>(script: string): Promise<T | typeof WINDOW_CLOSED> => {
     if (windowClosed) {
@@ -211,7 +211,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
       await executeUnlessWindowClosed<void>(interceptor.buildUnregistrationScript(command));
     } finally {
       outerMockClear();
-      // A mock dropped when its window closed may have been replaced in the store since.
+      // Once its window has closed, this mock is out of the store, and another mock may have taken its place.
       if (!windowClosed) {
         mockStore.deleteMock(browserToUse, `tauri.${command}`);
       }
