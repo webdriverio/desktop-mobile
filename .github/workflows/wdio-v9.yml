@@ -3,7 +3,7 @@ name: WebdriverIO v9
 # The services support WebdriverIO v9 and v10, and CI runs v10. This workflow checks the maintenance major, v9:
 # - build, typecheck and unit tests on the `minimum` catalog: nightly, and on PRs that touch the packages;
 # - the Linux package tests, with the fixtures' webdriverio and @wdio/* from `minimum`: weekly, when dispatched, on
-#   a PR with the ci:wdio-maintenance label, and when a label that sets up a release is added to a PR.
+#   a PR with the ci:wdio-v9 label, and when a label that sets up a release is added to a PR.
 # At the next WebdriverIO major, see docs/setup.md#webdriverio-majors for what to change here.
 
 on:
@@ -23,9 +23,9 @@ permissions:
   contents: read
   actions: read
 
-# Each label other than ci:wdio-maintenance gets its own group, so adding one can't cancel a running check.
+# Each label other than ci:wdio-v9 gets its own group, so adding one can't cancel a running check.
 concurrency:
-  group: wdio-v9-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'ci:wdio-maintenance' && github.run_id || 'run' }}
+  group: wdio-v9-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'ci:wdio-v9' && github.run_id || 'run' }}
   cancel-in-progress: true
 
 env:
@@ -52,11 +52,11 @@ jobs:
           ACTION: ${{ github.event.action }}
           SCHEDULE: ${{ github.event.schedule }}
           PACKAGE_TESTS_INPUT: ${{ inputs.package-tests }}
-          LABEL: ci:wdio-maintenance
+          LABEL: ci:wdio-v9
           # The labels that publish: the standing release PR's release types, and a direct release on merge.
           RELEASE_LABELS: release:prerelease release:stable release:graduate release:immediate
           ADDED_LABEL: ${{ github.event.label.name }}
-          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:wdio-maintenance') }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:wdio-v9') }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
