@@ -31,6 +31,7 @@ use crate::platform::{
   script_result_refs_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
 };
 use crate::server::response::WebDriverErrorResponse;
+use crate::webdriver::element::ELEMENT_VAR_PREFIX;
 use crate::webdriver::Timeouts;
 
 // =============================================================================
@@ -633,7 +634,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
                     if (Array.isArray(arg)) return arg.map(deserializeArg);
                     if (typeof arg === 'object') {{
                         if (arg[ELEMENT_KEY]) {{
-                            var el = window['__wd_el_' + arg[ELEMENT_KEY].replace(/-/g, '')];
+                            var el = window['{ELEMENT_VAR_PREFIX}' + arg[ELEMENT_KEY].replace(/-/g, '')];
                             if (!el) throw new Error('stale element reference');
                             return el;
                         }}

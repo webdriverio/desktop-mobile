@@ -15,6 +15,7 @@ use crate::platform::key_input::{
 };
 use crate::platform::pointer_input::{pointer_event_script, PointerInputState};
 use crate::server::response::WebDriverErrorResponse;
+use crate::webdriver::element::ELEMENT_VAR_PREFIX;
 
 /// Element bounding rectangle
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1113,7 +1114,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                         return value;
                     }}
                     if (typeof value === 'string') return value;
-                    if (typeof value === 'function') return null;
+                    if (typeof value === 'function') return __wdio_refs.nodeRef(value) || null;
                     if (typeof value === 'symbol') return null;
                     if (typeof value === 'bigint') return Number(value);
                     if (Array.isArray(value)) {{
@@ -1141,7 +1142,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                     if (Array.isArray(arg)) return arg.map(deserializeArg);
                     if (typeof arg === 'object') {{
                         if (arg[ELEMENT_KEY]) {{
-                            var el = window['__wd_el_' + arg[ELEMENT_KEY].replace(/-/g, '')];
+                            var el = window['{ELEMENT_VAR_PREFIX}' + arg[ELEMENT_KEY].replace(/-/g, '')];
                             if (!el) throw new Error('stale element reference');
                             return el;
                         }}
@@ -1656,10 +1657,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
 const SCRIPT_RESULT_REFS_JS: &str = include_str!("script-result-refs.js");
 
-/// Keeps each node where Find Element keeps its own (`__wd_el_<id>`), so
+/// Keeps each node where Find Element keeps its own (under [`ELEMENT_VAR_PREFIX`]), so
 /// [`crate::webdriver::element::ElementStore::register_script_refs`] can register the IDs.
 pub fn script_result_refs_js(ref_prefix: &str) -> String {
-  format!("{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '__wd_el_');")
+  format!("{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '{ELEMENT_VAR_PREFIX}');")
 }
 
 #[cfg(test)]
@@ -1671,7 +1672,9 @@ mod script_result_refs_tests {
     let js = script_result_refs_js("5f0c");
 
     assert!(js.starts_with(SCRIPT_RESULT_REFS_JS));
-    assert!(js.ends_with("var __wdio_refs = __wdioScriptResultRefs('5f0c', '__wd_el_');"));
+    assert!(js.ends_with(&format!(
+      "var __wdio_refs = __wdioScriptResultRefs('5f0c', '{ELEMENT_VAR_PREFIX}');"
+    )));
   }
 }
 

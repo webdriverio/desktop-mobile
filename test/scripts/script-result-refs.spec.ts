@@ -69,6 +69,17 @@ describe('script-result-refs.js', () => {
       expect(page.__test_el_5f0c11e40).toBe(shadow);
     });
 
+    it('should return an element reference for a callable element, as Chromium makes embed and object', () => {
+      const callable = Object.assign(() => undefined, { nodeType: 1, nodeName: 'EMBED' });
+
+      expect(refs.nodeRef(callable)).toEqual({ [ELEMENT_KEY]: '5f0c-11e4-0' });
+      expect(page.__test_el_5f0c11e40).toBe(callable);
+    });
+
+    it('should leave a plain function alone', () => {
+      expect(refs.nodeRef(() => undefined)).toBeUndefined();
+    });
+
     it('should number the nodes in the order it meets them', () => {
       expect(refs.nodeRef(byId('first'))).toEqual({ [ELEMENT_KEY]: '5f0c-11e4-0' });
       expect(refs.nodeRef(byId('second'))).toEqual({ [ELEMENT_KEY]: '5f0c-11e4-1' });

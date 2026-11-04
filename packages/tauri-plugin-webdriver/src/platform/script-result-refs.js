@@ -14,7 +14,8 @@ function __wdioScriptResultRefs(idPrefix, varPrefix) {
   }
 
   function nodeRef(value) {
-    if (value === null || typeof value !== 'object') {
+    // Chromium's <embed> and <object> elements are callable, so their typeof is 'function'
+    if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
       return undefined;
     }
     let key;

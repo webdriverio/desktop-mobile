@@ -123,15 +123,15 @@ describe('Tauri Execute - element results (embedded)', () => {
   });
 
   it('should return a shadow root as a reference that shadow root commands accept', async () => {
-    const result = (await browser.execute(() => {
-      const host = document.createElement('div');
-      host.id = 'element-results-shadow-host';
-      document.body.append(host);
-      host.attachShadow({ mode: 'open' }).innerHTML = '<span id="in-shadow"></span>';
-      return host.shadowRoot;
-    })) as unknown as Record<string, string>;
-
     try {
+      const result = (await browser.execute(() => {
+        const host = document.createElement('div');
+        host.id = 'element-results-shadow-host';
+        document.body.append(host);
+        host.attachShadow({ mode: 'open' }).innerHTML = '<span id="in-shadow"></span>';
+        return host.shadowRoot;
+      })) as unknown as Record<string, string>;
+
       expect(result).toEqual({ [SHADOW_KEY]: expect.any(String) });
       const inShadow = await browser.findElementFromShadowRoot(result[SHADOW_KEY], 'css selector', '#in-shadow');
       expect(await idOf(inShadow)).toBe('in-shadow');

@@ -4,6 +4,8 @@ use serde_json::Value;
 use uuid::Uuid;
 
 const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
+/// Each element's node is kept on `window` under this prefix and its ID without hyphens.
+pub(crate) const ELEMENT_VAR_PREFIX: &str = "__wd_el_";
 const SHADOW_KEY: &str = "shadow-6066-11e4-a52e-4f735466cecf";
 
 /// Represents a `WebDriver` element reference
@@ -57,7 +59,7 @@ impl ElementStore {
 
   fn insert(&mut self, id: String) -> ElementRef {
     // Remove hyphens from the ID for a valid JS variable name
-    let js_ref = format!("__wd_el_{}", id.replace('-', ""));
+    let js_ref = format!("{ELEMENT_VAR_PREFIX}{}", id.replace('-', ""));
     let elem_ref = ElementRef { id: id.clone(), js_ref };
     self.elements.insert(id, elem_ref.clone());
     elem_ref
