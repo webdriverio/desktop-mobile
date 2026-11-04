@@ -103,7 +103,7 @@ run_tests_in_container() {
         -w /workspace \
         "tauri-distro-test:$distro" \
         bash /workspace/fixtures/package-tests/tauri-app/docker/container-test.sh \
-        2>&1 | tee "/tmp/docker-test-$distro.log" || docker_exit_code=$?
+        2>&1 | tee "/tmp/docker-test-$distro.log" || docker_exit_code=${PIPESTATUS[0]}
 
     # Copy logs from mounted volume to repo for upload
     if [ -d "$log_dir" ]; then
