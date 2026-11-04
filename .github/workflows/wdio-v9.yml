@@ -2,8 +2,8 @@ name: WebdriverIO v9
 
 # The services support WebdriverIO v9 and v10, and CI runs v10. This workflow checks the maintenance major, v9:
 # - build, typecheck and unit tests on the `minimum` catalog: nightly, and on PRs that touch the packages;
-# - the Linux package tests, with the fixtures' webdriverio and @wdio/* from `minimum`: weekly, when dispatched, and
-#   on a PR with the ci:wdio-maintenance label.
+# - the Linux package tests, with the fixtures' webdriverio and @wdio/* from `minimum`: weekly, when dispatched, on
+#   a PR with the ci:wdio-maintenance label, and when a label that sets up a release is added to a PR.
 
 on:
   schedule:
@@ -22,7 +22,7 @@ permissions:
   contents: read
   actions: read
 
-# Adding any other label starts a run with nothing to do, so it gets its own group rather than cancelling a real run.
+# Each label other than ci:wdio-maintenance gets its own group, so adding one can't cancel a running check.
 concurrency:
   group: wdio-v9-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'ci:wdio-maintenance' && github.run_id || 'run' }}
   cancel-in-progress: true
@@ -52,6 +52,8 @@ jobs:
           SCHEDULE: ${{ github.event.schedule }}
           PACKAGE_TESTS_INPUT: ${{ inputs.package-tests }}
           LABEL: ci:wdio-maintenance
+          # The labels that publish: the standing release PR's release types, and a direct release on merge.
+          RELEASE_LABELS: release:prerelease release:stable release:graduate release:immediate
           ADDED_LABEL: ${{ github.event.label.name }}
           HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:wdio-maintenance') }}
           REPO: ${{ github.repository }}
@@ -72,8 +74,13 @@ jobs:
               package_tests="$PACKAGE_TESTS_INPUT"
               ;;
             pull_request)
-              if [ "$ACTION" = labeled ] && [ "$ADDED_LABEL" != "$LABEL" ]; then
-                :
+              if [ "$ACTION" = labeled ]; then
+                case " $LABEL $RELEASE_LABELS " in
+                  *" $ADDED_LABEL "*)
+                    check=true
+                    package_tests=true
+                    ;;
+                esac
               elif [ "$HAS_LABEL" = true ]; then
                 check=true
                 package_tests=true
