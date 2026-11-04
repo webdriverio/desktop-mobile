@@ -1195,7 +1195,7 @@ describe('TauriWorkerService', () => {
 
       async function instancesShareAppFor(browser: WebdriverIO.Browser): Promise<boolean | undefined> {
         vi.mocked(triggerDeeplink).mockClear();
-        await (browser as any).tauri.triggerDeeplink('myapp://test');
+        await (browser as unknown as { tauri: TauriServiceAPI }).tauri.triggerDeeplink('myapp://test');
         return vi.mocked(triggerDeeplink).mock.contexts[0].instancesShareApp;
       }
 

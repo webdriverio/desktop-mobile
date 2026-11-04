@@ -222,6 +222,18 @@ describe('triggerDeeplink Command', () => {
       },
     );
 
+    it('should open the URL through the OS when no two instances run the same app', async () => {
+      mockPlatform('linux');
+      const browser = createBrowser();
+      await triggerDeeplink.call({ browser, provider: 'external', instancesShareApp: false }, 'myapp://standard');
+
+      expect(spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['myapp://standard']),
+        expect.objectContaining({ detached: true, stdio: 'ignore' }),
+      );
+    });
+
     it.each([
       ['embedded', 'linux'],
       ['crabnebula', 'darwin'],

@@ -19,20 +19,20 @@ const canTargetInstances =
 const root = () => multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
 const instance = (name: InstanceName) => root().getInstance(name);
 const deeplinksOf = (name: InstanceName) => instance(name).electron.execute(() => globalThis.receivedDeeplinks);
-const helpers = {
-  browserA: createDeeplinkHelpers(() => instance('browserA').electron),
-  browserB: createDeeplinkHelpers(() => instance('browserB').electron),
-};
+const helpersOf = (name: InstanceName) =>
+  createDeeplinkHelpers(
+    () => instance(name).electron,
+    () => instance(name),
+  );
+const helpers = { browserA: helpersOf('browserA'), browserB: helpersOf('browserB') };
 
 (canTargetInstances ? describe : describe.skip)('Deeplinks in multiremote (electron.triggerDeeplink)', () => {
   beforeEach(async () => {
-    await helpers.browserA.clearDeeplinkState();
-    await helpers.browserB.clearDeeplinkState();
+    await Promise.all([helpers.browserA.clearDeeplinkState(), helpers.browserB.clearDeeplinkState()]);
   });
 
   afterEach(async () => {
-    await helpers.browserA.waitForDeeplinkStability();
-    await helpers.browserB.waitForDeeplinkStability();
+    await Promise.all([helpers.browserA.waitForDeeplinkStability(), helpers.browserB.waitForDeeplinkStability()]);
   });
 
   for (const [target, other, url] of [
@@ -51,10 +51,11 @@ const helpers = {
 
   it("should deliver the root's deeplink to each instance once", async () => {
     await root().electron.triggerDeeplink('testapp://mr-root');
-    await helpers.browserA.waitForDeeplink(1, 'browserA did not receive the deeplink');
-    await helpers.browserB.waitForDeeplink(1, 'browserB did not receive the deeplink');
-    await helpers.browserA.waitForDeeplinkStability();
-    await helpers.browserB.waitForDeeplinkStability();
+    await Promise.all([
+      helpers.browserA.waitForDeeplink(1, 'browserA did not receive the deeplink'),
+      helpers.browserB.waitForDeeplink(1, 'browserB did not receive the deeplink'),
+    ]);
+    await Promise.all([helpers.browserA.waitForDeeplinkStability(), helpers.browserB.waitForDeeplinkStability()]);
 
     expect(await deeplinksOf('browserA')).toEqual(['testapp://mr-root']);
     expect(await deeplinksOf('browserB')).toEqual(['testapp://mr-root']);
