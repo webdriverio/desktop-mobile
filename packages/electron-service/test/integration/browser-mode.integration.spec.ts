@@ -181,17 +181,15 @@ describe('browser mode — registration gate', () => {
   });
 
   function seedExistingMock(channel: string) {
-    const mockClear = vi.fn().mockResolvedValue(undefined);
-    const replayBrowserImpl = vi.fn().mockResolvedValue(undefined);
+    const mockReset = vi.fn().mockResolvedValue(undefined);
     const existing = {
       __isElectronMock: true,
-      __replayBrowserImpl: replayBrowserImpl,
-      mockClear,
+      mockReset,
       getMockName: () => `electron.${channel}`,
       update: vi.fn().mockResolvedValue(undefined),
     };
     mockStore.setMock(browser as unknown as WebdriverIO.Browser, existing as unknown as ElectronFunctionMock);
-    return { existing, mockClear, replayBrowserImpl };
+    return { existing, mockReset };
   }
 
   function isLivenessScript(arg: unknown): boolean {
@@ -204,8 +202,8 @@ describe('browser mode — registration gate', () => {
     );
   }
 
-  it('should register exactly once when two concurrent mock() calls race after navigation', async () => {
-    const { mockClear, replayBrowserImpl } = seedExistingMock('appInfo:get');
+  it('should register and reset exactly once when two concurrent mock() calls race after navigation', async () => {
+    const { mockReset } = seedExistingMock('appInfo:get');
     browser.execute.mockResolvedValue(false);
 
     const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
@@ -215,8 +213,7 @@ describe('browser mode — registration gate', () => {
     const registrationCalls = browser.execute.mock.calls.filter((c) => isRegistrationScript(c[0], 'appInfo:get'));
     expect(livenessCalls).toHaveLength(1);
     expect(registrationCalls).toHaveLength(1);
-    expect(replayBrowserImpl).toHaveBeenCalledTimes(1);
-    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockReset).toHaveBeenCalledTimes(1);
   });
 
   it('should not serialize concurrent mock() calls on different channels', async () => {
@@ -250,21 +247,20 @@ describe('browser mode — registration gate', () => {
     await p1;
   });
 
-  it('should skip re-registration when the browser side is already live', async () => {
-    const { mockClear, replayBrowserImpl } = seedExistingMock('appInfo:get');
+  it('should reset the existing mock without re-registering it when the browser side is live', async () => {
+    const { existing, mockReset } = seedExistingMock('appInfo:get');
     browser.execute.mockResolvedValue(true);
 
     const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
-    await api('appInfo:get');
+    await expect(api('appInfo:get')).resolves.toBe(existing);
 
     const registrationCalls = browser.execute.mock.calls.filter((c) => isRegistrationScript(c[0], 'appInfo:get'));
     expect(registrationCalls).toHaveLength(0);
-    expect(replayBrowserImpl).not.toHaveBeenCalled();
-    expect(mockClear).not.toHaveBeenCalled();
+    expect(mockReset).toHaveBeenCalledTimes(1);
   });
 
   it('should allow a later mock() call to retry after a registration failure', async () => {
-    const { mockClear, replayBrowserImpl } = seedExistingMock('appInfo:get');
+    const { mockReset } = seedExistingMock('appInfo:get');
     let livenessCalls = 0;
     let registrationCalls = 0;
     browser.execute.mockImplementation(async (arg: unknown) => {
@@ -288,8 +284,7 @@ describe('browser mode — registration gate', () => {
     await api('appInfo:get');
     expect(livenessCalls).toBe(2);
     expect(registrationCalls).toBe(2);
-    expect(replayBrowserImpl).toHaveBeenCalledTimes(1);
-    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockReset).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -327,13 +322,11 @@ describe('browser mode — navigation lifecycle', () => {
   }
 
   it('should re-inject IPC and re-register the mock through a full navigation cycle', async () => {
-    const mockClear = vi.fn().mockResolvedValue(undefined);
-    const replayBrowserImpl = vi.fn().mockResolvedValue(undefined);
+    const mockReset = vi.fn().mockResolvedValue(undefined);
     const update = vi.fn().mockResolvedValue(undefined);
     const existing = {
       __isElectronMock: true,
-      __replayBrowserImpl: replayBrowserImpl,
-      mockClear,
+      mockReset,
       getMockName: () => 'electron.appInfo:get',
       update,
     };
@@ -357,8 +350,7 @@ describe('browser mode — navigation lifecycle', () => {
     const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
     const returned = await api('appInfo:get');
     expect(returned).toBe(existing);
-    expect(replayBrowserImpl).toHaveBeenCalledTimes(1);
-    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockReset).toHaveBeenCalledTimes(1);
     expect(browser.execute.mock.calls.filter((c) => isRegistrationScript(c[0], 'appInfo:get'))).toHaveLength(1);
 
     browser.execute.mockResolvedValue(undefined);
@@ -366,13 +358,11 @@ describe('browser mode — navigation lifecycle', () => {
     expect(update).toHaveBeenCalledTimes(2);
   });
 
-  it('should call mockClear exactly once when several consumers race to recover after navigation', async () => {
-    const mockClear = vi.fn().mockResolvedValue(undefined);
-    const replayBrowserImpl = vi.fn().mockResolvedValue(undefined);
+  it('should reset exactly once when several consumers race to recover after navigation', async () => {
+    const mockReset = vi.fn().mockResolvedValue(undefined);
     const existing = {
       __isElectronMock: true,
-      __replayBrowserImpl: replayBrowserImpl,
-      mockClear,
+      mockReset,
       getMockName: () => 'electron.appInfo:get',
       update: vi.fn().mockResolvedValue(undefined),
     };
@@ -382,8 +372,7 @@ describe('browser mode — navigation lifecycle', () => {
     const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
     await Promise.all([api('appInfo:get'), api('appInfo:get'), api('appInfo:get'), api('appInfo:get')]);
 
-    expect(mockClear).toHaveBeenCalledTimes(1);
-    expect(replayBrowserImpl).toHaveBeenCalledTimes(1);
+    expect(mockReset).toHaveBeenCalledTimes(1);
   });
 
   it('should not emit unhandled rejections when in-flight work completes after browser drop', async () => {

@@ -694,9 +694,8 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
           mockStore.setMock(browser, newMock);
           return newMock;
         }
-        // Concurrent mock(channel) callers after navigation must share a single
-        // re-registration: the liveness check, registration script, impl replay,
-        // and mockClear all happen exactly once inside this gate.
+        // As in native mode, mock() resets an existing mock. Concurrent calls share one liveness check,
+        // re-registration and reset.
         let inflight = pendingRegistrations.get(browser);
         if (!inflight) {
           inflight = new Map();
@@ -709,15 +708,10 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             const isLive = (await browser.execute(
               `return !!(window.__wdio_mocks__ && typeof window.__wdio_mocks__[${JSON.stringify(channel)}] === 'function')`,
             )) as boolean;
-            if (isLive) {
-              return;
+            if (!isLive) {
+              await browser.execute(`return (${browserInterceptor.buildRegistrationScript(channel)})()`);
             }
-            await browser.execute(`return (${browserInterceptor.buildRegistrationScript(channel)})()`);
-            const replayImpl = (target as unknown as Record<string, unknown>).__replayBrowserImpl;
-            if (typeof replayImpl === 'function') {
-              await (replayImpl as () => Promise<void>)();
-            }
-            await target.mockClear();
+            await target.mockReset();
           })();
           registration = run.finally(() => {
             if (inflight.get(channel) === registration) {

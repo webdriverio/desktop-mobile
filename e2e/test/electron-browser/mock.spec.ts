@@ -62,4 +62,34 @@ describe('Electron browser-mode E2E', () => {
       { timeout: 5000, timeoutMsg: 'expected emitted event payload to render' },
     );
   });
+
+  it('should reset an existing mock when mock(channel) is called again', async () => {
+    const mock = await browser.electron.mock('app:get-version');
+    await mock.mockResolvedValue('1.0.0-before-reset');
+    await $('[data-testid="fetch-version"]').click();
+    await browser.waitUntil(
+      async () => (await $('[data-testid="version-output"]').getText()) === '1.0.0-before-reset',
+      {
+        timeout: 5000,
+        timeoutMsg: 'expected the mocked version to render',
+      },
+    );
+
+    const again = await browser.electron.mock('app:get-version');
+    await again.update();
+
+    expect(again).toBe(mock);
+    expect(again).toHaveBeenCalledTimes(0);
+
+    await $('[data-testid="fetch-version"]').click();
+    await browser.waitUntil(
+      async () => (await $('[data-testid="version-output"]').getText()) !== '1.0.0-before-reset',
+      {
+        timeout: 5000,
+        timeoutMsg: 'expected the reset mock to have no implementation',
+      },
+    );
+    await again.update();
+    expect(again).toHaveBeenCalledTimes(1);
+  });
 });
