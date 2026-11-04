@@ -2,36 +2,28 @@ FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
-# Fastly's CDN mirror first: repo-default is a single server and has had outages. xbps checks every
-# package's signature, whichever mirror sends it.
-RUN mkdir -p /etc/xbps.d && \
-    cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
-    sed -i 's|https://[^/]*/|https://repo-fastly.voidlinux.org/|g' /etc/xbps.d/*-repository-*.conf
+# Every xbps-install below runs this wrapper: Fastly's CDN mirror first, then repo-default if a download
+# fails or stalls
+COPY fixtures/package-tests/dioxus-app/docker/xbps-install.sh /usr/local/bin/xbps-install
 
-# Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files).
-# If Fastly fails, install again from repo-default, which the later steps then use too.
+# Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
 # Void's nodejs tracks the current LTS line, which WDIO supports — sessions
 # create fine on it (unlike Arch, which tracks the absolute newest Node whose
 # stricter undici broke WDIO's session POST and therefore pins an LTS tarball).
-RUN mirror() { sed -i "s|https://[^/]*/|https://$1/|g" /etc/xbps.d/*-repository-*.conf; } && \
-    install_base() { \
-        xbps-install -Syu xbps && \
-        ( xbps-install -Su || true ) && \
-        xbps-install -y \
-            curl \
-            ca-certificates \
-            sudo \
-            git \
-            bash \
-            nodejs \
-            gcc \
-            make \
-            pkg-config \
-            openssl-devel \
-            xorg-server-xvfb; \
-    } && \
-    { install_base || { echo 'Fastly mirror failed, installing from repo-default' && \
-        mirror repo-default.voidlinux.org && install_base; }; } && \
+RUN xbps-install -Syu xbps && \
+    ( xbps-install -Su || true ) && \
+    xbps-install -y \
+        curl \
+        ca-certificates \
+        sudo \
+        git \
+        bash \
+        nodejs \
+        gcc \
+        make \
+        pkg-config \
+        openssl-devel \
+        xorg-server-xvfb && \
     xbps-remove -O
 
 # Rust toolchain — compiles the Dioxus app, the embedded WebDriver and the
