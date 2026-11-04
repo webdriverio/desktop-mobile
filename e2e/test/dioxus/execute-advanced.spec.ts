@@ -85,6 +85,15 @@ describe('Dioxus execute — element results (embedded)', () => {
     expect(await idOf(result.el)).toBe('counter');
   });
 
+  it('should return a NodeList as an array of references', async () => {
+    const result = (await browser.execute(() =>
+      document.querySelectorAll('#counter, #increment-button'),
+    )) as unknown as unknown[];
+
+    expect(result).toEqual([anElementReference(), anElementReference()]);
+    expect(await Promise.all(result.map(idOf))).toEqual(['counter', 'increment-button']);
+  });
+
   // An async function goes through Execute Async Script.
   it('should return an element from an async function as a reference', async () => {
     const result = await browser.execute(async () => {
@@ -94,5 +103,12 @@ describe('Dioxus execute — element results (embedded)', () => {
 
     expect(result).toEqual(anElementReference());
     expect(await idOf(result)).toBe('counter');
+  });
+
+  it('should return an HTMLCollection from an async function as an array of references', async () => {
+    const result = (await browser.execute(async () => document.getElementsByTagName('body'))) as unknown as unknown[];
+
+    expect(result).toEqual([anElementReference()]);
+    expect(await browser.$(result[0] as ElementReference).getTagName()).toBe('body');
   });
 });

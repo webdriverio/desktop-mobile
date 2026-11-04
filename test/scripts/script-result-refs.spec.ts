@@ -13,6 +13,7 @@ const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
 const SHADOW_KEY = 'shadow-6066-11e4-a52e-4f735466cecf';
 
 type ScriptResultRefs = {
+  listOf(value: unknown): unknown[] | undefined;
   nodeRef(value: unknown): Record<string, string> | undefined;
   withRefs(value: unknown): unknown;
 };
@@ -71,6 +72,23 @@ describe('script-result-refs.js', () => {
     });
   });
 
+  describe('listOf', () => {
+    it('should return the nodes of a NodeList and an HTMLCollection as arrays', () => {
+      const [first, second] = [byId('first'), byId('second')];
+
+      expect(refs.listOf(document.querySelectorAll('#first, #second'))).toEqual([first, second]);
+      expect(refs.listOf(document.getElementsByTagName('div'))).toEqual([first, second, byId('host')]);
+    });
+
+    it.each([
+      ['an array', () => [byId('first')]],
+      ['an element', () => byId('first')],
+      ['a plain object keyed by index', () => ({ 0: byId('first'), length: 1 })],
+    ])('should return undefined for %s', (_name, value) => {
+      expect(refs.listOf(value())).toBeUndefined();
+    });
+  });
+
   describe('withRefs', () => {
     it('should replace elements at the top level, in arrays and in objects', () => {
       const [first, second] = [byId('first'), byId('second')];
@@ -82,6 +100,17 @@ describe('script-result-refs.js', () => {
       ]);
       expect(refs.withRefs({ counter: { el: second } })).toEqual({ counter: { el: { [ELEMENT_KEY]: '5f0c-11e4-3' } } });
       expect(page.__test_el_5f0c11e43).toBe(second);
+    });
+
+    it('should send a NodeList or HTMLCollection as an array, at the top level and nested', () => {
+      expect(refs.withRefs(document.querySelectorAll('#first, #second'))).toEqual([
+        { [ELEMENT_KEY]: '5f0c-11e4-0' },
+        { [ELEMENT_KEY]: '5f0c-11e4-1' },
+      ]);
+      expect(refs.withRefs({ found: document.getElementsByClassName('missing') })).toEqual({ found: [] });
+      expect(refs.withRefs({ divs: document.getElementsByTagName('div') })).toEqual({
+        divs: [{ [ELEMENT_KEY]: '5f0c-11e4-2' }, { [ELEMENT_KEY]: '5f0c-11e4-3' }, { [ELEMENT_KEY]: '5f0c-11e4-4' }],
+      });
     });
 
     it('should send the rest of a result with nodes as JSON.stringify does', () => {

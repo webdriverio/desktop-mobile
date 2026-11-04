@@ -1121,6 +1121,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                     }}
                     if (typeof value === 'object') {{
                         if (value[ELEMENT_KEY]) return value;
+                        var list = __wdio_refs.listOf(value);
+                        if (list) return list.map(serializeValue);
                         var ref = __wdio_refs.nodeRef(value);
                         if (ref) return ref;
                         var result = {{}};

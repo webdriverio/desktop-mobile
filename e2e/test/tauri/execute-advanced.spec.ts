@@ -113,6 +113,15 @@ describe('Tauri Execute - element results (embedded)', () => {
     expect(await idOf(result.el)).toBe('counter');
   });
 
+  it('should return a NodeList as an array of references', async () => {
+    const result = (await browser.execute(() =>
+      document.querySelectorAll('#counter, #increment-button'),
+    )) as unknown as unknown[];
+
+    expect(result).toEqual([anElementReference(), anElementReference()]);
+    expect(await Promise.all(result.map(idOf))).toEqual(['counter', 'increment-button']);
+  });
+
   it('should return a shadow root as a reference that shadow root commands accept', async () => {
     const result = (await browser.execute(() => {
       const host = document.createElement('div');
@@ -149,5 +158,12 @@ describe('Tauri Execute - element results (embedded)', () => {
 
     expect(result).toEqual({ list: [anElementReference()] });
     expect(await idOf(result.list[0])).toBe('counter');
+  });
+
+  it('should return an HTMLCollection from an async function as an array of references', async () => {
+    const result = (await browser.execute(async () => document.getElementsByTagName('body'))) as unknown as unknown[];
+
+    expect(result).toEqual([anElementReference()]);
+    expect(await browser.$(result[0] as ElementReference).getTagName()).toBe('body');
   });
 });
