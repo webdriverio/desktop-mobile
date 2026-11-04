@@ -236,25 +236,18 @@ await browser.electron.emitEvent('one-shot');
 
 ## Mock Lifecycle Across Tests
 
-### `mock(channel)` Is Idempotent
+### `mock(channel)` Resets an Existing Mock
 
-Calling `browser.electron.mock(channel)` multiple times for the same channel is safe. The service returns the existing mock unchanged if the browser-side entry is still live. If a navigation wiped `window.__wdio_mocks__`, it silently re-registers the entry and replays any previously-set implementation, but clears call history (via an internal `mockClear()`). Calls accumulated before the navigation will not appear in `mock.mock.calls` after re-registration.
-
-This means it is safe to call `mock(channel)` in both `beforeAll` and `beforeEach`:
+Calling `browser.electron.mock(channel)` again for the same channel returns the same mock, reset with `mockReset()`: its call history and implementation are cleared, as in native mode. Set the implementation in `beforeEach`, after calling `mock()`, rather than relying on `beforeAll` setup persisting. If a navigation wiped `window.__wdio_mocks__`, `mock(channel)` also registers the mock in the page again.
 
 ```ts
 describe('User panel', () => {
   let mockGetUser: ElectronFunctionMock;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    // mock() resets the mock, so set the implementation for each test
     mockGetUser = await browser.electron.mock('get-user-data');
     await mockGetUser.mockResolvedValue({ id: 1, name: 'Alice' });
-  });
-
-  beforeEach(async () => {
-    // Safe to call again — returns the same mock, implementation is preserved
-    mockGetUser = await browser.electron.mock('get-user-data');
-    await mockGetUser.mockClear(); // Reset call history only
   });
 
   it('displays the user name', async () => {
@@ -273,11 +266,11 @@ describe('User panel', () => {
 | `mockReset()`   | Clears history **and** removes the implementation (returns `undefined` on next call).         |
 | `mockRestore()` | Removes the mock entirely from `window.__wdio_mocks__`.                                       |
 
-Use `mockClear()` in `beforeEach` when you want a clean call history but want to keep the implementation set up in `beforeAll`.
+To keep an implementation set up in `beforeAll`, hold on to the mock it returned and call `mockClear()` in `beforeEach`, rather than calling `mock()` again.
 
 ## Navigation
 
-`browser.url()` is patched by the service to re-run the IPC injection script after every navigation. This re-creates `window.__wdio_mocks__` (as an empty object) and patches `ipcRenderer` again, so existing mock handles remain valid — calling `mock(channel)` after navigation re-registers the browser-side entry on demand.
+`browser.url()` is patched by the service to re-run the IPC injection script after every navigation. This re-creates `window.__wdio_mocks__` (as an empty object) and patches `ipcRenderer` again, so existing mock handles remain valid — calling `mock(channel)` after navigation registers the mock in the page again, and resets it.
 
 ```ts
 it('preserves mock handles across navigation', async () => {
@@ -287,9 +280,9 @@ it('preserves mock handles across navigation', async () => {
   // Navigate to another route
   await browser.url('http://localhost:5173/settings');
 
-  // Re-register and use — same outer mock object, fresh browser-side spy
+  // Registers the mock in the page again and resets it, so set the implementation again
   await browser.electron.mock('get-config');
-  await mockGetConfig.mockResolvedValue({ theme: 'dark' }); // Re-set implementation
+  await mockGetConfig.mockResolvedValue({ theme: 'dark' });
   await $('button#load-config').click();
   await mockGetConfig.update();
   expect(mockGetConfig).toHaveBeenCalledTimes(1);
