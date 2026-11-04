@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use serde_json::Value;
 use uuid::Uuid;
 
-const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
+/// W3C JSON key identifying a web element reference.
+pub(crate) const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
 /// Each element's node is kept on `window` under this prefix and its ID without hyphens.
 pub(crate) const ELEMENT_VAR_PREFIX: &str = "__wd_el_";
 const SHADOW_KEY: &str = "shadow-6066-11e4-a52e-4f735466cecf";

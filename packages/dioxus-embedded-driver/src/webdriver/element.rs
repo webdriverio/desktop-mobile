@@ -5,9 +5,9 @@ use uuid::Uuid;
 
 /// Key used in WebDriver element references.
 pub const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
-const SHADOW_KEY: &str = "shadow-6066-11e4-a52e-4f735466cecf";
 
-/// Each element's node is kept on `window` under this prefix and its ID without hyphens.
+/// A script result keeps each element's node on `window` under this prefix and its ID without hyphens.
+/// Find Element and Find Elements use the prefix too, with variable names of their own.
 pub const ELEMENT_VAR_PREFIX: &str = "__wdio_elem_";
 
 /// Stores element references (JS variable names) per session.
@@ -29,7 +29,9 @@ impl ElementStore {
     id
   }
 
-  /// Registers the references in a script result whose IDs the serialiser made from `ref_prefix`.
+  /// Registers the element references in a script result whose IDs the serialiser made from
+  /// `ref_prefix`. Not shadow roots: this driver has no shadow root commands, so a shadow root ID
+  /// would reach element code instead of failing with `no such element`.
   pub fn register_script_refs(&mut self, result: &Value, ref_prefix: &str) {
     match result {
       Value::Array(items) => {
@@ -38,12 +40,10 @@ impl ElementStore {
         }
       }
       Value::Object(entries) => {
-        for key in [ELEMENT_KEY, SHADOW_KEY] {
-          if let Some(id) = entries.get(key).and_then(Value::as_str) {
-            if is_script_ref_id(id, ref_prefix) {
-              let js_var = format!("{ELEMENT_VAR_PREFIX}{}", id.replace('-', ""));
-              self.elements.insert(id.to_string(), js_var);
-            }
+        if let Some(id) = entries.get(ELEMENT_KEY).and_then(Value::as_str) {
+          if is_script_ref_id(id, ref_prefix) {
+            let js_var = format!("{ELEMENT_VAR_PREFIX}{}", id.replace('-', ""));
+            self.elements.insert(id.to_string(), js_var);
           }
         }
         for value in entries.values() {
@@ -116,13 +116,23 @@ mod tests {
     let mut store = ElementStore::new();
     let result = json!([
       { ELEMENT_KEY: "p-0" },
-      { "nested": { "list": [{ SHADOW_KEY: "p-1" }] } },
+      { "nested": { "list": [{ ELEMENT_KEY: "p-1" }] } },
     ]);
 
     store.register_script_refs(&result, "p");
 
     assert_eq!(store.get("p-0"), Some("__wdio_elem_p0"));
     assert_eq!(store.get("p-1"), Some("__wdio_elem_p1"));
+  }
+
+  #[test]
+  fn skips_shadow_root_refs_as_there_are_no_shadow_root_commands() {
+    let mut store = ElementStore::new();
+    let result = json!([{ "shadow-6066-11e4-a52e-4f735466cecf": "p-0" }]);
+
+    store.register_script_refs(&result, "p");
+
+    assert!(store.get("p-0").is_none());
   }
 
   #[test]

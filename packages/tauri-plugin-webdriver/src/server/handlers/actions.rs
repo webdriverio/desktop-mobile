@@ -10,6 +10,7 @@ use crate::platform::key_input::{is_skipped_key, HeldModifiers};
 use crate::platform::PointerEventType;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
+use crate::webdriver::element::ELEMENT_KEY;
 
 #[derive(Debug, Deserialize)]
 pub struct ActionsRequest {
@@ -109,9 +110,6 @@ pub enum PointerAction {
   #[serde(rename = "pause")]
   Pause { duration: Option<u64> },
 }
-
-/// W3C JSON key identifying a web element reference.
-const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
 
 /// Coordinate origin for a `pointerMove`. Per the WebDriver Actions spec the
 /// `origin` is either the string `"viewport"` (the default — x/y are absolute
