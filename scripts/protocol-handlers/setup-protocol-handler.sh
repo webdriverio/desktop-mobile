@@ -63,11 +63,6 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 
     echo "Found executable: $APP_EXECUTABLE"
 
-    # Verify the executable works (optional check)
-    if ! "$APP_EXECUTABLE" --version 2>/dev/null; then
-        echo "Note: Executable exists but --version flag not supported (this is expected for some apps)"
-    fi
-
     # IDEMPOTENCY CHECK: Check if protocol handler is already registered
     if command -v xdg-mime &> /dev/null; then
         CURRENT_HANDLER=$(xdg-mime query default x-scheme-handler/${PROTOCOL_NAME} 2>/dev/null || echo "")
