@@ -1,27 +1,20 @@
 name: WebdriverIO v9
 
-# The services support WebdriverIO v9 and v10, and CI runs v10. This workflow switches
-# webdriverio and @wdio/* to the `minimum` catalog (v9) and runs:
-# - build, typecheck and unit tests: nightly, and on PRs that touch the packages;
-# - the Linux E2E and browser-mode suites: when dispatched, or on a PR that changes this file.
+# The services support WebdriverIO v9 and v10, and CI runs v10. This workflow checks the maintenance major, v9:
+# - build, typecheck and unit tests on the `minimum` catalog: nightly, and on PRs that touch the packages;
+# - the Linux package tests, with the fixtures' webdriverio and @wdio/* from `minimum`: weekly, when dispatched, and
+#   on a PR with the ci:wdio-maintenance label.
 
 on:
   schedule:
     - cron: "17 5 * * *"
+    - cron: "47 5 * * 1"
   pull_request:
-    paths:
-      - "packages/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "tsconfig.base*.json"
-      - "scripts/switch-catalog.ts"
-      - "scripts/strip-fixture-catalogs.ts"
-      - ".github/workflows/wdio-v9.yml"
-      - ".github/workflows/actions/setup-workspace/**"
+    types: [ opened, synchronize, reopened, labeled ]
   workflow_dispatch:
     inputs:
-      e2e:
-        description: "Also run the Linux E2E and browser-mode suites"
+      package-tests:
+        description: "Also run the Linux package tests"
         type: boolean
         default: true
 
@@ -29,8 +22,9 @@ permissions:
   contents: read
   actions: read
 
+# Adding any other label starts a run with nothing to do, so it gets its own group rather than cancelling a real run.
 concurrency:
-  group: wdio-v9-${{ github.ref }}
+  group: wdio-v9-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'ci:wdio-maintenance' && github.run_id || 'run' }}
   cancel-in-progress: true
 
 env:
@@ -39,40 +33,66 @@ env:
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
-  e2e-gate:
-    name: E2E gate
+  gate:
+    name: Gate
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
     outputs:
-      run: ${{ steps.decide.outputs.run }}
+      check: ${{ steps.decide.outputs.check }}
+      package-tests: ${{ steps.decide.outputs.package-tests }}
     steps:
-      - name: 🚦 Decide whether to run E2E
+      - name: 🚦 Decide what to run
         id: decide
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
-          E2E_INPUT: ${{ inputs.e2e }}
+          ACTION: ${{ github.event.action }}
+          SCHEDULE: ${{ github.event.schedule }}
+          PACKAGE_TESTS_INPUT: ${{ inputs.package-tests }}
+          LABEL: ci:wdio-maintenance
+          ADDED_LABEL: ${{ github.event.label.name }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:wdio-maintenance') }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          run=false
-          if [ "$EVENT" = workflow_dispatch ]; then
-            run="$E2E_INPUT"
-          elif [ "$EVENT" = pull_request ]; then
-            # A PR that changes this file tests its E2E path without waiting for a dispatch.
-            files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
-            if grep -Fx '.github/workflows/wdio-v9.yml' <<<"$files" >/dev/null; then
-              run=true
-            fi
-          fi
-          echo "run=$run" >> "$GITHUB_OUTPUT"
+          check=false
+          package_tests=false
+          case "$EVENT" in
+            schedule)
+              check=true
+              if [ "$SCHEDULE" = "47 5 * * 1" ]; then
+                package_tests=true
+              fi
+              ;;
+            workflow_dispatch)
+              check=true
+              package_tests="$PACKAGE_TESTS_INPUT"
+              ;;
+            pull_request)
+              if [ "$ACTION" = labeled ] && [ "$ADDED_LABEL" != "$LABEL" ]; then
+                :
+              elif [ "$HAS_LABEL" = true ]; then
+                check=true
+                package_tests=true
+              else
+                # The paths that can change the packages' build or types on v9.
+                files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
+                if grep -E '^(packages/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsconfig\.base[^/]*\.json$|scripts/(switch-catalog|strip-fixture-catalogs)\.ts$|\.github/workflows/wdio-v9\.yml$|\.github/workflows/actions/setup-workspace/)' <<<"$files" >/dev/null; then
+                  check=true
+                fi
+              fi
+              ;;
+          esac
+          echo "check=$check" >> "$GITHUB_OUTPUT"
+          echo "package-tests=$package_tests" >> "$GITHUB_OUTPUT"
 
   check:
     name: Build, typecheck and unit tests
-    needs: [ e2e-gate ]
+    needs: [ gate ]
+    if: needs.gate.outputs.check == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -87,7 +107,28 @@ jobs:
         uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: "24"
-          wdio-v9: true
+
+      - name: 🔀 Switch to the minimum catalog
+        shell: bash
+        run: node scripts/switch-catalog.ts minimum --wdio-only
+
+      - name: 🔍 Check the resolved WebdriverIO version
+        shell: bash
+        run: |
+          set -euo pipefail
+          major=$(node --input-type=module -e "
+            import { readCatalogs } from './scripts/strip-fixture-catalogs.ts';
+            import { specMajor } from './scripts/switch-catalog.ts';
+            console.log(specMajor(readCatalogs(process.cwd()).minimum.webdriverio));
+          ")
+          versions=$(pnpm ls -r --depth 0 --json webdriverio | jq -r '.[]
+            | select(.path | contains("/fixtures/") | not)
+            | "\(.name) \(((.dependencies // {}) + (.devDependencies // {})).webdriverio.version // empty)"')
+          echo "$versions"
+          if [ -z "$versions" ] || grep -v " ${major}\." <<<"$versions" >/dev/null; then
+            echo "::error title=Not on the minimum catalog::every workspace package should resolve webdriverio ${major}.x"
+            exit 1
+          fi
 
       # E2E is typed against v10 and runs through tsx, so only the packages are type-checked.
       - name: 🏗️ Build, typecheck and test the packages
@@ -96,7 +137,7 @@ jobs:
 
       - name: 📦 Upload Package Build Artifacts
         id: upload-archive
-        if: needs.e2e-gate.outputs.run == 'true'
+        if: needs.gate.outputs.package-tests == 'true'
         uses: ./.github/workflows/actions/upload-archive
         with:
           name: wdio-desktop-mobile
@@ -105,142 +146,75 @@ jobs:
           cache_key_prefix: wdio-desktop-build
           retention_days: "7"
 
-  build-tauri-e2e-app-linux:
-    name: Build Tauri E2E App [Linux]
-    needs: [ e2e-gate ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
+  build-tauri-package-app-linux:
+    name: Build Tauri Package Test App [Linux]
+    needs: [ gate ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
       os: "ubuntu-latest"
 
-  build-dioxus-e2e-app-linux:
-    name: Build Dioxus E2E App [Linux]
-    needs: [ e2e-gate ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
+  build-dioxus-package-app-linux:
+    name: Build Dioxus Package Test App [Linux]
+    needs: [ gate ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
       os: "ubuntu-latest"
 
-  build-electrobun-e2e-app-linux:
-    name: Build Electrobun E2E App [Linux]
-    needs: [ e2e-gate ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
+  package-electron-linux:
+    name: v9 Package - Electron [Linux] - ${{ matrix.module-type }}
+    needs: [ gate, check ]
+    if: needs.gate.outputs.package-tests == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        module-type: [ "cjs", "esm" ]
+    uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
       os: "ubuntu-latest"
+      service: "electron"
+      module-type: ${{ matrix.module-type }}
+      cache_key: ${{ needs.check.outputs.cache_key }}
+      wdio-catalog: "minimum"
 
-  browser-mode:
-    name: Browser Mode [Linux]
-    needs: [ e2e-gate, check ]
-    if: needs.e2e-gate.outputs.run == 'true'
+  package-tauri-linux:
+    name: v9 Package - Tauri [Linux]
+    needs: [ gate, check, build-tauri-package-app-linux ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: "ubuntu-latest"
+      service: "tauri"
+      cache_key: ${{ needs.check.outputs.cache_key }}
+      tauri_cache_key: ${{ needs.build-tauri-package-app-linux.outputs.cache_key }}
+      wdio-catalog: "minimum"
+
+  package-dioxus-linux:
+    name: v9 Package - Dioxus [Linux]
+    needs: [ gate, check, build-dioxus-package-app-linux ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: "ubuntu-latest"
+      service: "dioxus"
+      cache_key: ${{ needs.check.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-linux.outputs.cache_key }}
+      wdio-catalog: "minimum"
+
+  package-browser-mode:
+    name: v9 Package - Browser Mode [Linux]
+    needs: [ gate, check ]
+    if: needs.gate.outputs.package-tests == 'true'
     uses: ./.github/workflows/_ci-browser-mode.reusable.yml
     secrets: inherit
     with:
       os: "ubuntu-latest"
       node-version: "24"
-      wdio-v9: true
       cache_key: ${{ needs.check.outputs.cache_key }}
-
-  e2e-electron-linux:
-    name: E2E - Electron [Linux] - ${{ matrix.scenario }}
-    needs: [ e2e-gate, check ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario: [ "builder", "forge", "script" ]
-    uses: ./.github/workflows/_ci-e2e-electron.reusable.yml
-    secrets: inherit
-    with:
-      os: "ubuntu-latest"
-      node-version: "24"
-      wdio-v9: true
-      scenario: ${{ matrix.scenario }}
-      cache_key: ${{ needs.check.outputs.cache_key }}
-
-  e2e-tauri-linux:
-    name: E2E - Tauri [Linux] - ${{ matrix.test-type }}
-    needs: [ e2e-gate, check, build-tauri-e2e-app-linux ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
-    uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
-    secrets: inherit
-    with:
-      os: "ubuntu-latest"
-      node-version: "24"
-      wdio-v9: true
-      test-type: ${{ matrix.test-type }}
-      cache_key: ${{ needs.check.outputs.cache_key }}
-      tauri_cache_key: ${{ needs.build-tauri-e2e-app-linux.outputs.cache_key }}
-
-  e2e-dioxus-linux:
-    name: E2E - Dioxus [Linux] - ${{ matrix.test-type }}
-    needs: [ e2e-gate, check, build-dioxus-e2e-app-linux ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
-    uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
-    secrets: inherit
-    with:
-      os: "ubuntu-latest"
-      node-version: "24"
-      wdio-v9: true
-      test-type: ${{ matrix.test-type }}
-      cache_key: ${{ needs.check.outputs.cache_key }}
-      dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-linux.outputs.cache_key }}
-
-  e2e-electrobun-linux:
-    name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
-    needs: [ e2e-gate, check, build-electrobun-e2e-app-linux ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: [ "standard", "multiremote" ]
-    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
-    secrets: inherit
-    with:
-      os: "ubuntu-latest"
-      node-version: "24"
-      wdio-v9: true
-      test-type: ${{ matrix.test-type }}
-      cache_key: ${{ needs.check.outputs.cache_key }}
-
-  e2e-react-native-linux:
-    name: E2E - React Native [Android] - standard (${{ matrix.arch }}-arch)
-    needs: [ e2e-gate, check ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [ "old", "new" ]
-    uses: ./.github/workflows/_ci-e2e-react-native.reusable.yml
-    secrets: inherit
-    with:
-      os: "ubuntu-latest"
-      node-version: "24"
-      wdio-v9: true
-      test-type: "standard"
-      new-arch: ${{ matrix.arch == 'new' }}
-      cache_key: ${{ needs.check.outputs.cache_key }}
-
-  e2e-flutter-linux:
-    name: E2E - Flutter [Android] - standard
-    needs: [ e2e-gate, check ]
-    if: needs.e2e-gate.outputs.run == 'true'
-    uses: ./.github/workflows/_ci-e2e-flutter.reusable.yml
-    secrets: inherit
-    with:
-      os: "ubuntu-latest"
-      node-version: "24"
-      wdio-v9: true
-      test-type: "standard"
-      cache_key: ${{ needs.check.outputs.cache_key }}
+      wdio-catalog: "minimum"

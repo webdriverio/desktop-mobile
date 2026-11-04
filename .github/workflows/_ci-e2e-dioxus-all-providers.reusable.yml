@@ -36,10 +36,6 @@ on:
         description: "Cache key to use for downloading Dioxus app binaries"
         type: string
         required: false
-      wdio-v9:
-        description: "Run on WebdriverIO v9 (the minimum catalog)"
-        type: boolean
-        default: false
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -65,7 +61,6 @@ jobs:
         uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: ${{ inputs.node-version }}
-          wdio-v9: ${{ inputs.wdio-v9 }}
 
       - name: 🦀 Install Dioxus Runtime Dependencies (Linux)
         if: runner.os == 'Linux'

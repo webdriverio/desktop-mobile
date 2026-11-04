@@ -5,10 +5,6 @@ inputs:
     description: 'Node.js version to use for the environment (e.g., "24")'
     required: false
     default: "24"
-  wdio-v9:
-    description: "Switch webdriverio and @wdio/* to WebdriverIO v9 (the minimum catalog), check the version and, on Linux, start a display for the job"
-    required: false
-    default: "false"
 
 runs:
   using: composite
@@ -34,46 +30,6 @@ runs:
     - name: 📦 Install Project Dependencies
       shell: bash
       run: pnpm install --frozen-lockfile
-
-    - name: 🔀 Switch to WebdriverIO v9
-      if: inputs.wdio-v9 == 'true'
-      shell: bash
-      run: node scripts/switch-catalog.ts minimum --wdio-only
-
-    - name: 🔍 Check the resolved WebdriverIO version
-      if: inputs.wdio-v9 == 'true'
-      shell: bash
-      run: |
-        set -euo pipefail
-        versions=$(pnpm ls -r --depth 0 --json webdriverio | jq -r '.[]
-          | select(.path | contains("/fixtures/") | not)
-          | "\(.name) \(((.dependencies // {}) + (.devDependencies // {})).webdriverio.version // empty)"')
-        echo "$versions"
-        if [ -z "$versions" ] || grep -v ' 9\.' <<<"$versions" >/dev/null; then
-          echo "::error title=Not on WebdriverIO v9::every workspace package should resolve webdriverio 9.x"
-          exit 1
-        fi
-
-    # v9 starts a display only for its workers, and the Tauri and Dioxus launchers spawn drivers that need one.
-    # Drop once v9 is no longer supported.
-    - name: 🖥️ Start Xvfb for WebdriverIO v9 (Linux)
-      if: inputs.wdio-v9 == 'true' && runner.os == 'Linux'
-      shell: bash
-      run: |
-        if ! command -v Xvfb >/dev/null; then
-          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
-        fi
-        nohup Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp > "$RUNNER_TEMP/xvfb.log" 2>&1 &
-        for _ in $(seq 1 50); do
-          [ -S /tmp/.X11-unix/X99 ] && break
-          sleep 0.2
-        done
-        if [ ! -S /tmp/.X11-unix/X99 ]; then
-          cat "$RUNNER_TEMP/xvfb.log"
-          echo "::error title=Xvfb did not start::no socket for display :99 after 10s"
-          exit 1
-        fi
-        echo "DISPLAY=:99" >> "$GITHUB_ENV"
 
     - name: 🔧 Configure Git Identity
       shell: bash

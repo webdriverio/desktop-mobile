@@ -3,7 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readCatalogs } from '../../scripts/strip-fixture-catalogs.ts';
-import { switchCatalog, switchDependencies } from '../../scripts/switch-catalog.ts';
+import {
+  installedVersions,
+  pinWdioToCatalog,
+  specMajor,
+  switchCatalog,
+  switchDependencies,
+} from '../../scripts/switch-catalog.ts';
 
 const REPO_ROOT = new URL('../..', import.meta.url).pathname;
 
@@ -88,6 +94,91 @@ describe('switchDependencies', () => {
 
   it('should report no change for a package without catalog dependencies', () => {
     expect(switchDependencies({ dependencies: { yaml: '^2.9.1' } }, 'minimum', CATALOGS)).toBe(false);
+  });
+});
+
+describe('pinWdioToCatalog', () => {
+  function fixturePackageJson() {
+    return {
+      dependencies: { yaml: '^2.9.1' },
+      devDependencies: {
+        '@wdio/cli': '^10.1.0',
+        '@wdio/display-server': '^10.1.0',
+        '@wdio/tauri-service': 'workspace:*',
+        '@wdio/types': '^10.1.0',
+        electron: '45.0.0',
+      },
+    };
+  }
+
+  it("should pin the fixture's WebdriverIO packages to the catalog's specs", () => {
+    const packageJson = fixturePackageJson();
+
+    const pinned = pinWdioToCatalog(packageJson, { '@wdio/cli': '^9.0.0', '@wdio/types': '^9.0.0' });
+
+    expect(pinned).toEqual(['@wdio/cli', '@wdio/types']);
+    expect(packageJson.devDependencies).toMatchObject({ '@wdio/cli': '^9.0.0', '@wdio/types': '^9.0.0' });
+  });
+
+  it('should leave packages the catalog lacks, workspace packages and other dependencies alone', () => {
+    const packageJson = fixturePackageJson();
+
+    pinWdioToCatalog(packageJson, {
+      '@wdio/tauri-service': '^1.0.0',
+      electron: '28.3.3',
+      webdriverio: '^9.0.0',
+      yaml: '^1.0.0',
+    });
+
+    expect(packageJson).toEqual(fixturePackageJson());
+  });
+});
+
+describe('specMajor', () => {
+  it.each([
+    ['^9.33.0', 9],
+    ['~10.2.0', 10],
+    ['9.33.1', 9],
+    ['10.2.0-alpha.1', 10],
+  ])('should read the major from %s', (spec, major) => {
+    expect(specMajor(spec)).toBe(major);
+  });
+
+  it('should return undefined for a spec without a version', () => {
+    expect(specMajor('latest')).toBeUndefined();
+  });
+});
+
+describe('installedVersions', () => {
+  let nodeModulesDir: string;
+
+  beforeEach(() => {
+    nodeModulesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'installed-versions-'));
+    for (const entry of [
+      'webdriverio@9.33.1_bufferutil@4.1.0',
+      'webdriverio@10.1.0',
+      'webdriverio-extra@1.0.0',
+      '@wdio+cli@9.33.1',
+      'node_modules',
+    ]) {
+      fs.mkdirSync(path.join(nodeModulesDir, '.pnpm', entry), { recursive: true });
+    }
+  });
+
+  afterEach(() => {
+    fs.rmSync(nodeModulesDir, { recursive: true, force: true });
+  });
+
+  it("should list each version of the package in pnpm's virtual store", () => {
+    expect(installedVersions(nodeModulesDir, 'webdriverio').sort()).toEqual(['10.1.0', '9.33.1']);
+  });
+
+  it('should find a scoped package', () => {
+    expect(installedVersions(nodeModulesDir, '@wdio/cli')).toEqual(['9.33.1']);
+  });
+
+  it('should return nothing without a virtual store', () => {
+    expect(installedVersions(path.join(nodeModulesDir, 'missing'), 'webdriverio')).toEqual([]);
   });
 });
 

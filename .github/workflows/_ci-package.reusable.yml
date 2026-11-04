@@ -43,6 +43,10 @@ on:
         description: "Cache key for Dioxus package test app binaries"
         type: string
         required: false
+      wdio-catalog:
+        description: "Install the fixtures' webdriverio and @wdio/* from this catalog (e.g. minimum) instead of their pinned versions"
+        type: string
+        default: ""
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -70,6 +74,10 @@ jobs:
         uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: "24"
+
+      - name: 🖥️ Start Xvfb
+        if: inputs.wdio-catalog != ''
+        uses: ./.github/workflows/actions/start-xvfb
 
       # Install Rust toolchain for auto-installing tauri-driver if testing Tauri service
       # The @wdio/tauri-service will automatically install tauri-driver via cargo if not found
@@ -281,46 +289,47 @@ jobs:
           # Disable AT-SPI accessibility bus warnings (same as E2E)
           NO_AT_BRIDGE: "1"
           SERVICE: ${{ inputs.service }}
+          WDIO_CATALOG: ${{ inputs.wdio-catalog }}
         run: |
           case "$SERVICE" in
             electron)
               echo "Running Electron package tests (apps built in isolated environments)"
               echo "Module type: ${{ inputs.module-type }}"
-              pnpm run test:package:electron -- --module-type=${{ inputs.module-type }}
+              pnpm run test:package:electron -- --module-type=${{ inputs.module-type }} ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
               ;;
             dioxus)
               echo "Running Dioxus package tests (using pre-built binaries from separate build job)"
-              pnpm run test:package:dioxus -- --skip-build
+              pnpm run test:package:dioxus -- --skip-build ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
               ;;
             tauri)
               echo "Running Tauri package tests (using pre-built binaries from separate build job)"
               if [[ "${{ runner.os }}" == "Windows" ]]; then
-                gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run test:package:tauri -- --skip-build"
+                gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run test:package:tauri -- --skip-build ${WDIO_CATALOG:+--wdio-catalog=$WDIO_CATALOG}"
               else
-                pnpm run test:package:tauri -- --skip-build
+                pnpm run test:package:tauri -- --skip-build ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
               fi
               ;;
             all)
               if [[ "${{ runner.os }}" == "macOS" ]]; then
                 echo "⚠️  Skipping Tauri package tests on macOS (not supported)"
                 echo "Module type: ${{ inputs.module-type }}"
-                pnpm run test:package:electron -- --module-type=${{ inputs.module-type }}
+                pnpm run test:package:electron -- --module-type=${{ inputs.module-type }} ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
               else
                 echo "Running all package tests (Electron built in isolated environments, Tauri using pre-built binaries)"
                 echo "Module type: ${{ inputs.module-type }}"
                 # Electron: build in isolated environments (no --skip-build)
-                pnpm run test:package:electron -- --module-type=${{ inputs.module-type }}
+                pnpm run test:package:electron -- --module-type=${{ inputs.module-type }} ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
                 # Tauri: use --skip-build for pre-built binaries from separate build job
-                pnpm run test:package:tauri -- --skip-build
+                pnpm run test:package:tauri -- --skip-build ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
               fi
               ;;
             electrobun)
               # macOS (CEF) + Windows (native WebView2); uses the pre-built bundle extracted above.
               echo "Running Electrobun package tests (using the pre-built bundle)"
               if [[ "${{ runner.os }}" == "Windows" ]]; then
-                gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run test:package:electrobun -- --skip-build"
+                gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run test:package:electrobun -- --skip-build ${WDIO_CATALOG:+--wdio-catalog=$WDIO_CATALOG}"
               else
-                pnpm run test:package:electrobun -- --skip-build
+                pnpm run test:package:electrobun -- --skip-build ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
               fi
               ;;
             *)
@@ -329,9 +338,10 @@ jobs:
               ;;
           esac
 
-      # Run the ESM apps again on Weston, which the runner image doesn't have
+      # Run the ESM apps again on Weston, which the runner image doesn't have. WebdriverIO's display server starts
+      # Weston, and the maintenance major (wdio-catalog) has none, so it skips this.
       - name: 🧪 Execute Package Tests on Weston
-        if: inputs.service == 'electron' && runner.os == 'Linux' && inputs.module-type == 'esm'
+        if: inputs.service == 'electron' && runner.os == 'Linux' && inputs.module-type == 'esm' && inputs.wdio-catalog == ''
         shell: bash
         env:
           NO_AT_BRIDGE: "1"

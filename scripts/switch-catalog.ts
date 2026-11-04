@@ -85,6 +85,40 @@ export function switchDependencies(
   return changed;
 }
 
+// The package tests install a fixture in isolation, where `catalog:` doesn't resolve, so they take the catalog's
+// version specs for its WebdriverIO packages rather than `catalog:` refs. Returns the packages it changed.
+export function pinWdioToCatalog(packageJson: PackageJson, catalog: Record<string, string>): string[] {
+  const pinned: string[] = [];
+  for (const field of ['dependencies', 'devDependencies'] as const) {
+    const deps = packageJson[field];
+    for (const dep of Object.keys(deps ?? {})) {
+      if (deps && isWdioPackage(dep) && catalog[dep] && !deps[dep].startsWith('workspace:')) {
+        deps[dep] = catalog[dep];
+        pinned.push(dep);
+      }
+    }
+  }
+  return pinned;
+}
+
+export function specMajor(spec: string): number | undefined {
+  const major = /\d+/.exec(spec)?.[0];
+  return major === undefined ? undefined : Number(major);
+}
+
+// The versions of a package a pnpm install resolved, from the `<name>@<version>` directories in its virtual store.
+export function installedVersions(nodeModulesDir: string, name: string): string[] {
+  const storeDir = path.join(nodeModulesDir, '.pnpm');
+  if (!fs.existsSync(storeDir)) {
+    return [];
+  }
+  const prefix = `${name.replace('/', '+')}@`;
+  return fs
+    .readdirSync(storeDir)
+    .filter((entry) => entry.startsWith(prefix))
+    .map((entry) => entry.slice(prefix.length).split('_')[0]);
+}
+
 // Expands only trailing `dir/*` globs, the only kind pnpm-workspace.yaml uses.
 export function listWorkspacePackages(rootDir: string): string[] {
   const workspace = yaml.parse(fs.readFileSync(path.join(rootDir, 'pnpm-workspace.yaml'), 'utf8')) as {
