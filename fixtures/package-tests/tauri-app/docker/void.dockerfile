@@ -1,4 +1,4 @@
-FROM voidlinux/voidlinux:latest
+FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
@@ -7,12 +7,11 @@ RUN mkdir -p /etc/xbps.d && \
     cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
     sed -i 's|https://[^/]*/|https://repo-default.voidlinux.org/|g' /etc/xbps.d/*-repository-*.conf
 
-# Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
+# Install basic requirements, after upgrading the image's packages so new ones install against current libraries
 RUN xbps-install -Syu xbps && \
-    ( xbps-install -Su || true ) && \
+    xbps-install -uy && \
     xbps-install -y \
         curl \
-        ca-certificates \
         sudo \
         git \
         bash \
@@ -27,9 +26,6 @@ RUN xbps-install -Syu xbps && \
 # Install Rust toolchain (needed for tauri-driver)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Upgrade util-linux packages first to avoid dependency conflicts
-RUN xbps-install -yf util-linux util-linux-common libblkid libuuid libmount libfdisk libsmartcols || true
 
 # Install Tauri runtime dependencies
 # Note: libwebkit2gtk41 includes WebKitWebDriver at /usr/sbin/WebKitWebDriver
