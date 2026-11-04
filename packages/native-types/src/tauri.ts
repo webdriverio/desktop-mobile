@@ -226,8 +226,8 @@ export interface TauriServiceAPI {
    *
    * @param url - The deeplink URL to trigger (e.g., 'myapp://open?path=/test')
    * @returns Promise that resolves when the deeplink has been triggered
-   * @throws Error when the URL opens through the OS (the `external` provider, and CrabNebula on Windows and Linux)
-   * and two multiremote instances run the same app
+   * @throws Error in a multiremote session where two instances run the same app, if the URL opens through the OS:
+   * with the `external` provider, and CrabNebula on Windows and Linux
    *
    * @example
    * ```js

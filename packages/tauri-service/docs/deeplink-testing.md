@@ -144,7 +144,7 @@ The in-app event skips the OS, so a few things differ from a real launch:
 
 With the `embedded` provider, and CrabNebula on macOS, an instance's `triggerDeeplink()` reaches only that instance's app, and the root's reaches every instance once.
 
-The OS route (`external`, and CrabNebula on Windows and Linux) can't pick one of two copies of the same app: the URL starts another copy instead. So in a session where two instances run the same app, `triggerDeeplink()` throws there, on every instance and on the root. When each instance runs a different app, it still works if each app registers the [single-instance plugin](#single-instance-on-windows-and-linux). The OS then opens the URL in the app that handles its scheme, whichever instance called, and the root opens it once.
+With `external`, and CrabNebula on Windows and Linux, the URL opens through the OS, which can't pick one of two copies of the same app: it starts another copy instead. So in a session where two instances run the same app, `triggerDeeplink()` throws, on every instance and on the root. When each instance runs a different app, it still works, but the OS opens the URL in the app that handles its scheme, whichever instance called, and a root call opens it only once.
 
 ## App Implementation
 

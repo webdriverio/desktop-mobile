@@ -84,8 +84,8 @@ export async function triggerDeeplink(this: TauriServiceContext, url: string): P
 
   if (this.instancesShareApp) {
     throw new Error(
-      `triggerDeeplink() can't reach a multiremote instance with the ${provider} provider on ${platform}. ` +
-        "It opens the URL through the OS, which can't tell two copies of one app apart, so the URL starts another copy. " +
+      `triggerDeeplink() can't reach a multiremote instance with the ${provider} provider on ${platform} when two instances run the same app. ` +
+        "It opens the URL through the OS, which can't tell the copies apart, so the URL starts another copy. " +
         'Use the embedded provider, or test deeplinks without multiremote.',
     );
   }
