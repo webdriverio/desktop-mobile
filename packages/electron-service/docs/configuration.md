@@ -113,7 +113,7 @@ Here are some examples of binary paths using default build configurations for a 
 'C:\\workspace\\myApp\\out\\myApp-win32-arm64\\myApp.exe'; // Electron Forge
 ```
 
-For other architectures, Electron Builder names the folder `win-ia32-unpacked`, `linux-armv7l-unpacked` and so on, unless you set its `defaultArch` (see [Which build is used](#which-build-is-used)).
+Electron Builder names other architectures' folders the same way, such as `win-ia32-unpacked` and `linux-armv7l-unpacked`. Setting its `defaultArch` changes the names: see [Which build is used](#which-build-is-used).
 
 Note:
 - The above examples assume electron-builder's `"directories": { "output": "dist-electron" }` config (default is `"dist"`). Your actual binary path depends on your electron-builder configuration.
@@ -442,7 +442,7 @@ If you want to manually set this value, you can specify the [`appBinaryPath`](#a
 
 ### Which build is used
 
-If your output directory holds Electron Builder or Electron Forge builds for more than one architecture, the service launches the first one that exists and is executable. It tries the machine's own architecture first, then the ones it can run under emulation or in 32-bit mode, then the rest:
+If your output directory holds builds for more than one architecture, the service launches the first one it finds. It tries the machine's own architecture, then the ones it can run under emulation or in 32-bit mode, then the rest:
 
 | Machine running the tests | Order                       |
 | ------------------------- | --------------------------- |
@@ -455,9 +455,8 @@ If your output directory holds Electron Builder or Electron Forge builds for mor
 
 For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`.
 
-- **Architectures Electron doesn't publish** for your Electron version go last: `ia32` on Windows and `armv7l` on Linux from Electron 44.
-- **The machine's architecture** is the one of the Node.js running the tests, so an x64 Node.js under Rosetta or Windows emulation gets the x64 build. Use a native Node.js to get the native build.
-- **Electron Builder's `defaultArch`:** Electron Builder adds the architecture to every folder name except the platform's `defaultArch`, which is `x64` unless you set it. With `win.defaultArch: 'arm64'`, the ARM64 build is in `win-unpacked` and the x64 one in `win-x64-unpacked`, and the service looks for both.
+- **Node.js architecture:** the machine's architecture comes from the Node.js running the tests. An x64 Node.js under Rosetta or Windows emulation gets the x64 build, so use a native Node.js to test the native one.
+- **Electron Builder's `defaultArch`:** only the platform's `defaultArch`, `x64` unless you set it, gets a folder name without the architecture. With `win.defaultArch: 'arm64'`, the ARM64 build goes in `win-unpacked` and the x64 one in `win-x64-unpacked`, and the service follows the same rule.
 
 To use a different build, set [`appBinaryPath`](#appbinarypath).
 
