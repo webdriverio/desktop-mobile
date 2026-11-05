@@ -61,6 +61,7 @@ function getBuilderDistDir(config: BuilderBuildInfo['config'], platform: Support
     linux: path.join(builderOutDirName, arch === 'x64' ? 'linux-unpacked' : `linux-${arch}-unpacked`),
     win32: path.join(builderOutDirName, arch === 'x64' ? 'win-unpacked' : `win-${arch}-unpacked`),
   });
+  // output dir depends on the arch used
   let archs: BuilderArch[];
   if (platform === 'darwin') {
     archs = ['arm64', 'armv7l', 'ia32', 'universal', 'x64'];
