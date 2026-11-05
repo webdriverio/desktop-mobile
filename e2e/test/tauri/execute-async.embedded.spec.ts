@@ -1,7 +1,5 @@
 import { browser, expect } from '@wdio/globals';
 
-const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
-
 describe('Execute Async Script (embedded)', () => {
   // browser.execute sends an async function through Execute Async Script.
   describe('browser.execute with an async function', () => {
@@ -24,15 +22,6 @@ describe('Execute Async Script (embedded)', () => {
       const id = await browser.execute(async (el) => el.id, counter);
 
       expect(id).toBe('counter');
-    });
-
-    // Workaround for #994; flip once the driver returns an element in a result as a reference.
-    it('should not return an element in the result as an element reference', async () => {
-      const result = await browser
-        .execute(async () => document.querySelector('#counter'))
-        .catch((error: unknown) => error);
-
-      expect(result).not.toEqual(expect.objectContaining({ [ELEMENT_KEY]: expect.any(String) }));
     });
 
     it('should reject with the error the function throws', async () => {

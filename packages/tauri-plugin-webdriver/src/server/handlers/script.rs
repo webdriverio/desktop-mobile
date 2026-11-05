@@ -5,8 +5,9 @@ use axum::Json;
 use serde::Deserialize;
 use serde_json::Value;
 use tauri::Runtime;
+use uuid::Uuid;
 
-use crate::server::response::{WebDriverResponse, WebDriverResult};
+use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -29,8 +30,10 @@ pub async fn execute_sync<R: Runtime + 'static>(
   let frame_context = session.frame_context.clone();
   drop(sessions);
 
+  let ref_prefix = Uuid::new_v4().to_string();
   let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
-  let result = executor.execute_script(&request.script, &request.args).await?;
+  let result = executor.execute_script(&request.script, &request.args, &ref_prefix).await?;
+  register_script_refs(&state, &session_id, &result, &ref_prefix).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -47,7 +50,20 @@ pub async fn execute_async<R: Runtime + 'static>(
   let frame_context = session.frame_context.clone();
   drop(sessions);
 
+  let ref_prefix = Uuid::new_v4().to_string();
   let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
-  let result = executor.execute_async_script(&request.script, &request.args).await?;
+  let result = executor.execute_async_script(&request.script, &request.args, &ref_prefix).await?;
+  register_script_refs(&state, &session_id, &result, &ref_prefix).await?;
   Ok(WebDriverResponse::success(result))
+}
+
+async fn register_script_refs<R: Runtime>(
+  state: &AppState<R>,
+  session_id: &str,
+  result: &Value,
+  ref_prefix: &str,
+) -> Result<(), WebDriverErrorResponse> {
+  let mut sessions = state.sessions.write().await;
+  sessions.get_mut(session_id)?.elements.register_script_refs(result, ref_prefix);
+  Ok(())
 }

@@ -248,8 +248,9 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
     &self,
     script: &str,
     args: &[Value],
+    ref_prefix: &str,
   ) -> Result<Value, WebDriverErrorResponse> {
-    self.execute_script(&async_script_as_promise(script), args).await
+    self.execute_script(&async_script_as_promise(script), args, ref_prefix).await
   }
 
   /// DirectEval (`/wdio/eval`) with out-of-band result delivery + reclaim recovery.
