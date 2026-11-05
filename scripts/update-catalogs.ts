@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -10,23 +10,31 @@ import ora from 'ora';
 import * as yaml from 'yaml';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+type UpdateType = 'major' | 'minor' | 'patch' | 'prerelease' | 'unknown';
 
 interface PackageInfo {
   name: string;
   currentVersion: string;
   latestVersion: string;
   isUpToDate: boolean;
-  updateType: 'patch' | 'minor' | 'major' | 'unknown';
+  updateType: UpdateType;
+  followsWebdriverio?: boolean;
 }
 
 interface WorkspaceConfig {
   packages: string[];
+  minimumReleaseAge?: number;
   catalogs: {
     [key: string]: {
       [key: string]: string;
     };
   };
 }
+
+// pnpm's built-in `minimumReleaseAge`, in minutes, for a workspace that doesn't set one.
+const DEFAULT_MINIMUM_RELEASE_AGE_MINUTES = 1440;
 
 // Check if dry run mode is enabled
 const isDryRun = process.argv.includes('--dry-run') || process.argv.includes('--dryRun');
@@ -45,7 +53,7 @@ async function readWorkspaceYaml(): Promise<WorkspaceConfig> {
 /**
  * Determine the type of update between two semantic versions
  */
-function getUpdateType(currentVersion: string, latestVersion: string): 'patch' | 'minor' | 'major' | 'unknown' {
+export function getUpdateType(currentVersion: string, latestVersion: string): UpdateType {
   if (currentVersion === 'unknown' || latestVersion === 'unknown') {
     return 'unknown';
   }
@@ -55,8 +63,8 @@ function getUpdateType(currentVersion: string, latestVersion: string): 'patch' |
     return 'unknown';
   }
 
-  const current = currentVersion.split('-')[0].split('.').map(Number);
-  const latest = latestVersion.split('-')[0].split('.').map(Number);
+  const current = splitVersion(currentVersion).core;
+  const latest = splitVersion(latestVersion).core;
 
   if (latest[0] > current[0]) {
     return 'major';
@@ -64,6 +72,8 @@ function getUpdateType(currentVersion: string, latestVersion: string): 'patch' |
     return 'minor';
   } else if (latest[0] === current[0] && latest[1] === current[1] && latest[2] > current[2]) {
     return 'patch';
+  } else if (latest.every((part, i) => part === current[i]) && compareVersions(latestVersion, currentVersion) > 0) {
+    return 'prerelease';
   }
 
   return 'unknown';
@@ -72,8 +82,10 @@ function getUpdateType(currentVersion: string, latestVersion: string): 'patch' |
 /**
  * Get chalk color for update type
  */
-function getUpdateColor(updateType: 'patch' | 'minor' | 'major' | 'unknown'): (text: string) => string {
+function getUpdateColor(updateType: UpdateType): (text: string) => string {
   switch (updateType) {
+    case 'prerelease':
+      return chalk.cyan;
     case 'patch':
       return chalk.green;
     case 'minor':
@@ -92,16 +104,124 @@ function isNonSemverTag(version: string): boolean {
   return ['latest', 'next', 'beta', 'alpha', 'nightly'].includes(version.toLowerCase());
 }
 
-async function getLatestVersions(packages: Record<string, string>): Promise<PackageInfo[]> {
+const isWdioPackage = (name: string) => name === 'webdriverio' || name.startsWith('@wdio/');
+
+function splitVersion(version: string): { core: number[]; prerelease?: string } {
+  const [withoutBuild] = version.split('+');
+  const dash = withoutBuild.indexOf('-');
+  const core = (dash === -1 ? withoutBuild : withoutBuild.slice(0, dash)).split('.').map(Number);
+  return dash === -1 ? { core } : { core, prerelease: withoutBuild.slice(dash + 1) };
+}
+
+export function compareVersions(a: string, b: string): number {
+  const left = splitVersion(a);
+  const right = splitVersion(b);
+  for (let i = 0; i < 3; i++) {
+    const diff = (left.core[i] ?? 0) - (right.core[i] ?? 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+  if (left.prerelease === undefined || right.prerelease === undefined) {
+    return (left.prerelease === undefined ? 1 : 0) - (right.prerelease === undefined ? 1 : 0);
+  }
+  const leftIds = left.prerelease.split('.');
+  const rightIds = right.prerelease.split('.');
+  for (let i = 0; i < Math.max(leftIds.length, rightIds.length); i++) {
+    const [x, y] = [leftIds[i], rightIds[i]];
+    if (x === undefined || y === undefined) {
+      return x === undefined ? -1 : 1;
+    }
+    const [xNumeric, yNumeric] = [/^\d+$/.test(x), /^\d+$/.test(y)];
+    if (xNumeric && yNumeric && Number(x) !== Number(y)) {
+      return Number(x) - Number(y);
+    }
+    if (xNumeric !== yNumeric) {
+      return xNumeric ? -1 : 1;
+    }
+    if (x !== y) {
+      return x < y ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+interface Packument {
+  'dist-tags'?: Record<string, string>;
+  time?: Record<string, string>;
+  versions?: string[];
+}
+
+// A package's upcoming release is the newer of its `next` and `latest` tags, as WebdriverIO's `next` stays on its last
+// prerelease after a stable release. This takes the newest version up to that one that's old enough for pnpm's
+// `minimumReleaseAge`, as pnpm would install a younger one only by adding it to `minimumReleaseAgeExclude`. It never
+// goes below `current`.
+export function pickNextCatalogVersion(
+  packument: Packument,
+  current: string,
+  now: number,
+  minimumReleaseAgeMinutes: number,
+): string {
+  const tags = packument['dist-tags'] ?? {};
+  const upcoming = [tags.next, tags.latest]
+    .filter((version): version is string => typeof version === 'string')
+    .sort(compareVersions)
+    .at(-1);
+  const newestAllowed = now - minimumReleaseAgeMinutes * 60_000;
+  const candidates =
+    upcoming === undefined
+      ? []
+      : (packument.versions ?? []).filter(
+          (version) =>
+            compareVersions(version, upcoming) <= 0 && Date.parse(packument.time?.[version] ?? '') <= newestAllowed,
+        );
+  if (!isNonSemverTag(current)) {
+    candidates.push(current);
+  }
+  return candidates.sort(compareVersions).at(-1) ?? current;
+}
+
+// Sets catalog versions in pnpm-workspace.yaml's content, leaving the rest of the file as it is.
+export function setCatalogVersions(content: string, catalog: string, versions: Record<string, string>): string {
+  const document = yaml.parseDocument(content);
+  for (const [name, version] of Object.entries(versions)) {
+    document.setIn(['catalogs', catalog, name], version);
+  }
+  return document.toString({ lineWidth: 0 });
+}
+
+async function getLatestVersions(
+  packages: Record<string, string>,
+  catalog: string,
+  minimumReleaseAgeMinutes: number,
+): Promise<PackageInfo[]> {
   console.log(chalk.blue('Fetching latest versions for packages...'));
 
   const packageInfos: PackageInfo[] = [];
+  const packuments = new Map<string, Packument>();
   const spinner = ora('').start();
+  const now = Date.now();
 
   for (const [name, currentVersion] of Object.entries(packages)) {
+    const cleanVersion = currentVersion.replace(/^[\^~]/, '');
     spinner.text = `Checking ${chalk.cyan(name)}`;
 
     try {
+      if (catalog === 'next' && !isNonSemverTag(cleanVersion)) {
+        const { stdout } = await execFileAsync('pnpm', ['view', name, 'dist-tags', 'time', 'versions', '--json']);
+        const packument: Packument = JSON.parse(stdout);
+        packuments.set(name, packument);
+        const target = pickNextCatalogVersion(packument, cleanVersion, now, minimumReleaseAgeMinutes);
+        packageInfos.push({
+          name,
+          currentVersion: cleanVersion,
+          latestVersion: target,
+          isUpToDate: cleanVersion === target,
+          updateType: getUpdateType(cleanVersion, target),
+        });
+        continue;
+      }
+
       // Skip non-semver tags
       if (isNonSemverTag(currentVersion)) {
         console.log(chalk.dim(`  Skipping ${name}: using non-semver tag "${currentVersion}"`));
@@ -115,11 +235,8 @@ async function getLatestVersions(packages: Record<string, string>): Promise<Pack
         continue;
       }
 
-      // Clean the version to remove prefixes like ^, ~, etc.
-      const cleanVersion = currentVersion.replace(/^\^|~/, '');
-
       // Use pnpm view to get the latest version
-      const { stdout } = await execAsync(`pnpm view ${name} version`);
+      const { stdout } = await execFileAsync('pnpm', ['view', name, 'version']);
       const latestVersion = stdout.trim();
       const updateType = getUpdateType(cleanVersion, latestVersion);
 
@@ -137,7 +254,7 @@ async function getLatestVersions(packages: Record<string, string>): Promise<Pack
 
       packageInfos.push({
         name,
-        currentVersion: currentVersion.replace(/^\^|~/, ''),
+        currentVersion: cleanVersion,
         latestVersion: 'unknown',
         isUpToDate: true, // Mark as up-to-date to exclude from selection
         updateType: 'unknown',
@@ -145,11 +262,68 @@ async function getLatestVersions(packages: Record<string, string>): Promise<Pack
     }
   }
 
+  const waiting =
+    catalog === 'next' ? followWebdriverio(packageInfos, packuments, now, minimumReleaseAgeMinutes) : undefined;
+
   spinner.succeed('Finished checking all packages');
+  if (waiting) {
+    console.log(chalk.yellow(waiting));
+  }
   return packageInfos;
 }
 
-async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<string[]> {
+// WebdriverIO's packages pin each other exactly, so the ones that have published webdriverio's current version follow
+// webdriverio's pick. If one of them couldn't be looked up, or hasn't published that version long enough ago, they all
+// stay, and this says which.
+export function followWebdriverio(
+  packageInfos: PackageInfo[],
+  packuments: Map<string, Packument>,
+  now: number,
+  minimumReleaseAgeMinutes: number,
+): string | undefined {
+  const wdio = packageInfos.find((pkg) => pkg.name === 'webdriverio');
+  if (wdio === undefined) {
+    return undefined;
+  }
+  const group = packageInfos.filter((pkg) => {
+    const versions = packuments.get(pkg.name)?.versions;
+    return (
+      isWdioPackage(pkg.name) &&
+      (versions === undefined ? pkg.currentVersion === wdio.currentVersion : versions.includes(wdio.currentVersion))
+    );
+  });
+  const target = wdio.latestVersion === 'unknown' ? wdio.currentVersion : wdio.latestVersion;
+  const newestAllowed = now - minimumReleaseAgeMinutes * 60_000;
+  const missing = group
+    .filter((pkg) => {
+      const packument = packuments.get(pkg.name);
+      const published = Date.parse(packument?.time?.[target] ?? '');
+      return !packument?.versions?.includes(target) || !(published <= newestAllowed);
+    })
+    .map((pkg) => pkg.name);
+  const version = missing.length === 0 ? target : wdio.currentVersion;
+  for (const pkg of group) {
+    pkg.followsWebdriverio = true;
+    pkg.latestVersion = version;
+    pkg.isUpToDate = pkg.currentVersion === version;
+    pkg.updateType = getUpdateType(pkg.currentVersion, version);
+  }
+  if (missing.length === 0 || target === wdio.currentVersion) {
+    return undefined;
+  }
+  return (
+    `WebdriverIO's packages stay on ${wdio.currentVersion}. These couldn't be looked up, ` +
+    `or haven't published ${target} long enough ago: ${missing.join(', ')}`
+  );
+}
+
+// Selecting one of the packages that follow webdriverio selects the rest, so they can't be split
+export function withWdioGroup(selected: string[], packageInfos: PackageInfo[]): string[] {
+  const group = packageInfos.filter((pkg) => pkg.followsWebdriverio && !pkg.isUpToDate).map((pkg) => pkg.name);
+  return group.some((name) => selected.includes(name)) ? [...new Set([...selected, ...group])] : selected;
+}
+
+async function promptPackagesToUpdate(packageInfos: PackageInfo[], catalog: string): Promise<string[]> {
   const outdatedPackages = packageInfos.filter((pkg) => !pkg.isUpToDate);
 
   if (outdatedPackages.length === 0) {
@@ -157,9 +331,8 @@ async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<stri
     return [];
   }
 
-  // Sort packages by update type (major first, then minor, then patch)
   outdatedPackages.sort((a, b) => {
-    const priority = { major: 0, minor: 1, patch: 2, unknown: 3 };
+    const priority = { major: 0, minor: 1, patch: 2, prerelease: 3, unknown: 4 };
     return priority[a.updateType] - priority[b.updateType];
   });
 
@@ -171,14 +344,15 @@ async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<stri
       }
       return acc;
     },
-    { major: 0, minor: 0, patch: 0 },
+    { major: 0, minor: 0, patch: 0, prerelease: 0 },
   );
 
   console.log(chalk.yellow(`Found ${outdatedPackages.length} outdated packages:`));
   console.log(
     `  ${chalk.red(`${updateCounts.major} major`)} | ` +
       `${chalk.yellow(`${updateCounts.minor} minor`)} | ` +
-      `${chalk.green(`${updateCounts.patch} patch`)}`,
+      `${chalk.green(`${updateCounts.patch} patch`)} | ` +
+      `${chalk.cyan(`${updateCounts.prerelease} prerelease`)}`,
   );
 
   const choices = outdatedPackages.map((pkg) => {
@@ -188,7 +362,8 @@ async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<stri
     return {
       value: pkg.name,
       name: `${pkg.name}${updateBadge}: ${chalk.dim(pkg.currentVersion)} → ${updateColor(pkg.latestVersion)}`,
-      checked: pkg.updateType === 'patch', // Pre-select patch updates
+      // The next catalog tracks its upstreams, and WebdriverIO's packages must move together
+      checked: catalog === 'next' || pkg.updateType === 'patch',
     };
   });
 
@@ -204,107 +379,35 @@ async function updateWorkspaceYaml(
   packagesToUpdate: string[],
   selectedCatalog: string,
 ): Promise<void> {
+  const catalog = workspaceYaml.catalogs[selectedCatalog];
+  const updates: Record<string, string> = {};
+  for (const packageName of packagesToUpdate) {
+    const pkg = packageInfos.find((p) => p.name === packageName);
+    if (!pkg) {
+      continue;
+    }
+    const current = catalog[packageName];
+    const prefix = current.startsWith('^') ? '^' : current.startsWith('~') ? '~' : '';
+    updates[packageName] = `${prefix}${pkg.latestVersion}`;
+  }
+
   if (isDryRun) {
     console.log(chalk.yellow('DRY RUN: The following changes would be made to pnpm-workspace.yaml:'));
     console.log();
-
-    for (const packageName of packagesToUpdate) {
-      const pkg = packageInfos.find((p) => p.name === packageName);
-      if (pkg) {
-        // Skip if using a non-semver tag
-        if (isNonSemverTag(workspaceYaml.catalogs[selectedCatalog][packageName])) {
-          console.log(
-            chalk.dim(
-              `  Skipping ${packageName}: using non-semver tag "${workspaceYaml.catalogs[selectedCatalog][packageName]}"`,
-            ),
-          );
-          continue;
-        }
-
-        // Preserve the version prefix (^, ~, etc.)
-        const prefix = workspaceYaml.catalogs[selectedCatalog][packageName].startsWith('^')
-          ? '^'
-          : workspaceYaml.catalogs[selectedCatalog][packageName].startsWith('~')
-            ? '~'
-            : '';
-
-        const updateColor = getUpdateColor(pkg.updateType);
-        const updateBadge = pkg.updateType !== 'unknown' ? ` [${updateColor(pkg.updateType)}]` : '';
-
-        console.log(
-          `  ${packageName}${updateBadge}: ${chalk.dim(workspaceYaml.catalogs[selectedCatalog][packageName])} → ${updateColor(`${prefix}${pkg.latestVersion}`)}`,
-        );
-      }
+    for (const [packageName, version] of Object.entries(updates)) {
+      const updateType = packageInfos.find((p) => p.name === packageName)?.updateType ?? 'unknown';
+      const updateColor = getUpdateColor(updateType);
+      const updateBadge = updateType !== 'unknown' ? ` [${updateColor(updateType)}]` : '';
+      console.log(`  ${packageName}${updateBadge}: ${chalk.dim(catalog[packageName])} → ${updateColor(version)}`);
     }
     console.log();
     return;
   }
 
   const spinner = ora('Updating workspace configuration...').start();
-
-  // Read the original file content
   const workspaceYamlPath = path.join(process.cwd(), 'pnpm-workspace.yaml');
   const originalContent = await fs.readFile(workspaceYamlPath, 'utf8');
-
-  // Clean up any existing quotes in the catalogs
-  for (const catalog of Object.values(workspaceYaml.catalogs)) {
-    for (const [name, version] of Object.entries(catalog)) {
-      if (name.endsWith('"')) {
-        const cleanName = name.replace(/['"]/g, '');
-        catalog[cleanName] = version;
-        delete catalog[name];
-      }
-    }
-  }
-
-  // Update only the catalogs section
-  for (const packageName of packagesToUpdate) {
-    const pkg = packageInfos.find((p) => p.name === packageName);
-    if (pkg) {
-      // Skip if using a non-semver tag
-      if (isNonSemverTag(workspaceYaml.catalogs[selectedCatalog][packageName])) {
-        console.log(
-          chalk.dim(
-            `  Skipping ${packageName}: using non-semver tag "${workspaceYaml.catalogs[selectedCatalog][packageName]}"`,
-          ),
-        );
-        continue;
-      }
-
-      // Preserve the version prefix (^, ~, etc.)
-      const prefix = workspaceYaml.catalogs[selectedCatalog][packageName].startsWith('^')
-        ? '^'
-        : workspaceYaml.catalogs[selectedCatalog][packageName].startsWith('~')
-          ? '~'
-          : '';
-      workspaceYaml.catalogs[selectedCatalog][packageName] = `${prefix}${pkg.latestVersion}`;
-    }
-  }
-
-  // Stringify only the catalogs section
-  const catalogsToWrite: { catalogs: Record<string, Record<string, string>> } = { catalogs: {} };
-  for (const [catalog, deps] of Object.entries(workspaceYaml.catalogs)) {
-    catalogsToWrite.catalogs[catalog] = {};
-    for (const [name, version] of Object.entries(deps)) {
-      // Clean the name but don't pre-quote it
-      const cleanName = name.replace(/['"]/g, '');
-      catalogsToWrite.catalogs[catalog][cleanName] = version;
-    }
-  }
-
-  const catalogsStr = yaml
-    .stringify(catalogsToWrite, {
-      indent: 2,
-      collectionStyle: 'block',
-      indentSeq: false,
-      lineWidth: 0,
-    })
-    .replace(/"(@[^"]+)":/g, "'$1':");
-
-  // Replace the catalogs section in the original content
-  const updatedContent = originalContent.replace(/catalogs:[\s\S]*$/, catalogsStr);
-  await fs.writeFile(workspaceYamlPath, updatedContent);
-
+  await fs.writeFile(workspaceYamlPath, setCatalogVersions(originalContent, selectedCatalog, updates));
   spinner.succeed('Updated pnpm-workspace.yaml with new versions.');
 }
 
@@ -372,10 +475,19 @@ async function main() {
     const selectedCatalog = await selectCatalog(workspaceYaml.catalogs);
 
     // Get the latest versions for all packages in the selected catalog
-    const packageInfos = await getLatestVersions(workspaceYaml.catalogs[selectedCatalog]);
+    const packageInfos = await getLatestVersions(
+      workspaceYaml.catalogs[selectedCatalog],
+      selectedCatalog,
+      workspaceYaml.minimumReleaseAge ?? DEFAULT_MINIMUM_RELEASE_AGE_MINUTES,
+    );
 
     // Prompt the user to select packages to update
-    const packagesToUpdate = await promptPackagesToUpdate(packageInfos);
+    const selected = await promptPackagesToUpdate(packageInfos, selectedCatalog);
+    const packagesToUpdate = withWdioGroup(selected, packageInfos);
+    const added = packagesToUpdate.filter((name) => !selected.includes(name));
+    if (added.length > 0) {
+      console.log(chalk.dim(`Also updating ${added.join(', ')}: WebdriverIO's packages move together.`));
+    }
 
     if (packagesToUpdate.length === 0) {
       console.log(chalk.yellow('No packages selected for update.'));
@@ -391,14 +503,15 @@ async function main() {
         }
         return acc;
       },
-      { major: 0, minor: 0, patch: 0 },
+      { major: 0, minor: 0, patch: 0, prerelease: 0 },
     );
 
     // Confirm the selection with update type counts
     const updateSummary =
       `${chalk.red(`${updateCounts.major} major`)}, ` +
       `${chalk.yellow(`${updateCounts.minor} minor`)}, ` +
-      `${chalk.green(`${updateCounts.patch} patch`)}`;
+      `${chalk.green(`${updateCounts.patch} patch`)}, ` +
+      `${chalk.cyan(`${updateCounts.prerelease} prerelease`)}`;
 
     const confirmMessage = isDryRun
       ? `Preview updates for ${packagesToUpdate.length} packages in ${chalk.cyan(selectedCatalog)} catalog (${updateSummary})?`
@@ -429,4 +542,6 @@ async function main() {
   }
 }
 
-main();
+if (import.meta.main) {
+  main();
+}

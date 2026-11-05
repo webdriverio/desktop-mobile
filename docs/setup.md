@@ -159,17 +159,17 @@ To use a catalog dependency:
 
 The project uses three catalogs to test against different versions of key dependencies:
 
-| Catalog   | Purpose                                                    |
-| --------- | ---------------------------------------------------------- |
-| `default` | Stable production versions — the reliable baseline         |
-| `next`    | Latest/nightly versions — validates upcoming compatibility |
-| `minimum` | Lowest supported versions — ensures backward compatibility |
+| Catalog   | Purpose                                                                                |
+| --------- | -------------------------------------------------------------------------------------- |
+| `default` | Stable production versions — the reliable baseline                                     |
+| `next`    | Electron nightly and WebdriverIO's upcoming release — catches breakage before it ships |
+| `minimum` | Lowest supported versions — ensures backward compatibility                             |
 
 ### Switching Catalogs
 
 ```bash
 pnpm catalog:default   # Switch all packages to stable versions
-pnpm catalog:next      # Switch all packages to latest/nightly versions
+pnpm catalog:next      # Switch all packages to upcoming versions
 pnpm catalog:minimum   # Switch all packages to lowest supported versions
 ```
 
@@ -191,7 +191,7 @@ pnpm catalog:update --next
 pnpm catalog:update --minimum
 ```
 
-The update process shows available updates, lets you select which to apply, updates `pnpm-workspace.yaml`, then runs `pnpm install`.
+The update process shows available updates, lets you select which to apply, updates `pnpm-workspace.yaml`, then runs `pnpm install`. In the `next` catalog, it pins each package that has a fixed version to its upcoming release, the newer of its `next` and `latest` tags, or to the newest version before that one if the release is too new for pnpm's `minimumReleaseAge`. WebdriverIO's packages follow `webdriverio`, and wait if one of them hasn't published its version yet. Every update is ticked.
 
 ### WebdriverIO Majors
 
