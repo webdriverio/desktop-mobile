@@ -2,10 +2,15 @@ FROM ghcr.io/void-linux/void-glibc-full:latest
 
 ENV CI=true
 
-# Configure repository mirror to avoid SSL certificate issues
+# With two mirrors, xbps skips one whose index fails to sync. bestmatching takes each package's newest
+# version from either index, so while both are synced, Fastly's cache seldom pins an old one. xbps reads
+# CONNECTION_TIMEOUT, in ms. The sed keeps each config's per-architecture path.
+ARG CONNECTION_TIMEOUT=30000
 RUN mkdir -p /etc/xbps.d && \
     cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
-    sed -i 's|https://[^/]*/|https://repo-default.voidlinux.org/|g' /etc/xbps.d/*-repository-*.conf
+    sed -i 's|^repository=https://[^/]*/\(.*\)$|repository=https://repo-fastly.voidlinux.org/\1\nrepository=https://repo-default.voidlinux.org/\1|' \
+        /etc/xbps.d/*-repository-*.conf && \
+    echo 'bestmatching=true' >/etc/xbps.d/bestmatching.conf
 
 # Install basic requirements, after upgrading the image's packages so new ones install against current libraries
 # Void's nodejs tracks the current LTS line, which WDIO supports — sessions
