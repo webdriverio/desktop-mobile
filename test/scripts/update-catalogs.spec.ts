@@ -26,6 +26,7 @@ describe('pickNextCatalogVersion', () => {
   const packument = (tags: Record<string, string>, published: Record<string, string>) => ({
     'dist-tags': tags,
     time: published,
+    versions: Object.keys(published),
   });
 
   it('should take the next prerelease when it is newer than latest', () => {
@@ -63,6 +64,25 @@ describe('pickNextCatalogVersion', () => {
         { '10.1.0': '2026-10-18T00:00:00Z', '10.2.0-alpha.101': '2026-11-04T06:00:00Z' },
       ),
       '10.2.0-alpha.100',
+      now,
+      day,
+    );
+
+    expect(version).toBe('10.2.0-alpha.100');
+  });
+
+  it('should take the newest alpha old enough for the release age when next is too new', () => {
+    const version = pickNextCatalogVersion(
+      packument(
+        { latest: '10.1.0', next: '10.2.0-alpha.101' },
+        {
+          '10.1.0': '2026-10-18T00:00:00Z',
+          '10.2.0-alpha.99': '2026-11-02T00:00:00Z',
+          '10.2.0-alpha.100': '2026-11-03T06:00:00Z',
+          '10.2.0-alpha.101': '2026-11-04T06:00:00Z',
+        },
+      ),
+      '10.2.0-alpha.99',
       now,
       day,
     );

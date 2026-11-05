@@ -11,12 +11,14 @@ import * as yaml from 'yaml';
 
 const execAsync = promisify(exec);
 
+type UpdateType = 'major' | 'minor' | 'patch' | 'prerelease' | 'unknown';
+
 interface PackageInfo {
   name: string;
   currentVersion: string;
   latestVersion: string;
   isUpToDate: boolean;
-  updateType: 'patch' | 'minor' | 'major' | 'unknown';
+  updateType: UpdateType;
 }
 
 interface WorkspaceConfig {
@@ -49,7 +51,7 @@ async function readWorkspaceYaml(): Promise<WorkspaceConfig> {
 /**
  * Determine the type of update between two semantic versions
  */
-function getUpdateType(currentVersion: string, latestVersion: string): 'patch' | 'minor' | 'major' | 'unknown' {
+function getUpdateType(currentVersion: string, latestVersion: string): UpdateType {
   if (currentVersion === 'unknown' || latestVersion === 'unknown') {
     return 'unknown';
   }
@@ -68,6 +70,8 @@ function getUpdateType(currentVersion: string, latestVersion: string): 'patch' |
     return 'minor';
   } else if (latest[0] === current[0] && latest[1] === current[1] && latest[2] > current[2]) {
     return 'patch';
+  } else if (latest.every((part, i) => part === current[i]) && compareVersions(latestVersion, currentVersion) > 0) {
+    return 'prerelease';
   }
 
   return 'unknown';
@@ -76,8 +80,10 @@ function getUpdateType(currentVersion: string, latestVersion: string): 'patch' |
 /**
  * Get chalk color for update type
  */
-function getUpdateColor(updateType: 'patch' | 'minor' | 'major' | 'unknown'): (text: string) => string {
+function getUpdateColor(updateType: UpdateType): (text: string) => string {
   switch (updateType) {
+    case 'prerelease':
+      return chalk.cyan;
     case 'patch':
       return chalk.green;
     case 'minor':
@@ -105,7 +111,6 @@ function splitVersion(version: string): { core: number[]; prerelease?: string } 
   return dash === -1 ? { core } : { core, prerelease: withoutBuild.slice(dash + 1) };
 }
 
-// Compares two versions by semver precedence, prereleases included.
 export function compareVersions(a: string, b: string): number {
   const left = splitVersion(a);
   const right = splitVersion(b);
@@ -142,11 +147,12 @@ export function compareVersions(a: string, b: string): number {
 interface Packument {
   'dist-tags'?: Record<string, string>;
   time?: Record<string, string>;
+  versions?: string[];
 }
 
 // WebdriverIO's `next` tag stays on its last prerelease after a stable release, so the upcoming release is the newer
-// of `next` and `latest`. A version younger than pnpm's `minimumReleaseAge` is skipped, as pnpm would install it only
-// by adding it to `minimumReleaseAgeExclude`. Neither replaces a newer current pin.
+// of `next` and `latest`. This takes the newest version up to that one that's old enough for pnpm's `minimumReleaseAge`,
+// as pnpm would install a younger one only by adding it to `minimumReleaseAgeExclude`. It never goes below `current`.
 export function pickNextCatalogVersion(
   packument: Packument,
   current: string,
@@ -154,10 +160,18 @@ export function pickNextCatalogVersion(
   minimumReleaseAgeMinutes: number,
 ): string {
   const tags = packument['dist-tags'] ?? {};
-  const newestAllowed = now - minimumReleaseAgeMinutes * 60_000;
-  const candidates = [tags.next, tags.latest]
+  const upcoming = [tags.next, tags.latest]
     .filter((version): version is string => typeof version === 'string')
-    .filter((version) => Date.parse(packument.time?.[version] ?? '') <= newestAllowed);
+    .sort(compareVersions)
+    .at(-1);
+  const newestAllowed = now - minimumReleaseAgeMinutes * 60_000;
+  const candidates =
+    upcoming === undefined
+      ? []
+      : (packument.versions ?? []).filter(
+          (version) =>
+            compareVersions(version, upcoming) <= 0 && Date.parse(packument.time?.[version] ?? '') <= newestAllowed,
+        );
   if (!isNonSemverTag(current)) {
     candidates.push(current);
   }
@@ -182,21 +196,22 @@ async function getLatestVersions(
 
   const packageInfos: PackageInfo[] = [];
   const spinner = ora('').start();
+  const now = Date.now();
 
   for (const [name, currentVersion] of Object.entries(packages)) {
+    const cleanVersion = currentVersion.replace(/^[\^~]/, '');
     spinner.text = `Checking ${chalk.cyan(name)}`;
 
     try {
       if (catalog === 'next' && isWdioPackage(name)) {
-        const { stdout } = await execAsync(`pnpm view ${name} dist-tags time --json`);
-        const current = currentVersion.replace(/^[\^~]/, '');
-        const target = pickNextCatalogVersion(JSON.parse(stdout), current, Date.now(), minimumReleaseAgeMinutes);
+        const { stdout } = await execAsync(`pnpm view ${name} dist-tags time versions --json`);
+        const target = pickNextCatalogVersion(JSON.parse(stdout), cleanVersion, now, minimumReleaseAgeMinutes);
         packageInfos.push({
           name,
-          currentVersion: current,
+          currentVersion: cleanVersion,
           latestVersion: target,
-          isUpToDate: current === target,
-          updateType: getUpdateType(current, target),
+          isUpToDate: cleanVersion === target,
+          updateType: getUpdateType(cleanVersion, target),
         });
         continue;
       }
@@ -213,9 +228,6 @@ async function getLatestVersions(
         });
         continue;
       }
-
-      // Clean the version to remove prefixes like ^, ~, etc.
-      const cleanVersion = currentVersion.replace(/^[\^~]/, '');
 
       // Use pnpm view to get the latest version
       const { stdout } = await execAsync(`pnpm view ${name} version`);
@@ -236,7 +248,7 @@ async function getLatestVersions(
 
       packageInfos.push({
         name,
-        currentVersion: currentVersion.replace(/^[\^~]/, ''),
+        currentVersion: cleanVersion,
         latestVersion: 'unknown',
         isUpToDate: true, // Mark as up-to-date to exclude from selection
         updateType: 'unknown',
@@ -256,9 +268,9 @@ async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<stri
     return [];
   }
 
-  // Sort packages by update type (major first, then minor, then patch)
+  // Sort packages by update type (major first, then minor, patch and prerelease)
   outdatedPackages.sort((a, b) => {
-    const priority = { major: 0, minor: 1, patch: 2, unknown: 3 };
+    const priority = { major: 0, minor: 1, patch: 2, prerelease: 3, unknown: 4 };
     return priority[a.updateType] - priority[b.updateType];
   });
 
@@ -270,14 +282,15 @@ async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<stri
       }
       return acc;
     },
-    { major: 0, minor: 0, patch: 0 },
+    { major: 0, minor: 0, patch: 0, prerelease: 0 },
   );
 
   console.log(chalk.yellow(`Found ${outdatedPackages.length} outdated packages:`));
   console.log(
     `  ${chalk.red(`${updateCounts.major} major`)} | ` +
       `${chalk.yellow(`${updateCounts.minor} minor`)} | ` +
-      `${chalk.green(`${updateCounts.patch} patch`)}`,
+      `${chalk.green(`${updateCounts.patch} patch`)} | ` +
+      `${chalk.cyan(`${updateCounts.prerelease} prerelease`)}`,
   );
 
   const choices = outdatedPackages.map((pkg) => {
@@ -287,7 +300,7 @@ async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<stri
     return {
       value: pkg.name,
       name: `${pkg.name}${updateBadge}: ${chalk.dim(pkg.currentVersion)} → ${updateColor(pkg.latestVersion)}`,
-      checked: pkg.updateType === 'patch', // Pre-select patch updates
+      checked: pkg.updateType === 'patch' || pkg.updateType === 'prerelease',
     };
   });
 
@@ -422,14 +435,15 @@ async function main() {
         }
         return acc;
       },
-      { major: 0, minor: 0, patch: 0 },
+      { major: 0, minor: 0, patch: 0, prerelease: 0 },
     );
 
     // Confirm the selection with update type counts
     const updateSummary =
       `${chalk.red(`${updateCounts.major} major`)}, ` +
       `${chalk.yellow(`${updateCounts.minor} minor`)}, ` +
-      `${chalk.green(`${updateCounts.patch} patch`)}`;
+      `${chalk.green(`${updateCounts.patch} patch`)}, ` +
+      `${chalk.cyan(`${updateCounts.prerelease} prerelease`)}`;
 
     const confirmMessage = isDryRun
       ? `Preview updates for ${packagesToUpdate.length} packages in ${chalk.cyan(selectedCatalog)} catalog (${updateSummary})?`
