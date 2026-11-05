@@ -63,13 +63,18 @@ jobs:
     # GitHub's 6-hour default.
     timeout-minutes: 45
     steps:
-      # Standard checkout with SSH key for private repositories. Windows ARM64 uses the token instead:
-      # OpenSSH rejects the key file checkout writes there. Workaround for actions/runner-images#15256;
-      # drop once a fix lands.
+      # Otherwise the deploy key file checkout writes to RUNNER_TEMP keeps permissions checkout can't strip,
+      # so OpenSSH rejects it. Workaround for actions/runner-images#15256; drop once a fix lands.
+      - name: 🔑 Reset Temp Folder Permissions (Windows ARM64)
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        shell: pwsh
+        run: icacls "$env:RUNNER_TEMP" /reset /t /c /q
+
+      # Standard checkout with SSH key for private repositories
       - name: 👷 Checkout Repository
         uses: actions/checkout@v7
         with:
-          ssh-key: ${{ (runner.os != 'Windows' || runner.arch != 'ARM64') && secrets.DEPLOY_KEY || '' }}
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       # Set up Node.js and PNPM using the reusable action
       - name: 🛠️ Setup Development Environment
