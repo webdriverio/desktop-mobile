@@ -2,6 +2,16 @@ export function mockLookupExpr(mockName: string): string {
   return `window.__wdio_mocks__?.[${JSON.stringify(mockName)}]`;
 }
 
+/**
+ * In-page `JSON.stringify` replacer for call data. JSON has no `undefined` and no `Error`,
+ * so both become markers that `parseCallData` restores.
+ */
+export const CALL_DATA_REPLACER = `function(_k, v) {
+    if (v === undefined) { return { __wdioUndefined: true }; }
+    if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
+    return v;
+  }`;
+
 export function errorReconstructExpr(varName: string): string {
   return `(${varName} && typeof ${varName} === 'object' && ${varName}.__wdioError === true ? new Error(${varName}.message) : ${varName})`;
 }

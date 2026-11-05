@@ -15,6 +15,19 @@ describe('Dioxus mocking', () => {
     expect(mock.mock.calls.length).toBeGreaterThan(0);
   });
 
+  it('should keep undefined arguments', async () => {
+    const mock = await browser.dioxus.mock('get_platform_info');
+
+    // Call the inner mock in the page, as WebDriver arguments would turn undefined into null.
+    await browser.execute(() => {
+      // @ts-expect-error - window is available in browser context
+      window.__wdio_mocks__?.get_platform_info?.({ a: undefined }, undefined);
+    });
+    await mock.update();
+
+    expect(mock.mock.calls).toStrictEqual([[{ a: undefined }, undefined]]);
+  });
+
   it('should report isMockFunction', async () => {
     await browser.dioxus.mock('get_platform_info');
     expect(browser.dioxus.isMockFunction('get_platform_info')).toBe(true);

@@ -193,13 +193,14 @@ export function buildReadCallDataScript(target: string): string {
     var entry = reg && reg[${key}];
     if (!entry || !entry.spy || !entry.spy.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
     var m = entry.spy.mock;
-    // Fresh replacer per stringify: serialise Errors to a marker, and guard
+    // Fresh replacer per stringify: serialise undefined and Errors to markers, and guard
     // against circular/function values (e.g. mockReturnThis storing a live
     // \`this\` that back-references its parent) so update() never throws a
     // "Converting circular structure to JSON" out of the page.
     var makeSafe = function() {
       var seen = [];
       return function(_k, v) {
+        if (v === undefined) { return { __wdioUndefined: true }; }
         if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
         if (typeof v === 'function') { return '[Function]'; }
         if (v && typeof v === 'object') {

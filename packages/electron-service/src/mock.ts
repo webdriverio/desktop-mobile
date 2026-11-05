@@ -1,5 +1,5 @@
 import { fn as vitestFn } from '@wdio/native-spy';
-import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
+import { createIpcInterceptor, parseCallData } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
   ElectronApiFn,
@@ -137,14 +137,16 @@ export async function createMock(
             return [];
           }
           const mockObj = api[funcName as keyof ElectronType[ElectronInterface]] as ElectronFunctionMock;
-          return mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock?.calls)) : [];
+          // JSON has no undefined, so mark it for parseCallData to restore.
+          const replacer = (_k: string, v: unknown) => (v === undefined ? { __wdioUndefined: true } : v);
+          return mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock?.calls, replacer)) : [];
         },
         apiName,
         funcName,
         { internal: true },
       )) ?? [];
 
-    applyCalls({ calls });
+    applyCalls({ calls: parseCallData({ calls }).calls });
 
     return mock;
   };

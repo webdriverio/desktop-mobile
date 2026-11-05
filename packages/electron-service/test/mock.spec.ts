@@ -128,6 +128,34 @@ describe('Mock API', () => {
         expect(returnedMock).toHaveBeenCalledWith('/path/to/another/icon', { size: 'small' });
       });
 
+      it('should keep undefined arguments, nested or not, instead of turning them into null', async () => {
+        const mock = await createMock('shell', 'openExternal');
+        mockExecute.mockImplementation((fn, apiName, funcName) => {
+          const electron = {
+            shell: {
+              openExternal: {
+                mock: {
+                  calls: [
+                    ['https://a.test', undefined],
+                    [[1, undefined], { b: undefined }],
+                  ],
+                },
+              },
+            },
+          };
+          // CDP returns the result as JSON.
+          return JSON.parse(JSON.stringify(fn(electron, apiName, funcName)));
+        });
+        await mock.update();
+        const returnedMock = mock as unknown as Mock;
+
+        expect(returnedMock.mock.calls).toStrictEqual([
+          ['https://a.test', undefined],
+          [[1, undefined], { b: undefined }],
+        ]);
+        expect(returnedMock).toHaveBeenCalledWith('https://a.test', undefined);
+      });
+
       it('should update according to the empty calls', async () => {
         const mock = await createMock('app', 'getFileIcon');
         mockExecute.mockImplementation((fn, apiName, funcName) => {

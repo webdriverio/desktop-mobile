@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createIpcInterceptor } from '../../src/interceptor/index.js';
+import { createIpcInterceptor, parseCallData } from '../../src/interceptor/index.js';
 
 describe('createIpcInterceptor', () => {
   describe('tauri', () => {
@@ -56,6 +56,28 @@ describe('createIpcInterceptor', () => {
         const data = interceptor.parseCallData(raw);
         expect(data.calls).toEqual([[1, 2]]);
         expect(data.results[0].type).toBe('return');
+      });
+
+      it('should restore undefined markers in calls and results', () => {
+        const u = { __wdioUndefined: true };
+        const raw = {
+          calls: [
+            [{ a: 1 }, u],
+            [[1, u], { b: u }],
+          ],
+          results: [{ type: 'return', value: u }],
+          invocationCallOrder: [0, 1],
+        };
+        const data = interceptor.parseCallData(raw);
+        expect(data.calls).toStrictEqual([
+          [{ a: 1 }, undefined],
+          [[1, undefined], { b: undefined }],
+        ]);
+        expect(data.results).toStrictEqual([{ type: 'return', value: undefined }]);
+      });
+
+      it('should be exported for services that read call data their own way', () => {
+        expect(parseCallData({ calls: [[{ __wdioUndefined: true }]] }).calls).toStrictEqual([[undefined]]);
       });
     });
   });

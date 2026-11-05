@@ -1,6 +1,6 @@
 import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
 import { forEachInstance } from '@wdio/native-core';
-import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
+import { createIpcInterceptor, parseCallData } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
   BrowserExtension,
@@ -215,6 +215,8 @@ async function batchUpdateNativeMocks(
       [Array<[string, ElectronMockReadAccessor]>, ExecuteOpts]
     >(
       (electron, items) => {
+        // JSON has no undefined, so mark it for parseCallData to restore.
+        const replacer = (_k: string, v: unknown) => (v === undefined ? { __wdioUndefined: true } : v);
         const out: Record<string, NativeSlice> = {};
         for (const item of items) {
           const id = item[0];
@@ -243,8 +245,8 @@ async function batchUpdateNativeMocks(
             }
             if (target?.mock) {
               out[id] = {
-                calls: target.mock.calls ? JSON.parse(JSON.stringify(target.mock.calls)) : [],
-                results: target.mock.results ? JSON.parse(JSON.stringify(target.mock.results)) : [],
+                calls: target.mock.calls ? JSON.parse(JSON.stringify(target.mock.calls, replacer)) : [],
+                results: target.mock.results ? JSON.parse(JSON.stringify(target.mock.results, replacer)) : [],
               };
             } else {
               out[id] = { calls: [], results: [] };
@@ -268,7 +270,7 @@ async function batchUpdateNativeMocks(
     }
     (
       m as { __applyCalls?: (d: { calls: unknown[][]; results?: Array<{ type: string; value: unknown }> }) => void }
-    ).__applyCalls?.(slice);
+    ).__applyCalls?.(parseCallData(slice));
   }
 }
 

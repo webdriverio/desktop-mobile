@@ -1,3 +1,5 @@
+import { createContext, runInContext } from 'node:vm';
+
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -196,6 +198,35 @@ describe('createMock', () => {
     const second = fakeBridge();
     const remock = await createMock('greet', second.bridge, store);
     expect((remock as unknown as { _vitestFn: unknown })._vitestFn).toBe(vitestFn);
+  });
+});
+
+describe('createMock call data', () => {
+  // Runs the real inner-recorder scripts in a vm realm and clones the result as CDP's returnByValue does.
+  function realmBridge(initial: Record<string, unknown>) {
+    const ctx = createContext({ ...initial });
+    const send = vi.fn(async (_method: string, params: { expression: string }) => {
+      const value = await Promise.resolve(runInContext(params.expression, ctx));
+      return { result: { value: value === undefined ? undefined : JSON.parse(JSON.stringify(value)) } };
+    });
+    return { bridge: { send } as unknown as CdpBridge, ctx };
+  }
+
+  it('should keep undefined arguments, nested or not, instead of turning them into null', async () => {
+    const { bridge, ctx } = realmBridge({ greet: () => 'orig' });
+    const mock = await createMock('greet', bridge, new ReactNativeMockStore());
+    const greet = ctx.greet as (...a: unknown[]) => unknown;
+
+    greet({ a: 1 }, undefined);
+    greet([1, undefined], { b: undefined }, null);
+
+    await mock.update();
+
+    expect(mock.mock.calls).toStrictEqual([
+      [{ a: 1 }, undefined],
+      [[1, undefined], { b: undefined }, null],
+    ]);
+    expect(mock).toHaveBeenCalledWith({ a: 1 }, undefined);
   });
 });
 

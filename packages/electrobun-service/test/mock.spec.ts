@@ -132,6 +132,23 @@ describe('createMock (Electrobun mocking)', () => {
       expect(mock.mock.invocationCallOrder).toHaveLength(2);
     });
 
+    it('should keep undefined arguments, nested or not, instead of turning them into null', async () => {
+      const { bridge, window } = makeBridge({ api: { fetchData: () => 'real' } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      const spy = (window.api as { fetchData: (...a: unknown[]) => unknown }).fetchData;
+
+      spy({ a: 1 }, undefined);
+      spy([1, undefined], { b: undefined }, null);
+
+      await mock.update();
+
+      expect(mock.mock.calls).toStrictEqual([
+        [{ a: 1 }, undefined],
+        [[1, undefined], { b: undefined }, null],
+      ]);
+      expect(mock).toHaveBeenCalledWith({ a: 1 }, undefined);
+    });
+
     it('should replace outer state wholesale when the inner history shrinks', async () => {
       const { bridge, window } = makeBridge({ api: { fetchData: () => 1 } });
       const mock = await createMock('api.fetchData', bridge, store);

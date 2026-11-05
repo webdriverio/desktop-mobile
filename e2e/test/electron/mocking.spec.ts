@@ -745,6 +745,14 @@ describe('Electron Mocking', () => {
 
             expect(mockGetName.mock.calls).toStrictEqual([]);
           });
+
+          it('should keep undefined arguments', async () => {
+            const mockGetFileIcon = await browser.electron.mock('app', 'getFileIcon');
+
+            await browser.electron.execute((electron) => electron.app.getFileIcon('/path/to/icon', undefined));
+
+            expect(mockGetFileIcon.mock.calls).toStrictEqual([['/path/to/icon', undefined]]);
+          });
         });
 
         describe('mock.lastCall', () => {

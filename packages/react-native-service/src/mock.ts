@@ -14,7 +14,8 @@
 
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
 import { fn as vitestFn } from '@wdio/native-spy';
-import type { AbstractFn, MockResult, ReactNativeMock } from '@wdio/native-types';
+import { parseCallData } from '@wdio/native-spy/interceptor';
+import type { AbstractFn, ReactNativeMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 import { evaluateInRealm, jsonLiteral } from './commands/execute.js';
@@ -36,55 +37,6 @@ import type { ReactNativeMockStore } from './mockStore.js';
 import type { InnerMockSetterMethod } from './mockTypes.js';
 
 const log = createLogger(SERVICE_NAME, 'bridge');
-
-interface CallData {
-  calls: unknown[][];
-  results: MockResult[];
-  invocationCallOrder: number[];
-}
-
-function reconstructErrors(value: unknown): unknown {
-  if (value === null || typeof value !== 'object') {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value.map(reconstructErrors);
-  }
-  const obj = value as Record<string, unknown>;
-  if (obj.__wdioError === true) {
-    const err = new Error(typeof obj.message === 'string' ? obj.message : '');
-    if (typeof obj.name === 'string') {
-      err.name = obj.name;
-    }
-    if (typeof obj.stack === 'string') {
-      err.stack = obj.stack;
-    }
-    return err;
-  }
-  const out: Record<string, unknown> = {};
-  for (const key of Object.keys(obj)) {
-    out[key] = reconstructErrors(obj[key]);
-  }
-  return out;
-}
-
-function parseCallData(raw: unknown): CallData {
-  if (!raw || typeof raw !== 'object') {
-    return { calls: [], results: [], invocationCallOrder: [] };
-  }
-  const r = raw as Record<string, unknown>;
-  const calls = Array.isArray(r.calls)
-    ? (r.calls as unknown[][]).map((args) => (Array.isArray(args) ? args.map(reconstructErrors) : args) as unknown[])
-    : [];
-  const results = Array.isArray(r.results)
-    ? (r.results as MockResult[]).map((res) => ({ type: res.type, value: reconstructErrors(res.value) }))
-    : [];
-  return {
-    calls,
-    results,
-    invocationCallOrder: Array.isArray(r.invocationCallOrder) ? (r.invocationCallOrder as number[]) : [],
-  };
-}
 
 function implSource(implFn: AbstractFn, target: string): string {
   const source = implFn.toString();

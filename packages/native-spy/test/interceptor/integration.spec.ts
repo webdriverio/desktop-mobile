@@ -238,3 +238,59 @@ describe('ElectronAdapter integration (synthetic window)', () => {
     expect(called).toBe(false);
   });
 });
+
+describe.each(['tauri', 'electron', 'dioxus'] as const)('%s call data read (synthetic window)', (framework) => {
+  const interceptor = createIpcInterceptor(framework);
+
+  function setup() {
+    const win = makeSyntheticWindow();
+    evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
+    return { win, mock: win.__wdio_mocks__.my_cmd };
+  }
+
+  // The WebDriver or CDP result is JSON too, so clone it as the transport does.
+  function read(win: SyntheticWindow) {
+    const raw = JSON.parse(JSON.stringify(evalScript(interceptor.buildCallDataReadScript('my_cmd'), win)));
+    return interceptor.parseCallData(raw);
+  }
+
+  it('should keep undefined arguments and the call length', () => {
+    const { win, mock } = setup();
+    mock({ a: 1 }, undefined);
+    mock(undefined);
+    mock();
+
+    expect(read(win).calls).toStrictEqual([[{ a: 1 }, undefined], [undefined], []]);
+  });
+
+  it('should keep undefined inside nested arrays and objects', () => {
+    const { win, mock } = setup();
+    mock([1, undefined, 2], { a: undefined, b: { c: undefined } });
+
+    expect(read(win).calls).toStrictEqual([[[1, undefined, 2], { a: undefined, b: { c: undefined } }]]);
+  });
+
+  it('should keep null distinct from undefined', () => {
+    const { win, mock } = setup();
+    mock(null, undefined);
+    mock.mockReturnValueOnce(null);
+    mock();
+    mock();
+
+    const data = read(win);
+    expect(data.calls[0]).toStrictEqual([null, undefined]);
+    expect(data.results.map((r) => r.value)).toStrictEqual([undefined, null, undefined]);
+  });
+
+  it('should satisfy toHaveBeenCalledWith on an outer mock replaying the calls', () => {
+    const { win, mock } = setup();
+    mock({ a: 1 }, undefined);
+
+    const outer = fn();
+    for (const args of read(win).calls) {
+      outer(...args);
+    }
+    expect(outer).toHaveBeenCalledWith({ a: 1 }, undefined);
+    expect(outer).not.toHaveBeenCalledWith({ a: 1 }, null);
+  });
+});
