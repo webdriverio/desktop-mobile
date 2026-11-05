@@ -86,7 +86,7 @@ The function now returns an `ElectronStandaloneCapability` (a single object) ins
 
 ### Electron Builder app selection
 
-The service now looks for Electron Builder apps built for Windows ARM64 and ia32 (`win-arm64-unpacked`, `win-ia32-unpacked`), which it didn't find before. It also picks the build that matches the machine running the tests when your output directory holds more than one architecture's app. Before, it took the first match in a fixed order that put `arm64` ahead of `x64` on macOS and Linux, and checked only `win-unpacked` on Windows.
+The service now looks for Electron Builder apps built for Windows ARM64 and ia32 (`win-arm64-unpacked`, `win-ia32-unpacked`), which it didn't find before. It also picks the build that matches the machine running the tests when your output directory holds more than one architecture's app.
 
 If you build for several architectures into one output directory, your tests may now launch a different app:
 
