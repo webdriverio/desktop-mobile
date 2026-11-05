@@ -8,7 +8,7 @@ import { createLogger, errorMessage, isMultiremote, runBounded } from '@wdio/nat
 
 import { classifyTarget } from './cefClassifier.js';
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks, runOnMockStores } from './commands/allMocks.js';
-import { execute } from './commands/execute.js';
+import { execute, stashedNodeResolver } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
@@ -363,9 +363,10 @@ async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBrid
  * mock registries.
  */
 function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: ElectrobunMockStore): void {
+  const resolveStashedNodes = stashedNodeResolver(browser);
   const electrobun: ElectrobunServiceAPI = {
-    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
-      execute<R, A>(bridge, script, ...args),
+    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[2], ...args: A): Promise<Awaited<R>> =>
+      execute<R, A>(bridge, resolveStashedNodes, script, ...args),
     switchWindow: async (label: string) => {
       await bridge.switchTarget(label);
       // Move the WebDriver session window too — $/click must follow the switch, not
@@ -401,9 +402,10 @@ function installApiW3C(
 ): void {
   // Safe cast: execute/mock only call `send('Runtime.evaluate', …)`, which WebDriverEvalBridge implements.
   const bridge = evalBridge as unknown as CdpBridge;
+  const resolveStashedNodes = stashedNodeResolver(browser);
   const electrobun: ElectrobunServiceAPI = {
-    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
-      execute<R, A>(bridge, script, ...args),
+    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[2], ...args: A): Promise<Awaited<R>> =>
+      execute<R, A>(bridge, resolveStashedNodes, script, ...args),
     switchWindow: async (label: string) => {
       const index = w3cWindowIndex(label);
       if (index < 0) {

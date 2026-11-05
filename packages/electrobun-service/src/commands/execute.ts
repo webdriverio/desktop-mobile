@@ -1,18 +1,67 @@
 // browser.electrobun.execute implementation.
 //
-// Electrobun is CDP-attach: there is no WebDriver executeScript channel for the
-// app's webview, so we run the user's code directly in the active CEF content
-// target via the CdpBridge's `Runtime.evaluate`. A string-built IIFE is built
-// from the user's function source (no Electron-style recast machinery needed for
-// MVP), with args inlined as JSON literals. The first callback arg is the
-// in-webview surface `window.__WDIO_ELECTROBUN__` (may be `{}` for MVP).
+// The user's code runs once, in the bridge's active target, via `Runtime.evaluate`
+// (or its W3C stand-in on Linux). A string-built IIFE is built from the user's
+// function source, with args inlined as JSON literals. The first callback arg is
+// the in-webview surface `window.__WDIO_ELECTROBUN__` (may be `{}`).
 //
 // Invariant: this never issues Page.navigate — the bridge only enables Runtime
 // on the live target (see @wdio/native-cdp-bridge).
 
+import { randomUUID } from 'node:crypto';
+
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunAPIs } from '@wdio/native-types';
-import { hasSemicolonOutsideQuotes } from '@wdio/native-utils';
+import { errorMessage, hasSemicolonOutsideQuotes } from '@wdio/native-utils';
+
+export type StashedNodeResolver = (stash: string) => Promise<unknown>;
+
+// Reads the nodes a script left on `window[stash]` through the WebDriver session, which returns them as
+// references. syncWebDriverWindow keeps the session on the bridge's active target, where they were left.
+export function stashedNodeResolver(browser: WebdriverIO.Browser): StashedNodeResolver {
+  return (stash) =>
+    browser.execute('var nodes = window[arguments[0]]; delete window[arguments[0]]; return nodes;', stash);
+}
+
+// Runs in the page on the script's result, by the embedded drivers' rules (script-result-refs.js):
+// elements and shadow roots become placeholders, kept on `window[stash]`, and indexed lists such as a
+// NodeList become arrays. A result with neither, or one JSON.stringify rejects, comes back unchanged.
+export const STASH_NODES_JS = `function __wdioStashNodes(value, stash, mark) {
+  var nodes = [];
+  var replaced = false;
+  function isNode(item) {
+    // Chromium's <embed> and <object> elements are callable, so their typeof is 'function'
+    if (item === null || (typeof item !== 'object' && typeof item !== 'function')) return false;
+    return item.nodeType === 1 || (item.nodeType === 11 && !!item.host);
+  }
+  function listOf(item) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item) || typeof item.nodeType === 'number') return undefined;
+    if (typeof item[Symbol.iterator] !== 'function' || typeof item.length !== 'number') return undefined;
+    return Array.from({ length: item.length }, function (_, i) { return item[i]; });
+  }
+  var json;
+  try {
+    json = JSON.stringify(value, function (_key, item) {
+      if (isNode(item)) {
+        replaced = true;
+        var placeholder = {};
+        placeholder[mark] = nodes.push(item) - 1;
+        return placeholder;
+      }
+      var list = listOf(item);
+      if (list === undefined) return item;
+      replaced = true;
+      return list;
+    });
+  } catch (e) {
+    return value;
+  }
+  if (!replaced) return value;
+  if (nodes.length > 0) window[stash] = nodes;
+  var envelope = { value: JSON.parse(json) };
+  envelope[mark] = nodes.length;
+  return envelope;
+}`;
 
 interface RemoteObject {
   type?: string;
@@ -106,9 +155,64 @@ export async function evaluateInActiveTarget<ReturnValue>(
   return response.result?.value as ReturnValue;
 }
 
+function isStashEnvelope(value: unknown, mark: string): value is Record<string, unknown> & { value: unknown } {
+  return typeof value === 'object' && value !== null && typeof (value as Record<string, unknown>)[mark] === 'number';
+}
+
+function replacePlaceholders(value: unknown, mark: string, refs: unknown[]): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => replacePlaceholders(item, mark, refs));
+  }
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length === 1 && keys[0] === mark) {
+    return refs[record[mark] as number];
+  }
+  return Object.fromEntries(keys.map((key) => [key, replacePlaceholders(record[key], mark, refs)]));
+}
+
+async function discardStashedNodes(bridge: CdpBridge, stash: string): Promise<void> {
+  await evaluateInActiveTarget(bridge, `delete window[${JSON.stringify(stash)}]`).catch(() => {});
+}
+
+async function withElementReferences(
+  result: unknown,
+  mark: string,
+  stash: string,
+  bridge: CdpBridge,
+  resolveNodes: StashedNodeResolver,
+): Promise<unknown> {
+  if (!isStashEnvelope(result, mark)) {
+    return result;
+  }
+  if (result[mark] === 0) {
+    return result.value;
+  }
+  let refs: unknown;
+  try {
+    refs = await resolveNodes(stash);
+  } catch (error) {
+    await discardStashedNodes(bridge, stash);
+    throw new Error(`browser.electrobun.execute could not return the result's DOM nodes: ${errorMessage(error)}`);
+  }
+  if (!Array.isArray(refs)) {
+    await discardStashedNodes(bridge, stash);
+    throw new Error(
+      "browser.electrobun.execute returned DOM nodes, but the WebDriver session isn't on the window or frame " +
+        'the script ran in, so they have no element references there. Switch windows with ' +
+        'browser.electrobun.switchWindow(), and leave a frame with browser.switchFrame(null).',
+    );
+  }
+  return replacePlaceholders(result.value, mark, refs);
+}
+
 /**
  * Run a user function (or raw expression string) in the active Electrobun content
- * target and return its (JSON-serialisable) result.
+ * target and return its result. DOM elements and shadow roots in the result come
+ * back as W3C references, as `browser.execute()` returns them.
  *
  * Function form: the source is wrapped in an async IIFE that passes
  * `window.__WDIO_ELECTROBUN__` (defaulting to `{}`) as the first arg, then the
@@ -118,10 +222,14 @@ export async function evaluateInActiveTarget<ReturnValue>(
  */
 export async function execute<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   bridge: CdpBridge,
+  resolveNodes: StashedNodeResolver,
   script: string | ((eb: ElectrobunAPIs, ...args: InnerArguments) => ReturnValue),
   ...args: InnerArguments
 ): Promise<Awaited<ReturnValue>> {
-  const expression =
+  const token = randomUUID().replace(/-/g, '');
+  const mark = `__wdio_node_${token}__`;
+  const stash = `__wdio_electrobun_nodes_${token}`;
+  const run =
     typeof script === 'function'
       ? `(async () => {
           const userFn = (${script.toString()});
@@ -129,6 +237,11 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
           return await userFn(eb, ${inlineArgs(args)});
         })()`
       : wrapStringScript(script);
+  const expression = `(async () => {
+    ${STASH_NODES_JS}
+    return __wdioStashNodes(await ${run}, ${JSON.stringify(stash)}, ${JSON.stringify(mark)});
+  })()`;
 
-  return evaluateInActiveTarget<Awaited<ReturnValue>>(bridge, expression);
+  const result = await evaluateInActiveTarget<unknown>(bridge, expression);
+  return (await withElementReferences(result, mark, stash, bridge, resolveNodes)) as Awaited<ReturnValue>;
 }
