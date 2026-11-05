@@ -675,6 +675,14 @@ describe('Tauri Mocking', () => {
         expect(mockReadClipboard.mock.calls).toHaveLength(2);
       });
 
+      it('should auto-synchronize mock calls after a click', async () => {
+        const mockGetPlatformInfo = await browser.tauri.mock('get_platform_info');
+
+        await browser.$('#invoke-api-button').click();
+
+        expect(mockGetPlatformInfo).toHaveBeenCalledTimes(1);
+      });
+
       it('should synchronize mock results after update', async () => {
         const mockReadClipboard = await browser.tauri.mock('read_clipboard');
         await mockReadClipboard.mockReturnValue('mocked result');
