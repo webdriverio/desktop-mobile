@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { compareVersions, pickNextCatalogVersion, setCatalogVersions } from '../../scripts/update-catalogs.ts';
+import {
+  compareVersions,
+  getUpdateType,
+  moveWdioPackagesTogether,
+  pickNextCatalogVersion,
+  setCatalogVersions,
+} from '../../scripts/update-catalogs.ts';
 
 describe('compareVersions', () => {
   it.each([
@@ -17,6 +23,48 @@ describe('compareVersions', () => {
 
   it('should ignore build metadata', () => {
     expect(compareVersions('1.0.0+build.1', '1.0.0')).toBe(0);
+  });
+});
+
+describe('getUpdateType', () => {
+  it.each([
+    ['10.1.0', '11.0.0', 'major'],
+    ['10.1.0', '10.2.0-alpha.1', 'minor'],
+    ['10.1.0', '10.1.1', 'patch'],
+    ['10.2.0-alpha.100', '10.2.0-alpha.101', 'prerelease'],
+    ['10.2.0-alpha.1', '10.2.0', 'prerelease'],
+    ['10.2.0-alpha.1', '10.2.0+sha.abc', 'prerelease'],
+    ['latest', '10.1.0', 'unknown'],
+  ])('should call %s to %s a %s update', (current, latest, type) => {
+    expect(getUpdateType(current, latest)).toBe(type);
+  });
+});
+
+describe('moveWdioPackagesTogether', () => {
+  const info = (name: string, currentVersion: string, latestVersion: string) => ({
+    name,
+    currentVersion,
+    latestVersion,
+    isUpToDate: currentVersion === latestVersion,
+    updateType: getUpdateType(currentVersion, latestVersion),
+  });
+
+  it("should move the packages on webdriverio's version to the lowest version any of them resolved", () => {
+    const infos = [
+      info('webdriverio', '10.2.0-alpha.100', '10.2.0-alpha.101'),
+      info('@wdio/cli', '10.2.0-alpha.100', '10.2.0-alpha.100'),
+      info('@wdio/visual-service', '11.0.0', '11.1.0'),
+      info('electron-nightly', '47.0.0-nightly.20261023', '47.0.0-nightly.20261102'),
+    ];
+
+    moveWdioPackagesTogether(infos);
+
+    expect(infos.map((pkg) => [pkg.name, pkg.latestVersion, pkg.isUpToDate])).toEqual([
+      ['webdriverio', '10.2.0-alpha.100', true],
+      ['@wdio/cli', '10.2.0-alpha.100', true],
+      ['@wdio/visual-service', '11.1.0', false],
+      ['electron-nightly', '47.0.0-nightly.20261102', false],
+    ]);
   });
 });
 

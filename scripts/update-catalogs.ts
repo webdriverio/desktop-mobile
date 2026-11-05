@@ -51,7 +51,7 @@ async function readWorkspaceYaml(): Promise<WorkspaceConfig> {
 /**
  * Determine the type of update between two semantic versions
  */
-function getUpdateType(currentVersion: string, latestVersion: string): UpdateType {
+export function getUpdateType(currentVersion: string, latestVersion: string): UpdateType {
   if (currentVersion === 'unknown' || latestVersion === 'unknown') {
     return 'unknown';
   }
@@ -61,8 +61,8 @@ function getUpdateType(currentVersion: string, latestVersion: string): UpdateTyp
     return 'unknown';
   }
 
-  const current = currentVersion.split('-')[0].split('.').map(Number);
-  const latest = latestVersion.split('-')[0].split('.').map(Number);
+  const current = splitVersion(currentVersion).core;
+  const latest = splitVersion(latestVersion).core;
 
   if (latest[0] > current[0]) {
     return 'major';
@@ -150,9 +150,10 @@ interface Packument {
   versions?: string[];
 }
 
-// WebdriverIO's `next` tag stays on its last prerelease after a stable release, so the upcoming release is the newer
-// of `next` and `latest`. This takes the newest version up to that one that's old enough for pnpm's `minimumReleaseAge`,
-// as pnpm would install a younger one only by adding it to `minimumReleaseAgeExclude`. It never goes below `current`.
+// A package's upcoming release is the newer of its `next` and `latest` tags, as WebdriverIO's `next` stays on its last
+// prerelease after a stable release. This takes the newest version up to that one that's old enough for pnpm's
+// `minimumReleaseAge`, as pnpm would install a younger one only by adding it to `minimumReleaseAgeExclude`. It never
+// goes below `current`.
 export function pickNextCatalogVersion(
   packument: Packument,
   current: string,
@@ -203,7 +204,7 @@ async function getLatestVersions(
     spinner.text = `Checking ${chalk.cyan(name)}`;
 
     try {
-      if (catalog === 'next' && isWdioPackage(name)) {
+      if (catalog === 'next' && !isNonSemverTag(cleanVersion)) {
         const { stdout } = await execAsync(`pnpm view ${name} dist-tags time versions --json`);
         const target = pickNextCatalogVersion(JSON.parse(stdout), cleanVersion, now, minimumReleaseAgeMinutes);
         packageInfos.push({
@@ -256,11 +257,36 @@ async function getLatestVersions(
     }
   }
 
+  if (catalog === 'next') {
+    moveWdioPackagesTogether(packageInfos);
+  }
+
   spinner.succeed('Finished checking all packages');
   return packageInfos;
 }
 
-async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<string[]> {
+// WebdriverIO's packages pin each other exactly, so the ones on webdriverio's version move to the lowest version any of
+// them resolved: one that all of them have published, old enough for each.
+export function moveWdioPackagesTogether(packageInfos: PackageInfo[]): void {
+  const wdioVersion = packageInfos.find((pkg) => pkg.name === 'webdriverio')?.currentVersion;
+  const shared = packageInfos.filter(
+    (pkg) => isWdioPackage(pkg.name) && pkg.currentVersion === wdioVersion && pkg.latestVersion !== 'unknown',
+  );
+  const target = shared
+    .map((pkg) => pkg.latestVersion)
+    .sort(compareVersions)
+    .at(0);
+  if (target === undefined) {
+    return;
+  }
+  for (const pkg of shared) {
+    pkg.latestVersion = target;
+    pkg.isUpToDate = pkg.currentVersion === target;
+    pkg.updateType = getUpdateType(pkg.currentVersion, target);
+  }
+}
+
+async function promptPackagesToUpdate(packageInfos: PackageInfo[], catalog: string): Promise<string[]> {
   const outdatedPackages = packageInfos.filter((pkg) => !pkg.isUpToDate);
 
   if (outdatedPackages.length === 0) {
@@ -268,7 +294,6 @@ async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<stri
     return [];
   }
 
-  // Sort packages by update type (major first, then minor, patch and prerelease)
   outdatedPackages.sort((a, b) => {
     const priority = { major: 0, minor: 1, patch: 2, prerelease: 3, unknown: 4 };
     return priority[a.updateType] - priority[b.updateType];
@@ -300,7 +325,8 @@ async function promptPackagesToUpdate(packageInfos: PackageInfo[]): Promise<stri
     return {
       value: pkg.name,
       name: `${pkg.name}${updateBadge}: ${chalk.dim(pkg.currentVersion)} → ${updateColor(pkg.latestVersion)}`,
-      checked: pkg.updateType === 'patch' || pkg.updateType === 'prerelease',
+      // The next catalog tracks its upstreams, and WebdriverIO's packages must move together
+      checked: catalog === 'next' || pkg.updateType === 'patch',
     };
   });
 
@@ -419,7 +445,7 @@ async function main() {
     );
 
     // Prompt the user to select packages to update
-    const packagesToUpdate = await promptPackagesToUpdate(packageInfos);
+    const packagesToUpdate = await promptPackagesToUpdate(packageInfos, selectedCatalog);
 
     if (packagesToUpdate.length === 0) {
       console.log(chalk.yellow('No packages selected for update.'));

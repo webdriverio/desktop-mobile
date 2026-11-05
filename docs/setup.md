@@ -191,7 +191,7 @@ pnpm catalog:update --next
 pnpm catalog:update --minimum
 ```
 
-The update process shows available updates, lets you select which to apply, updates `pnpm-workspace.yaml`, then runs `pnpm install`. In the `next` catalog, it pins WebdriverIO to its upcoming release: the newer of the `next` and `latest` tags, skipping any version too new for pnpm's `minimumReleaseAge`.
+The update process shows available updates, lets you select which to apply, updates `pnpm-workspace.yaml`, then runs `pnpm install`. In the `next` catalog, it pins each package to its upcoming release, the newer of its `next` and `latest` tags, or to the newest version before that one if the release is too new for pnpm's `minimumReleaseAge`. WebdriverIO's packages move together, and every update is ticked.
 
 ## Turborepo Caching
 
