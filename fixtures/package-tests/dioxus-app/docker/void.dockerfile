@@ -10,8 +10,6 @@ RUN mkdir -p /etc/xbps.d && \
     cp /usr/share/xbps.d/*-repository-*.conf /etc/xbps.d/ && \
     sed -i 's|^repository=https://[^/]*/\(.*\)$|repository=https://repo-fastly.voidlinux.org/\1\nrepository=https://repo-default.voidlinux.org/\1|' \
         /etc/xbps.d/*-repository-*.conf && \
-    grep -q '^repository=https://repo-fastly\.voidlinux\.org/' /etc/xbps.d/*-repository-*.conf && \
-    grep -q '^repository=https://repo-default\.voidlinux\.org/' /etc/xbps.d/*-repository-*.conf && \
     echo 'bestmatching=true' >/etc/xbps.d/bestmatching.conf
 
 # Install basic requirements, after upgrading the image's packages so new ones install against current libraries
