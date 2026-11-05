@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -10,6 +10,7 @@ import ora from 'ora';
 import * as yaml from 'yaml';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 type UpdateType = 'major' | 'minor' | 'patch' | 'prerelease' | 'unknown';
 
@@ -19,6 +20,7 @@ interface PackageInfo {
   latestVersion: string;
   isUpToDate: boolean;
   updateType: UpdateType;
+  followsWebdriverio?: boolean;
 }
 
 interface WorkspaceConfig {
@@ -196,6 +198,7 @@ async function getLatestVersions(
   console.log(chalk.blue('Fetching latest versions for packages...'));
 
   const packageInfos: PackageInfo[] = [];
+  const packuments = new Map<string, Packument>();
   const spinner = ora('').start();
   const now = Date.now();
 
@@ -205,8 +208,10 @@ async function getLatestVersions(
 
     try {
       if (catalog === 'next' && !isNonSemverTag(cleanVersion)) {
-        const { stdout } = await execAsync(`pnpm view ${name} dist-tags time versions --json`);
-        const target = pickNextCatalogVersion(JSON.parse(stdout), cleanVersion, now, minimumReleaseAgeMinutes);
+        const { stdout } = await execFileAsync('pnpm', ['view', name, 'dist-tags', 'time', 'versions', '--json']);
+        const packument: Packument = JSON.parse(stdout);
+        packuments.set(name, packument);
+        const target = pickNextCatalogVersion(packument, cleanVersion, now, minimumReleaseAgeMinutes);
         packageInfos.push({
           name,
           currentVersion: cleanVersion,
@@ -231,7 +236,7 @@ async function getLatestVersions(
       }
 
       // Use pnpm view to get the latest version
-      const { stdout } = await execAsync(`pnpm view ${name} version`);
+      const { stdout } = await execFileAsync('pnpm', ['view', name, 'version']);
       const latestVersion = stdout.trim();
       const updateType = getUpdateType(cleanVersion, latestVersion);
 
@@ -257,33 +262,65 @@ async function getLatestVersions(
     }
   }
 
-  if (catalog === 'next') {
-    moveWdioPackagesTogether(packageInfos);
-  }
+  const waiting =
+    catalog === 'next' ? followWebdriverio(packageInfos, packuments, now, minimumReleaseAgeMinutes) : undefined;
 
   spinner.succeed('Finished checking all packages');
+  if (waiting) {
+    console.log(chalk.yellow(waiting));
+  }
   return packageInfos;
 }
 
-// WebdriverIO's packages pin each other exactly, so the ones on webdriverio's version move to the lowest version any of
-// them resolved: one that all of them have published, old enough for each.
-export function moveWdioPackagesTogether(packageInfos: PackageInfo[]): void {
-  const wdioVersion = packageInfos.find((pkg) => pkg.name === 'webdriverio')?.currentVersion;
-  const shared = packageInfos.filter(
-    (pkg) => isWdioPackage(pkg.name) && pkg.currentVersion === wdioVersion && pkg.latestVersion !== 'unknown',
+// WebdriverIO's packages pin each other exactly, so the ones that have published webdriverio's current version follow
+// webdriverio's pick. If one of them couldn't be looked up, or hasn't published that version long enough ago, they all
+// stay, and this says which.
+export function followWebdriverio(
+  packageInfos: PackageInfo[],
+  packuments: Map<string, Packument>,
+  now: number,
+  minimumReleaseAgeMinutes: number,
+): string | undefined {
+  const wdio = packageInfos.find((pkg) => pkg.name === 'webdriverio');
+  if (wdio === undefined) {
+    return undefined;
+  }
+  const group = packageInfos.filter((pkg) => {
+    const versions = packuments.get(pkg.name)?.versions;
+    return (
+      isWdioPackage(pkg.name) &&
+      (versions === undefined ? pkg.currentVersion === wdio.currentVersion : versions.includes(wdio.currentVersion))
+    );
+  });
+  const target = wdio.latestVersion === 'unknown' ? wdio.currentVersion : wdio.latestVersion;
+  const newestAllowed = now - minimumReleaseAgeMinutes * 60_000;
+  const missing = group
+    .filter((pkg) => {
+      const packument = packuments.get(pkg.name);
+      const published = Date.parse(packument?.time?.[target] ?? '');
+      return !packument?.versions?.includes(target) || !(published <= newestAllowed);
+    })
+    .map((pkg) => pkg.name);
+  const version = missing.length === 0 ? target : wdio.currentVersion;
+  for (const pkg of group) {
+    pkg.followsWebdriverio = true;
+    pkg.latestVersion = version;
+    pkg.isUpToDate = pkg.currentVersion === version;
+    pkg.updateType = getUpdateType(pkg.currentVersion, version);
+  }
+  if (missing.length === 0 || target === wdio.currentVersion) {
+    return undefined;
+  }
+  return (
+    `WebdriverIO's packages stay on ${wdio.currentVersion}. These couldn't be looked up, ` +
+    `or haven't published ${target} long enough ago: ${missing.join(', ')}`
   );
-  const target = shared
-    .map((pkg) => pkg.latestVersion)
-    .sort(compareVersions)
-    .at(0);
-  if (target === undefined) {
-    return;
-  }
-  for (const pkg of shared) {
-    pkg.latestVersion = target;
-    pkg.isUpToDate = pkg.currentVersion === target;
-    pkg.updateType = getUpdateType(pkg.currentVersion, target);
-  }
+}
+
+// Selecting one of the packages that follow webdriverio selects the rest, so they can't be split
+export function withWdioGroup(selected: string[], packageInfos: PackageInfo[]): string[] {
+  const group = packageInfos.filter((pkg) => pkg.followsWebdriverio && !pkg.isUpToDate).map((pkg) => pkg.name);
+  return group.some((name) => selected.includes(name)) ? [...new Set([...selected, ...group])] : selected;
 }
 
 async function promptPackagesToUpdate(packageInfos: PackageInfo[], catalog: string): Promise<string[]> {
@@ -445,7 +482,12 @@ async function main() {
     );
 
     // Prompt the user to select packages to update
-    const packagesToUpdate = await promptPackagesToUpdate(packageInfos, selectedCatalog);
+    const selected = await promptPackagesToUpdate(packageInfos, selectedCatalog);
+    const packagesToUpdate = withWdioGroup(selected, packageInfos);
+    const added = packagesToUpdate.filter((name) => !selected.includes(name));
+    if (added.length > 0) {
+      console.log(chalk.dim(`Also updating ${added.join(', ')}: WebdriverIO's packages move together.`));
+    }
 
     if (packagesToUpdate.length === 0) {
       console.log(chalk.yellow('No packages selected for update.'));

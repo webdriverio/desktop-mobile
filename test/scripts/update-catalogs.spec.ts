@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareVersions,
+  followWebdriverio,
   getUpdateType,
-  moveWdioPackagesTogether,
   pickNextCatalogVersion,
   setCatalogVersions,
+  withWdioGroup,
 } from '../../scripts/update-catalogs.ts';
 
 describe('compareVersions', () => {
@@ -40,7 +41,10 @@ describe('getUpdateType', () => {
   });
 });
 
-describe('moveWdioPackagesTogether', () => {
+describe('followWebdriverio', () => {
+  const now = Date.parse('2026-11-04T12:00:00Z');
+  const day = 1440;
+  const old = '2026-10-31T00:00:00Z';
   const info = (name: string, currentVersion: string, latestVersion: string) => ({
     name,
     currentVersion,
@@ -48,23 +52,67 @@ describe('moveWdioPackagesTogether', () => {
     isUpToDate: currentVersion === latestVersion,
     updateType: getUpdateType(currentVersion, latestVersion),
   });
+  const published = (time: Record<string, string>) => ({ time, versions: Object.keys(time) });
 
-  it("should move the packages on webdriverio's version to the lowest version any of them resolved", () => {
+  it("should move the packages that published webdriverio's version to webdriverio's pick", () => {
     const infos = [
       info('webdriverio', '10.2.0-alpha.100', '10.2.0-alpha.101'),
-      info('@wdio/cli', '10.2.0-alpha.100', '10.2.0-alpha.100'),
+      info('@wdio/cli', '10.2.0-alpha.99', '10.2.0-alpha.99'),
       info('@wdio/visual-service', '11.0.0', '11.1.0'),
-      info('electron-nightly', '47.0.0-nightly.20261023', '47.0.0-nightly.20261102'),
     ];
-
-    moveWdioPackagesTogether(infos);
-
-    expect(infos.map((pkg) => [pkg.name, pkg.latestVersion, pkg.isUpToDate])).toEqual([
-      ['webdriverio', '10.2.0-alpha.100', true],
-      ['@wdio/cli', '10.2.0-alpha.100', true],
-      ['@wdio/visual-service', '11.1.0', false],
-      ['electron-nightly', '47.0.0-nightly.20261102', false],
+    const packuments = new Map([
+      ['webdriverio', published({ '10.2.0-alpha.100': old, '10.2.0-alpha.101': old })],
+      ['@wdio/cli', published({ '10.2.0-alpha.99': old, '10.2.0-alpha.100': old, '10.2.0-alpha.101': old })],
+      ['@wdio/visual-service', published({ '11.0.0': old, '11.1.0': old })],
     ]);
+
+    expect(followWebdriverio(infos, packuments, now, day)).toBeUndefined();
+    expect(infos.map((pkg) => [pkg.name, pkg.latestVersion])).toEqual([
+      ['webdriverio', '10.2.0-alpha.101'],
+      ['@wdio/cli', '10.2.0-alpha.101'],
+      ['@wdio/visual-service', '11.1.0'],
+    ]);
+  });
+
+  it("should keep them all and say which is missing when one hasn't published webdriverio's pick", () => {
+    const infos = [
+      info('webdriverio', '10.2.0-alpha.100', '10.2.0-alpha.101'),
+      info('@wdio/utils', '10.2.0-alpha.100', '10.2.0-alpha.100'),
+    ];
+    const packuments = new Map([
+      ['webdriverio', published({ '10.2.0-alpha.100': old, '10.2.0-alpha.101': old })],
+      ['@wdio/utils', published({ '10.2.0-alpha.100': old })],
+    ]);
+
+    expect(followWebdriverio(infos, packuments, now, day)).toContain('@wdio/utils');
+    expect(infos.map((pkg) => [pkg.latestVersion, pkg.isUpToDate])).toEqual([
+      ['10.2.0-alpha.100', true],
+      ['10.2.0-alpha.100', true],
+    ]);
+  });
+
+  it("should keep them all when one on webdriverio's version couldn't be looked up", () => {
+    const infos = [
+      info('webdriverio', '10.2.0-alpha.100', '10.2.0-alpha.101'),
+      info('@wdio/types', '10.2.0-alpha.100', 'unknown'),
+    ];
+    const packuments = new Map([['webdriverio', published({ '10.2.0-alpha.100': old, '10.2.0-alpha.101': old })]]);
+
+    expect(followWebdriverio(infos, packuments, now, day)).toContain('@wdio/types');
+    expect(infos[0].latestVersion).toBe('10.2.0-alpha.100');
+  });
+});
+
+describe('withWdioGroup', () => {
+  it('should add the rest of the WebdriverIO packages when one of them is selected', () => {
+    const infos = [
+      { name: 'webdriverio', followsWebdriverio: true, isUpToDate: false },
+      { name: '@wdio/cli', followsWebdriverio: true, isUpToDate: false },
+      { name: 'electron-nightly', isUpToDate: false },
+    ].map((pkg) => ({ currentVersion: 'a', latestVersion: 'b', updateType: 'unknown' as const, ...pkg }));
+
+    expect(withWdioGroup(['@wdio/cli'], infos)).toEqual(['@wdio/cli', 'webdriverio']);
+    expect(withWdioGroup(['electron-nightly'], infos)).toEqual(['electron-nightly']);
   });
 });
 
