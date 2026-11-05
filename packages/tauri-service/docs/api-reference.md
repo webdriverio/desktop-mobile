@@ -17,6 +17,8 @@ Execute JavaScript code in the Tauri frontend context. Requires tauri-plugin-wdi
 
 **Returns:** `Promise<Awaited<ReturnValue>>`
 
+With the embedded provider, a DOM element or shadow root in the result comes back as a W3C reference, as from `browser.execute()`. Pass it to `browser.$()` to get an element.
+
 **Example:**
 
 ```typescript

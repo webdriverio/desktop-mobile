@@ -119,6 +119,26 @@ describe('DirectEvalClient', () => {
       expect(body.window_label).toBeUndefined();
     });
 
+    it('should send session_id when provided', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+
+      await client.eval('script', { sessionId: 'abc-123' });
+
+      const body = JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
+      expect(body.session_id).toBe('abc-123');
+    });
+
+    it('should omit session_id when not provided', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+
+      await client.eval('script', {});
+
+      const body = JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
+      expect(body).not.toHaveProperty('session_id');
+    });
+
     it('should send timeout_ms in body', async () => {
       const mockFn = mockFetch({ value: 1 });
       vi.stubGlobal('fetch', mockFn);

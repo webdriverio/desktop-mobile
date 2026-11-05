@@ -97,3 +97,67 @@ describe('Tauri Execute - element results (embedded)', () => {
     expect(await browser.$(result[0] as ElementReference).getTagName()).toBe('body');
   });
 });
+
+// The external providers run browser.tauri.execute() through the plugin's IPC, which still sends its result as JSON.
+describe('Tauri Execute - element results from browser.tauri.execute (embedded)', () => {
+  it('should return an element as a reference that element commands accept', async () => {
+    const result = await browser.tauri.execute(() => document.querySelector('#counter'));
+
+    expect(result).toEqual(anElementReference());
+    expect(await idOf(result)).toBe('counter');
+  });
+
+  it('should return each element in an array as a reference', async () => {
+    const result = (await browser.tauri.execute(() => [
+      document.querySelector('#counter'),
+      document.querySelector('#increment-button'),
+    ])) as unknown[];
+
+    expect(result).toEqual([anElementReference(), anElementReference()]);
+    expect(await Promise.all(result.map(idOf))).toEqual(['counter', 'increment-button']);
+  });
+
+  it('should return an element next to a command result as a reference', async () => {
+    const result = (await browser.tauri.execute(async ({ core }) => ({
+      os: ((await core.invoke('get_platform_info')) as { os: string }).os,
+      el: document.querySelector('#counter'),
+    }))) as { os: string; el: unknown };
+
+    expect(result).toEqual({ os: expect.any(String), el: anElementReference() });
+    expect(await idOf(result.el)).toBe('counter');
+  });
+
+  it('should return a NodeList as an array of references', async () => {
+    const result = (await browser.tauri.execute(() =>
+      document.querySelectorAll('#counter, #increment-button'),
+    )) as unknown as unknown[];
+
+    expect(result).toEqual([anElementReference(), anElementReference()]);
+    expect(await Promise.all(result.map(idOf))).toEqual(['counter', 'increment-button']);
+  });
+
+  it('should return a shadow root as a reference that shadow root commands accept', async () => {
+    try {
+      const result = (await browser.tauri.execute(() => {
+        const host = document.createElement('div');
+        host.id = 'tauri-execute-shadow-host';
+        document.body.append(host);
+        host.attachShadow({ mode: 'open' }).innerHTML = '<span id="in-shadow"></span>';
+        return host.shadowRoot;
+      })) as unknown as Record<string, string>;
+
+      expect(result).toEqual({ [SHADOW_KEY]: expect.any(String) });
+      const inShadow = await browser.findElementFromShadowRoot(result[SHADOW_KEY], 'css selector', '#in-shadow');
+      expect(await idOf(inShadow)).toBe('in-shadow');
+    } finally {
+      await browser.execute(() => document.querySelector('#tauri-execute-shadow-host')?.remove());
+    }
+  });
+
+  it('should return an element from a string script as a reference', async () => {
+    const result = await browser.tauri.execute("document.querySelector('#counter')");
+
+    expect(result).toEqual(anElementReference());
+    expect(await idOf(result)).toBe('counter');
+  });
+});

@@ -101,6 +101,8 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
       try {
         return (await client.eval(wrapped, {
           windowLabel: executeOptions.windowLabel,
+          // The multiremote root's session ID is empty
+          sessionId: browser.sessionId || undefined,
         })) as Awaited<ReturnValue>;
       } catch (error) {
         lastError = error;

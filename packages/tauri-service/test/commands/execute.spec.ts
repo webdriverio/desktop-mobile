@@ -236,6 +236,30 @@ describe('execute — embedded provider (direct eval)', () => {
     });
   });
 
+  describe('session', () => {
+    it("should send the session's ID, so the plugin can register element references in the result", async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      const sessionBrowser = Object.assign(createMockBrowser(), { sessionId: 'session-1' });
+
+      await execute(sessionBrowser, '() => 1');
+
+      const body = JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
+      expect(body.session_id).toBe('session-1');
+    });
+
+    it('should send no session ID for the multiremote root, whose ID is empty', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      const rootBrowser = Object.assign(createMockBrowser(), { sessionId: '' });
+
+      await execute(rootBrowser, '() => 1');
+
+      const body = JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
+      expect(body).not.toHaveProperty('session_id');
+    });
+  });
+
   describe('port selection', () => {
     afterEach(() => {
       delete process.env.TAURI_WEBDRIVER_PORT;
