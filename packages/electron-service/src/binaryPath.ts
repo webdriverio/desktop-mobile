@@ -35,15 +35,15 @@ function sanitizeAppNameForPath(appName: string, platform: SupportedPlatform): s
 // Every arch searched per platform, in the order used when the host arch is unknown
 const ARCHS: Record<SupportedPlatform, BuilderArch[]> = {
   darwin: ['universal', 'arm64', 'x64'],
-  linux: ['x64', 'arm64', 'armv7l', 'ia32'],
+  linux: ['x64', 'arm64', 'armv7l'],
   win32: ['x64', 'arm64', 'ia32'],
 };
 
-// The archs each host can run: its own first, then those it runs emulated or in 32-bit mode
-const RUNNABLE_ARCHS: Record<SupportedPlatform, Partial<Record<BuilderArch, BuilderArch[]>>> = {
-  darwin: { arm64: ['arm64', 'universal', 'x64'], x64: ['x64', 'universal'] },
-  linux: { x64: ['x64', 'ia32'], arm64: ['arm64', 'armv7l'], armv7l: ['armv7l'], ia32: ['ia32'] },
-  win32: { arm64: ['arm64', 'x64', 'ia32'], x64: ['x64', 'ia32'], ia32: ['ia32'] },
+// The archs a host runs besides its own, emulated or in 32-bit mode
+const ALSO_RUNS: Record<SupportedPlatform, Partial<Record<BuilderArch, BuilderArch[]>>> = {
+  darwin: { arm64: ['universal', 'x64'], x64: ['universal'] },
+  linux: { arm64: ['armv7l'] },
+  win32: { arm64: ['x64', 'ia32'], x64: ['ia32'] },
 };
 
 // process.arch and electron-builder's defaultArch both accept `arm` for armv7l
@@ -58,7 +58,7 @@ function toArch(name?: string): BuilderArch | undefined {
 // arch Electron doesn't publish for the version is stale or custom, so it goes last rather than being dropped.
 function getArchOrder(platform: SupportedPlatform, hostArch?: string, electronVersion?: string): BuilderArch[] {
   const host = toArch(hostArch);
-  const runnable = (host && RUNNABLE_ARCHS[platform][host]) || [];
+  const runnable = host && ARCHS[platform].includes(host) ? [host, ...(ALSO_RUNS[platform][host] ?? [])] : [];
   const archs = [...new Set([...runnable, ...ARCHS[platform]])];
   // The packager rules out every arch but x64 for a version semver can't parse, such as a Chromium version
   const version = electronVersion?.replace(/^v/, '');

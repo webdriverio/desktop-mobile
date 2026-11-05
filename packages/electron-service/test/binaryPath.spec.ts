@@ -460,8 +460,6 @@ describe('getBinaryPath', () => {
       ['linux', 'arm', '29.3.1', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
       ['linux', 'arm', '45.2.2', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-unpacked'],
       ['linux', 'arm64', '45.2.2', ['linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
-      ['linux', 'x64', '18.3.0', ['linux-arm64-unpacked', 'linux-ia32-unpacked'], 'linux-ia32-unpacked'],
-      ['linux', 'x64', '29.3.1', ['linux-ia32-unpacked'], 'linux-ia32-unpacked'],
       ['darwin', 'arm64', '124.0.6367.243', ['mac', 'mac-arm64'], 'mac-arm64'],
       ['darwin', 'arm64', '124.0.6367.243', ['mac-universal'], 'mac-universal'],
       ['win32', 'arm64', '124.0.6367.243', ['win-unpacked', 'win-arm64-unpacked'], 'win-arm64-unpacked'],

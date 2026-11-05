@@ -444,18 +444,18 @@ If you want to manually set this value, you can specify the [`appBinaryPath`](#a
 
 If your output directory holds Electron Builder or Electron Forge builds for more than one architecture, the service launches the first one that exists and is executable. It tries the machine's own architecture first, then the ones it can run under emulation or in 32-bit mode, then the rest:
 
-| Machine running the tests | Order                            |
-| ------------------------- | -------------------------------- |
-| Windows x64               | `x64`, `ia32`, `arm64`           |
-| Windows ARM64             | `arm64`, `x64`, `ia32`           |
-| Linux x64                 | `x64`, `ia32`, `arm64`, `armv7l` |
-| Linux ARM64               | `arm64`, `armv7l`, `x64`, `ia32` |
-| Apple Silicon Mac         | `arm64`, `universal`, `x64`      |
-| Intel Mac                 | `x64`, `universal`, `arm64`      |
+| Machine running the tests | Order                       |
+| ------------------------- | --------------------------- |
+| Windows x64               | `x64`, `ia32`, `arm64`      |
+| Windows ARM64             | `arm64`, `x64`, `ia32`      |
+| Linux x64                 | `x64`, `arm64`, `armv7l`    |
+| Linux ARM64               | `arm64`, `armv7l`, `x64`    |
+| Apple Silicon Mac         | `arm64`, `universal`, `x64` |
+| Intel Mac                 | `x64`, `universal`, `arm64` |
 
 For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`.
 
-- **Architectures Electron doesn't publish** for your Electron version go last: `ia32` on Windows and `armv7l` on Linux from Electron 44, and `ia32` on Linux from Electron 19.
+- **Architectures Electron doesn't publish** for your Electron version go last: `ia32` on Windows and `armv7l` on Linux from Electron 44.
 - **The machine's architecture** is the one of the Node.js running the tests, so an x64 Node.js under Rosetta or Windows emulation gets the x64 build. Use a native Node.js to get the native build.
 - **Electron Builder's `defaultArch`:** Electron Builder adds the architecture to every folder name except the platform's `defaultArch`, which is `x64` unless you set it. With `win.defaultArch: 'arm64'`, the ARM64 build is in `win-unpacked` and the x64 one in `win-x64-unpacked`, and the service looks for both.
 
