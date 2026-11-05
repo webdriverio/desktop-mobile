@@ -310,11 +310,16 @@ export type WebdriverClientFunc = (this: WebdriverIO.Browser, ...args: unknown[]
 export type ElectronType = typeof Electron;
 export type ElectronInterface = keyof ElectronType;
 
+type BuilderPlatformConfig = { defaultArch?: string } | null;
+
 export type BuilderConfig = {
   extends?: string | string[] | null;
   productName?: string;
   directories?: { output?: string };
   executableName?: string;
+  mac?: BuilderPlatformConfig;
+  linux?: BuilderPlatformConfig;
+  win?: BuilderPlatformConfig;
 };
 
 export type ForgeConfig = ElectronForgeConfig;

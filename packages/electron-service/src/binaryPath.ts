@@ -11,6 +11,7 @@ import type {
   PathValidationResult,
 } from '@wdio/native-types';
 import { validateBinaryPaths } from '@wdio/native-utils';
+import { validateStrict } from 'compare-versions';
 import { SUPPORTED_BUILD_TOOL, SUPPORTED_PLATFORM } from './constants.js';
 
 type SupportedPlatform = keyof typeof SUPPORTED_PLATFORM;
@@ -31,13 +32,49 @@ function sanitizeAppNameForPath(appName: string, platform: SupportedPlatform): s
   return platform === 'linux' ? appName.toLowerCase().replace(/ /g, '-') : appName;
 }
 
+// Every arch searched per platform, in the order used when the host arch is unknown
+const ARCHS: Record<SupportedPlatform, BuilderArch[]> = {
+  darwin: ['universal', 'arm64', 'x64'],
+  linux: ['x64', 'arm64', 'armv7l', 'ia32'],
+  win32: ['x64', 'arm64', 'ia32'],
+};
+
+// The archs each host can run: its own first, then those it runs emulated or in 32-bit mode
+const RUNNABLE_ARCHS: Record<SupportedPlatform, Partial<Record<BuilderArch, BuilderArch[]>>> = {
+  darwin: { arm64: ['arm64', 'universal', 'x64'], x64: ['x64', 'universal'] },
+  linux: { x64: ['x64', 'ia32'], arm64: ['arm64', 'armv7l'], armv7l: ['armv7l'], ia32: ['ia32'] },
+  win32: { arm64: ['arm64', 'x64', 'ia32'], x64: ['x64', 'ia32'], ia32: ['ia32'] },
+};
+
+// process.arch and electron-builder's defaultArch both accept `arm` for armv7l
+function toArch(name?: string): BuilderArch | undefined {
+  const arch = name === 'arm' ? 'armv7l' : name;
+  return arch === 'x64' || arch === 'arm64' || arch === 'ia32' || arch === 'armv7l' || arch === 'universal'
+    ? arch
+    : undefined;
+}
+
+// The first folder holding the app wins, so search the builds the host can run before the rest. A build for an
+// arch Electron doesn't publish for the version is stale or custom, so it goes last rather than being dropped.
+function getArchOrder(platform: SupportedPlatform, hostArch?: string, electronVersion?: string): BuilderArch[] {
+  const host = toArch(hostArch);
+  const runnable = (host && RUNNABLE_ARCHS[platform][host]) || [];
+  const archs = [...new Set([...runnable, ...ARCHS[platform]])];
+  // The packager rules out every arch but x64 for a version semver can't parse, such as a Chromium version
+  const version = electronVersion?.replace(/^v/, '');
+  if (!version || !validateStrict(version)) {
+    return archs;
+  }
+  const published = allOfficialArchsForPlatformAndVersion(platform, version);
+  return [...archs.filter((arch) => published.includes(arch)), ...archs.filter((arch) => !published.includes(arch))];
+}
+
 function getForgeDistDir(
   config: ForgeBuildInfo['config'],
   appName: string,
   platform: SupportedPlatform,
-  electronVersion?: string,
+  archs: BuilderArch[],
 ): string[] {
-  const archs = allOfficialArchsForPlatformAndVersion(platform, electronVersion);
   const forgeOutDir = config?.outDir || 'out';
 
   // Forge may create directories with different naming conventions depending on the platform
@@ -50,49 +87,24 @@ function getForgeDistDir(
   // Remove duplicates in case sanitization doesn't change the name
   const uniqueNames = [...new Set(possibleNames)];
 
-  return archs.flatMap((arch: string) =>
-    uniqueNames.map((name) => path.join(forgeOutDir, `${name}-${platform}-${arch}`)),
-  );
+  return archs.flatMap((arch) => uniqueNames.map((name) => path.join(forgeOutDir, `${name}-${platform}-${arch}`)));
 }
 
-// Fallback order per platform, for when the host arch isn't known or has no build. Windows keeps x64
-// first so a tree that also has win-unpacked resolves to it, as it did before other archs were searched.
-const BUILDER_ARCH_ORDER: Record<SupportedPlatform, BuilderArch[]> = {
-  darwin: ['universal', 'arm64', 'x64'],
-  linux: ['x64', 'arm64', 'armv7l'],
-  win32: ['x64', 'arm64', 'ia32'],
-};
-
-// process.arch spells 32-bit ARM `arm`; electron-builder spells it `armv7l`.
-function toBuilderArch(hostArch?: string): BuilderArch | undefined {
-  const arch = hostArch === 'arm' ? 'armv7l' : hostArch;
-  return arch === 'x64' || arch === 'arm64' || arch === 'ia32' || arch === 'armv7l' ? arch : undefined;
-}
+const BUILDER_PLATFORM_KEY = { darwin: 'mac', linux: 'linux', win32: 'win' } as const;
 
 function getBuilderDistDir(
   config: BuilderBuildInfo['config'],
   platform: SupportedPlatform,
-  hostArch?: string,
-  electronVersion?: string,
+  archs: BuilderArch[],
 ): string[] {
   const builderOutDirName = config?.directories?.output || 'dist';
-  const builderOutDirMap = (arch: BuilderArch) => ({
-    darwin: path.join(builderOutDirName, arch === 'x64' ? 'mac' : `mac-${arch}`),
-    linux: path.join(builderOutDirName, arch === 'x64' ? 'linux-unpacked' : `linux-${arch}-unpacked`),
-    win32: path.join(builderOutDirName, arch === 'x64' ? 'win-unpacked' : `win-${arch}-unpacked`),
-  });
-  // The first folder holding the app wins, so look for the host's own arch before the rest
-  const host = toBuilderArch(hostArch);
-  const fallback = BUILDER_ARCH_ORDER[platform];
-  const ordered = host ? [host, ...fallback.filter((arch) => arch !== host)] : fallback;
-  // Without a usable version the packager would rule out every arch Electron has dropped or added,
-  // including ones the project may still build for, so only filter on a real version.
-  const published =
-    electronVersion && /^v?\d+\.\d+\.\d+/.test(electronVersion)
-      ? allOfficialArchsForPlatformAndVersion(platform, electronVersion)
-      : undefined;
-  const archs = published ? ordered.filter((arch) => (published as string[]).includes(arch)) : ordered;
-  return archs.map((arch) => builderOutDirMap(arch)[platform]);
+  const key = BUILDER_PLATFORM_KEY[platform];
+  // electron-builder adds the arch to every folder name but the platform's defaultArch
+  const defaultArch = toArch(config?.[key]?.defaultArch) ?? 'x64';
+  const unpacked = platform === 'darwin' ? '' : '-unpacked';
+  return archs.map((arch) =>
+    path.join(builderOutDirName, `${key}${arch === defaultArch ? '' : `-${arch}`}${unpacked}`),
+  );
 }
 
 function getPlatformBinaryPath(
@@ -147,11 +159,12 @@ function getBinaryName(options: BinaryOptions): string {
 
 function getOutDir(options: BinaryOptions): string[] {
   const { buildTool, config, appName, platform, electronVersion, projectDir, hostArch } = options;
+  const archs = getArchOrder(platform, hostArch, electronVersion);
 
   const outDirs =
     buildTool === SUPPORTED_BUILD_TOOL.forge
-      ? getForgeDistDir(config as ForgeBuildInfo['config'], appName, platform, electronVersion)
-      : getBuilderDistDir(config as BuilderBuildInfo['config'], platform, hostArch, electronVersion);
+      ? getForgeDistDir(config as ForgeBuildInfo['config'], appName, platform, archs)
+      : getBuilderDistDir(config as BuilderBuildInfo['config'], platform, archs);
 
   return outDirs.map((dir) => path.join(projectDir, dir));
 }

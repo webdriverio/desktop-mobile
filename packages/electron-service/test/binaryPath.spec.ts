@@ -1,7 +1,7 @@
 // @vitest-environment node
 import fs from 'node:fs/promises';
 import { normalize } from 'node:path';
-import type { AppBuildInfo } from '@wdio/native-types';
+import type { AppBuildInfo, BuilderConfig } from '@wdio/native-types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getBinaryPath } from '../src/binaryPath.js';
 
@@ -107,7 +107,7 @@ function testBinaryPath(options: TestBinaryPathOptions) {
   const testFn = skip ? it.skip : it;
 
   testFn(`${title}`, async () => {
-    const currentProcess = { platform } as NodeJS.Process;
+    const currentProcess = { platform, arch } as NodeJS.Process;
     // Mock all possible paths for the current platform
     const allPossiblePaths = [] as string[];
 
@@ -184,6 +184,34 @@ function testForgeBinaryPath(options: Omit<TestBinaryPathOptions, 'isForge'>) {
  */
 function testBuilderBinaryPath(options: Omit<TestBinaryPathOptions, 'isForge'>) {
   testBinaryPath(Object.assign(options, { isForge: false }));
+}
+
+const appPath = (platform: string, dir: string) =>
+  platform === 'darwin'
+    ? `/path/to/${dir}/my-app.app/Contents/MacOS/my-app`
+    : `/path/to/${dir}/my-app${platform === 'win32' ? '.exe' : ''}`;
+const inDist = (dir: string) => `dist/${dir}`;
+const builderInfo = (config: BuilderConfig = {}) =>
+  ({
+    appName: 'my-app',
+    isForge: false,
+    isBuilder: true,
+    config: { productName: 'my-app', ...config },
+  }) as AppBuildInfo;
+
+/**
+ * Resolves the binary path on the given host when only the apps in `dirs` exist
+ */
+async function resolveFrom(
+  platform: string,
+  arch: string | undefined,
+  electronVersion: string | undefined,
+  appBuildInfo: AppBuildInfo,
+  dirs: string[],
+) {
+  mockBinaryPath(dirs.map((dir) => appPath(platform, dir)));
+  const result = await getBinaryPath(pkgJSONPath, appBuildInfo, electronVersion, { platform, arch } as NodeJS.Process);
+  return result.ok ? result.value.binaryPath.replace(/\\/g, '/') : undefined;
 }
 
 describe('getBinaryPath', () => {
@@ -274,6 +302,32 @@ describe('getBinaryPath', () => {
       binaryPath: '/path/to/out/builder-app-example-linux-x64/builder-app-example',
       configObj: { packagerConfig: { name: 'Builder App Example' } },
     });
+
+    it.each<[string, string, string | undefined, string[], string]>([
+      ['darwin', 'arm64', '29.3.1', ['x64', 'arm64'], 'arm64'],
+      ['darwin', 'x64', '29.3.1', ['arm64', 'universal', 'x64'], 'x64'],
+      ['linux', 'arm64', '29.3.1', ['x64', 'arm64'], 'arm64'],
+      ['win32', 'x64', '29.3.1', ['ia32', 'x64'], 'x64'],
+      ['win32', 'arm64', '29.3.1', ['ia32', 'x64', 'arm64'], 'arm64'],
+      ['darwin', 'arm64', '124.0.6367.243', ['x64', 'arm64'], 'arm64'],
+      ['darwin', 'arm64', undefined, ['arm64'], 'arm64'],
+      ['win32', 'x64', '45.2.2', ['ia32'], 'ia32'],
+    ])(
+      'should resolve %s on a %s host with Electron %s and %j builds to %s',
+      async (platform, arch, electronVersion, archs, expected) => {
+        const forgeInfo = {
+          appName: 'my-app',
+          isForge: true,
+          isBuilder: false,
+          config: { packagerConfig: { name: 'my-app' } },
+        } as AppBuildInfo;
+        const inOut = (buildArch: string) => `out/my-app-${platform}-${buildArch}`;
+
+        const binaryPath = await resolveFrom(platform, arch, electronVersion, forgeInfo, archs.map(inOut));
+
+        expect(binaryPath).toBe(appPath(platform, inOut(expected)));
+      },
+    );
   });
 
   describe('electron-builder builds', () => {
@@ -294,7 +348,7 @@ describe('getBinaryPath', () => {
 
     testBuilderBinaryPath({
       platform: 'darwin',
-      arch: 'universal',
+      arch: 'arm64',
       binaryPath: '/path/to/dist-electron/mac-universal/my-app.app/Contents/MacOS/my-app',
       configObj: {
         productName: 'my-app',
@@ -369,63 +423,67 @@ describe('getBinaryPath', () => {
       configObj: { productName: 'my-app' },
     });
 
-    // The first folder holding the app wins: the host's own arch, then a fixed order per platform.
-    const mac = (dir: string) => `/path/to/dist/${dir}/my-app.app/Contents/MacOS/my-app`;
-    it.each([
-      // Windows: x64 stays first when the host arch is unknown, as before other archs were searched.
+    it.each<[string, string | undefined, string[], string]>([
       ['win32', undefined, ['win-arm64-unpacked', 'win-unpacked'], 'win-unpacked'],
       ['win32', 'x64', ['win-arm64-unpacked', 'win-unpacked'], 'win-unpacked'],
+      ['win32', 'x64', ['win-arm64-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
       ['win32', 'arm64', ['win-unpacked', 'win-arm64-unpacked'], 'win-arm64-unpacked'],
+      ['win32', 'arm64', ['win-ia32-unpacked', 'win-unpacked'], 'win-unpacked'],
       ['win32', 'ia32', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
       ['linux', undefined, ['linux-arm64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
+      ['linux', 'x64', ['linux-arm64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
       ['linux', 'arm64', ['linux-unpacked', 'linux-arm64-unpacked'], 'linux-arm64-unpacked'],
+      ['linux', 'arm64', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
       ['linux', 'arm', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
       ['linux', 'ppc64', ['linux-arm64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
       ['darwin', 'x64', ['mac-arm64', 'mac'], 'mac'],
+      ['darwin', 'x64', ['mac-arm64', 'mac-universal'], 'mac-universal'],
       ['darwin', 'arm64', ['mac', 'mac-arm64'], 'mac-arm64'],
       ['darwin', 'arm64', ['mac-universal', 'mac-arm64'], 'mac-arm64'],
-      ['darwin', 'x64', ['mac-arm64', 'mac-universal'], 'mac-universal'],
+      ['darwin', 'arm64', ['mac', 'mac-universal'], 'mac-universal'],
       ['darwin', undefined, ['mac', 'mac-arm64', 'mac-universal'], 'mac-universal'],
     ])('should resolve %s on a %s host with %j to %s', async (platform, arch, dirs, expected) => {
-      const file = (dir: string) =>
-        platform === 'darwin' ? mac(dir) : `/path/to/dist/${dir}/my-app${platform === 'win32' ? '.exe' : ''}`;
-      mockBinaryPath(dirs.map(file));
+      const binaryPath = await resolveFrom(platform, arch, '29.3.1', builderInfo(), dirs.map(inDist));
 
-      const result = await getBinaryPath(
-        pkgJSONPath,
-        { appName: 'my-app', isForge: false, isBuilder: true, config: { productName: 'my-app' } } as AppBuildInfo,
-        '29.3.1',
-        { platform, arch } as NodeJS.Process,
-      );
-
-      expect(result.ok && result.value.binaryPath.replace(/\\/g, '/')).toBe(file(expected));
+      expect(binaryPath).toBe(appPath(platform, inDist(expected)));
     });
 
-    // Archs Electron no longer publishes for the project's version aren't searched; an unusable version searches all.
-    it.each([
+    it.each<[string, string, string | undefined, string[], string]>([
       ['win32', 'ia32', '29.3.1', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
       ['win32', 'ia32', '45.2.2', ['win-unpacked', 'win-ia32-unpacked'], 'win-unpacked'],
+      ['win32', 'ia32', 'v45.2.2', ['win-unpacked', 'win-ia32-unpacked'], 'win-unpacked'],
       ['win32', 'ia32', '44.0.0-alpha.3', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
       ['win32', 'ia32', '44.0.0-alpha.4', ['win-unpacked', 'win-ia32-unpacked'], 'win-unpacked'],
       ['win32', 'ia32', undefined, ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
       ['win32', 'ia32', 'latest', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
+      ['win32', 'x64', '45.2.2', ['win-ia32-unpacked'], 'win-ia32-unpacked'],
       ['linux', 'arm', '29.3.1', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
       ['linux', 'arm', '45.2.2', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-unpacked'],
+      ['linux', 'arm64', '45.2.2', ['linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
+      ['linux', 'x64', '18.3.0', ['linux-arm64-unpacked', 'linux-ia32-unpacked'], 'linux-ia32-unpacked'],
+      ['linux', 'x64', '29.3.1', ['linux-ia32-unpacked'], 'linux-ia32-unpacked'],
+      ['darwin', 'arm64', '124.0.6367.243', ['mac', 'mac-arm64'], 'mac-arm64'],
+      ['darwin', 'arm64', '124.0.6367.243', ['mac-universal'], 'mac-universal'],
+      ['win32', 'arm64', '124.0.6367.243', ['win-unpacked', 'win-arm64-unpacked'], 'win-arm64-unpacked'],
     ])(
       'should resolve %s on a %s host with Electron %s and %j to %s',
       async (platform, arch, electronVersion, dirs, expected) => {
-        const file = (dir: string) => `/path/to/dist/${dir}/my-app${platform === 'win32' ? '.exe' : ''}`;
-        mockBinaryPath(dirs.map(file));
+        const binaryPath = await resolveFrom(platform, arch, electronVersion, builderInfo(), dirs.map(inDist));
 
-        const result = await getBinaryPath(
-          pkgJSONPath,
-          { appName: 'my-app', isForge: false, isBuilder: true, config: { productName: 'my-app' } } as AppBuildInfo,
-          electronVersion,
-          { platform, arch } as NodeJS.Process,
-        );
-
-        expect(result.ok && result.value.binaryPath.replace(/\\/g, '/')).toBe(file(expected));
+        expect(binaryPath).toBe(appPath(platform, inDist(expected)));
       },
     );
+
+    it.each<[string, string, BuilderConfig, string[], string]>([
+      ['win32', 'x64', { win: { defaultArch: 'arm64' } }, ['win-unpacked', 'win-x64-unpacked'], 'win-x64-unpacked'],
+      ['win32', 'arm64', { win: { defaultArch: 'arm64' } }, ['win-x64-unpacked', 'win-unpacked'], 'win-unpacked'],
+      ['darwin', 'x64', { mac: { defaultArch: 'universal' } }, ['mac', 'mac-x64'], 'mac-x64'],
+      ['linux', 'arm64', { linux: { defaultArch: 'arm' } }, ['linux-x64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
+      ['linux', 'x64', { win: { defaultArch: 'arm64' } }, ['linux-arm64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
+    ])('should resolve %s on a %s host with %j and %j to %s', async (platform, arch, config, dirs, expected) => {
+      const binaryPath = await resolveFrom(platform, arch, '29.3.1', builderInfo(config), dirs.map(inDist));
+
+      expect(binaryPath).toBe(appPath(platform, inDist(expected)));
+    });
   });
 });
