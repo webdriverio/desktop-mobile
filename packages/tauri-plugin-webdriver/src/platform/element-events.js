@@ -54,8 +54,8 @@ function wdioRecordPendingChange(el, value) {
   }
   wdioFirePendingChange();
   const root = el.getRootNode();
-  // Capturing on the field's root runs before the field's own listeners, so `change` precedes
-  // `blur` however focus leaves, as in a browser. Whichever event arrives first fires it.
+  // A focus move inside a shadow root never reaches the window's listener, so the field's root
+  // listens too. Whichever event arrives first fires the `change`.
   const onFocusLoss = (event) => {
     if (event.target === el) {
       wdioFirePendingChange(el);
@@ -65,6 +65,23 @@ function wdioRecordPendingChange(el, value) {
     root.addEventListener(type, onFocusLoss, true);
   }
   window.__wdio_pending_change = { el, value, root, onFocusLoss };
+}
+
+// Fires the owed `change` before any page listener sees the field lose focus, as a browser does.
+// The drivers install this file as the page loads, so this capture listener on the window comes
+// before the page's. Here a field in a shadow root shows up as its host.
+function wdioFocusLossOnWindow(event) {
+  const record = window.__wdio_pending_change;
+  for (let node = record?.el; node; node = node.getRootNode().host) {
+    if (node === event.target) {
+      wdioFirePendingChange(record.el);
+      return;
+    }
+  }
+}
+
+for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+  window.addEventListener(type, wdioFocusLossOnWindow, true);
 }
 
 // The built-in focus() for `el`, such as HTMLElement's or SVGElement's. A native Tab never calls a
@@ -414,7 +431,8 @@ function wdioRelease(el) {
   if (wdioOwnMethod(el, 'click')) {
     el.click();
   } else {
-    el.dispatchEvent(new PointerEvent('click', { ...wdioPointer(init), detail: 1 }));
+    // Chrome's click comes from the primary mouse but isn't marked primary.
+    el.dispatchEvent(new PointerEvent('click', { ...wdioPointer(init), detail: 1, isPrimary: false }));
   }
 }
 

@@ -29,6 +29,21 @@ type ElementEvents = {
   wdioSetValueControl(el: HTMLElement, typed: string): 'immutable' | 'invalid' | 'set' | undefined;
 };
 
+// Registered before the helpers install, so it hides `blur` and `focus` from their window listener
+// too, as WebKitGTK does by not sending them.
+let hideBlurAndFocus = false;
+for (const type of ['blur', 'focus']) {
+  window.addEventListener(
+    type,
+    (event) => {
+      if (hideBlurAndFocus) {
+        event.stopImmediatePropagation();
+      }
+    },
+    true,
+  );
+}
+
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
@@ -72,16 +87,11 @@ function enter() {
 // Hides `blur` and `focus` from the page, as a WebKitGTK window without focus fires neither for
 // scripted focus moves.
 function withoutBlurOrFocus(run: () => void) {
-  const stop = (event: Event) => event.stopImmediatePropagation();
-  for (const type of ['blur', 'focus']) {
-    window.addEventListener(type, stop, true);
-  }
+  hideBlurAndFocus = true;
   try {
     run();
   } finally {
-    for (const type of ['blur', 'focus']) {
-      window.removeEventListener(type, stop, true);
-    }
+    hideBlurAndFocus = false;
   }
 }
 
@@ -182,6 +192,59 @@ describe('pending change', () => {
     events.wdioRecordPendingChange(field, '');
     (root.querySelector('#t') as HTMLElement).focus();
     expect(shadowLog).toEqual(['change', 'blur']);
+  });
+
+  // The page's listeners come after the helpers' window listener, as the drivers install the
+  // helpers as the page loads.
+  describe('with capture listeners the page adds to the window and document', () => {
+    const listeners: [EventTarget, string, () => void][] = [];
+    const listen = () => {
+      for (const [target, name] of [
+        [window, 'window'],
+        [document, 'document'],
+      ] as const) {
+        for (const type of ['blur', 'focusout']) {
+          const listener = () => log.push(`${name} ${type}`);
+          target.addEventListener(type, listener, true);
+          listeners.push([target, type, listener]);
+        }
+      }
+    };
+    afterEach(() => {
+      for (const [target, type, listener] of listeners.splice(0)) {
+        target.removeEventListener(type, listener, true);
+      }
+    });
+
+    it('should fire change before they see the field lose focus, as Chrome does', () => {
+      listen();
+      type($('#a'), 'x');
+      $('#b').focus();
+      expect(log).toEqual([
+        'change a=x',
+        'window blur',
+        'document blur',
+        'blur a=x',
+        'window focusout',
+        'document focusout',
+        'focus b=',
+      ]);
+    });
+
+    it.each(['open', 'closed'] as const)(
+      'should fire change before they see a field in a %s shadow root lose focus, as Chrome does',
+      (mode) => {
+        render('<div id="host"></div><input id="b">');
+        const root = $('#host').attachShadow({ mode });
+        root.innerHTML = '<input id="s">';
+        const field = root.querySelector('#s') as HTMLInputElement;
+        field.addEventListener('change', () => log.push('change s'));
+        listen();
+        type(field, 'x');
+        $('#b').focus();
+        expect(log.slice(0, 3)).toEqual(['change s', 'window blur', 'document blur']);
+      },
+    );
   });
 });
 
@@ -866,17 +929,17 @@ describe('wdioPress and wdioRelease', () => {
     const shapes: string[] = [];
     for (const name of CLICK_EVENTS) {
       $('#b').addEventListener(name, (event) => {
-        const { detail, pointerType } = event as PointerEvent;
-        shapes.push(`${name} ${event.constructor.name} ${detail} ${pointerType}`);
+        const { detail, pointerType, pointerId, isPrimary } = event as PointerEvent;
+        shapes.push(`${name} ${event.constructor.name} ${detail} ${pointerType} ${pointerId} ${isPrimary}`);
       });
     }
     click($('#b'));
     expect(shapes).toEqual([
-      'pointerdown PointerEvent 0 mouse',
-      'mousedown MouseEvent 0 undefined',
-      'pointerup PointerEvent 0 mouse',
-      'mouseup MouseEvent 0 undefined',
-      'click PointerEvent 1 mouse',
+      'pointerdown PointerEvent 0 mouse 1 true',
+      'mousedown MouseEvent 0 undefined undefined undefined',
+      'pointerup PointerEvent 0 mouse 1 true',
+      'mouseup MouseEvent 0 undefined undefined undefined',
+      'click PointerEvent 1 mouse 1 false',
     ]);
   });
 

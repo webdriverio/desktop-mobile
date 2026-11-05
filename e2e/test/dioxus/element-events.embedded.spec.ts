@@ -139,6 +139,29 @@ describe('Dioxus element events (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
   });
 
+  it("should fire change before the page's capture listeners on the window and document see blur, as Chrome does", async () => {
+    await fillChangeScratch();
+    await browser.execute(
+      `window.__logCaptureBlur = function (ev) {
+        if (ev.target.id === "fresh-field") {
+          window.__fieldEvents.push((ev.currentTarget === window ? "window " : "document ") + ev.type);
+        }
+      };
+      window.addEventListener("blur", window.__logCaptureBlur, true);
+      document.addEventListener("blur", window.__logCaptureBlur, true);`,
+    );
+    try {
+      await browser.$('#fresh-field').addValue('x');
+      await browser.$('#fresh-other').click();
+    } finally {
+      await browser.execute(
+        'window.removeEventListener("blur", window.__logCaptureBlur, true);' +
+          'document.removeEventListener("blur", window.__logCaptureBlur, true);',
+      );
+    }
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'window blur', 'document blur', 'blur x']);
+  });
+
   it('should fire change when an input handler moves focus on', async () => {
     await fillChangeScratch();
     await browser.execute(
