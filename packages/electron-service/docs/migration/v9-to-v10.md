@@ -84,18 +84,6 @@ const browser = await startWdioSession([caps]);
 
 The function now returns an `ElectronStandaloneCapability` (a single object) instead of `ElectronServiceCapabilities` (a union type). All `ElectronServiceOptions` fields are accepted directly, including `captureMainProcessLogs`, `logDir`, `clearMocks`, etc.
 
-### Electron Builder app selection
-
-The service now looks for Electron Builder apps built for Windows ARM64 and ia32 (`win-arm64-unpacked`, `win-ia32-unpacked`), which it didn't find before. It also picks the build that matches the machine running the tests when your output directory holds more than one architecture's app.
-
-If you build for several architectures into one output directory, your tests may now launch a different app:
-
-- **Windows ARM64:** `win-arm64-unpacked` instead of `win-unpacked`.
-- **Intel Mac:** `mac` instead of `mac-arm64`, which couldn't run there.
-- **macOS, when the machine's architecture is unknown:** `mac-universal` ahead of the others.
-
-To keep launching a specific build, set [`appBinaryPath`](../configuration.md#appbinarypath). See [Which build is used](../configuration.md#which-build-is-used) for the full order.
-
 ## Verification
 
 After updating, verify your migration:

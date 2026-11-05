@@ -142,6 +142,7 @@ This is because WDIO uses Chrome for Testing to download Chromedriver, which onl
 ### Migration & Release Notes
 
 - **[v10.0.0 Release Notes](./docs/release-notes/v10.0.0.md)** — full list of v10 changes
+- **[v10 → v11 Migration](./docs/migration/v10-to-v11.md)**
 - **[v9 → v10 Migration](./docs/migration/v9-to-v10.md)** — required upgrade actions
 - **[v8 → v9 Migration](./docs/migration/v8-to-v9.md)**
 
