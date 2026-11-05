@@ -3,10 +3,13 @@ import { createLogger } from '@wdio/native-utils';
 import { DirectEvalClient } from '../directEvalClient.js';
 import { hasReference, toElementReferences } from '../elementReferences.js';
 import { isPluginAvailabilityCached, setPluginAvailabilityCached } from '../pluginCache.js';
+import { CONSOLE_WRAPPER_SCRIPT } from '../scripts/console-wrapper.js';
 import { getCurrentWindowLabel, getDefaultWindowLabel, getSessionProvider } from '../windowState.js';
-import { wrapScriptForDirectEval } from '../wrapForDirectEval.js';
+import { wrapScriptForDirectEval, wrapScriptForWebDriver } from '../wrapForDirectEval.js';
 
 const log = createLogger('tauri-service', 'service');
+
+type ScriptOutcome = { ok: true; value: unknown; undef?: boolean } | { ok: false; error: string };
 
 const directEvalClientCache = new WeakMap<WebdriverIO.Browser, { client: DirectEvalClient; port: number }>();
 
@@ -156,7 +159,7 @@ async function runScript<ReturnValue, InnerArguments extends unknown[]>(
     throw lastError;
   }
 
-  // Non-embedded path: use IPC via browser.execute (external/crabnebula providers)
+  // External and CrabNebula providers: the script runs through the WebDriver session
   if (!isPluginAvailabilityCached(browser)) {
     const maxAttempts = 100;
     const retryInterval = 50;
@@ -188,85 +191,13 @@ async function runScript<ReturnValue, InnerArguments extends unknown[]>(
   }
 
   const scriptString = typeof script === 'function' ? script.toString() : script;
-  const argsJson = JSON.stringify(userArgs);
-
-  const result = await browser.execute(
-    async function executeWithinTauri(script: string, execOptions: { windowLabel?: string }, argsJson: string) {
-      // @ts-expect-error - Running in browser context
-      if (typeof window === 'undefined') {
-        return JSON.stringify({ __wdio_error__: 'window is undefined' });
-      }
-      // @ts-expect-error - Running in browser context
-      if (typeof window.wdioTauri === 'undefined') {
-        return JSON.stringify({ __wdio_error__: 'window.wdioTauri is undefined' });
-      }
-      // @ts-expect-error - Running in browser context
-      if (typeof window.wdioTauri.execute !== 'function') {
-        // @ts-expect-error - Running in browser context
-        return JSON.stringify({ __wdio_error__: `window.wdioTauri.execute is ${typeof window.wdioTauri.execute}` });
-      }
-
-      try {
-        // @ts-expect-error - Running in browser context
-        const execResult = window.wdioTauri.execute(script, execOptions, argsJson);
-        if (execResult && typeof execResult.then === 'function') {
-          try {
-            const awaited = await execResult;
-            if (
-              awaited !== null &&
-              typeof awaited === 'object' &&
-              (awaited as { __wdio_undefined__?: boolean }).__wdio_undefined__ === true
-            ) {
-              return JSON.stringify({ __wdio_undefined__: true });
-            }
-            return JSON.stringify({ __wdio_value__: awaited });
-          } catch (promiseError) {
-            return JSON.stringify({
-              __wdio_error__: `Promise error: ${promiseError instanceof Error ? promiseError.message : String(promiseError)}`,
-            });
-          }
-        }
-        if (
-          execResult !== null &&
-          typeof execResult === 'object' &&
-          (execResult as { __wdio_undefined__?: boolean }).__wdio_undefined__ === true
-        ) {
-          return JSON.stringify({ __wdio_undefined__: true });
-        }
-        return JSON.stringify({ __wdio_value__: execResult });
-      } catch (error) {
-        return JSON.stringify({
-          __wdio_error__: `Execute call error: ${error instanceof Error ? error.message : String(error)}`,
-        });
-      }
-    },
-    scriptString,
-    executeOptions,
-    argsJson,
-  );
-
-  try {
-    if (result && typeof result === 'string') {
-      const parsed = JSON.parse(result) as {
-        __wdio_error__?: string;
-        __wdio_value__?: unknown;
-        __wdio_undefined__?: boolean;
-      };
-      if (parsed.__wdio_error__) {
-        throw new Error(parsed.__wdio_error__);
-      }
-      if (parsed.__wdio_undefined__) {
-        return undefined as unknown as Awaited<ReturnValue>;
-      }
-      if (parsed.__wdio_value__ !== undefined) {
-        return parsed.__wdio_value__ as Awaited<ReturnValue>;
-      }
-    }
-  } catch (parseError) {
-    throw new Error(
-      `Failed to parse execute result: ${parseError instanceof Error ? parseError.message : String(parseError)}, raw result: ${result}`,
-    );
+  const wrapped = wrapScriptForWebDriver(scriptString, JSON.stringify(userArgs), executeOptions.windowLabel);
+  const outcome = (await browser.executeAsyncScript(
+    `${CONSOLE_WRAPPER_SCRIPT}\n${wrapped.script}`,
+    wrapped.args,
+  )) as ScriptOutcome;
+  if (!outcome.ok) {
+    throw new Error(outcome.error);
   }
-
-  return result as Awaited<ReturnValue>;
+  return (outcome.undef ? undefined : outcome.value) as Awaited<ReturnValue>;
 }

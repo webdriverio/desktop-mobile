@@ -34,7 +34,7 @@ var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0
         await new Promise(resolve => setTimeout(resolve, 50));
       }
       const coreRef = window.__wdio_original_core__;
-      if (!coreRef?.invoke) throw new Error('Tauri core.invoke not available after 5s timeout');
+      if (!coreRef?.invoke) throw new Error('Tauri core.invoke not available after 5s timeout. Make sure withGlobalTauri is enabled in tauri.conf.json');
       __wdio_invoke_real = coreRef.invoke.bind(coreRef);
     }
     const __wdio_invoke = async function(cmd, invokeArgs) {
@@ -70,4 +70,50 @@ var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0
     __cb({ ok: false, error: (e && e.message) || String(e) });
   }
 })();`;
+}
+
+/**
+ * Wrap a user script for WebDriver's Execute Async Script on the external and CrabNebula providers.
+ *
+ * The script runs in the session's current window, so the driver returns DOM elements as references. A script for
+ * another window goes through the plugin's IPC, because a reference only works in the window it came from. Both
+ * report to the callback as {@link wrapScriptForDirectEval} does.
+ */
+export function wrapScriptForWebDriver(
+  script: string,
+  argsJson: string,
+  windowLabel?: string,
+): { script: string; args: string[] } {
+  const inPage = wrapScriptForDirectEval(script, argsJson);
+  if (windowLabel === undefined) {
+    return { script: inPage, args: [] };
+  }
+
+  // The label and the plugin's inputs travel as arguments, not source. The in-page script is a function expression,
+  // not an arrow, so it reads the callback from its own `arguments`.
+  return {
+    script: `var __wdio_done = arguments[arguments.length - 1];
+var __wdio_label = arguments[0];
+var __wdio_meta = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.metadata;
+if (__wdio_meta && __wdio_meta.currentWindow && __wdio_meta.currentWindow.label === __wdio_label) {
+  (function () {
+${inPage}
+  })(__wdio_done);
+} else {
+  try {
+    window.wdioTauri.execute(arguments[1], { windowLabel: __wdio_label }, arguments[2]).then(
+      function (v) {
+        var undef = v === undefined || (v !== null && typeof v === 'object' && v.__wdio_undefined__ === true);
+        __wdio_done({ ok: true, value: undef ? null : v, undef: undef });
+      },
+      function (e) {
+        __wdio_done({ ok: false, error: (e && e.message) || String(e) });
+      }
+    );
+  } catch (e) {
+    __wdio_done({ ok: false, error: (e && e.message) || String(e) });
+  }
+}`,
+    args: [windowLabel, script, argsJson],
+  };
 }

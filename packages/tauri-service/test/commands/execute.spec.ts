@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { execute, executeWithElementRefs } from '../../src/commands/execute.js';
+import { CONSOLE_WRAPPER_SCRIPT } from '../../src/scripts/console-wrapper.js';
 import { clearWindowState } from '../../src/window.js';
-import { setSessionProvider } from '../../src/windowState.js';
+import { setCurrentWindowLabel, setSessionProvider } from '../../src/windowState.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@wdio/native-utils')>();
@@ -20,6 +21,7 @@ vi.mock('@wdio/native-utils', async (importOriginal) => {
 function createMockBrowser(executeFn?: (...args: unknown[]) => unknown, port?: number) {
   return {
     execute: vi.fn(executeFn ?? (() => undefined)),
+    executeAsyncScript: vi.fn(),
     options: { port },
   } as unknown as WebdriverIO.Browser;
 }
@@ -353,16 +355,29 @@ describe('execute — embedded provider (direct eval)', () => {
   });
 });
 
-describe('execute — IPC provider (external/crabnebula)', () => {
+describe('execute — external and CrabNebula providers (WebDriver)', () => {
   let browser: WebdriverIO.Browser;
+
+  function externalBrowser(outcome?: unknown) {
+    const b = createMockBrowser(() => true);
+    setSessionProvider(b, 'external');
+    (b.executeAsyncScript as ReturnType<typeof vi.fn>).mockResolvedValue(outcome ?? { ok: true, value: null });
+    return b;
+  }
+
+  function sentScript(b: WebdriverIO.Browser): string {
+    return (b.executeAsyncScript as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+  }
+
+  function sentArgs(b: WebdriverIO.Browser): unknown[] {
+    return (b.executeAsyncScript as ReturnType<typeof vi.fn>).mock.calls[0][1] as unknown[];
+  }
 
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
     clearWindowState();
-    browser = createMockBrowser();
-    // Set provider to external so the IPC path is taken
-    setSessionProvider(browser, 'external');
+    browser = externalBrowser();
   });
 
   describe('parameter validation', () => {
@@ -382,10 +397,7 @@ describe('execute — IPC provider (external/crabnebula)', () => {
   describe('plugin availability check', () => {
     it('should throw when plugin is never available after max retries', async () => {
       vi.useFakeTimers();
-      const mockExecute = vi.fn().mockResolvedValue(false);
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
+      (browser.execute as ReturnType<typeof vi.fn>).mockResolvedValue(false);
 
       const promise = execute(browser, '() => 1').catch((e: Error) => e);
 
@@ -398,211 +410,129 @@ describe('execute — IPC provider (external/crabnebula)', () => {
       expect((result as Error).message).toContain(
         'Tauri plugin not available. Make sure @wdio/tauri-plugin is installed and registered in your Tauri app.',
       );
+      expect(browser.executeAsyncScript).not.toHaveBeenCalled();
     });
 
     it('should succeed when plugin becomes available after retries', async () => {
       vi.useFakeTimers();
-      let callCount = 0;
-      const mockExecute = vi.fn().mockImplementation((..._args: unknown[]) => {
-        callCount++;
-        if (callCount <= 3) {
-          return Promise.resolve(false);
-        }
-        if (callCount === 4) {
-          return Promise.resolve(true);
-        }
-        return Promise.resolve(JSON.stringify({ __wdio_value__: 'result' }));
-      });
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
+      (browser.execute as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      (browser.executeAsyncScript as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, value: 'result' });
 
       const promise = execute<string, []>(browser, '() => "result"');
 
       for (let i = 0; i < 3; i++) {
         await vi.advanceTimersByTimeAsync(50);
       }
-      await vi.advanceTimersByTimeAsync(0);
 
-      const result = await promise;
-      expect(result).toBe('result');
-      expect(mockExecute).toHaveBeenCalledTimes(5);
+      expect(await promise).toBe('result');
+      expect(browser.execute).toHaveBeenCalledTimes(4);
+      expect(browser.executeAsyncScript).toHaveBeenCalledTimes(1);
     });
 
     it('should use cached result on second call with same browser', async () => {
-      let callCount = 0;
-      const mockExecute = vi.fn().mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve(true);
-        }
-        return Promise.resolve(JSON.stringify({ __wdio_value__: 'result' }));
-      });
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
+      await execute(browser, '() => 1');
+      await execute(browser, '() => 2');
 
-      await execute<string, []>(browser, '() => "result"');
-      const firstCallCount = callCount;
-
-      await execute<string, []>(browser, '() => "result2"');
-
-      expect(callCount).toBe(firstCallCount + 1);
+      expect(browser.execute).toHaveBeenCalledTimes(1);
+      expect(browser.executeAsyncScript).toHaveBeenCalledTimes(2);
     });
 
     it('should not share cache between different browser objects', async () => {
-      const browser1 = createMockBrowser();
-      const browser2 = createMockBrowser();
-      setSessionProvider(browser1, 'external');
-      setSessionProvider(browser2, 'external');
-      const calls1: number[] = [];
-      const calls2: number[] = [];
+      const browser1 = externalBrowser();
+      const browser2 = externalBrowser();
 
-      let count1 = 0;
-      (browser1.execute as ReturnType<typeof vi.fn>).mockImplementation(() => {
-        count1++;
-        calls1.push(count1);
-        if (count1 === 1) {
-          return Promise.resolve(true);
-        }
-        return Promise.resolve(JSON.stringify({ __wdio_value__: 'b1' }));
-      });
+      await execute(browser1, '() => 1');
+      await execute(browser2, '() => 2');
 
-      let count2 = 0;
-      (browser2.execute as ReturnType<typeof vi.fn>).mockImplementation(() => {
-        count2++;
-        calls2.push(count2);
-        if (count2 === 1) {
-          return Promise.resolve(true);
-        }
-        return Promise.resolve(JSON.stringify({ __wdio_value__: 'b2' }));
-      });
-
-      await execute<string, []>(browser1, '() => "b1"');
-      await execute<string, []>(browser2, '() => "b2"');
-
-      expect(calls1).toHaveLength(2);
-      expect(calls2).toHaveLength(2);
+      expect(browser1.execute).toHaveBeenCalledTimes(1);
+      expect(browser2.execute).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('function serialization', () => {
-    it('should convert functions to strings', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_value__: 42 }));
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
-
+  describe('script', () => {
+    it('should run a function in the page with its args through Execute Async Script', async () => {
       const fn = (_tauri: unknown, a: number, b: number) => a + b;
       await execute<number, [number, number]>(browser, fn, 1, 2);
 
-      const secondCall = mockExecute.mock.calls[1];
-      expect(secondCall[1]).toBe(fn.toString());
-      expect(secondCall[2]).toEqual({});
-      expect(secondCall[3]).toBe('[1,2]');
+      const [script, args] = (browser.executeAsyncScript as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(script).toContain(`await (${fn.toString()})(__wdio_tauri, ...__wdio_args)`);
+      expect(script).toContain('arguments.length > 1 ? Array.prototype.slice.call(arguments, 0, -1) : [1,2];');
+      expect(args).toEqual([]);
     });
 
-    it('should pass strings as-is', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_value__: 'hello' }));
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
-
+    it('should run a string script in the page', async () => {
       await execute<string, []>(browser, 'return "hello"');
 
-      const secondCall = mockExecute.mock.calls[1];
-      expect(secondCall[1]).toBe('return "hello"');
+      expect(sentScript(browser)).toContain('(async function() { return "hello" }).apply(null, __wdio_args)');
+    });
+
+    it('should install console forwarding before the script', async () => {
+      await execute(browser, '() => 1');
+
+      expect(sentScript(browser).startsWith(CONSOLE_WRAPPER_SCRIPT)).toBe(true);
     });
   });
 
-  describe('result parsing', () => {
-    it('should parse __wdio_value__ from JSON response', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_value__: { foo: 'bar' } }));
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
+  describe('window label routing', () => {
+    it('should leave out the IPC route when no window is chosen', async () => {
+      await execute(browser, '() => 1');
 
-      const result = await execute<{ foo: string }, []>(browser, '() => ({ foo: "bar" })');
-      expect(result).toEqual({ foo: 'bar' });
+      expect(sentScript(browser)).not.toContain('wdioTauri.execute');
+      expect(sentArgs(browser)).toEqual([]);
     });
 
-    it('should return null __wdio_value__', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_value__: null }));
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
+    it('should send a per-call window label to the page, which picks the route', async () => {
+      await execute(browser, '() => 1', { __wdioOptions__: true, windowLabel: 'popup' } as never);
 
-      const result = await execute<null, []>(browser, '() => null');
-      expect(result).toBeNull();
+      expect(sentScript(browser)).toContain('window.wdioTauri.execute(');
+      expect(sentArgs(browser)).toEqual(['popup', '() => 1', '[]']);
     });
 
-    it('should return raw result when response is not a string', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockResolvedValueOnce(42);
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
+    it("should send the session's window label after a switch", async () => {
+      setCurrentWindowLabel(browser, 'settings');
 
-      const result = await execute<number, []>(browser, '() => 42');
-      expect(result).toBe(42);
-    });
+      await execute(browser, '() => 1');
 
-    it('should return undefined for __wdio_undefined__ response', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_undefined__: true }));
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
-
-      const result = await execute<undefined, []>(browser, '() => undefined');
-      expect(result).toBeUndefined();
-    });
-
-    it('should throw when JSON parse fails on a non-JSON string', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockResolvedValueOnce('not-valid-json');
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
-
-      await expect(() => execute<string, []>(browser, '() => "fail"')).rejects.toThrow(
-        /Failed to parse execute result:.*raw result: not-valid-json/,
-      );
+      expect(sentArgs(browser)).toEqual(['settings', '() => 1', '[]']);
     });
   });
 
-  describe('error wrapping', () => {
-    it('should throw when response contains __wdio_error__', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_error__: 'something went wrong' }));
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
+  describe('result', () => {
+    it('should return the value as the driver sends it, element references included', async () => {
+      const ref = { 'element-6066-11e4-a52e-4f735466cecf': 'el-1' };
+      browser = externalBrowser({ ok: true, value: { count: 1, el: ref } });
 
-      await expect(() => execute<string, []>(browser, '() => "fail"')).rejects.toThrow(/something went wrong/);
+      expect(await execute(browser, () => ({ count: 1, el: document.body }))).toEqual({ count: 1, el: ref });
     });
 
-    it('should throw when browser.execute rejects', async () => {
-      const mockExecute = vi.fn();
-      mockExecute.mockResolvedValueOnce(true);
-      mockExecute.mockRejectedValueOnce(new Error('WebDriver session expired'));
-      browser = createMockBrowser();
-      setSessionProvider(browser, 'external');
-      (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
+    it('should return null', async () => {
+      browser = externalBrowser({ ok: true, value: null, undef: false });
 
-      await expect(() => execute<string, []>(browser, '() => "fail"')).rejects.toThrow('WebDriver session expired');
+      expect(await execute(browser, '() => null')).toBeNull();
+    });
+
+    it('should return undefined when the script returned undefined', async () => {
+      browser = externalBrowser({ ok: true, value: null, undef: true });
+
+      expect(await execute(browser, '() => undefined')).toBeUndefined();
+    });
+
+    it("should throw the script's error", async () => {
+      browser = externalBrowser({ ok: false, error: 'Test error from execute' });
+
+      await expect(execute(browser, '() => { throw new Error("x") }')).rejects.toMatchObject({
+        message: 'Test error from execute',
+      });
+    });
+
+    it('should reject when Execute Async Script rejects', async () => {
+      (browser.executeAsyncScript as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('script timeout'));
+
+      await expect(execute(browser, '() => 1')).rejects.toMatchObject({ message: 'script timeout' });
     });
   });
 });

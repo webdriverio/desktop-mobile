@@ -48,6 +48,8 @@ const href = await browser.tauri.execute('window.location.href');
 
 **Note:** Requires tauri-plugin-wdio to be installed. See [Plugin Setup](./plugin-setup.md).
 
+With the external and CrabNebula providers, the script runs through the WebDriver session, so a DOM element in the result comes back as a W3C reference, as from `browser.execute()`. Pass it to `browser.$()` to get an element.
+
 **Browser Mode:** Not available. `browser.tauri.execute()` requires a live Tauri backend and plugin bridge. Use `browser.execute()` for renderer-side code, or `browser.tauri.mock()` to intercept Tauri commands.
 
 ---
@@ -308,6 +310,8 @@ The `execute` method supports optional per-call options to override session defa
 - `options` (object, optional) - Per-call execution options
   - `windowLabel` (string) - Override the default window for this call only
 - `...args` (any[]) - Additional arguments passed to the script
+
+With the external and CrabNebula providers, a script for a window other than the session's current one runs through the plugin's IPC, so a DOM element in its result comes back as `{}`. A reference only works in the window it came from: switch to the window with `browser.tauri.switchWindow()` first.
 
 **Example:**
 
