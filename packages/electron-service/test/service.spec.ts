@@ -1822,7 +1822,7 @@ describe('Electron Worker Service', () => {
   describe('multiremote instance options', () => {
     type FakeLogCaptureManager = Record<'captureMainProcessLogs' | 'captureRendererLogs' | 'stopCapture', Mock>;
 
-    const createInstance = (options: ElectronServiceOptions, args: string[] = []) =>
+    const createInstance = (options: ElectronServiceOptions, args: string[] = [], binary?: string) =>
       ({
         sessionId: 'dummyId',
         url: vi.fn().mockResolvedValue(undefined),
@@ -1830,7 +1830,7 @@ describe('Electron Worker Service', () => {
         overwriteCommand: vi.fn(),
         requestedCapabilities: {
           browserName: 'chrome',
-          'goog:chromeOptions': { args },
+          'goog:chromeOptions': { args, binary },
           'wdio:electronServiceOptions': options,
         },
       }) as unknown as WebdriverIO.Browser;
@@ -2037,6 +2037,46 @@ describe('Electron Worker Service', () => {
           message:
             'triggerDeeplink failed on browserB: triggerDeeplink requires appBinaryPath to be configured on Windows. ' +
             'Please set appBinaryPath in your wdio:electronServiceOptions.',
+        });
+      });
+
+      describe('on macOS', () => {
+        const refusal =
+          "triggerDeeplink() can't reach a multiremote instance on macOS when two instances run the same app";
+
+        beforeEach(() => {
+          mockProcessProperty('platform', 'darwin');
+        });
+
+        it('should refuse on each instance and the root when two instances run the same app', async () => {
+          instance = new ElectronWorkerService({}, {});
+          const browserA = createInstance({}, [], '/apps/App.app/Contents/MacOS/App');
+          const browserB = createInstance({}, [], '/apps/App.app/Contents/MacOS/App');
+          const root = createRoot({ browserA, browserB });
+          await instance.before({}, [], root);
+
+          await expect(browserA.electron.triggerDeeplink('myapp://open')).rejects.toMatchObject({
+            message: expect.stringContaining(refusal),
+          });
+          await expect(browserB.electron.triggerDeeplink('myapp://open')).rejects.toMatchObject({
+            message: expect.stringContaining(refusal),
+          });
+          await expect(root.electron.triggerDeeplink('myapp://open')).rejects.toMatchObject({
+            message: expect.stringContaining(`triggerDeeplink failed on browserA: ${refusal}`),
+          });
+          expect(mockSpawn).not.toHaveBeenCalled();
+        });
+
+        it('should open the URL when each instance runs its own app', async () => {
+          instance = new ElectronWorkerService({}, {});
+          const browserA = createInstance({}, ['--user-data-dir=/data/a'], '/apps/A.app/Contents/MacOS/A');
+          const browserB = createInstance({}, ['--user-data-dir=/data/b'], '/apps/B.app/Contents/MacOS/B');
+          await instance.before({}, [], createRoot({ browserA, browserB }));
+
+          await browserA.electron.triggerDeeplink('myapp://open');
+          await browserB.electron.triggerDeeplink('myapp://open');
+
+          expect(mockSpawn).toHaveBeenCalledTimes(2);
         });
       });
     });

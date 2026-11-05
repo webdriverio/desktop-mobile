@@ -9,10 +9,11 @@ declare global {
 
 type InstanceName = 'browserA' | 'browserB';
 
-// Protocol handlers need the packaged app. On macOS the URL goes through `open`, which can't pick an instance.
+const isMacOS = process.platform === 'darwin';
+// Protocol handlers need the packaged app.
 const canTargetInstances =
   process.env.BINARY !== 'false' &&
-  process.platform !== 'darwin' &&
+  !isMacOS &&
   // Workaround for webdriverio/webdriverio#16242; drop once a release with it is in the catalog
   process.platform !== 'win32';
 
@@ -59,5 +60,18 @@ const helpers = { browserA: helpersOf('browserA'), browserB: helpersOf('browserB
 
     expect(await deeplinksOf('browserA')).toEqual(['testapp://mr-root']);
     expect(await deeplinksOf('browserB')).toEqual(['testapp://mr-root']);
+  });
+});
+
+// Both instances run the same app, and `open` can't pick one of them.
+(isMacOS ? describe : describe.skip)('Deeplinks in multiremote on macOS (electron.triggerDeeplink)', () => {
+  const refusal = /can't reach a multiremote instance on macOS/;
+
+  it('should reject on an instance', async () => {
+    await expect(instance('browserA').electron.triggerDeeplink('testapp://mr-a')).rejects.toThrow(refusal);
+  });
+
+  it('should reject on the root', async () => {
+    await expect(root().electron.triggerDeeplink('testapp://mr-root')).rejects.toThrow(refusal);
   });
 });

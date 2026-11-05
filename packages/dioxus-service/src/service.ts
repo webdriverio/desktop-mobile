@@ -34,6 +34,7 @@ export default class DioxusWorkerService {
   private browserMode: boolean;
   private capabilities: unknown;
   private options: DioxusServiceOptions;
+  private instancesShareApp = false;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
@@ -78,11 +79,18 @@ export default class DioxusWorkerService {
         stage = 'addDioxusApi:root';
         this.addDioxusApi(browser as unknown as WebdriverIO.Browser);
       }
+      const instanceApps: string[] = [];
       await forEachInstance(
         browser,
         async (instance, { name, caps }) => {
           if (name !== undefined) {
             log.info(`Injecting spy + installing dioxus API on instance: ${name}`);
+            const app =
+              (caps as DioxusCapabilities | undefined)?.['dioxus:options']?.application ??
+              this.instanceOptions(caps).appBinaryPath;
+            if (app) {
+              instanceApps.push(app);
+            }
           }
           const embedded = this.isEmbedded(caps);
           stage = `injectSpy:${name ?? 'single'}`;
@@ -92,6 +100,7 @@ export default class DioxusWorkerService {
         },
         this.capabilities,
       );
+      this.instancesShareApp = new Set(instanceApps).size < instanceApps.length;
       log.info('before() complete');
     } catch (error) {
       log.error(
@@ -170,7 +179,7 @@ export default class DioxusWorkerService {
       }) as DioxusServiceAPI['isMockFunction'],
       switchWindow: (label: string) => switchWindowByLabel(browser, label),
       listWindows: () => listWindowLabels(browser),
-      triggerDeeplink,
+      triggerDeeplink: (url: string) => triggerDeeplink(url, { instancesShareApp: this.instancesShareApp }),
     };
     (browser as unknown as { dioxus: DioxusServiceAPI }).dioxus = dioxus;
   }

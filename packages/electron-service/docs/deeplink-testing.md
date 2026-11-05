@@ -179,7 +179,7 @@ await browser.electron.triggerDeeplink('myapp://refresh');
 
 If the root's call fails for an instance, the error names it.
 
-On macOS the service doesn't add `userData`, so the OS picks which running instance gets the deeplink.
+On macOS, `triggerDeeplink()` throws, on every instance and on the root, when two instances run the same app. The service opens the URL with `open`, which can't tell the copies apart, so one of them gets it, whichever instance called. When each instance runs a different app, the OS opens the URL in the app that handles its scheme.
 
 ## Setup Requirements
 

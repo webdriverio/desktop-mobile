@@ -459,6 +459,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
           (url: string) => triggerDeeplinkOnEveryInstance(electronInstances, url),
         );
 
+        const instanceApps = electronInstances.flatMap(({ caps }) => caps['goog:chromeOptions']?.binary ?? []);
+        const instancesShareApp = new Set(instanceApps).size < instanceApps.length;
+
         for (const { name: instance, browser: mrInstance, caps, options } of electronInstances) {
           stage = `initCdpBridge:${instance}`;
           log.info(`Initialising CDP bridge for instance: ${instance}`);
@@ -474,6 +477,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             browser: mrInstance,
             globalOptions: options,
             userDataDir: this.extractUserDataDir(caps),
+            instancesShareApp,
           };
           mrInstance.electron = getElectronAPI.call(this, mrInstance, mrBridge, triggerDeeplink.bind(deeplinkContext));
 

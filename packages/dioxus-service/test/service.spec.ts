@@ -1,9 +1,12 @@
 import type { DioxusMock } from '@wdio/native-types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { triggerDeeplink } from '../src/commands/triggerDeeplink.js';
 import mockStore from '../src/mockStore.js';
 import DioxusWorkerService from '../src/service.js';
 import type { DioxusServiceOptions } from '../src/types.js';
 import { createFakeMultiremote } from './commands/multiremoteFakes.js';
+
+vi.mock('../src/commands/triggerDeeplink.js', () => ({ triggerDeeplink: vi.fn().mockResolvedValue(undefined) }));
 
 function makeBrowser(): WebdriverIO.Browser {
   return { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
@@ -365,6 +368,87 @@ describe('DioxusWorkerService', () => {
       });
       expect(mockB.mockRestore).toHaveBeenCalledOnce();
       expect(rootMock.mockRestore).toHaveBeenCalledOnce();
+    });
+
+    describe('instancesShareApp', () => {
+      const app = (application: string) => ({ 'dioxus:options': { application } });
+
+      async function startMultiremote(
+        requested: Record<string, Record<string, unknown>>,
+        options: DioxusServiceOptions = {},
+      ) {
+        const instances = Object.fromEntries(Object.keys(requested).map((name) => [name, makeBrowser()]));
+        const root = {
+          isMultiremote: true,
+          instances: Object.keys(instances),
+          getInstance: (name: string) => instances[name],
+          execute: vi.fn().mockResolvedValue(undefined),
+        } as unknown as WebdriverIO.MultiRemoteBrowser;
+        const capabilities = Object.fromEntries(
+          Object.entries(requested).map(([name, instanceCapabilities]) => [
+            name,
+            { capabilities: instanceCapabilities },
+          ]),
+        );
+        const service = new DioxusWorkerService(options, capabilities);
+        await service.before({}, [], root);
+        return { root, ...instances };
+      }
+
+      async function instancesShareAppFor(browser: unknown): Promise<boolean | undefined> {
+        vi.mocked(triggerDeeplink).mockClear();
+        await (browser as Installed).dioxus.triggerDeeplink('myapp://test');
+        return vi.mocked(triggerDeeplink).mock.calls[0][1]?.instancesShareApp;
+      }
+
+      it('should be set on each instance and the root when two instances run the same app', async () => {
+        const { root, browserA, browserB } = await startMultiremote({ browserA: app('/one'), browserB: app('/one') });
+
+        expect(await instancesShareAppFor(browserA)).toBe(true);
+        expect(await instancesShareAppFor(browserB)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
+      });
+
+      it("should read the app from appBinaryPath when the capability doesn't name one", async () => {
+        const { root, browserA } = await startMultiremote({ browserA: {}, browserB: {} }, { appBinaryPath: '/one' });
+
+        expect(await instancesShareAppFor(browserA)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
+      });
+
+      it('should be set on an instance whose own app is not shared', async () => {
+        const { root, browserC } = await startMultiremote({
+          browserA: app('/one'),
+          browserB: app('/one'),
+          browserC: app('/two'),
+        });
+
+        expect(await instancesShareAppFor(browserC)).toBe(true);
+        expect(await instancesShareAppFor(root)).toBe(true);
+      });
+
+      it('should not be set when each instance runs its own app', async () => {
+        const { root, browserA, browserB } = await startMultiremote({ browserA: app('/one'), browserB: app('/two') });
+
+        expect(await instancesShareAppFor(browserA)).toBe(false);
+        expect(await instancesShareAppFor(browserB)).toBe(false);
+        expect(await instancesShareAppFor(root)).toBe(false);
+      });
+
+      it("should not be set when the instances' apps are unknown", async () => {
+        const { root, browserA } = await startMultiremote({ browserA: {}, browserB: {} });
+
+        expect(await instancesShareAppFor(browserA)).toBe(false);
+        expect(await instancesShareAppFor(root)).toBe(false);
+      });
+
+      it('should not be set outside multiremote', async () => {
+        const browser = makeBrowser();
+        const service = new DioxusWorkerService({}, app('/one'));
+        await service.before(app('/one'), [], browser);
+
+        expect(await instancesShareAppFor(browser)).toBe(false);
+      });
     });
 
     describe('driverProvider', () => {

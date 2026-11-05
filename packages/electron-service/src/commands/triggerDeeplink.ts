@@ -12,6 +12,8 @@ interface ServiceContext {
   browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   globalOptions: ElectronServiceGlobalOptions;
   userDataDir?: string;
+  /** Whether two multiremote instances run the same app binary. */
+  instancesShareApp?: boolean;
 }
 
 /**
@@ -213,6 +215,7 @@ export async function executeDeeplinkCommand(command: string, args: string[]): P
  * @returns A promise that resolves when the deeplink has been triggered
  * @throws Error if appBinaryPath is not configured (Windows only)
  * @throws Error if the URL is invalid or uses http/https/file protocols
+ * @throws Error on macOS when two multiremote instances run the same app
  *
  * @example
  * ```ts
@@ -229,6 +232,14 @@ export async function triggerDeeplink(this: ServiceContext, url: string): Promis
   const { appBinaryPath, appEntryPoint } = this.globalOptions;
   let userDataDir = this.userDataDir;
   const platform = process.platform;
+
+  if (platform === 'darwin' && this.instancesShareApp) {
+    throw new Error(
+      "triggerDeeplink() can't reach a multiremote instance on macOS when two instances run the same app. " +
+        "It opens the URL with `open`, which can't tell the copies apart, so one of them gets it, whichever instance called. " +
+        'Test deeplinks on macOS without multiremote.',
+    );
+  }
 
   // Auto-detect user data directory if not already configured
   // Critical for Windows/Linux: ensures second instance matches the test instance via single-instance lock

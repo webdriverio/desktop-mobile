@@ -295,6 +295,7 @@ describe('triggerDeeplink', () => {
     browser?: WebdriverIO.Browser;
     globalOptions: ElectronServiceGlobalOptions;
     userDataDir?: string;
+    instancesShareApp?: boolean;
   };
   let mockChildProcess: any;
 
@@ -399,6 +400,20 @@ describe('triggerDeeplink', () => {
       expect(spawnCall[1][0]).toBe('myapp://test');
       expect(spawnCall[1][0]).not.toContain('userData=');
     });
+
+    it('should refuse to open the URL when two multiremote instances run the same app', async () => {
+      const execute = vi.fn();
+      mockContext.browser = { electron: { execute } } as unknown as WebdriverIO.Browser;
+      mockContext.instancesShareApp = true;
+
+      await expect(triggerDeeplink.call(mockContext, 'myapp://test')).rejects.toMatchObject({
+        message: expect.stringContaining(
+          "triggerDeeplink() can't reach a multiremote instance on macOS when two instances run the same app",
+        ),
+      });
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
+    });
   });
 
   describe('Linux platform behavior', () => {
@@ -427,6 +442,15 @@ describe('triggerDeeplink', () => {
       const spawnCall = mockSpawn.mock.calls[0];
       expect(spawnCall[1][1]).toContain('userData=');
       expect(spawnCall[1][1]).toContain(encodeURIComponent('/tmp/user-data'));
+    });
+
+    it('should still open the URL with userData when two multiremote instances run the same app', async () => {
+      mockContext.userDataDir = '/tmp/user-data';
+      mockContext.instancesShareApp = true;
+
+      await triggerDeeplink.call(mockContext, 'myapp://test');
+
+      expect(mockSpawn.mock.calls[0][1][1]).toContain(encodeURIComponent('/tmp/user-data'));
     });
   });
 
