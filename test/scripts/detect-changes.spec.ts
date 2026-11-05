@@ -93,6 +93,7 @@ describe('classifyFile', () => {
     ['.github/workflows/_ci-build-react-native-ios-app.reusable.yml', 'react-native'],
     ['.github/workflows/codeql.yml', 'none'],
     ['.github/workflows/crate-drift.yml', 'none'],
+    ['.github/workflows/wdio-v9.yml', 'none'],
     ['.github/workflows/release.yml', 'none'],
     ['.github/workflows/_release.reusable.yml', 'none'],
     ['.github/workflows/standing-pr.yml', 'none'],

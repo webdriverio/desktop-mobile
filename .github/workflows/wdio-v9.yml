@@ -1,0 +1,228 @@
+name: WebdriverIO v9
+
+# The services support WebdriverIO v9 and v10, and CI runs v10. This workflow checks the maintenance major, v9:
+# - build, typecheck and unit tests on the `minimum` catalog: nightly, and on PRs that touch the packages;
+# - the Linux package tests, with the fixtures' webdriverio and @wdio/* from `minimum`: weekly, when dispatched, on
+#   a PR with the ci:wdio-v9 label, and when a label that sets up a release is added to a PR.
+# At the next WebdriverIO major, see docs/setup.md#webdriverio-majors for what to change here.
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+    - cron: "47 5 * * 1"
+  pull_request:
+    types: [ opened, synchronize, reopened, labeled ]
+  workflow_dispatch:
+    inputs:
+      package-tests:
+        description: "Also run the Linux package tests"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+# Each label other than ci:wdio-v9 gets its own group, so adding one can't cancel a running check.
+concurrency:
+  group: wdio-v9-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'ci:wdio-v9' && github.run_id || 'run' }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  gate:
+    name: Gate
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      check: ${{ steps.decide.outputs.check }}
+      package-tests: ${{ steps.decide.outputs.package-tests }}
+    steps:
+      - name: 🚦 Decide what to run
+        id: decide
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          SCHEDULE: ${{ github.event.schedule }}
+          PACKAGE_TESTS_INPUT: ${{ inputs.package-tests }}
+          LABEL: ci:wdio-v9
+          # The labels that publish: the standing release PR's release types, and a direct release on merge.
+          RELEASE_LABELS: release:prerelease release:stable release:graduate release:immediate
+          ADDED_LABEL: ${{ github.event.label.name }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:wdio-v9') }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          check=false
+          package_tests=false
+          case "$EVENT" in
+            schedule)
+              check=true
+              if [ "$SCHEDULE" = "47 5 * * 1" ]; then
+                package_tests=true
+              fi
+              ;;
+            workflow_dispatch)
+              check=true
+              package_tests="$PACKAGE_TESTS_INPUT"
+              ;;
+            pull_request)
+              if [ "$ACTION" = labeled ]; then
+                case " $LABEL $RELEASE_LABELS " in
+                  *" $ADDED_LABEL "*)
+                    check=true
+                    package_tests=true
+                    ;;
+                esac
+              elif [ "$HAS_LABEL" = true ]; then
+                check=true
+                package_tests=true
+              else
+                # The paths that can change the packages' build or types on v9.
+                files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
+                if grep -E '^(packages/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsconfig\.base[^/]*\.json$|scripts/(switch-catalog|strip-fixture-catalogs)\.ts$|\.github/workflows/wdio-v9\.yml$|\.github/workflows/actions/setup-workspace/)' <<<"$files" >/dev/null; then
+                  check=true
+                fi
+              fi
+              ;;
+          esac
+          echo "check=$check" >> "$GITHUB_OUTPUT"
+          echo "package-tests=$package_tests" >> "$GITHUB_OUTPUT"
+
+  check:
+    name: Build, typecheck and unit tests
+    needs: [ gate ]
+    if: needs.gate.outputs.check == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      cache_key: ${{ steps.upload-archive.outputs.cache_key }}
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: "24"
+
+      - name: 🔀 Switch to the minimum catalog
+        shell: bash
+        run: node scripts/switch-catalog.ts minimum --wdio-only
+
+      - name: 🔍 Check the resolved WebdriverIO version
+        shell: bash
+        run: |
+          set -euo pipefail
+          major=$(node --input-type=module -e "
+            import { readCatalogs } from './scripts/strip-fixture-catalogs.ts';
+            import { specMajor } from './scripts/switch-catalog.ts';
+            console.log(specMajor(readCatalogs(process.cwd()).minimum.webdriverio));
+          ")
+          versions=$(pnpm ls -r --depth 0 --json webdriverio | jq -r '.[]
+            | select(.path | contains("/fixtures/") | not)
+            | "\(.name) \(((.dependencies // {}) + (.devDependencies // {})).webdriverio.version // empty)"')
+          echo "$versions"
+          if [ -z "$versions" ] || grep -v " ${major}\." <<<"$versions" >/dev/null; then
+            echo "::error title=Not on the minimum catalog::every workspace package should resolve webdriverio ${major}.x"
+            exit 1
+          fi
+
+      # E2E is typed against v10 and runs through tsx, so only the packages are type-checked.
+      - name: 🏗️ Build, typecheck and test the packages
+        shell: bash
+        run: pnpm turbo run build typecheck test:unit test:integration --filter='./packages/*' --continue
+
+      - name: 📦 Upload Package Build Artifacts
+        id: upload-archive
+        if: needs.gate.outputs.package-tests == 'true'
+        uses: ./.github/workflows/actions/upload-archive
+        with:
+          name: wdio-desktop-mobile
+          output: wdio-desktop-mobile-build/artifact.zip
+          paths: packages/*/dist packages/*/dist-js
+          cache_key_prefix: wdio-desktop-build
+          retention_days: "7"
+
+  build-tauri-package-app-linux:
+    name: Build Tauri Package Test App [Linux]
+    needs: [ gate ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: "ubuntu-latest"
+
+  build-dioxus-package-app-linux:
+    name: Build Dioxus Package Test App [Linux]
+    needs: [ gate ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: "ubuntu-latest"
+
+  package-electron-linux:
+    name: v9 Package - Electron [Linux] - ${{ matrix.module-type }}
+    needs: [ gate, check ]
+    if: needs.gate.outputs.package-tests == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        module-type: [ "cjs", "esm" ]
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: "ubuntu-latest"
+      service: "electron"
+      module-type: ${{ matrix.module-type }}
+      cache_key: ${{ needs.check.outputs.cache_key }}
+      wdio-catalog: "minimum"
+
+  package-tauri-linux:
+    name: v9 Package - Tauri [Linux]
+    needs: [ gate, check, build-tauri-package-app-linux ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: "ubuntu-latest"
+      service: "tauri"
+      cache_key: ${{ needs.check.outputs.cache_key }}
+      tauri_cache_key: ${{ needs.build-tauri-package-app-linux.outputs.cache_key }}
+      wdio-catalog: "minimum"
+
+  package-dioxus-linux:
+    name: v9 Package - Dioxus [Linux]
+    needs: [ gate, check, build-dioxus-package-app-linux ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: "ubuntu-latest"
+      service: "dioxus"
+      cache_key: ${{ needs.check.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-linux.outputs.cache_key }}
+      wdio-catalog: "minimum"
+
+  package-browser-mode:
+    name: v9 Package - Browser Mode [Linux]
+    needs: [ gate, check ]
+    if: needs.gate.outputs.package-tests == 'true'
+    uses: ./.github/workflows/_ci-browser-mode.reusable.yml
+    secrets: inherit
+    with:
+      os: "ubuntu-latest"
+      node-version: "24"
+      cache_key: ${{ needs.check.outputs.cache_key }}
+      wdio-catalog: "minimum"

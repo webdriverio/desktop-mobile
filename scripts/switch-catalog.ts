@@ -11,248 +11,209 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as yaml from 'yaml';
+import { type Catalogs, readCatalogs } from './strip-fixture-catalogs.ts';
 
-// Get the root directory
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, '..');
-const workspaceFile = path.join(rootDir, 'pnpm-workspace.yaml');
+export const VALID_CATALOGS = ['default', 'next', 'minimum'] as const;
+export type CatalogName = (typeof VALID_CATALOGS)[number];
 
-// Valid catalog names
-const VALID_CATALOGS = ['default', 'next', 'minimum'] as const;
-type CatalogName = (typeof VALID_CATALOGS)[number];
+interface PackageJson {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  [key: string]: unknown;
+}
 
-// Function to sort dependencies alphabetically
+const isWdioPackage = (dep: string) => dep === 'webdriverio' || dep.startsWith('@wdio/');
+
 function sortDependencies(deps: Record<string, string> | undefined): Record<string, string> | undefined {
   if (!deps) {
     return undefined;
   }
-  return Object.keys(deps)
-    .sort()
-    .reduce(
-      (acc, key) => {
-        acc[key] = deps[key];
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
+  return Object.fromEntries(
+    Object.keys(deps)
+      .sort()
+      .map((dep) => [dep, deps[dep]]),
+  );
 }
 
-// Read workspace YAML to get catalog dependencies and package paths
-const workspaceContent = fs.readFileSync(workspaceFile, 'utf8');
-const workspaceLines = workspaceContent.split('\n');
-let inCatalogs = false;
-let inPackages = false;
-let currentCatalogName: string | null = null;
-// Map: catalog name (e.g. "default") -> Set of dep names declared in that catalog.
-// Used so the switch loop can detect deps that exist in `default` but not in the
-// target catalog and fall back to `catalog:default` rather than write a broken
-// `catalog:<missing>` ref.
-const CATALOGS = new Map<string, Set<string>>();
-const WORKSPACE_PACKAGES = new Set<string>();
+// A dep the target catalog lacks stays on `catalog:default`: `catalog:<target>` wouldn't resolve.
+export function catalogRef(dep: string, target: CatalogName, catalogs: Catalogs): string {
+  return catalogs[target]?.[dep] ? `catalog:${target}` : 'catalog:default';
+}
 
-for (const line of workspaceLines) {
-  const trimmedLine = line.trim();
+export function switchDependencies(
+  packageJson: PackageJson,
+  target: CatalogName,
+  catalogs: Catalogs,
+  { wdioOnly = false } = {},
+): boolean {
+  const catalogDeps = Object.keys(catalogs.default ?? {})
+    .filter((dep) => !wdioOnly || isWdioPackage(dep))
+    .sort();
+  let changed = false;
 
-  if (trimmedLine === 'packages:') {
-    inPackages = true;
-    inCatalogs = false;
-    continue;
-  }
-
-  if (trimmedLine === 'catalogs:') {
-    inCatalogs = true;
-    inPackages = false;
-    continue;
-  }
-
-  if (inPackages && line.startsWith('  - ')) {
-    const packagePath = line
-      .trim()
-      .replace(/^-\s*/, '')
-      .replace(/^['"]|['"]$/g, '');
-    WORKSPACE_PACKAGES.add(packagePath);
-    continue;
-  }
-
-  // A catalog header line: 2-space indent, no further indent, ends with ":".
-  // e.g. "  default:", "  minimum:", "  next:".
-  if (inCatalogs && line.startsWith('  ') && !line.startsWith('    ')) {
-    const headerMatch = trimmedLine.match(/^([^:]+):$/);
-    if (headerMatch) {
-      currentCatalogName = headerMatch[1];
-      CATALOGS.set(currentCatalogName, new Set());
+  for (const field of ['devDependencies', 'dependencies'] as const) {
+    const deps = packageJson[field];
+    if (!deps) {
+      continue;
     }
-    continue;
-  }
 
-  if (inCatalogs && currentCatalogName && line.startsWith('    ')) {
-    const [packagePart] = line.split(':').map((part) => part.trim());
-    if (packagePart && !packagePart.startsWith('#')) {
-      const cleanPackageName = packagePart.replace(/^['"]|['"]$/g, '');
-      CATALOGS.get(currentCatalogName)?.add(cleanPackageName);
+    for (const dep of catalogDeps) {
+      if (!deps[dep]) {
+        continue;
+      }
+      if (target === 'next' && dep === 'electron') {
+        delete deps[dep];
+        deps['electron-nightly'] = 'catalog:next';
+      } else {
+        deps[dep] = catalogRef(dep, target, catalogs);
+      }
+      changed = true;
+    }
+
+    if (target !== 'next' && !wdioOnly && deps['electron-nightly']) {
+      delete deps['electron-nightly'];
+      deps.electron = catalogRef('electron', target, catalogs);
+      changed = true;
     }
   }
-}
 
-const CATALOG_DEPENDENCIES = CATALOGS.get('default') ?? new Set<string>();
-
-// Only handles "dir/*" trailing-glob; the workspace doesn't use anything fancier.
-function expandWorkspacePath(entry: string): string[] {
-  if (!entry.endsWith('/*')) {
-    return [entry];
+  if (changed) {
+    packageJson.dependencies = sortDependencies(packageJson.dependencies);
+    packageJson.devDependencies = sortDependencies(packageJson.devDependencies);
   }
-  const parent = entry.slice(0, -2);
-  const parentAbs = path.join(rootDir, parent);
-  if (!fs.existsSync(parentAbs)) {
-    return [];
+  return changed;
+}
+
+// The package tests install a fixture in isolation, where `catalog:` doesn't resolve, so they take the catalog's
+// version specs for its WebdriverIO packages rather than `catalog:` refs. Returns the packages it changed.
+export function pinWdioToCatalog(packageJson: PackageJson, catalog: Record<string, string>): string[] {
+  const pinned: string[] = [];
+  for (const field of ['dependencies', 'devDependencies'] as const) {
+    const deps = packageJson[field];
+    for (const dep of Object.keys(deps ?? {})) {
+      if (deps && isWdioPackage(dep) && catalog[dep] && !deps[dep].startsWith('workspace:')) {
+        deps[dep] = catalog[dep];
+        pinned.push(dep);
+      }
+    }
   }
-  return fs
-    .readdirSync(parentAbs, { withFileTypes: true })
-    .filter((dirent) => dirent.isDirectory())
-    .map((dirent) => `${parent}/${dirent.name}`);
+  return pinned;
 }
 
-const EXPANDED_PACKAGES = new Set<string>();
-for (const entry of WORKSPACE_PACKAGES) {
-  for (const expanded of expandWorkspacePath(entry)) {
-    EXPANDED_PACKAGES.add(expanded);
+export function specMajor(spec: string): number | undefined {
+  const major = /\d+/.exec(spec)?.[0];
+  return major === undefined ? undefined : Number(major);
+}
+
+interface DependencyTree {
+  version?: string;
+  dependencies?: Record<string, DependencyTree>;
+  devDependencies?: Record<string, DependencyTree>;
+  optionalDependencies?: Record<string, DependencyTree>;
+}
+
+// The versions of a package in `pnpm ls <name> --depth Infinity --json`'s output, which works with any node linker.
+export function versionsInTree(projects: DependencyTree[], name: string): string[] {
+  const versions = new Set<string>();
+  const visit = (node: DependencyTree) => {
+    for (const deps of [node.dependencies, node.devDependencies, node.optionalDependencies]) {
+      for (const [dep, child] of Object.entries(deps ?? {})) {
+        if (dep === name && child.version) {
+          versions.add(child.version);
+        }
+        visit(child);
+      }
+    }
+  };
+  projects.forEach(visit);
+  return [...versions];
+}
+
+// Expands only trailing `dir/*` globs, the only kind pnpm-workspace.yaml uses.
+export function listWorkspacePackages(rootDir: string): string[] {
+  const workspace = yaml.parse(fs.readFileSync(path.join(rootDir, 'pnpm-workspace.yaml'), 'utf8')) as {
+    packages?: string[];
+  };
+  const packages = new Set<string>();
+
+  for (const entry of workspace.packages ?? []) {
+    if (!entry.endsWith('/*')) {
+      packages.add(entry);
+      continue;
+    }
+    const parent = entry.slice(0, -2);
+    const parentAbs = path.join(rootDir, parent);
+    if (!fs.existsSync(parentAbs)) {
+      continue;
+    }
+    for (const dirent of fs.readdirSync(parentAbs, { withFileTypes: true })) {
+      if (dirent.isDirectory()) {
+        packages.add(`${parent}/${dirent.name}`);
+      }
+    }
   }
+
+  return [...packages].sort();
 }
 
-// Convert Sets to arrays and sort for consistent ordering
-const args = process.argv.slice(2);
-const wdioOnly = args.includes('--wdio-only');
-const isWdioPackage = (dep: string) => dep === 'webdriverio' || dep.startsWith('@wdio/');
+export function switchCatalog(rootDir: string, target: CatalogName, { wdioOnly = false } = {}): string[] {
+  const catalogs = readCatalogs(rootDir);
+  const updated: string[] = [];
 
-const CATALOG_DEPENDENCIES_ARRAY = Array.from(CATALOG_DEPENDENCIES)
-  .filter((dep) => !wdioOnly || isWdioPackage(dep))
-  .sort();
-const WORKSPACE_PACKAGES_ARRAY = Array.from(EXPANDED_PACKAGES).sort();
-
-// Handle CLI arguments
-const catalogName = args.find((arg) => !arg.startsWith('--'))?.toLowerCase() as CatalogName | undefined;
-
-if (!catalogName || !VALID_CATALOGS.includes(catalogName)) {
-  console.error(`Error: Please specify a valid catalog: ${VALID_CATALOGS.join(', ')}`);
-  process.exit(1);
-}
-
-// Resolve the catalog ref a dep should use under the target catalog. If the
-// target catalog contains the dep, use it directly. Otherwise fall back to
-// `catalog:default` so deps that exist only in default don't produce a broken
-// `catalog:<missing>` ref.
-function resolveCatalogRef(dep: string, target: CatalogName): string {
-  const targetDeps = CATALOGS.get(target);
-  if (targetDeps?.has(dep)) {
-    return `catalog:${target}`;
-  }
-  return 'catalog:default';
-}
-
-try {
-  console.log(`Switching ${wdioOnly ? 'WebdriverIO packages' : 'all packages'} to the '${catalogName}' catalog...\n`);
-
-  // Process each package's package.json
-  for (const packagePath of WORKSPACE_PACKAGES_ARRAY) {
-    // Skip fixture packages - they should use specific versions, not catalog references
-    // this is to ensure they work reliably in isolated test environments without needing access to the catalog system
+  for (const packagePath of listWorkspacePackages(rootDir)) {
+    // Fixtures are also installed in isolation, where `catalog:` doesn't resolve, so they keep explicit versions.
     if (packagePath.startsWith('fixtures/')) {
       console.log(`- Skipping ${packagePath} (fixture package)`);
       continue;
     }
 
     const packageJsonPath = path.join(rootDir, packagePath, 'package.json');
-
     if (!fs.existsSync(packageJsonPath)) {
-      const isRustOnlyPackage = fs.existsSync(path.join(rootDir, packagePath, 'Cargo.toml'));
-      if (!isRustOnlyPackage) {
+      if (!fs.existsSync(path.join(rootDir, packagePath, 'Cargo.toml'))) {
         console.warn(`Warning: No package.json found in ${packagePath}`);
       }
       continue;
     }
 
-    // Read and parse the package.json
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
-      devDependencies?: Record<string, string>;
-      dependencies?: Record<string, string>;
-    };
-    let changed = false;
-
-    // Handle specific catalog transitions for both devDependencies and dependencies
-    for (const dep of CATALOG_DEPENDENCIES_ARRAY) {
-      // Check devDependencies
-      if (packageJson.devDependencies?.[dep]) {
-        // Special handling for next catalog - use electron-nightly instead of electron
-        if (catalogName === 'next' && dep === 'electron') {
-          // Remove electron and add electron-nightly instead
-          delete packageJson.devDependencies[dep];
-          packageJson.devDependencies['electron-nightly'] = `catalog:${catalogName}`;
-          console.log(`  Replaced electron with electron-nightly in ${packagePath}`);
-        } else {
-          packageJson.devDependencies[dep] = resolveCatalogRef(dep, catalogName);
-        }
-        changed = true;
-      }
-
-      // Check dependencies
-      if (packageJson.dependencies?.[dep]) {
-        // Special handling for next catalog - use electron-nightly instead of electron
-        if (catalogName === 'next' && dep === 'electron') {
-          // Remove electron and add electron-nightly instead
-          delete packageJson.dependencies[dep];
-          packageJson.dependencies['electron-nightly'] = `catalog:${catalogName}`;
-          console.log(`  Replaced electron with electron-nightly in ${packagePath}`);
-        } else {
-          packageJson.dependencies[dep] = resolveCatalogRef(dep, catalogName);
-        }
-        changed = true;
-      }
-    }
-
-    // Handle switching from next catalog to other catalogs
-    if (catalogName !== 'next' && !wdioOnly) {
-      // Check devDependencies
-      if (packageJson.devDependencies?.['electron-nightly']) {
-        // When switching from next to any other catalog, remove electron-nightly and add electron
-        delete packageJson.devDependencies['electron-nightly'];
-        packageJson.devDependencies.electron = `catalog:${catalogName}`;
-        console.log(`  Replaced electron-nightly with electron in ${packagePath}`);
-        changed = true;
-      }
-
-      // Check dependencies
-      if (packageJson.dependencies?.['electron-nightly']) {
-        // When switching from next to any other catalog, remove electron-nightly and add electron
-        delete packageJson.dependencies['electron-nightly'];
-        packageJson.dependencies.electron = `catalog:${catalogName}`;
-        console.log(`  Replaced electron-nightly with electron in ${packagePath}`);
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      // Sort dependencies alphabetically
-      packageJson.dependencies = sortDependencies(packageJson.dependencies);
-      packageJson.devDependencies = sortDependencies(packageJson.devDependencies);
-
-      // Write the updated package.json
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as PackageJson;
+    if (switchDependencies(packageJson, target, catalogs, { wdioOnly })) {
       fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8');
-      console.log(`✓ Updated ${packagePath} to use catalog:${catalogName}`);
+      updated.push(packagePath);
+      console.log(`✓ Updated ${packagePath} to use catalog:${target}`);
     } else {
       console.log(`- No changes needed for ${packagePath}`);
     }
   }
 
-  console.log('\nRunning pnpm install to apply the changes...');
-  try {
-    execSync('pnpm install --no-frozen-lockfile', { stdio: 'inherit' });
-    console.log('\n✓ Successfully switched catalog and installed dependencies');
-  } catch (error) {
-    console.error('\nError running pnpm install:', error);
+  return updated;
+}
+
+function main(): void {
+  const args = process.argv.slice(2);
+  const wdioOnly = args.includes('--wdio-only');
+  const target = args.find((arg) => !arg.startsWith('--'))?.toLowerCase() as CatalogName | undefined;
+
+  if (!target || !VALID_CATALOGS.includes(target)) {
+    console.error(`Error: Please specify a valid catalog: ${VALID_CATALOGS.join(', ')}`);
     process.exit(1);
   }
-} catch (error) {
-  console.error('Error:', error);
-  process.exit(1);
+
+  const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+  try {
+    console.log(`Switching ${wdioOnly ? 'WebdriverIO packages' : 'all packages'} to the '${target}' catalog...\n`);
+    switchCatalog(rootDir, target, { wdioOnly });
+
+    console.log('\nRunning pnpm install to apply the changes...');
+    execSync('pnpm install --no-frozen-lockfile', { cwd: rootDir, stdio: 'inherit' });
+    console.log('\n✓ Successfully switched catalog and installed dependencies');
+  } catch (error) {
+    console.error('Error:', error);
+    process.exit(1);
+  }
+}
+
+if (import.meta.main) {
+  main();
 }

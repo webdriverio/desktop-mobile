@@ -3,9 +3,11 @@
  * Packs the services and tests them with the apps in fixtures/package-tests, each installed in isolation.
  *
  * Usage: node scripts/test-package.ts [--package=<fixture>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>]
- *   [--skip-build] [--service=<electron|tauri|dioxus|electrobun|react-native|flutter|all>]
+ *   [--skip-build] [--service=<electron|tauri|dioxus|electrobun|react-native|flutter|all>] [--wdio-catalog=<catalog>]
  *
  * `--service=all`, the default, covers electron, tauri and dioxus.
+ * `--wdio-catalog=minimum` installs the fixture's webdriverio and @wdio/* packages from that catalog, such as the
+ * previous WebdriverIO major, instead of their pinned versions.
  */
 
 import { execSync, spawn } from 'node:child_process';
@@ -15,6 +17,8 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { readCatalogs } from './strip-fixture-catalogs.ts';
+import { pinWdioToCatalog, specMajor, versionsInTree } from './switch-catalog.ts';
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
@@ -73,6 +77,12 @@ interface TestOptions {
   moduleType?: 'cjs' | 'esm' | 'both';
   // 'browser' serves the fixture's browser/ directory and runs its wdio.browser.conf.ts instead of launching the app.
   mode?: 'native' | 'browser';
+  wdioCatalog?: WdioCatalog;
+}
+
+interface WdioCatalog {
+  name: string;
+  versions: Record<string, string>;
 }
 
 function log(message: string) {
@@ -455,6 +465,7 @@ async function testExample(
   service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter',
   skipBuild: boolean,
   mode: 'native' | 'browser' = 'native',
+  wdioCatalog?: WdioCatalog,
 ) {
   const packageName = packagePath.split(/[/\\]/).pop();
   if (!packageName) {
@@ -492,6 +503,12 @@ async function testExample(
     }
 
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    if (wdioCatalog) {
+      const pinned = pinWdioToCatalog(packageJson, wdioCatalog.versions);
+      log(
+        `  Installing from the '${wdioCatalog.name}' catalog: ${pinned.map((dep) => `${dep}@${wdioCatalog.versions[dep]}`).join(', ')}`,
+      );
+    }
 
     // The fixture's file: overrides are relative to the monorepo and can't resolve from the temp dir.
     const sourceOverrides: Record<string, string> = fixtureConfig.overrides ?? {};
@@ -627,6 +644,18 @@ async function testExample(
     );
 
     execCommand('pnpm install', packageDir, `Installing dependencies for ${packageName}`);
+
+    if (wdioCatalog) {
+      const major = specMajor(wdioCatalog.versions.webdriverio);
+      const tree = execSync('pnpm ls webdriverio --depth Infinity --json', { cwd: packageDir, encoding: 'utf-8' });
+      const versions = versionsInTree(JSON.parse(tree), 'webdriverio');
+      if (versions.length === 0 || versions.some((version) => specMajor(version) !== major)) {
+        throw new Error(
+          `Expected only webdriverio ${major}.x in ${packageName}, from the '${wdioCatalog.name}' catalog, but found ${versions.join(', ') || 'none'}`,
+        );
+      }
+      log(`  webdriverio in the sandbox: ${versions.join(', ')}`);
+    }
 
     mkdirSync(logsDir, { recursive: true });
     log(`✅ Created logs directory: ${logsDir}`);
@@ -1030,12 +1059,25 @@ async function main() {
       }
     }
 
+    const wdioCatalogName = args.find((arg) => arg.startsWith('--wdio-catalog='))?.split('=')[1];
+    let wdioCatalog: WdioCatalog | undefined;
+    if (wdioCatalogName) {
+      const versions = readCatalogs(rootDir)[wdioCatalogName];
+      if (!versions?.webdriverio) {
+        throw new Error(
+          `Invalid wdio-catalog value: ${wdioCatalogName}. It must name a catalog that lists webdriverio`,
+        );
+      }
+      wdioCatalog = { name: wdioCatalogName, versions };
+    }
+
     const options: TestOptions = {
       package: args.find((arg) => arg.startsWith('--package='))?.split('=')[1],
       skipBuild: args.includes('--skip-build'),
       service,
       moduleType,
       mode,
+      wdioCatalog,
     };
 
     let packages: {
@@ -1258,7 +1300,14 @@ async function main() {
         log(`Testing ${packageName} (${moduleType})`);
       }
 
-      await testExample(packagePath, packages, detectedService, options.skipBuild ?? false, options.mode);
+      await testExample(
+        packagePath,
+        packages,
+        detectedService,
+        options.skipBuild ?? false,
+        options.mode,
+        options.wdioCatalog,
+      );
     }
 
     log(`🎉 All package tests completed successfully!`);

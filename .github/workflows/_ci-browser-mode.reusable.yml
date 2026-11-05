@@ -32,6 +32,10 @@ on:
         description: "Cache key to use for downloading artifacts"
         type: string
         required: false
+      wdio-catalog:
+        description: "Run only the package tests, with the fixtures' webdriverio and @wdio/* from this catalog (e.g. minimum)"
+        type: string
+        default: ""
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -76,6 +80,10 @@ jobs:
           cache_key_prefix: wdio-desktop-build
           exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
+      - name: 🖥️ Start Xvfb
+        if: inputs.wdio-catalog != ''
+        uses: ./.github/workflows/actions/start-xvfb
+
       - name: 📊 Show Build Information
         if: inputs.build_id != '' && inputs.artifact_size != ''
         shell: bash
@@ -89,34 +97,40 @@ jobs:
       # (electron-browser :5174, tauri-browser :1421, dioxus-browser :8088); test-package.ts
       # self-hosts the package fixtures' dev server (:5173).
       - name: 🧪 Electron browser-mode E2E
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && inputs.wdio-catalog == '' }}
         shell: bash
         run: pnpm e2e:electron-browser
 
       - name: 🧪 Tauri browser-mode E2E
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && inputs.wdio-catalog == '' }}
         shell: bash
         run: pnpm e2e:tauri-browser
 
       - name: 🧪 Dioxus browser-mode E2E
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && inputs.wdio-catalog == '' }}
         shell: bash
         run: pnpm e2e:dioxus-browser
 
       - name: 🧪 Electron browser-mode package test (ESM + CJS)
         if: ${{ !cancelled() }}
         shell: bash
-        run: pnpm run test:package:electron:browser
+        env:
+          WDIO_CATALOG: ${{ inputs.wdio-catalog }}
+        run: pnpm run test:package:electron:browser ${WDIO_CATALOG:+-- "--wdio-catalog=$WDIO_CATALOG"}
 
       - name: 🧪 Tauri browser-mode package test
         if: ${{ !cancelled() }}
         shell: bash
-        run: pnpm run test:package:tauri:browser
+        env:
+          WDIO_CATALOG: ${{ inputs.wdio-catalog }}
+        run: pnpm run test:package:tauri:browser ${WDIO_CATALOG:+-- "--wdio-catalog=$WDIO_CATALOG"}
 
       - name: 🧪 Dioxus browser-mode package test
         if: ${{ !cancelled() }}
         shell: bash
-        run: pnpm run test:package:dioxus:browser
+        env:
+          WDIO_CATALOG: ${{ inputs.wdio-catalog }}
+        run: pnpm run test:package:dioxus:browser ${WDIO_CATALOG:+-- "--wdio-catalog=$WDIO_CATALOG"}
 
       - name: 🐛 Show E2E Logs on Failure
         if: failure()
