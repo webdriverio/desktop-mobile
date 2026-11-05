@@ -23,6 +23,7 @@ interface BinaryOptions {
   config: ForgeBuildInfo['config'] | BuilderBuildInfo['config'];
   electronVersion?: string;
   projectDir: string;
+  hostArch?: string;
 }
 
 function sanitizeAppNameForPath(appName: string, platform: SupportedPlatform): string {
@@ -54,22 +55,35 @@ function getForgeDistDir(
   );
 }
 
-function getBuilderDistDir(config: BuilderBuildInfo['config'], platform: SupportedPlatform): string[] {
+// Fallback order per platform, for when the host arch isn't known or has no build. Windows keeps x64
+// first so a tree that also has win-unpacked resolves to it, as it did before other archs were searched.
+const BUILDER_ARCH_ORDER: Record<SupportedPlatform, BuilderArch[]> = {
+  darwin: ['universal', 'arm64', 'x64', 'armv7l', 'ia32'],
+  linux: ['x64', 'arm64', 'ia32', 'armv7l'],
+  win32: ['x64', 'arm64', 'ia32'],
+};
+
+// process.arch spells 32-bit ARM `arm`; electron-builder spells it `armv7l`.
+function toBuilderArch(hostArch?: string): BuilderArch | undefined {
+  const arch = hostArch === 'arm' ? 'armv7l' : hostArch;
+  return arch === 'x64' || arch === 'arm64' || arch === 'ia32' || arch === 'armv7l' ? arch : undefined;
+}
+
+function getBuilderDistDir(
+  config: BuilderBuildInfo['config'],
+  platform: SupportedPlatform,
+  hostArch?: string,
+): string[] {
   const builderOutDirName = config?.directories?.output || 'dist';
   const builderOutDirMap = (arch: BuilderArch) => ({
     darwin: path.join(builderOutDirName, arch === 'x64' ? 'mac' : `mac-${arch}`),
     linux: path.join(builderOutDirName, arch === 'x64' ? 'linux-unpacked' : `linux-${arch}-unpacked`),
     win32: path.join(builderOutDirName, arch === 'x64' ? 'win-unpacked' : `win-${arch}-unpacked`),
   });
-  // output dir depends on the arch used
-  let archs: BuilderArch[];
-  if (platform === 'darwin') {
-    archs = ['arm64', 'armv7l', 'ia32', 'universal', 'x64'];
-  } else if (platform === 'linux') {
-    archs = ['arm64', 'armv7l', 'ia32', 'x64'];
-  } else {
-    archs = ['x64', 'arm64', 'ia32'];
-  }
+  // The first folder holding the app wins, so look for the host's own arch before the rest
+  const host = toBuilderArch(hostArch);
+  const fallback = BUILDER_ARCH_ORDER[platform];
+  const archs = host ? [host, ...fallback.filter((arch) => arch !== host)] : fallback;
   return archs.map((arch) => builderOutDirMap(arch)[platform]);
 }
 
@@ -124,12 +138,12 @@ function getBinaryName(options: BinaryOptions): string {
 }
 
 function getOutDir(options: BinaryOptions): string[] {
-  const { buildTool, config, appName, platform, electronVersion, projectDir } = options;
+  const { buildTool, config, appName, platform, electronVersion, projectDir, hostArch } = options;
 
   const outDirs =
     buildTool === SUPPORTED_BUILD_TOOL.forge
       ? getForgeDistDir(config as ForgeBuildInfo['config'], appName, platform, electronVersion)
-      : getBuilderDistDir(config as BuilderBuildInfo['config'], platform);
+      : getBuilderDistDir(config as BuilderBuildInfo['config'], platform, hostArch);
 
   return outDirs.map((dir) => path.join(projectDir, dir));
 }
@@ -186,6 +200,7 @@ export function generateBinaryPaths(
       config: appBuildInfo.config,
       electronVersion,
       projectDir: path.dirname(packageJsonPath),
+      hostArch: p.arch,
     };
 
     try {

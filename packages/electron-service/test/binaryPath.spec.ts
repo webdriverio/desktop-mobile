@@ -383,17 +383,36 @@ describe('getBinaryPath', () => {
       configObj: { productName: 'my-app' },
     });
 
-    it('should prefer win-unpacked when a Windows build also has an ARM64 output', async () => {
-      mockBinaryPath(['/path/to/dist/win-arm64-unpacked/my-app.exe', '/path/to/dist/win-unpacked/my-app.exe']);
+    // The first folder holding the app wins: the host's own arch, then a fixed order per platform.
+    const mac = (dir: string) => `/path/to/dist/${dir}/my-app.app/Contents/MacOS/my-app`;
+    it.each([
+      // Windows: x64 stays first when the host arch is unknown, as before other archs were searched.
+      ['win32', undefined, ['win-arm64-unpacked', 'win-unpacked'], 'win-unpacked'],
+      ['win32', 'x64', ['win-arm64-unpacked', 'win-unpacked'], 'win-unpacked'],
+      ['win32', 'arm64', ['win-unpacked', 'win-arm64-unpacked'], 'win-arm64-unpacked'],
+      ['win32', 'ia32', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
+      ['linux', undefined, ['linux-arm64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
+      ['linux', 'arm64', ['linux-unpacked', 'linux-arm64-unpacked'], 'linux-arm64-unpacked'],
+      ['linux', 'arm', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
+      ['linux', 'ppc64', ['linux-arm64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
+      ['darwin', 'x64', ['mac-arm64', 'mac'], 'mac'],
+      ['darwin', 'arm64', ['mac', 'mac-arm64'], 'mac-arm64'],
+      ['darwin', 'arm64', ['mac-universal', 'mac-arm64'], 'mac-arm64'],
+      ['darwin', 'x64', ['mac-arm64', 'mac-universal'], 'mac-universal'],
+      ['darwin', undefined, ['mac', 'mac-arm64', 'mac-universal'], 'mac-universal'],
+    ])('should resolve %s on a %s host with %j to %s', async (platform, arch, dirs, expected) => {
+      const file = (dir: string) =>
+        platform === 'darwin' ? mac(dir) : `/path/to/dist/${dir}/my-app${platform === 'win32' ? '.exe' : ''}`;
+      mockBinaryPath(dirs.map(file));
 
       const result = await getBinaryPath(
         pkgJSONPath,
         { appName: 'my-app', isForge: false, isBuilder: true, config: { productName: 'my-app' } } as AppBuildInfo,
         '29.3.1',
-        { platform: 'win32' } as NodeJS.Process,
+        { platform, arch } as NodeJS.Process,
       );
 
-      expect(result.ok && result.value.binaryPath.replace(/\\/g, '/')).toBe('/path/to/dist/win-unpacked/my-app.exe');
+      expect(result.ok && result.value.binaryPath.replace(/\\/g, '/')).toBe(file(expected));
     });
   });
 });
