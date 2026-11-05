@@ -58,7 +58,7 @@ function getForgeDistDir(
 // Fallback order per platform, for when the host arch isn't known or has no build. Windows keeps x64
 // first so a tree that also has win-unpacked resolves to it, as it did before other archs were searched.
 const BUILDER_ARCH_ORDER: Record<SupportedPlatform, BuilderArch[]> = {
-  darwin: ['universal', 'arm64', 'x64', 'armv7l', 'ia32'],
+  darwin: ['universal', 'arm64', 'x64'],
   linux: ['x64', 'arm64', 'ia32', 'armv7l'],
   win32: ['x64', 'arm64', 'ia32'],
 };
@@ -73,6 +73,7 @@ function getBuilderDistDir(
   config: BuilderBuildInfo['config'],
   platform: SupportedPlatform,
   hostArch?: string,
+  electronVersion?: string,
 ): string[] {
   const builderOutDirName = config?.directories?.output || 'dist';
   const builderOutDirMap = (arch: BuilderArch) => ({
@@ -83,7 +84,14 @@ function getBuilderDistDir(
   // The first folder holding the app wins, so look for the host's own arch before the rest
   const host = toBuilderArch(hostArch);
   const fallback = BUILDER_ARCH_ORDER[platform];
-  const archs = host ? [host, ...fallback.filter((arch) => arch !== host)] : fallback;
+  const ordered = host ? [host, ...fallback.filter((arch) => arch !== host)] : fallback;
+  // Without a usable version the packager would rule out every arch Electron has dropped or added,
+  // including ones the project may still build for, so only filter on a real version.
+  const published =
+    electronVersion && /^v?\d+\.\d+\.\d+/.test(electronVersion)
+      ? allOfficialArchsForPlatformAndVersion(platform, electronVersion)
+      : undefined;
+  const archs = published ? ordered.filter((arch) => (published as string[]).includes(arch)) : ordered;
   return archs.map((arch) => builderOutDirMap(arch)[platform]);
 }
 
@@ -143,7 +151,7 @@ function getOutDir(options: BinaryOptions): string[] {
   const outDirs =
     buildTool === SUPPORTED_BUILD_TOOL.forge
       ? getForgeDistDir(config as ForgeBuildInfo['config'], appName, platform, electronVersion)
-      : getBuilderDistDir(config as BuilderBuildInfo['config'], platform, hostArch);
+      : getBuilderDistDir(config as BuilderBuildInfo['config'], platform, hostArch, electronVersion);
 
   return outDirs.map((dir) => path.join(projectDir, dir));
 }

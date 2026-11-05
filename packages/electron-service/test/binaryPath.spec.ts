@@ -294,20 +294,6 @@ describe('getBinaryPath', () => {
 
     testBuilderBinaryPath({
       platform: 'darwin',
-      arch: 'armv7l',
-      binaryPath: '/path/to/dist/mac-armv7l/my-app.app/Contents/MacOS/my-app',
-      configObj: { productName: 'my-app' },
-    });
-
-    testBuilderBinaryPath({
-      platform: 'darwin',
-      arch: 'ia32',
-      binaryPath: '/path/to/dist/mac-ia32/my-app.app/Contents/MacOS/my-app',
-      configObj: { productName: 'my-app' },
-    });
-
-    testBuilderBinaryPath({
-      platform: 'darwin',
       arch: 'universal',
       binaryPath: '/path/to/dist-electron/mac-universal/my-app.app/Contents/MacOS/my-app',
       configObj: {
@@ -414,5 +400,33 @@ describe('getBinaryPath', () => {
 
       expect(result.ok && result.value.binaryPath.replace(/\\/g, '/')).toBe(file(expected));
     });
+
+    // Archs Electron no longer publishes for the project's version aren't searched; an unusable version searches all.
+    it.each([
+      ['win32', 'ia32', '29.3.1', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
+      ['win32', 'ia32', '45.2.2', ['win-unpacked', 'win-ia32-unpacked'], 'win-unpacked'],
+      ['win32', 'ia32', '44.0.0-alpha.3', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
+      ['win32', 'ia32', '44.0.0-alpha.4', ['win-unpacked', 'win-ia32-unpacked'], 'win-unpacked'],
+      ['win32', 'ia32', undefined, ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
+      ['win32', 'ia32', 'latest', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
+      ['linux', 'arm', '29.3.1', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
+      ['linux', 'arm', '45.2.2', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-unpacked'],
+      ['linux', 'ia32', '29.3.1', ['linux-unpacked', 'linux-ia32-unpacked'], 'linux-unpacked'],
+    ])(
+      'should resolve %s on a %s host with Electron %s and %j to %s',
+      async (platform, arch, electronVersion, dirs, expected) => {
+        const file = (dir: string) => `/path/to/dist/${dir}/my-app${platform === 'win32' ? '.exe' : ''}`;
+        mockBinaryPath(dirs.map(file));
+
+        const result = await getBinaryPath(
+          pkgJSONPath,
+          { appName: 'my-app', isForge: false, isBuilder: true, config: { productName: 'my-app' } } as AppBuildInfo,
+          electronVersion,
+          { platform, arch } as NodeJS.Process,
+        );
+
+        expect(result.ok && result.value.binaryPath.replace(/\\/g, '/')).toBe(file(expected));
+      },
+    );
   });
 });

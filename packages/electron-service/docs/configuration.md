@@ -444,13 +444,13 @@ If you want to manually set this value, you can specify the [`appBinaryPath`](#a
 
 If your output directory holds Electron Builder apps for more than one architecture, the service uses the first one that exists and is executable. It checks the architecture of the machine running the tests first, then the others in this order:
 
-| Platform | Order after the host architecture             |
-| -------- | --------------------------------------------- |
-| Windows  | `x64`, `arm64`, `ia32`                        |
-| Linux    | `x64`, `arm64`, `ia32`, `armv7l`              |
-| macOS    | `universal`, `arm64`, `x64`, `armv7l`, `ia32` |
+| Platform | Order after the host architecture |
+| -------- | --------------------------------- |
+| Windows  | `x64`, `arm64`, `ia32`            |
+| Linux    | `x64`, `arm64`, `ia32`, `armv7l`  |
+| macOS    | `universal`, `arm64`, `x64`       |
 
-For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`. The same order applies when the machine's architecture isn't one Electron Builder builds for. To use a different build, set [`appBinaryPath`](#appbinarypath).
+For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`. The same order applies when the machine's architecture isn't one Electron publishes for. Architectures Electron no longer publishes for your Electron version are skipped: `ia32` on Windows and `armv7l` on Linux from Electron 44, and `ia32` on Linux from Electron 19. To use a different build, set [`appBinaryPath`](#appbinarypath).
 
 ### Build tool compatibility
 
