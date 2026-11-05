@@ -29,7 +29,7 @@ interface WorkspaceConfig {
   };
 }
 
-// pnpm's default `minimumReleaseAge`: pnpm won't install a version published more recently than this.
+// pnpm's built-in `minimumReleaseAge`, in minutes, for a workspace that doesn't set one.
 const DEFAULT_MINIMUM_RELEASE_AGE_MINUTES = 1440;
 
 // Check if dry run mode is enabled
@@ -105,7 +105,7 @@ function splitVersion(version: string): { core: number[]; prerelease?: string } 
   return dash === -1 ? { core } : { core, prerelease: withoutBuild.slice(dash + 1) };
 }
 
-/** Compares two versions by semver precedence, prereleases included. */
+// Compares two versions by semver precedence, prereleases included.
 export function compareVersions(a: string, b: string): number {
   const left = splitVersion(a);
   const right = splitVersion(b);
@@ -145,22 +145,26 @@ interface Packument {
 }
 
 // WebdriverIO's `next` tag stays on its last prerelease after a stable release, so the upcoming release is the newer
-// of `next` and `latest`. A version younger than pnpm's `minimumReleaseAge` is skipped, as pnpm won't install it.
+// of `next` and `latest`. A version younger than pnpm's `minimumReleaseAge` is skipped, as pnpm would install it only
+// by adding it to `minimumReleaseAgeExclude`. Neither replaces a newer current pin.
 export function pickNextCatalogVersion(
   packument: Packument,
+  current: string,
   now: number,
   minimumReleaseAgeMinutes: number,
-): string | undefined {
+): string {
   const tags = packument['dist-tags'] ?? {};
   const newestAllowed = now - minimumReleaseAgeMinutes * 60_000;
-  return [tags.next, tags.latest]
+  const candidates = [tags.next, tags.latest]
     .filter((version): version is string => typeof version === 'string')
-    .filter((version) => Date.parse(packument.time?.[version] ?? '') <= newestAllowed)
-    .sort(compareVersions)
-    .at(-1);
+    .filter((version) => Date.parse(packument.time?.[version] ?? '') <= newestAllowed);
+  if (!isNonSemverTag(current)) {
+    candidates.push(current);
+  }
+  return candidates.sort(compareVersions).at(-1) ?? current;
 }
 
-/** Sets catalog versions in pnpm-workspace.yaml's content, leaving the rest of the file as it is. */
+// Sets catalog versions in pnpm-workspace.yaml's content, leaving the rest of the file as it is.
 export function setCatalogVersions(content: string, catalog: string, versions: Record<string, string>): string {
   const document = yaml.parseDocument(content);
   for (const [name, version] of Object.entries(versions)) {
@@ -185,14 +189,14 @@ async function getLatestVersions(
     try {
       if (catalog === 'next' && isWdioPackage(name)) {
         const { stdout } = await execAsync(`pnpm view ${name} dist-tags time --json`);
-        const target =
-          pickNextCatalogVersion(JSON.parse(stdout), Date.now(), minimumReleaseAgeMinutes) ?? currentVersion;
+        const current = currentVersion.replace(/^[\^~]/, '');
+        const target = pickNextCatalogVersion(JSON.parse(stdout), current, Date.now(), minimumReleaseAgeMinutes);
         packageInfos.push({
           name,
-          currentVersion,
+          currentVersion: current,
           latestVersion: target,
-          isUpToDate: currentVersion === target,
-          updateType: isNonSemverTag(currentVersion) ? 'unknown' : getUpdateType(currentVersion, target),
+          isUpToDate: current === target,
+          updateType: getUpdateType(current, target),
         });
         continue;
       }
@@ -211,7 +215,7 @@ async function getLatestVersions(
       }
 
       // Clean the version to remove prefixes like ^, ~, etc.
-      const cleanVersion = currentVersion.replace(/^\^|~/, '');
+      const cleanVersion = currentVersion.replace(/^[\^~]/, '');
 
       // Use pnpm view to get the latest version
       const { stdout } = await execAsync(`pnpm view ${name} version`);
@@ -232,7 +236,7 @@ async function getLatestVersions(
 
       packageInfos.push({
         name,
-        currentVersion: currentVersion.replace(/^\^|~/, ''),
+        currentVersion: currentVersion.replace(/^[\^~]/, ''),
         latestVersion: 'unknown',
         isUpToDate: true, // Mark as up-to-date to exclude from selection
         updateType: 'unknown',
@@ -304,10 +308,6 @@ async function updateWorkspaceYaml(
   for (const packageName of packagesToUpdate) {
     const pkg = packageInfos.find((p) => p.name === packageName);
     if (!pkg) {
-      continue;
-    }
-    if (pkg.latestVersion === 'unknown' || isNonSemverTag(pkg.latestVersion)) {
-      console.log(chalk.dim(`  Skipping ${packageName}: no version to pin, only "${pkg.latestVersion}"`));
       continue;
     }
     const current = catalog[packageName];

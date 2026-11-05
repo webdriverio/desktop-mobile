@@ -34,6 +34,7 @@ describe('pickNextCatalogVersion', () => {
         { latest: '10.1.0', next: '10.2.0-alpha.100' },
         { '10.1.0': '2026-10-18T00:00:00Z', '10.2.0-alpha.100': '2026-10-31T00:00:00Z' },
       ),
+      '10.1.0',
       now,
       day,
     );
@@ -47,6 +48,7 @@ describe('pickNextCatalogVersion', () => {
         { latest: '10.1.0', next: '10.1.0-alpha.30' },
         { '10.1.0': '2026-10-18T00:00:00Z', '10.1.0-alpha.30': '2026-10-07T00:00:00Z' },
       ),
+      '10.1.0-alpha.30',
       now,
       day,
     );
@@ -54,33 +56,35 @@ describe('pickNextCatalogVersion', () => {
     expect(version).toBe('10.1.0');
   });
 
-  it('should skip a version too new for the release age', () => {
+  it('should keep the current pin while next is too new for the release age, not fall back to latest', () => {
     const version = pickNextCatalogVersion(
       packument(
         { latest: '10.1.0', next: '10.2.0-alpha.101' },
         { '10.1.0': '2026-10-18T00:00:00Z', '10.2.0-alpha.101': '2026-11-04T06:00:00Z' },
       ),
+      '10.2.0-alpha.100',
       now,
       day,
     );
 
-    expect(version).toBe('10.1.0');
+    expect(version).toBe('10.2.0-alpha.100');
   });
 
   it('should take latest when there is no next tag', () => {
     expect(
-      pickNextCatalogVersion(packument({ latest: '11.0.0' }, { '11.0.0': '2026-10-01T00:00:00Z' }), now, day),
+      pickNextCatalogVersion(packument({ latest: '11.0.0' }, { '11.0.0': '2026-10-01T00:00:00Z' }), '10.0.0', now, day),
     ).toBe('11.0.0');
   });
 
-  it('should return undefined when no tagged version is old enough or has a publish time', () => {
+  it('should keep the current pin when no tagged version is old enough or has a publish time', () => {
     const version = pickNextCatalogVersion(
       packument({ latest: '10.1.0', next: '10.2.0-alpha.101' }, { '10.2.0-alpha.101': '2026-11-04T06:00:00Z' }),
+      '10.2.0-alpha.100',
       now,
       day,
     );
 
-    expect(version).toBeUndefined();
+    expect(version).toBe('10.2.0-alpha.100');
   });
 });
 
