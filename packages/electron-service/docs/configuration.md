@@ -74,7 +74,7 @@ Here are some examples of binary paths using default build configurations for a 
 #### MacOS (Intel)
 
 ```ts
-'/workspace/myApp/dist-electron/mac-x64/myApp.app/Contents/MacOS/myApp'; // Electron Builder
+'/workspace/myApp/dist-electron/mac/myApp.app/Contents/MacOS/myApp'; // Electron Builder
 '/workspace/myApp/out/myApp-darwin-x64/myApp.app/Contents/MacOS/myApp'; // Electron Forge
 ```
 
@@ -92,12 +92,28 @@ Here are some examples of binary paths using default build configurations for a 
 '/workspace/myApp/out/myApp-linux-x64/myApp'; // Electron Forge
 ```
 
+#### Linux (Arm)
+
+```ts
+'/workspace/myApp/dist-electron/linux-arm64-unpacked/myApp'; // Electron Builder
+'/workspace/myApp/out/myApp-linux-arm64/myApp'; // Electron Forge
+```
+
 #### Windows
 
 ```ts
 'C:\\workspace\\myApp\\dist-electron\\win-unpacked\\myApp.exe'; // Electron Builder
 'C:\\workspace\\myApp\\out\\myApp-win32-x64\\myApp.exe'; // Electron Forge
 ```
+
+#### Windows (Arm)
+
+```ts
+'C:\\workspace\\myApp\\dist-electron\\win-arm64-unpacked\\myApp.exe'; // Electron Builder
+'C:\\workspace\\myApp\\out\\myApp-win32-arm64\\myApp.exe'; // Electron Forge
+```
+
+For other architectures, Electron Builder names the folder `win-ia32-unpacked`, `linux-ia32-unpacked`, `linux-armv7l-unpacked` and so on.
 
 Note:
 - The above examples assume electron-builder's `"directories": { "output": "dist-electron" }` config (default is `"dist"`). Your actual binary path depends on your electron-builder configuration.
@@ -423,6 +439,18 @@ This means you can capture renderer logs even when the CDP bridge is unavailable
 The service will automatically determine the path to the Electron binary of your app based on the configuration of supported build tools.
 
 If you want to manually set this value, you can specify the [`appBinaryPath`](#appbinarypath) option.
+
+### Which build is used
+
+If your output directory holds Electron Builder apps for more than one architecture, the service uses the first one that exists and is executable. It checks the architecture of the machine running the tests first, then the others in this order:
+
+| Platform | Order after the host architecture             |
+| -------- | --------------------------------------------- |
+| Windows  | `x64`, `arm64`, `ia32`                        |
+| Linux    | `x64`, `arm64`, `ia32`, `armv7l`              |
+| macOS    | `universal`, `arm64`, `x64`, `armv7l`, `ia32` |
+
+For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`. The same order applies when the machine's architecture isn't one Electron Builder builds for. To use a different build, set [`appBinaryPath`](#appbinarypath).
 
 ### Build tool compatibility
 
