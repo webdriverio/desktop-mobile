@@ -113,7 +113,7 @@ Here are some examples of binary paths using default build configurations for a 
 'C:\\workspace\\myApp\\out\\myApp-win32-arm64\\myApp.exe'; // Electron Forge
 ```
 
-For other architectures, Electron Builder names the folder `win-ia32-unpacked`, `linux-ia32-unpacked`, `linux-armv7l-unpacked` and so on.
+For other architectures, Electron Builder names the folder `win-ia32-unpacked`, `linux-armv7l-unpacked` and so on.
 
 Note:
 - The above examples assume electron-builder's `"directories": { "output": "dist-electron" }` config (default is `"dist"`). Your actual binary path depends on your electron-builder configuration.
@@ -447,10 +447,10 @@ If your output directory holds Electron Builder apps for more than one architect
 | Platform | Order after the host architecture |
 | -------- | --------------------------------- |
 | Windows  | `x64`, `arm64`, `ia32`            |
-| Linux    | `x64`, `arm64`, `ia32`, `armv7l`  |
+| Linux    | `x64`, `arm64`, `armv7l`          |
 | macOS    | `universal`, `arm64`, `x64`       |
 
-For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`. The same order applies when the machine's architecture isn't one Electron publishes for. Architectures Electron no longer publishes for your Electron version are skipped: `ia32` on Windows and `armv7l` on Linux from Electron 44, and `ia32` on Linux from Electron 19. To use a different build, set [`appBinaryPath`](#appbinarypath).
+For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`. The same order applies when the machine's architecture isn't one Electron publishes for. Architectures Electron no longer publishes for your Electron version are skipped: `ia32` on Windows and `armv7l` on Linux from Electron 44. To use a different build, set [`appBinaryPath`](#appbinarypath).
 
 ### Build tool compatibility
 

@@ -411,7 +411,6 @@ describe('getBinaryPath', () => {
       ['win32', 'ia32', 'latest', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
       ['linux', 'arm', '29.3.1', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
       ['linux', 'arm', '45.2.2', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-unpacked'],
-      ['linux', 'ia32', '29.3.1', ['linux-unpacked', 'linux-ia32-unpacked'], 'linux-unpacked'],
     ])(
       'should resolve %s on a %s host with Electron %s and %j to %s',
       async (platform, arch, electronVersion, dirs, expected) => {

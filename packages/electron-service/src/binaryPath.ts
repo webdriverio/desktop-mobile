@@ -59,7 +59,7 @@ function getForgeDistDir(
 // first so a tree that also has win-unpacked resolves to it, as it did before other archs were searched.
 const BUILDER_ARCH_ORDER: Record<SupportedPlatform, BuilderArch[]> = {
   darwin: ['universal', 'arm64', 'x64'],
-  linux: ['x64', 'arm64', 'ia32', 'armv7l'],
+  linux: ['x64', 'arm64', 'armv7l'],
   win32: ['x64', 'arm64', 'ia32'],
 };
 
