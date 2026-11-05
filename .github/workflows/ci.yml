@@ -440,6 +440,13 @@ jobs:
           - os: macos-15-intel
             display-name: macOS-Intel
             module-type: esm
+          # ARM64 runs one module type: how the service loads doesn't depend on the CPU.
+          - os: ubuntu-24.04-arm
+            display-name: Linux-ARM64
+            module-type: esm
+          - os: windows-11-arm
+            display-name: Windows-ARM64
+            module-type: esm
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
