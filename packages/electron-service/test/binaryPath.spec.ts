@@ -368,5 +368,32 @@ describe('getBinaryPath', () => {
         executableName: 'builder-app-example',
       } as any,
     });
+
+    testBuilderBinaryPath({
+      platform: 'win32',
+      arch: 'arm64',
+      binaryPath: '/path/to/dist/win-arm64-unpacked/my-app.exe',
+      configObj: { productName: 'my-app' },
+    });
+
+    testBuilderBinaryPath({
+      platform: 'win32',
+      arch: 'ia32',
+      binaryPath: '/path/to/dist/win-ia32-unpacked/my-app.exe',
+      configObj: { productName: 'my-app' },
+    });
+
+    it('should prefer win-unpacked when a Windows build also has an ARM64 output', async () => {
+      mockBinaryPath(['/path/to/dist/win-arm64-unpacked/my-app.exe', '/path/to/dist/win-unpacked/my-app.exe']);
+
+      const result = await getBinaryPath(
+        pkgJSONPath,
+        { appName: 'my-app', isForge: false, isBuilder: true, config: { productName: 'my-app' } } as AppBuildInfo,
+        '29.3.1',
+        { platform: 'win32' } as NodeJS.Process,
+      );
+
+      expect(result.ok && result.value.binaryPath.replace(/\\/g, '/')).toBe('/path/to/dist/win-unpacked/my-app.exe');
+    });
   });
 });
