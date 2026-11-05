@@ -1199,9 +1199,6 @@ importers:
       '@electron/fuses':
         specifier: ^2.1.3
         version: 2.1.3
-      '@electron/packager':
-        specifier: ^20.3.0
-        version: 20.3.0(supports-color@8.1.1)
       '@wdio/native-cdp-bridge':
         specifier: workspace:*
         version: link:../native-cdp-bridge

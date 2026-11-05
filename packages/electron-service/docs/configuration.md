@@ -74,7 +74,7 @@ Here are some examples of binary paths using default build configurations for a 
 #### MacOS (Intel)
 
 ```ts
-'/workspace/myApp/dist-electron/mac-x64/myApp.app/Contents/MacOS/myApp'; // Electron Builder
+'/workspace/myApp/dist-electron/mac/myApp.app/Contents/MacOS/myApp'; // Electron Builder
 '/workspace/myApp/out/myApp-darwin-x64/myApp.app/Contents/MacOS/myApp'; // Electron Forge
 ```
 
@@ -92,12 +92,28 @@ Here are some examples of binary paths using default build configurations for a 
 '/workspace/myApp/out/myApp-linux-x64/myApp'; // Electron Forge
 ```
 
+#### Linux (Arm)
+
+```ts
+'/workspace/myApp/dist-electron/linux-arm64-unpacked/myApp'; // Electron Builder
+'/workspace/myApp/out/myApp-linux-arm64/myApp'; // Electron Forge
+```
+
 #### Windows
 
 ```ts
 'C:\\workspace\\myApp\\dist-electron\\win-unpacked\\myApp.exe'; // Electron Builder
 'C:\\workspace\\myApp\\out\\myApp-win32-x64\\myApp.exe'; // Electron Forge
 ```
+
+#### Windows (Arm)
+
+```ts
+'C:\\workspace\\myApp\\dist-electron\\win-arm64-unpacked\\myApp.exe'; // Electron Builder
+'C:\\workspace\\myApp\\out\\myApp-win32-arm64\\myApp.exe'; // Electron Forge
+```
+
+Electron Builder names other architectures' folders the same way, such as `win-ia32-unpacked` and `linux-armv7l-unpacked`. Setting its `defaultArch` changes the names: see [Which build is used](#which-build-is-used).
 
 Note:
 - The above examples assume electron-builder's `"directories": { "output": "dist-electron" }` config (default is `"dist"`). Your actual binary path depends on your electron-builder configuration.
@@ -423,6 +439,26 @@ This means you can capture renderer logs even when the CDP bridge is unavailable
 The service will automatically determine the path to the Electron binary of your app based on the configuration of supported build tools.
 
 If you want to manually set this value, you can specify the [`appBinaryPath`](#appbinarypath) option.
+
+### Which build is used
+
+If your output directory holds builds for more than one architecture, the service launches the first one it finds. It tries the machine's own architecture, then the ones it can run under emulation or in 32-bit mode, then the rest:
+
+| Machine running the tests | Order                       |
+| ------------------------- | --------------------------- |
+| Windows x64               | `x64`, `ia32`, `arm64`      |
+| Windows ARM64             | `arm64`, `x64`, `ia32`      |
+| Linux x64                 | `x64`, `arm64`, `armv7l`    |
+| Linux ARM64               | `arm64`, `x64`, `armv7l`    |
+| Apple Silicon Mac         | `arm64`, `universal`, `x64` |
+| Intel Mac                 | `x64`, `universal`, `arm64` |
+
+For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`.
+
+- **Node.js architecture:** the machine's architecture comes from the Node.js running the tests. An x64 Node.js under Rosetta or Windows emulation gets the x64 build, so use a native Node.js to test the native one.
+- **Electron Builder's `defaultArch`:** only the platform's `defaultArch`, `x64` unless you set it, gets a folder name without the architecture. With `win.defaultArch: 'arm64'`, the ARM64 build goes in `win-unpacked` and the x64 one in `win-x64-unpacked`, and the service follows the same rule.
+
+To use a different build, set [`appBinaryPath`](#appbinarypath).
 
 ### Build tool compatibility
 

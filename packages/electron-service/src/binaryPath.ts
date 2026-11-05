@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { allOfficialArchsForPlatformAndVersion } from '@electron/packager';
 import type {
   AppBuildInfo,
   BinaryPathResult,
@@ -21,8 +20,8 @@ interface BinaryOptions {
   platform: SupportedPlatform;
   appName: string;
   config: ForgeBuildInfo['config'] | BuilderBuildInfo['config'];
-  electronVersion?: string;
   projectDir: string;
+  hostArch?: string;
 }
 
 function sanitizeAppNameForPath(appName: string, platform: SupportedPlatform): string {
@@ -30,13 +29,41 @@ function sanitizeAppNameForPath(appName: string, platform: SupportedPlatform): s
   return platform === 'linux' ? appName.toLowerCase().replace(/ /g, '-') : appName;
 }
 
+// Every arch searched on each platform, in the order tried after the ones the host runs
+const ARCHS: Record<SupportedPlatform, BuilderArch[]> = {
+  darwin: ['universal', 'arm64', 'x64'],
+  linux: ['x64', 'arm64', 'armv7l'],
+  win32: ['x64', 'arm64', 'ia32'],
+};
+
+// The archs a host runs besides its own, emulated or in 32-bit mode
+const ALSO_RUNS: Record<SupportedPlatform, Partial<Record<BuilderArch, BuilderArch[]>>> = {
+  darwin: { arm64: ['universal', 'x64'], x64: ['universal'] },
+  linux: {},
+  win32: { arm64: ['x64', 'ia32'], x64: ['ia32'] },
+};
+
+// process.arch and electron-builder's defaultArch can both spell armv7l as `arm`
+function toArch(name?: string): BuilderArch | undefined {
+  const arch = name === 'arm' ? 'armv7l' : name;
+  return arch === 'x64' || arch === 'arm64' || arch === 'ia32' || arch === 'armv7l' || arch === 'universal'
+    ? arch
+    : undefined;
+}
+
+// The first folder holding the app wins, so search the builds the host can run before the rest
+function getArchOrder(platform: SupportedPlatform, hostArch?: string): BuilderArch[] {
+  const host = toArch(hostArch);
+  const runnable = host && ARCHS[platform].includes(host) ? [host, ...(ALSO_RUNS[platform][host] ?? [])] : [];
+  return [...new Set([...runnable, ...ARCHS[platform]])];
+}
+
 function getForgeDistDir(
   config: ForgeBuildInfo['config'],
   appName: string,
   platform: SupportedPlatform,
-  electronVersion?: string,
+  archs: BuilderArch[],
 ): string[] {
-  const archs = allOfficialArchsForPlatformAndVersion(platform, electronVersion);
   const forgeOutDir = config?.outDir || 'out';
 
   // Forge may create directories with different naming conventions depending on the platform
@@ -49,32 +76,24 @@ function getForgeDistDir(
   // Remove duplicates in case sanitization doesn't change the name
   const uniqueNames = [...new Set(possibleNames)];
 
-  return archs.flatMap((arch: string) =>
-    uniqueNames.map((name) => path.join(forgeOutDir, `${name}-${platform}-${arch}`)),
-  );
+  return archs.flatMap((arch) => uniqueNames.map((name) => path.join(forgeOutDir, `${name}-${platform}-${arch}`)));
 }
 
-function getBuilderDistDir(config: BuilderBuildInfo['config'], platform: SupportedPlatform): string[] {
+const BUILDER_PLATFORM_KEY = { darwin: 'mac', linux: 'linux', win32: 'win' } as const;
+
+function getBuilderDistDir(
+  config: BuilderBuildInfo['config'],
+  platform: SupportedPlatform,
+  archs: BuilderArch[],
+): string[] {
   const builderOutDirName = config?.directories?.output || 'dist';
-  const builderOutDirMap = (arch: BuilderArch) => ({
-    darwin: path.join(builderOutDirName, arch === 'x64' ? 'mac' : `mac-${arch}`),
-    linux: path.join(builderOutDirName, arch === 'x64' ? 'linux-unpacked' : `linux-${arch}-unpacked`),
-    win32: path.join(builderOutDirName, 'win-unpacked'),
-  });
-  // return [builderOutDirMap[platform]];
-  if (platform === 'darwin') {
-    // macOS output dir depends on the arch used
-    // - we check all of the possible dirs
-    const archs: BuilderArch[] = ['arm64', 'armv7l', 'ia32', 'universal', 'x64'];
-    return archs.map((arch) => builderOutDirMap(arch)[platform]);
-  } else if (platform === 'linux') {
-    // Linux output dir depends on the arch used (e.g., linux-arm64-unpacked for ARM64)
-    const archs: BuilderArch[] = ['arm64', 'armv7l', 'ia32', 'x64'];
-    return archs.map((arch) => builderOutDirMap(arch)[platform]);
-  } else {
-    // other platforms have a single output dir which is not dependent on the arch
-    return [builderOutDirMap('x64')[platform]];
-  }
+  const key = BUILDER_PLATFORM_KEY[platform];
+  // electron-builder adds the arch to every folder name but the platform's defaultArch
+  const defaultArch = toArch(config?.[key]?.defaultArch) ?? 'x64';
+  const unpacked = platform === 'darwin' ? '' : '-unpacked';
+  return archs.map((arch) =>
+    path.join(builderOutDirName, `${key}${arch === defaultArch ? '' : `-${arch}`}${unpacked}`),
+  );
 }
 
 function getPlatformBinaryPath(
@@ -128,12 +147,13 @@ function getBinaryName(options: BinaryOptions): string {
 }
 
 function getOutDir(options: BinaryOptions): string[] {
-  const { buildTool, config, appName, platform, electronVersion, projectDir } = options;
+  const { buildTool, config, appName, platform, projectDir, hostArch } = options;
+  const archs = getArchOrder(platform, hostArch);
 
   const outDirs =
     buildTool === SUPPORTED_BUILD_TOOL.forge
-      ? getForgeDistDir(config as ForgeBuildInfo['config'], appName, platform, electronVersion)
-      : getBuilderDistDir(config as BuilderBuildInfo['config'], platform);
+      ? getForgeDistDir(config as ForgeBuildInfo['config'], appName, platform, archs)
+      : getBuilderDistDir(config as BuilderBuildInfo['config'], platform, archs);
 
   return outDirs.map((dir) => path.join(projectDir, dir));
 }
@@ -145,7 +165,6 @@ function getOutDir(options: BinaryOptions): string[] {
 export function generateBinaryPaths(
   packageJsonPath: string,
   appBuildInfo: AppBuildInfo,
-  electronVersion?: string,
   p = process,
 ): PathGenerationResult {
   const errors: PathGenerationError[] = [];
@@ -188,8 +207,8 @@ export function generateBinaryPaths(
       platform: p.platform,
       appName: appBuildInfo.appName,
       config: appBuildInfo.config,
-      electronVersion,
       projectDir: path.dirname(packageJsonPath),
+      hostArch: p.arch,
     };
 
     try {
@@ -272,18 +291,16 @@ export function generateBinaryPaths(
  * Returns detailed information about both path generation and validation
  * @param packageJsonPath path to the nearest package.json
  * @param appBuildInfo build information about the Electron application
- * @param electronVersion version of Electron to use
  * @param p process object (used for testing purposes)
  * @returns detailed result with binary path and diagnostic information
  */
 export async function getBinaryPath(
   packageJsonPath: string,
   appBuildInfo: AppBuildInfo,
-  electronVersion?: string,
   p = process,
 ): Promise<BinaryPathResult> {
   // Phase 1: Generate possible binary paths
-  const pathGeneration = generateBinaryPaths(packageJsonPath, appBuildInfo, electronVersion, p);
+  const pathGeneration = generateBinaryPaths(packageJsonPath, appBuildInfo, p);
 
   // Phase 2: Validate generated paths
   let pathValidation: PathValidationResult;
