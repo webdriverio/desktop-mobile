@@ -460,6 +460,8 @@ If your output directory holds builds for more than one architecture, the servic
 
 For example, on a Windows ARM64 machine with both `win-unpacked` and `win-arm64-unpacked`, the service uses `win-arm64-unpacked`.
 
+If the machine can't run any of the builds, the service still launches the first one it finds, and logs a warning.
+
 - **Node.js architecture:** the machine's architecture comes from the Node.js running the tests. An x64 Node.js under Rosetta or Windows emulation gets the x64 build, so use a native Node.js to test the native one.
 - **Electron Builder's `defaultArch`:** only the platform's `defaultArch`, `x64` unless you set it, gets a folder name without the architecture. With `win.defaultArch: 'arm64'`, the ARM64 build goes in `win-unpacked` and the x64 one in `win-x64-unpacked`, and the service follows the same rule.
 

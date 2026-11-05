@@ -9,8 +9,10 @@ import type {
   PathGenerationResult,
   PathValidationResult,
 } from '@wdio/native-types';
-import { validateBinaryPaths } from '@wdio/native-utils';
+import { createLogger, validateBinaryPaths } from '@wdio/native-utils';
 import { SUPPORTED_BUILD_TOOL, SUPPORTED_PLATFORM } from './constants.js';
+
+const log = createLogger('electron-service', 'launcher');
 
 type SupportedPlatform = keyof typeof SUPPORTED_PLATFORM;
 type SupportedBuildTool = keyof typeof SUPPORTED_BUILD_TOOL;
@@ -53,9 +55,12 @@ function toArch(name?: string): BuilderArch | undefined {
 
 // The first folder holding the app wins, so search the builds the host can run before the rest
 function getArchOrder(platform: SupportedPlatform, hostArch?: string): BuilderArch[] {
+  return [...new Set([...getRunnableArchs(platform, hostArch), ...ARCHS[platform]])];
+}
+
+function getRunnableArchs(platform: SupportedPlatform, hostArch?: string): BuilderArch[] {
   const host = toArch(hostArch);
-  const runnable = host && ARCHS[platform].includes(host) ? [host, ...(ALSO_RUNS[platform][host] ?? [])] : [];
-  return [...new Set([...runnable, ...ARCHS[platform]])];
+  return host && ARCHS[platform].includes(host) ? [host, ...(ALSO_RUNS[platform][host] ?? [])] : [];
 }
 
 function getForgeDistDir(
@@ -146,9 +151,8 @@ function getBinaryName(options: BinaryOptions): string {
   return appName;
 }
 
-function getOutDir(options: BinaryOptions): string[] {
-  const { buildTool, config, appName, platform, projectDir, hostArch } = options;
-  const archs = getArchOrder(platform, hostArch);
+function getOutDir(options: BinaryOptions, archs: BuilderArch[]): string[] {
+  const { buildTool, config, appName, platform, projectDir } = options;
 
   const outDirs =
     buildTool === SUPPORTED_BUILD_TOOL.forge
@@ -156,6 +160,40 @@ function getOutDir(options: BinaryOptions): string[] {
       : getBuilderDistDir(config as BuilderBuildInfo['config'], platform, archs);
 
   return outDirs.map((dir) => path.join(projectDir, dir));
+}
+
+function getCandidatePaths(options: BinaryOptions, archs: BuilderArch[]): string[] {
+  const binaryName = getBinaryName(options);
+  return getOutDir(options, archs).map((dir) => getPlatformBinaryPath(dir, binaryName, options.platform, options));
+}
+
+function toBinaryOptions(
+  packageJsonPath: string,
+  appBuildInfo: AppBuildInfo,
+  platform: SupportedPlatform,
+  hostArch: string,
+): BinaryOptions {
+  return {
+    buildTool: appBuildInfo.isForge ? SUPPORTED_BUILD_TOOL.forge : SUPPORTED_BUILD_TOOL.builder,
+    platform,
+    appName: appBuildInfo.appName,
+    config: appBuildInfo.config,
+    projectDir: path.dirname(packageJsonPath),
+    hostArch,
+  };
+}
+
+// Builds the host runs are searched first, so landing on any other build means there wasn't one
+function warnIfHostCannotRun(binaryPath: string, options: BinaryOptions): void {
+  const { platform, hostArch } = options;
+  const runnable = getRunnableArchs(platform, hostArch);
+  const buildArch = ARCHS[platform].find((arch) => getCandidatePaths(options, [arch]).includes(binaryPath));
+  const [host] = runnable;
+  if (host && buildArch && !runnable.includes(buildArch)) {
+    log.warn(
+      `No ${host} build of the app was found, so the service is using the ${buildArch} build at ${binaryPath}, which this ${host} machine likely can't run. Build the app for ${host}, or set appBinaryPath.`,
+    );
+  }
 }
 
 /**
@@ -202,19 +240,10 @@ export function generateBinaryPaths(
     }
 
     // Generate paths based on build tool configuration
-    const options: BinaryOptions = {
-      buildTool: appBuildInfo.isForge ? SUPPORTED_BUILD_TOOL.forge : SUPPORTED_BUILD_TOOL.builder,
-      platform: p.platform,
-      appName: appBuildInfo.appName,
-      config: appBuildInfo.config,
-      projectDir: path.dirname(packageJsonPath),
-      hostArch: p.arch,
-    };
+    const options = toBinaryOptions(packageJsonPath, appBuildInfo, p.platform, p.arch);
 
     try {
-      const outDirs = getOutDir(options);
-      const binaryName = getBinaryName(options);
-      paths = outDirs.map((dir) => getPlatformBinaryPath(dir, binaryName, options.platform, options));
+      paths = getCandidatePaths(options, getArchOrder(options.platform, options.hostArch));
 
       // Add warning if configuration seems incomplete
       if (appBuildInfo.isBuilder && !appBuildInfo.config?.directories?.output) {
@@ -318,10 +347,14 @@ export async function getBinaryPath(
 
   // Combine results - TypeScript needs explicit narrowing
   if (pathGeneration.ok && pathValidation.ok) {
+    const binaryPath = pathValidation.value.validPath;
+    if (isSupportedPlatform(p.platform)) {
+      warnIfHostCannotRun(binaryPath, toBinaryOptions(packageJsonPath, appBuildInfo, p.platform, p.arch));
+    }
     return {
       ok: true,
       value: {
-        binaryPath: pathValidation.value.validPath,
+        binaryPath,
         pathGeneration,
         pathValidation,
       },
