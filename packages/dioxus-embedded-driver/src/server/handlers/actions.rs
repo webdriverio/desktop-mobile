@@ -504,6 +504,8 @@ pub async fn perform(
               KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
                 if is_skipped_key(value) => {}
               KeyAction::KeyDown { value } => {
+                // Hold the key before dispatch, as W3C does: a modifier's own keydown carries its
+                // flag, and Release Actions lets go of a key whose keydown timed out.
                 {
                   let mut sessions = state.sessions.write().await;
                   if let Ok(session) = sessions.get_mut(&session_id) {
@@ -511,8 +513,6 @@ pub async fn perform(
                     modifiers = Modifiers::from_keys(session.action_state.pressed_keys());
                   }
                 }
-                // Hold the key before dispatch, as W3C does: a modifier's own keydown carries its
-                // flag, and Release Actions lets go of a key whose keydown timed out.
                 eval(key_script(value, true, &modifiers), timeout_ms).await?;
               }
               KeyAction::KeyUp { value } => {
@@ -547,8 +547,8 @@ pub async fn perform(
                 )
                 .await?;
                 down_pos.insert(*button, (pointer_state.x, pointer_state.y));
-                // Recorded once the mousedown goes through, as a failed perform doesn't forget buttons.
-                // Workaround for #926; record it before dispatch once a failed perform forgets them.
+                // Recorded after dispatch, unlike a key, as a failed perform keeps the buttons it
+                // recorded. Workaround for #926; move it before dispatch once that lands.
                 let mut sessions = state.sessions.write().await;
                 if let Ok(session) = sessions.get_mut(&session_id) {
                   session.action_state.press_button(id, *button);
@@ -753,9 +753,8 @@ async fn eval_all<Fut: Future<Output = Result<(), WebDriverErrorResponse>>>(
   first_error.map_or(Ok(()), Err)
 }
 
-/// The keyups and mouseups that release `presses`, given in release order, with buttons going up at
-/// `(x, y)`. Each event carries the modifiers still held after it, so a mouseup before a held
-/// Shift's keyup reports `shiftKey: true`. As in perform, a mouseup clears its button from `buttons`.
+/// The keyups and mouseups that release `presses`, which are in release order. Buttons go up at
+/// `(x, y)`, and each event carries the modifiers and buttons still held after it.
 fn release_scripts(presses: &[Press], (x, y): (i32, i32)) -> Vec<String> {
   let mut held_mask = presses.iter().fold(0, |mask, press| match press {
     Press::Button { button, .. } => mask | button_to_mask(*button),
