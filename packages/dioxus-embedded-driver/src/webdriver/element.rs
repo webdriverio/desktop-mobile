@@ -16,8 +16,6 @@ pub const ELEMENT_VAR_PREFIX: &str = "__wdio_elem_";
 pub struct ElementStore {
   /// Maps element ID → the JS variable name storing the DOM node.
   elements: HashMap<String, String>,
-  /// Variables holding shadow roots from script results, kept only so session delete removes them.
-  shadow_root_vars: Vec<String>,
 }
 
 impl ElementStore {
@@ -32,9 +30,7 @@ impl ElementStore {
     id
   }
 
-  /// Registers the element references in a script result whose IDs the serialiser made from
-  /// `ref_prefix`. A shadow root ID isn't registered until this driver has shadow root commands
-  /// (#721), so element commands fail with `no such element` for it.
+  /// Registers the references in a script result whose IDs the serialiser made from `ref_prefix`.
   pub fn register_script_refs(&mut self, result: &Value, ref_prefix: &str) {
     match result {
       Value::Array(items) => {
@@ -43,14 +39,12 @@ impl ElementStore {
         }
       }
       Value::Object(entries) => {
-        if let Some(id) = entries.get(ELEMENT_KEY).and_then(Value::as_str) {
-          if is_script_ref_id(id, ref_prefix) {
-            self.elements.insert(id.to_string(), script_ref_var(id));
-          }
-        }
-        if let Some(id) = entries.get(SHADOW_KEY).and_then(Value::as_str) {
-          if is_script_ref_id(id, ref_prefix) {
-            self.shadow_root_vars.push(script_ref_var(id));
+        for key in [ELEMENT_KEY, SHADOW_KEY] {
+          if let Some(id) = entries.get(key).and_then(Value::as_str) {
+            if is_script_ref_id(id, ref_prefix) {
+              let js_var = format!("{ELEMENT_VAR_PREFIX}{}", id.replace('-', ""));
+              self.elements.insert(id.to_string(), js_var);
+            }
           }
         }
         for value in entries.values() {
@@ -73,14 +67,13 @@ impl ElementStore {
 
   /// All JS variable names currently held by this store.
   pub fn all_vars(&self) -> Vec<String> {
-    self.elements.values().chain(&self.shadow_root_vars).cloned().collect()
+    self.elements.values().cloned().collect()
   }
 
   /// Discard all element references. Called after full-page navigation so that
   /// stale element IDs are no longer resolvable Rust-side.
   pub fn clear(&mut self) {
     self.elements.clear();
-    self.shadow_root_vars.clear();
   }
 
   /// Build the W3C element reference object for a given element ID.
@@ -96,10 +89,6 @@ fn is_script_ref_id(id: &str, ref_prefix: &str) -> bool {
     .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
-// Where script-result-refs.js keeps the node for `id`
-fn script_ref_var(id: &str) -> String {
-  format!("{ELEMENT_VAR_PREFIX}{}", id.replace('-', ""))
-}
 #[cfg(test)]
 mod tests {
   use serde_json::json;
@@ -128,24 +117,13 @@ mod tests {
     let mut store = ElementStore::new();
     let result = json!([
       { ELEMENT_KEY: "p-0" },
-      { "nested": { "list": [{ ELEMENT_KEY: "p-1" }] } },
+      { "nested": { "list": [{ SHADOW_KEY: "p-1" }] } },
     ]);
 
     store.register_script_refs(&result, "p");
 
     assert_eq!(store.get("p-0"), Some("__wdio_elem_p0"));
     assert_eq!(store.get("p-1"), Some("__wdio_elem_p1"));
-  }
-
-  #[test]
-  fn skips_shadow_root_refs_as_there_are_no_shadow_root_commands() {
-    let mut store = ElementStore::new();
-    let result = json!([{ SHADOW_KEY: "p-0" }]);
-
-    store.register_script_refs(&result, "p");
-
-    assert!(store.get("p-0").is_none());
-    assert_eq!(store.all_vars(), vec!["__wdio_elem_p0".to_string()]);
   }
 
   #[test]

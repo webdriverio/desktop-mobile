@@ -14,7 +14,7 @@ use webkit2gtk::{
 
 use crate::platform::alert_state::{AlertStateManager, AlertType, PendingAlert};
 use crate::platform::{
-  async_script_result_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
+  script_result_refs_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
 };
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::element::ELEMENT_VAR_PREFIX;
@@ -448,7 +448,10 @@ impl<R: Runtime + 'static> LinuxExecutor<R> {
   ) -> Result<Value, WebDriverErrorResponse> {
     let args_json = serde_json::to_string(args)
       .map_err(|e| WebDriverErrorResponse::invalid_argument(&e.to_string()))?;
-    let (refs_js, result_js) = async_script_result_js(ref_prefix, "result");
+    let (refs_js, result_js) = match ref_prefix {
+      Some(prefix) => (script_result_refs_js(prefix), "__wdio_refs.withRefs(result)"),
+      None => (String::new(), "result"),
+    };
 
     // Build wrapper that includes argument deserialization.
     // call_async_javascript_function_future treats the body as function statements,

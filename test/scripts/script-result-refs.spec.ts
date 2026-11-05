@@ -82,9 +82,8 @@ describe('script-result-refs.js', () => {
       expect(page.__test_el_5f0c11e40).toBe(callable);
     });
 
-    it('should leave a function alone unless it has a nodeName, as chromedriver does', () => {
+    it('should leave a plain function alone', () => {
       expect(refs.nodeRef(() => undefined)).toBeUndefined();
-      expect(refs.nodeRef(Object.assign(() => undefined, { nodeType: 1 }))).toBeUndefined();
     });
 
     it('should number the nodes in the order it meets them', () => {

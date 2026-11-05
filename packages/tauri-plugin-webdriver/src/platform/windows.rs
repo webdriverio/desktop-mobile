@@ -28,7 +28,7 @@ use windows_core::BOOL;
 
 use crate::platform::alert_state::{AlertState, AlertStateManager, AlertType, PendingAlert};
 use crate::platform::{
-  async_script_result_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
+  script_result_refs_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
 };
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::element::ELEMENT_VAR_PREFIX;
@@ -593,7 +593,10 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
   ) -> Result<Value, WebDriverErrorResponse> {
     let args_json = serde_json::to_string(args)
       .map_err(|e| WebDriverErrorResponse::invalid_argument(&e.to_string()))?;
-    let (refs_js, result_js) = async_script_result_js(ref_prefix, "r");
+    let (refs_js, result_js) = match ref_prefix {
+      Some(prefix) => (script_result_refs_js(prefix), "__wdio_refs.withRefs(r)"),
+      None => (String::new(), "r"),
+    };
 
     let async_id = uuid::Uuid::new_v4().to_string();
 
