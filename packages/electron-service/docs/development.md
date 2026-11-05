@@ -16,7 +16,9 @@ The project uses a catalog system to manage Electron versions across three catal
 
 See [Dependency Management](../../docs/setup.md#dependency-management) for catalog switching and update commands.
 
-In the `next` catalog, `pnpm catalog:update --next` pins `electron-nightly` to its newest nightly, and `pnpm catalog:next` replaces each package's `electron` dependency with `electron-nightly`.
+For the `next` catalog:
+- `pnpm catalog:update --next` pins `electron-nightly` to its newest nightly
+- `pnpm catalog:next` replaces each package's `electron` dependency with `electron-nightly`, and switching to another catalog puts `electron` back
 
 ## Development Mode
 

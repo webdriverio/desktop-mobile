@@ -29,7 +29,7 @@ interface WorkspaceConfig {
   };
 }
 
-// pnpm's default `minimumReleaseAge`: it won't install a version published more recently than this.
+// pnpm's default `minimumReleaseAge`: pnpm won't install a version published more recently than this.
 const DEFAULT_MINIMUM_RELEASE_AGE_MINUTES = 1440;
 
 // Check if dry run mode is enabled
@@ -105,7 +105,7 @@ function splitVersion(version: string): { core: number[]; prerelease?: string } 
   return dash === -1 ? { core } : { core, prerelease: withoutBuild.slice(dash + 1) };
 }
 
-/** Orders two versions by semver precedence, prereleases included: negative, zero or positive. */
+/** Compares two versions by semver precedence, prereleases included. */
 export function compareVersions(a: string, b: string): number {
   const left = splitVersion(a);
   const right = splitVersion(b);
@@ -144,8 +144,8 @@ interface Packument {
   time?: Record<string, string>;
 }
 
-// The next catalog tracks what's coming. WebdriverIO's `next` tag stays on its last prerelease after a stable release,
-// so take whichever of `next` and `latest` is newer, of those old enough for pnpm's release age to install.
+// WebdriverIO's `next` tag stays on its last prerelease after a stable release, so the upcoming release is the newer
+// of `next` and `latest`. A version younger than pnpm's `minimumReleaseAge` is skipped, as pnpm won't install it.
 export function pickNextCatalogVersion(
   packument: Packument,
   now: number,
@@ -310,7 +310,6 @@ async function updateWorkspaceYaml(
       console.log(chalk.dim(`  Skipping ${packageName}: no version to pin, only "${pkg.latestVersion}"`));
       continue;
     }
-    // Preserve the version prefix (^, ~)
     const current = catalog[packageName];
     const prefix = current.startsWith('^') ? '^' : current.startsWith('~') ? '~' : '';
     updates[packageName] = `${prefix}${pkg.latestVersion}`;
