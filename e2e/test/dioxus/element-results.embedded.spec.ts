@@ -69,3 +69,30 @@ describe('Dioxus execute — element results (embedded)', () => {
     expect(await browser.$(result[0] as ElementReference).getTagName()).toBe('body');
   });
 });
+
+// A function goes through a promise that wraps its result in an envelope, so the driver converts the awaited value.
+describe('Dioxus browser.dioxus.execute — element results (embedded)', () => {
+  it('should return an element as a reference that element commands accept', async () => {
+    const result = await browser.dioxus.execute(() => document.querySelector('#counter'));
+
+    expect(result).toEqual(anElementReference());
+    expect(await idOf(result)).toBe('counter');
+  });
+
+  it('should return an element inside an object as a reference', async () => {
+    const result = await browser.dioxus.execute(() => ({ count: 1, el: document.querySelector('#counter') }));
+
+    expect(result).toEqual({ count: 1, el: anElementReference() });
+    expect(await idOf(result.el)).toBe('counter');
+  });
+
+  it('should return an element from an async function as a reference', async () => {
+    const result = await browser.dioxus.execute(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return document.querySelector('#counter');
+    });
+
+    expect(result).toEqual(anElementReference());
+    expect(await idOf(result)).toBe('counter');
+  });
+});
