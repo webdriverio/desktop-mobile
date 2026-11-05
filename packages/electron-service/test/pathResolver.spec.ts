@@ -21,7 +21,6 @@ vi.mock('@wdio/native-utils', async () => {
 });
 vi.mock('../src/appBuildInfo.js', () => ({ getAppBuildInfo: vi.fn() }));
 vi.mock('../src/binaryPath.js', () => ({ getBinaryPath: vi.fn() }));
-vi.mock('../src/electronVersion.js', () => ({ getElectronVersion: vi.fn() }));
 
 describe('pathResolver', () => {
   let mockPkg: NormalizedReadResult;
@@ -218,18 +217,15 @@ describe('pathResolver', () => {
     let readPackageUp: Mock;
     let getAppBuildInfo: Mock;
     let getBinaryPath: Mock;
-    let getElectronVersion: Mock;
 
     beforeEach(async () => {
       const nativeUtils = await import('@wdio/native-utils');
       const appBuildInfoMod = await import('../src/appBuildInfo.js');
       const binaryPathMod = await import('../src/binaryPath.js');
-      const electronVersionMod = await import('../src/electronVersion.js');
 
       readPackageUp = nativeUtils.readPackageUp as Mock;
       getAppBuildInfo = appBuildInfoMod.getAppBuildInfo as Mock;
       getBinaryPath = binaryPathMod.getBinaryPath as Mock;
-      getElectronVersion = electronVersionMod.getElectronVersion as Mock;
     });
 
     it('should return the binary path when all steps succeed', async () => {
@@ -237,7 +233,6 @@ describe('pathResolver', () => {
         packageJson: { name: 'test-app', version: '1.0.0' },
         path: '/app/package.json',
       });
-      getElectronVersion.mockResolvedValue('30.0.0');
       getAppBuildInfo.mockResolvedValue({
         appName: 'test-app',
         isForge: true,
@@ -263,7 +258,6 @@ describe('pathResolver', () => {
         packageJson: { name: 'test-app', version: '1.0.0' },
         path: '/app/package.json',
       });
-      getElectronVersion.mockResolvedValue('30.0.0');
       getAppBuildInfo.mockResolvedValue({
         appName: 'test-app',
         isForge: true,

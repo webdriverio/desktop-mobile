@@ -312,7 +312,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
 
             try {
               // Use the detailed binary path function for better error handling
-              const binaryResult = await getBinaryPath(pkg.path, appBuildInfo, electronVersion);
+              const binaryResult = await getBinaryPath(pkg.path, appBuildInfo);
 
               if (binaryResult.ok) {
                 appBinaryPath = binaryResult.value.binaryPath;

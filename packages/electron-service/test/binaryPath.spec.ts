@@ -115,8 +115,8 @@ function testBinaryPath(options: TestBinaryPathOptions) {
     if (isForge) {
       const appName = configObj.packagerConfig?.name || configObj.productName || 'my-app';
 
-      // Generate paths for all possible architectures that Forge might create
-      const archs = ['x64', 'armv7l', 'arm64']; // These are the archs returned by allOfficialArchsForPlatformAndVersion
+      // Builds exist for several archs, so the host arch decides which one resolves
+      const archs = ['x64', 'armv7l', 'arm64'];
       const possibleNames = [appName];
       if (platform === 'linux') {
         possibleNames.push(appName.toLowerCase().replace(/ /g, '-'));
@@ -198,16 +198,19 @@ const builderInfo = (config: BuilderConfig = {}) =>
     isBuilder: true,
     config: { productName: 'my-app', ...config },
   }) as AppBuildInfo;
+const forgeInfo = {
+  appName: 'my-app',
+  isForge: true,
+  isBuilder: false,
+  config: { packagerConfig: { name: 'my-app' } },
+} as AppBuildInfo;
 
-/**
- * Resolves the binary path on the given host when only the apps in `dirs` exist
- */
 async function resolveFrom(
   platform: string,
   arch: string | undefined,
-  electronVersion: string | undefined,
   appBuildInfo: AppBuildInfo,
   dirs: string[],
+  electronVersion?: string,
 ) {
   mockBinaryPath(dirs.map((dir) => appPath(platform, dir)));
   const result = await getBinaryPath(pkgJSONPath, appBuildInfo, electronVersion, { platform, arch } as NodeJS.Process);
@@ -295,39 +298,28 @@ describe('getBinaryPath', () => {
       configObj: { packagerConfig: { name: 'my-app' } },
     });
 
-    // Test Linux with spaces in name
     testForgeBinaryPath({
       platform: 'linux',
       arch: 'x64',
+      testName: 'should resolve binary path for Forge build with spaces in the name on linux-x64',
       binaryPath: '/path/to/out/builder-app-example-linux-x64/builder-app-example',
       configObj: { packagerConfig: { name: 'Builder App Example' } },
     });
 
-    it.each<[string, string, string | undefined, string[], string]>([
-      ['darwin', 'arm64', '29.3.1', ['x64', 'arm64'], 'arm64'],
-      ['darwin', 'x64', '29.3.1', ['arm64', 'universal', 'x64'], 'x64'],
-      ['linux', 'arm64', '29.3.1', ['x64', 'arm64'], 'arm64'],
-      ['win32', 'x64', '29.3.1', ['ia32', 'x64'], 'x64'],
-      ['win32', 'arm64', '29.3.1', ['ia32', 'x64', 'arm64'], 'arm64'],
-      ['darwin', 'arm64', '124.0.6367.243', ['x64', 'arm64'], 'arm64'],
-      ['darwin', 'arm64', undefined, ['arm64'], 'arm64'],
-      ['win32', 'x64', '45.2.2', ['ia32'], 'ia32'],
-    ])(
-      'should resolve %s on a %s host with Electron %s and %j builds to %s',
-      async (platform, arch, electronVersion, archs, expected) => {
-        const forgeInfo = {
-          appName: 'my-app',
-          isForge: true,
-          isBuilder: false,
-          config: { packagerConfig: { name: 'my-app' } },
-        } as AppBuildInfo;
-        const inOut = (buildArch: string) => `out/my-app-${platform}-${buildArch}`;
+    it.each<[string, string, string[], string]>([
+      ['darwin', 'arm64', ['x64', 'arm64'], 'arm64'],
+      ['darwin', 'x64', ['arm64', 'universal', 'x64'], 'x64'],
+      ['linux', 'arm64', ['x64', 'arm64'], 'arm64'],
+      ['win32', 'x64', ['ia32', 'x64'], 'x64'],
+      ['win32', 'x64', ['arm64', 'ia32'], 'ia32'],
+      ['win32', 'arm64', ['ia32', 'x64', 'arm64'], 'arm64'],
+    ])('should resolve %s on a %s host with %j builds to %s', async (platform, arch, archs, expected) => {
+      const inOut = (buildArch: string) => `out/my-app-${platform}-${buildArch}`;
 
-        const binaryPath = await resolveFrom(platform, arch, electronVersion, forgeInfo, archs.map(inOut));
+      const binaryPath = await resolveFrom(platform, arch, forgeInfo, archs.map(inOut));
 
-        expect(binaryPath).toBe(appPath(platform, inOut(expected)));
-      },
-    );
+      expect(binaryPath).toBe(appPath(platform, inOut(expected)));
+    });
   });
 
   describe('electron-builder builds', () => {
@@ -349,6 +341,7 @@ describe('getBinaryPath', () => {
     testBuilderBinaryPath({
       platform: 'darwin',
       arch: 'arm64',
+      testName: 'should resolve a universal Builder build with custom output directory on darwin-arm64',
       binaryPath: '/path/to/dist-electron/mac-universal/my-app.app/Contents/MacOS/my-app',
       configObj: {
         productName: 'my-app',
@@ -364,7 +357,7 @@ describe('getBinaryPath', () => {
       configObj: { productName: 'my-app', directories: { output: 'dist/custom' } },
     });
 
-    // Test Linux builds (note: all Linux architectures use the same output path)
+    // Test Linux builds
     testBuilderBinaryPath({
       platform: 'linux',
       arch: 'x64',
@@ -372,10 +365,10 @@ describe('getBinaryPath', () => {
       configObj: { productName: 'my-app' },
     });
 
-    // Test Linux with spaces in name
     testBuilderBinaryPath({
       platform: 'linux',
       arch: 'x64',
+      testName: 'should resolve binary path for Builder build with spaces in the name on linux-x64',
       binaryPath: '/path/to/dist/linux-unpacked/builder-app-example',
       configObj: { productName: 'Builder App Example' },
     });
@@ -387,10 +380,10 @@ describe('getBinaryPath', () => {
       configObj: { productName: 'my-app' },
     });
 
-    // Test macOS with executableName
     testBuilderBinaryPath({
       platform: 'darwin',
       arch: 'arm64',
+      testName: 'should resolve binary path for Builder build with executableName on darwin-arm64',
       binaryPath: '/path/to/dist/mac-arm64/builder-app-example.app/Contents/MacOS/builder-app-example',
       configObj: {
         productName: 'Builder App Example',
@@ -398,10 +391,10 @@ describe('getBinaryPath', () => {
       } as any,
     });
 
-    // Test Windows with executableName
     testBuilderBinaryPath({
       platform: 'win32',
       arch: 'x64',
+      testName: 'should resolve binary path for Builder build with executableName on win32-x64',
       binaryPath: '/path/to/dist/win-unpacked/builder-app-example.exe',
       configObj: {
         productName: 'Builder App Example',
@@ -443,30 +436,19 @@ describe('getBinaryPath', () => {
       ['darwin', 'arm64', ['mac', 'mac-universal'], 'mac-universal'],
       ['darwin', undefined, ['mac', 'mac-arm64', 'mac-universal'], 'mac-universal'],
     ])('should resolve %s on a %s host with %j to %s', async (platform, arch, dirs, expected) => {
-      const binaryPath = await resolveFrom(platform, arch, '29.3.1', builderInfo(), dirs.map(inDist));
+      const binaryPath = await resolveFrom(platform, arch, builderInfo(), dirs.map(inDist));
 
       expect(binaryPath).toBe(appPath(platform, inDist(expected)));
     });
 
-    it.each<[string, string, string | undefined, string[], string]>([
-      ['win32', 'ia32', '29.3.1', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
-      ['win32', 'ia32', '45.2.2', ['win-unpacked', 'win-ia32-unpacked'], 'win-unpacked'],
-      ['win32', 'ia32', 'v45.2.2', ['win-unpacked', 'win-ia32-unpacked'], 'win-unpacked'],
-      ['win32', 'ia32', '44.0.0-alpha.3', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
-      ['win32', 'ia32', '44.0.0-alpha.4', ['win-unpacked', 'win-ia32-unpacked'], 'win-unpacked'],
-      ['win32', 'ia32', undefined, ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
-      ['win32', 'ia32', 'latest', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
-      ['win32', 'x64', '45.2.2', ['win-ia32-unpacked'], 'win-ia32-unpacked'],
-      ['linux', 'arm', '29.3.1', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
-      ['linux', 'arm', '45.2.2', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-unpacked'],
-      ['linux', 'arm64', '45.2.2', ['linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
+    it.each<[string, string, string, string[], string]>([
       ['darwin', 'arm64', '124.0.6367.243', ['mac', 'mac-arm64'], 'mac-arm64'],
-      ['darwin', 'arm64', '124.0.6367.243', ['mac-universal'], 'mac-universal'],
-      ['win32', 'arm64', '124.0.6367.243', ['win-unpacked', 'win-arm64-unpacked'], 'win-arm64-unpacked'],
+      ['win32', 'ia32', '45.2.2', ['win-unpacked', 'win-ia32-unpacked'], 'win-ia32-unpacked'],
+      ['linux', 'arm', '45.2.2', ['linux-unpacked', 'linux-armv7l-unpacked'], 'linux-armv7l-unpacked'],
     ])(
       'should resolve %s on a %s host with Electron %s and %j to %s',
       async (platform, arch, electronVersion, dirs, expected) => {
-        const binaryPath = await resolveFrom(platform, arch, electronVersion, builderInfo(), dirs.map(inDist));
+        const binaryPath = await resolveFrom(platform, arch, builderInfo(), dirs.map(inDist), electronVersion);
 
         expect(binaryPath).toBe(appPath(platform, inDist(expected)));
       },
@@ -479,7 +461,7 @@ describe('getBinaryPath', () => {
       ['linux', 'arm64', { linux: { defaultArch: 'arm' } }, ['linux-x64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
       ['linux', 'x64', { win: { defaultArch: 'arm64' } }, ['linux-arm64-unpacked', 'linux-unpacked'], 'linux-unpacked'],
     ])('should resolve %s on a %s host with %j and %j to %s', async (platform, arch, config, dirs, expected) => {
-      const binaryPath = await resolveFrom(platform, arch, '29.3.1', builderInfo(config), dirs.map(inDist));
+      const binaryPath = await resolveFrom(platform, arch, builderInfo(config), dirs.map(inDist));
 
       expect(binaryPath).toBe(appPath(platform, inDist(expected)));
     });

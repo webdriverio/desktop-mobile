@@ -3,7 +3,6 @@ import path from 'node:path';
 import { type NormalizedReadResult, readPackageUp } from '@wdio/native-utils';
 import { getAppBuildInfo } from './appBuildInfo.js';
 import { getBinaryPath } from './binaryPath.js';
-import { getElectronVersion } from './electronVersion.js';
 
 /**
  * Validate that a file path exists and is accessible
@@ -196,12 +195,8 @@ export async function getElectronBinaryPath(appDir: string): Promise<string> {
     path: pkgResult.path,
   };
 
-  // Get Electron version and build info
-  const electronVersion = await getElectronVersion(pkg);
   const appBuildInfo = await getAppBuildInfo(pkg);
-
-  // Get binary path using native-utils
-  const binaryResult = await getBinaryPath(pkgResult.path, appBuildInfo, electronVersion);
+  const binaryResult = await getBinaryPath(pkgResult.path, appBuildInfo);
 
   if (!binaryResult.ok) {
     throw new Error(`Failed to resolve Electron binary path for ${appDir}`);

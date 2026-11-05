@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { allOfficialArchsForPlatformAndVersion } from '@electron/packager';
 import type {
   AppBuildInfo,
   BinaryPathResult,
@@ -11,7 +10,6 @@ import type {
   PathValidationResult,
 } from '@wdio/native-types';
 import { validateBinaryPaths } from '@wdio/native-utils';
-import { validateStrict } from 'compare-versions';
 import { SUPPORTED_BUILD_TOOL, SUPPORTED_PLATFORM } from './constants.js';
 
 type SupportedPlatform = keyof typeof SUPPORTED_PLATFORM;
@@ -22,7 +20,6 @@ interface BinaryOptions {
   platform: SupportedPlatform;
   appName: string;
   config: ForgeBuildInfo['config'] | BuilderBuildInfo['config'];
-  electronVersion?: string;
   projectDir: string;
   hostArch?: string;
 }
@@ -32,7 +29,7 @@ function sanitizeAppNameForPath(appName: string, platform: SupportedPlatform): s
   return platform === 'linux' ? appName.toLowerCase().replace(/ /g, '-') : appName;
 }
 
-// Every arch searched per platform, in the order used when the host arch is unknown
+// Every arch searched on each platform, in the order tried after the ones the host runs
 const ARCHS: Record<SupportedPlatform, BuilderArch[]> = {
   darwin: ['universal', 'arm64', 'x64'],
   linux: ['x64', 'arm64', 'armv7l'],
@@ -46,7 +43,7 @@ const ALSO_RUNS: Record<SupportedPlatform, Partial<Record<BuilderArch, BuilderAr
   win32: { arm64: ['x64', 'ia32'], x64: ['ia32'] },
 };
 
-// process.arch and electron-builder's defaultArch both accept `arm` for armv7l
+// process.arch and electron-builder's defaultArch can both spell armv7l as `arm`
 function toArch(name?: string): BuilderArch | undefined {
   const arch = name === 'arm' ? 'armv7l' : name;
   return arch === 'x64' || arch === 'arm64' || arch === 'ia32' || arch === 'armv7l' || arch === 'universal'
@@ -54,19 +51,11 @@ function toArch(name?: string): BuilderArch | undefined {
     : undefined;
 }
 
-// The first folder holding the app wins, so search the builds the host can run before the rest. A build for an
-// arch Electron doesn't publish for the version is stale or custom, so it goes last rather than being dropped.
-function getArchOrder(platform: SupportedPlatform, hostArch?: string, electronVersion?: string): BuilderArch[] {
+// The first folder holding the app wins, so search the builds the host can run before the rest
+function getArchOrder(platform: SupportedPlatform, hostArch?: string): BuilderArch[] {
   const host = toArch(hostArch);
   const runnable = host && ARCHS[platform].includes(host) ? [host, ...(ALSO_RUNS[platform][host] ?? [])] : [];
-  const archs = [...new Set([...runnable, ...ARCHS[platform]])];
-  // The packager rules out every arch but x64 for a version semver can't parse, such as a Chromium version
-  const version = electronVersion?.replace(/^v/, '');
-  if (!version || !validateStrict(version)) {
-    return archs;
-  }
-  const published = allOfficialArchsForPlatformAndVersion(platform, version);
-  return [...archs.filter((arch) => published.includes(arch)), ...archs.filter((arch) => !published.includes(arch))];
+  return [...new Set([...runnable, ...ARCHS[platform]])];
 }
 
 function getForgeDistDir(
@@ -158,8 +147,8 @@ function getBinaryName(options: BinaryOptions): string {
 }
 
 function getOutDir(options: BinaryOptions): string[] {
-  const { buildTool, config, appName, platform, electronVersion, projectDir, hostArch } = options;
-  const archs = getArchOrder(platform, hostArch, electronVersion);
+  const { buildTool, config, appName, platform, projectDir, hostArch } = options;
+  const archs = getArchOrder(platform, hostArch);
 
   const outDirs =
     buildTool === SUPPORTED_BUILD_TOOL.forge
@@ -176,7 +165,6 @@ function getOutDir(options: BinaryOptions): string[] {
 export function generateBinaryPaths(
   packageJsonPath: string,
   appBuildInfo: AppBuildInfo,
-  electronVersion?: string,
   p = process,
 ): PathGenerationResult {
   const errors: PathGenerationError[] = [];
@@ -219,7 +207,6 @@ export function generateBinaryPaths(
       platform: p.platform,
       appName: appBuildInfo.appName,
       config: appBuildInfo.config,
-      electronVersion,
       projectDir: path.dirname(packageJsonPath),
       hostArch: p.arch,
     };
@@ -304,18 +291,18 @@ export function generateBinaryPaths(
  * Returns detailed information about both path generation and validation
  * @param packageJsonPath path to the nearest package.json
  * @param appBuildInfo build information about the Electron application
- * @param electronVersion version of Electron to use
+ * @param _electronVersion unused; kept so `p` stays the fourth argument
  * @param p process object (used for testing purposes)
  * @returns detailed result with binary path and diagnostic information
  */
 export async function getBinaryPath(
   packageJsonPath: string,
   appBuildInfo: AppBuildInfo,
-  electronVersion?: string,
+  _electronVersion?: string,
   p = process,
 ): Promise<BinaryPathResult> {
   // Phase 1: Generate possible binary paths
-  const pathGeneration = generateBinaryPaths(packageJsonPath, appBuildInfo, electronVersion, p);
+  const pathGeneration = generateBinaryPaths(packageJsonPath, appBuildInfo, p);
 
   // Phase 2: Validate generated paths
   let pathValidation: PathValidationResult;
