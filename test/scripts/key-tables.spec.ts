@@ -55,9 +55,23 @@ const DIOXUS_COPIES = {
     'fn install_element_events_js',
   ],
 };
-const SHARED_ITEMS = Object.entries(DIOXUS_COPIES).flatMap(([dioxusCopy, items]) =>
-  items.map((item) => ({ item, dioxusCopy })),
-);
+const TAURI_SESSION = 'packages/tauri-plugin-webdriver/src/webdriver/session.rs';
+const DIOXUS_SESSION = 'packages/dioxus-embedded-driver/src/webdriver/session.rs';
+const SESSION_ITEMS = [
+  'enum Press',
+  'Press::key',
+  'ActionState::press_key',
+  'ActionState::release_key',
+  'ActionState::pressed_keys',
+  'ActionState::take_presses_to_release',
+  'ActionState::forget_button_press',
+];
+const SHARED_ITEMS = [
+  ...Object.entries(DIOXUS_COPIES).flatMap(([dioxusCopy, items]) =>
+    items.map((item) => ({ item, tauriCopy: TAURI_COPY, dioxusCopy })),
+  ),
+  ...SESSION_ITEMS.map((item) => ({ item, tauriCopy: TAURI_SESSION, dioxusCopy: DIOXUS_SESSION })),
+];
 
 const VISIBILITY = '(?:pub(?:\\([a-z]+\\))? )?';
 
@@ -74,10 +88,13 @@ function itemSource(path: string, item: string) {
   return source.match(new RegExp(`^${VISIBILITY}(${item}\\b${end})$`, 'm'))?.[1];
 }
 
-describe('embedded driver key input', () => {
-  it.each(SHARED_ITEMS)('should define $item the same in both embedded driver crates', ({ item, dioxusCopy }) => {
-    const tauri = itemSource(TAURI_COPY, item);
-    expect(tauri, `${item} not found in ${TAURI_COPY}`).toBeDefined();
-    expect(itemSource(dioxusCopy, item), `copy ${item} from ${TAURI_COPY} into ${dioxusCopy}`).toBe(tauri);
-  });
+describe('embedded driver key input and action state', () => {
+  it.each(SHARED_ITEMS)(
+    'should define $item the same in both embedded driver crates',
+    ({ item, tauriCopy, dioxusCopy }) => {
+      const tauri = itemSource(tauriCopy, item);
+      expect(tauri, `${item} not found in ${tauriCopy}`).toBeDefined();
+      expect(itemSource(dioxusCopy, item), `copy ${item} from ${tauriCopy} into ${dioxusCopy}`).toBe(tauri);
+    },
+  );
 });

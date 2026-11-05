@@ -7,11 +7,29 @@ use super::element::ElementStore;
 use crate::platform::{FrameId, PointerInputState};
 use crate::server::response::WebDriverErrorResponse;
 
+// The press tracking is the same in both embedded drivers; test/scripts/key-tables.spec.ts checks
+// the copies match.
+/// A held key or pointer button.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Press {
+  Key(String),
+  Button { source_id: String, button: u32 },
+}
+
+impl Press {
+  pub fn key(&self) -> Option<&String> {
+    match self {
+      Press::Key(key) => Some(key),
+      Press::Button { .. } => None,
+    }
+  }
+}
+
 /// Tracks currently pressed keys and pointer buttons for action state
 #[derive(Debug, Default, Clone)]
 pub struct ActionState {
-  /// Currently pressed keyboard keys (`WebDriver` key codes), in the order they were pressed
-  pressed_keys: Vec<String>,
+  /// Held keys (`WebDriver` key codes) and pointer buttons, in the order they were pressed
+  presses: Vec<Press>,
   /// Currently pressed pointer buttons by source ID
   pub pressed_buttons: HashMap<String, HashSet<u32>>,
   /// Pointer sources whose `pointerdown` was canceled; their compatibility mouse
@@ -27,22 +45,31 @@ impl ActionState {
   /// A key pressed again while held moves to the end, as W3C releases its latest press first.
   pub fn press_key(&mut self, key: &str) {
     self.release_key(key);
-    self.pressed_keys.push(key.to_string());
+    self.presses.push(Press::Key(key.to_string()));
   }
 
   pub fn release_key(&mut self, key: &str) {
-    self.pressed_keys.retain(|held| held != key);
+    self.presses.retain(|press| !matches!(press, Press::Key(held) if held == key));
   }
 
-  pub fn pressed_keys(&self) -> &[String] {
-    &self.pressed_keys
+  /// The held keys, in the order they were pressed.
+  pub fn pressed_keys(&self) -> impl Iterator<Item = &String> {
+    self.presses.iter().filter_map(Press::key)
   }
 
-  /// Empties the pressed keys, returning them in W3C's release order: last pressed first.
-  pub fn take_keys_to_release(&mut self) -> Vec<String> {
-    let mut keys = std::mem::take(&mut self.pressed_keys);
-    keys.reverse();
-    keys
+  /// Takes the held keys and buttons, latest press first, which is W3C's release order. Keys are
+  /// forgotten here; buttons stay in `pressed_buttons` until the caller releases them.
+  pub fn take_presses_to_release(&mut self) -> Vec<Press> {
+    let mut presses = std::mem::take(&mut self.presses);
+    presses.reverse();
+    presses
+  }
+
+  fn forget_button_press(&mut self, source_id: &str, button: u32) {
+    self.presses.retain(|press| {
+      !matches!(press, Press::Button { source_id: held, button: held_button }
+        if held == source_id && *held_button == button)
+    });
   }
 
   /// `None` when the button is already held, which W3C makes a no-op.
@@ -57,6 +84,7 @@ impl ActionState {
     }
     let chorded = !held.is_empty();
     held.insert(button);
+    self.presses.push(Press::Button { source_id: source_id.to_string(), button });
     if button == 0 {
       self.click_anchors.insert(source_id.to_string(), self.pointer_position);
     }
@@ -84,6 +112,7 @@ impl ActionState {
     if !chorded {
       self.canceled_pointer_downs.remove(source_id);
     }
+    self.forget_button_press(source_id, button);
     Some(input_state)
   }
 
@@ -104,22 +133,10 @@ impl ActionState {
   }
 
   pub fn forget_pointer_input(&mut self) {
+    self.presses.retain(|press| press.key().is_some());
     self.pressed_buttons.clear();
     self.canceled_pointer_downs.clear();
     self.click_anchors.clear();
-  }
-
-  /// Sorted by source, then button, so releasing them is deterministic.
-  pub fn held_pointer_buttons(&self) -> Vec<(String, u32)> {
-    let mut held: Vec<(String, u32)> = self
-      .pressed_buttons
-      .iter()
-      .flat_map(|(source_id, buttons)| {
-        buttons.iter().map(move |&button| (source_id.clone(), button))
-      })
-      .collect();
-    held.sort();
-    held
   }
 }
 
@@ -242,7 +259,7 @@ impl SessionManager {
 
 #[cfg(test)]
 mod tests {
-  use super::{ActionState, FrameId, PointerInputState, Session, SwitchWindowError};
+  use super::{ActionState, FrameId, PointerInputState, Press, Session, SwitchWindowError};
 
   fn input(buttons: u32, suppress_mouse_events: bool) -> PointerInputState {
     PointerInputState { buttons, suppress_mouse_events, chorded: false, clicks: false }
@@ -256,6 +273,14 @@ mod tests {
     PointerInputState { clicks: true, ..state }
   }
 
+  fn key(key: &str) -> Press {
+    Press::Key(key.to_string())
+  }
+
+  fn button(source_id: &str, button: u32) -> Press {
+    Press::Button { source_id: source_id.to_string(), button }
+  }
+
   #[test]
   fn release_actions_releases_keys_in_reverse_press_order() {
     let mut state = ActionState::default();
@@ -263,9 +288,23 @@ mod tests {
       state.press_key(key);
     }
     state.release_key("a");
-    assert_eq!(state.pressed_keys(), ["\u{E009}", " "]);
-    assert_eq!(state.take_keys_to_release(), [" ", "\u{E009}"]);
-    assert!(state.pressed_keys().is_empty());
+    assert!(state.pressed_keys().eq(["\u{E009}", " "]));
+    assert_eq!(state.take_presses_to_release(), [key(" "), key("\u{E009}")]);
+    assert_eq!(state.pressed_keys().count(), 0);
+  }
+
+  #[test]
+  fn release_actions_releases_keys_and_buttons_in_one_reverse_press_order() {
+    let mut state = ActionState::default();
+    state.press_key("\u{E008}");
+    state.press_pointer_button("mouse", 0);
+    state.press_key("\u{E009}");
+    state.press_pointer_button("mouse", 2);
+    state.release_pointer_button("mouse", 2);
+
+    let release = state.take_presses_to_release();
+
+    assert_eq!(release, [key("\u{E009}"), button("mouse", 0), key("\u{E008}")]);
   }
 
   #[test]
@@ -350,27 +389,16 @@ mod tests {
   }
 
   #[test]
-  fn forgetting_pointer_input_lets_the_next_press_dispatch() {
+  fn forgetting_pointer_input_keeps_held_keys_and_lets_the_next_press_dispatch() {
     let mut state = ActionState::default();
     state.press_pointer_button("mouse", 0);
     state.cancel_pointer_down("mouse");
+    state.press_key("\u{E008}");
 
     state.forget_pointer_input();
 
+    assert_eq!(state.take_presses_to_release(), [key("\u{E008}")]);
     assert_eq!(state.press_pointer_button("mouse", 0), Some(input(1, false)));
-  }
-
-  #[test]
-  fn held_pointer_buttons_are_listed_by_source_then_button() {
-    let mut state = ActionState::default();
-    for (source_id, button) in [("b", 0), ("a", 2), ("b", 1), ("a", 0), ("a", 1)] {
-      state.press_pointer_button(source_id, button);
-    }
-
-    let held = state.held_pointer_buttons();
-
-    let expected = [("a", 0), ("a", 1), ("a", 2), ("b", 0), ("b", 1)];
-    assert_eq!(held, expected.map(|(source_id, button)| (source_id.to_string(), button)));
   }
 
   #[test]

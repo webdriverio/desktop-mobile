@@ -11,6 +11,7 @@ use crate::platform::PointerEventType;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::element::ELEMENT_KEY;
+use crate::webdriver::session::Press;
 
 #[derive(Debug, Deserialize)]
 pub struct ActionsRequest {
@@ -218,22 +219,27 @@ async fn perform_actions<R: Runtime + 'static>(
               KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
                 if is_skipped_key(value) => {}
               KeyAction::KeyDown { value } => {
+                // Hold the key before dispatch, as W3C does, so Release Actions lets go of a key
+                // whose keydown reached the page but timed out.
                 held_modifiers.press(value);
-                executor.dispatch_key_event(value, true, &held_modifiers.state()).await?;
-                // Track pressed key
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.press_key(value);
+                {
+                  let mut sessions = state.sessions.write().await;
+                  if let Ok(session) = sessions.get_mut(&session_id) {
+                    session.action_state.press_key(value);
+                  }
                 }
+                executor.dispatch_key_event(value, true, &held_modifiers.state()).await?;
               }
               KeyAction::KeyUp { value } => {
+                // Let go before dispatch too, so Release Actions doesn't resend a keyup that timed out.
                 held_modifiers.release(value);
-                executor.dispatch_key_event(value, false, &held_modifiers.state()).await?;
-                // Remove from tracked keys
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.release_key(value);
+                {
+                  let mut sessions = state.sessions.write().await;
+                  if let Ok(session) = sessions.get_mut(&session_id) {
+                    session.action_state.release_key(value);
+                  }
                 }
+                executor.dispatch_key_event(value, false, &held_modifiers.state()).await?;
               }
               KeyAction::Pause { .. } => {}
             }
@@ -389,28 +395,31 @@ pub async fn release<R: Runtime + 'static>(
   };
 
   let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
-  let pressed_keys = taken.take_keys_to_release();
-  let mut held_modifiers = HeldModifiers::from_keys(&pressed_keys);
+  let presses = taken.take_presses_to_release();
+  let mut held_modifiers = HeldModifiers::from_keys(presses.iter().filter_map(Press::key));
+  let (x, y) = taken.pointer_position;
 
   // Release everything even if one fails; the state is cleared, so nothing could retry it.
   let mut first_error = None;
-
-  for key in &pressed_keys {
-    held_modifiers.release(key);
-    if let Err(error) = executor.dispatch_key_event(key, false, &held_modifiers.state()).await {
-      first_error.get_or_insert(error);
-    }
-  }
-
-  // Release all pressed pointer buttons where the pointer last was
-  let (x, y) = taken.pointer_position;
-  for (source_id, button) in taken.held_pointer_buttons() {
-    if let Some(input_state) = taken.release_pointer_button(&source_id, button) {
-      if let Err(error) =
-        executor.dispatch_pointer_event(PointerEventType::Up, x, y, button, input_state).await
-      {
-        first_error.get_or_insert(error);
+  for press in &presses {
+    let released = match press {
+      Press::Key(key) => {
+        held_modifiers.release(key);
+        executor.dispatch_key_event(key, false, &held_modifiers.state()).await
       }
+      // Buttons go up where the pointer last was.
+      Press::Button { source_id, button } => {
+        let Some(input_state) = taken.release_pointer_button(source_id, *button) else {
+          continue;
+        };
+        executor
+          .dispatch_pointer_event(PointerEventType::Up, x, y, *button, input_state)
+          .await
+          .map(|_| ())
+      }
+    };
+    if let Err(error) = released {
+      first_error.get_or_insert(error);
     }
   }
 
