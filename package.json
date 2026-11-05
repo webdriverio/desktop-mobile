@@ -80,7 +80,7 @@
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json && tsc --noEmit -p tsconfig.scripts.dom.json"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
+    "@biomejs/biome": "2.6.5",
     "@inquirer/prompts": "^8.7.5",
     "@octokit/rest": "^22.0.1",
     "@releasekit/release": "^0.42.1",
