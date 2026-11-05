@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import { forEachInstance, requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
@@ -137,7 +136,7 @@ export default class TauriWorkerService {
           const instanceOptions = (caps as TauriCapabilities | undefined)?.['wdio:tauriServiceOptions'];
           const app = (caps as TauriCapabilities | undefined)?.['tauri:options']?.application;
           if (name !== undefined && app) {
-            instanceApps.push(resolve(app));
+            instanceApps.push(app);
           }
           setCurrentWindowLabel(instance, instanceOptions?.windowLabel || this.windowLabel);
           setSessionProvider(instance, this.driverProvider);

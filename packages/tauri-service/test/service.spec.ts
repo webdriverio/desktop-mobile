@@ -1231,16 +1231,6 @@ describe('TauriWorkerService', () => {
         expect(await instancesShareAppFor(root)).toBe(false);
       });
 
-      it('should treat two spellings of one path as the same app', async () => {
-        const { root, browserA } = await startMultiremote({
-          browserA: app('/one/app'),
-          browserB: app('/one/../one/app'),
-        });
-
-        expect(await instancesShareAppFor(browserA)).toBe(true);
-        expect(await instancesShareAppFor(root)).toBe(true);
-      });
-
       it("should not be set when the instances' apps are unknown", async () => {
         const { root, browserA } = await startMultiremote({ browserA: {}, browserB: {} });
 

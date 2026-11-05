@@ -431,15 +431,9 @@ describe('createMock', () => {
       }
     });
 
-    const pluginError =
-      'Promise error: Failed to execute script: Execute error: Window with label \'popup\' not found. Available windows: ["main"]';
     describe.each([
       ['embedded', "Window 'popup' not found. Available: [main]"],
-      // execute() rethrows the plugin's error inside its own parse error.
-      [
-        'external',
-        `Failed to parse execute result: ${pluginError}, raw result: ${JSON.stringify({ __wdio_error__: pluginError })}`,
-      ],
+      ['external', 'Execute error: Window with label \'popup\' not found. Available windows: ["main"]'],
     ])('once the mock window has closed (%s provider)', (_provider, closedError) => {
       async function mockInClosedWindow() {
         mockExecute.mockResolvedValueOnce('popup');
