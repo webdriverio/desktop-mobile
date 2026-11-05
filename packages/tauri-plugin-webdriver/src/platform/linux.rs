@@ -93,6 +93,18 @@ impl<R: Runtime> LinuxExecutor<R> {
   pub fn new(window: WebviewWindow<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
     Self { window, timeouts, frame_context }
   }
+
+  /// Let the page collect a timed-out async script's promise. Runs in the top window, where the
+  /// script ran, not through `evaluate_js_raw`, which targets the selected frame.
+  fn release_async_script(&self, pending_key: &str) {
+    let release = format!("delete window['{pending_key}'];");
+    let _ = self.window.with_webview(move |webview| {
+      let webview = webview.inner().clone();
+      MainContext::default().spawn_local(async move {
+        let _ = webview.evaluate_javascript_future(&release, None, None).await;
+      });
+    });
+  }
 }
 
 /// Register `WebKitGTK` handlers at webview creation time.
@@ -453,46 +465,8 @@ impl<R: Runtime + 'static> LinuxExecutor<R> {
       None => (String::new(), "result"),
     };
 
-    // Build wrapper that includes argument deserialization.
-    // call_async_javascript_function_future treats the body as function statements,
-    // so `return` is required — without it the function returns undefined immediately.
-    let wrapper = format!(
-      r"return new Promise((resolve, reject) => {{
-                var ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
-                {refs_js}
-                function deserializeArg(arg) {{
-                    if (arg === null || arg === undefined) return arg;
-                    if (Array.isArray(arg)) return arg.map(deserializeArg);
-                    if (typeof arg === 'object') {{
-                        if (arg[ELEMENT_KEY]) {{
-                            var el = window['{ELEMENT_VAR_PREFIX}' + arg[ELEMENT_KEY].replace(/-/g, '')];
-                            if (!el) throw new Error('stale element reference');
-                            return el;
-                        }}
-                        var result = {{}};
-                        for (var key in arg) {{
-                            if (arg.hasOwnProperty(key)) result[key] = deserializeArg(arg[key]);
-                        }}
-                        return result;
-                    }}
-                    return arg;
-                }}
-                var __done = function(result, error) {{
-                    if (error) {{
-                        reject(new Error(typeof error === 'string' ? error : String(error)));
-                    }} else {{
-                        resolve({result_js});
-                    }}
-                }};
-                var __args = {args_json}.map(deserializeArg);
-                __args.push(__done);
-                try {{
-                    (function() {{ {script} }}).apply(null, __args);
-                }} catch (e) {{
-                    reject(e);
-                }}
-            }})"
-    );
+    let pending_key = format!("__wdio_async_{}", uuid::Uuid::new_v4());
+    let wrapper = async_script_wrapper(script, &args_json, &pending_key, &refs_js, result_js);
 
     let (tx, rx) = oneshot::channel();
 
@@ -538,7 +512,87 @@ impl<R: Runtime + 'static> LinuxExecutor<R> {
       Ok(Ok(Ok(value))) => Ok(value),
       Ok(Ok(Err(error))) => Err(WebDriverErrorResponse::javascript_error(&error, None)),
       Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error("Channel closed")),
-      Err(_) => Err(WebDriverErrorResponse::script_timeout()),
+      Err(_) => {
+        self.release_async_script(&pending_key);
+        Err(WebDriverErrorResponse::script_timeout())
+      }
     }
+  }
+}
+
+/// A function body that runs an async-style `script` with its arguments and a done callback, and
+/// returns a promise of the value passed to `done`. `call_async_javascript_function_future` treats
+/// the body as function statements, so it must `return` the promise.
+///
+/// `WebKitGTK` fails the call once the promise is garbage-collected, which a script that never
+/// calls `done` allows, so `window[pending_key]` holds the promise until it settles or times out.
+fn async_script_wrapper(
+  script: &str,
+  args_json: &str,
+  pending_key: &str,
+  refs_js: &str,
+  result_js: &str,
+) -> String {
+  format!(
+    r"var __promise = new Promise((resolve, reject) => {{
+                var ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+                {refs_js}
+                function deserializeArg(arg) {{
+                    if (arg === null || arg === undefined) return arg;
+                    if (Array.isArray(arg)) return arg.map(deserializeArg);
+                    if (typeof arg === 'object') {{
+                        if (arg[ELEMENT_KEY]) {{
+                            var el = window['{ELEMENT_VAR_PREFIX}' + arg[ELEMENT_KEY].replace(/-/g, '')];
+                            if (!el) throw new Error('stale element reference');
+                            return el;
+                        }}
+                        var result = {{}};
+                        for (var key in arg) {{
+                            if (arg.hasOwnProperty(key)) result[key] = deserializeArg(arg[key]);
+                        }}
+                        return result;
+                    }}
+                    return arg;
+                }}
+                var __done = function(result, error) {{
+                    if (error) {{
+                        reject(new Error(typeof error === 'string' ? error : String(error)));
+                    }} else {{
+                        resolve({result_js});
+                    }}
+                }};
+                var __args = {args_json}.map(deserializeArg);
+                __args.push(__done);
+                try {{
+                    (function() {{ {script} }}).apply(null, __args);
+                }} catch (e) {{
+                    reject(e);
+                }}
+            }});
+            window['{pending_key}'] = __promise;
+            return __promise.finally(function() {{ delete window['{pending_key}']; }});"
+  )
+}
+
+#[cfg(test)]
+mod tests {
+  use super::async_script_wrapper;
+
+  #[test]
+  fn async_script_wrapper_holds_the_promise_on_window_until_it_settles() {
+    let body = async_script_wrapper(
+      "arguments[1](arguments[0] * 2)",
+      "[21]",
+      "__wdio_async_key",
+      "",
+      "result",
+    );
+
+    assert!(body.starts_with("var __promise = new Promise((resolve, reject) => {"));
+    assert!(body.contains("var __args = [21].map(deserializeArg);"));
+    assert!(body.contains("(function() { arguments[1](arguments[0] * 2) }).apply(null, __args);"));
+    assert!(body.contains("window['__wdio_async_key'] = __promise;"));
+    assert!(body
+      .ends_with("return __promise.finally(function() { delete window['__wdio_async_key']; });"));
   }
 }
