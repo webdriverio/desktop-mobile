@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { STASH_NODES_JS } from '../../packages/electrobun-service/src/commands/stashNodes.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const TAURI_COPY = 'packages/tauri-plugin-webdriver/src/platform/script-result-refs.js';
@@ -218,5 +219,87 @@ describe('script-result-refs.js', () => {
       expect(page.__test_el_cycle0).toBe(byId('second'));
       expect('__test_el_cycle1' in page).toBe(false);
     });
+  });
+});
+
+// Electrobun's page-side stash keeps the nodes in one array behind placeholders instead of under IDs, so it
+// can't be a copy of the file. It must still turn every result into the same shape with the same nodes.
+describe("Electrobun's page-side stash", () => {
+  const stashNodes = new Function(`${STASH_NODES_JS}\nreturn __wdioStashNodes;`)() as (
+    value: unknown,
+    stash: string,
+    mark: string,
+  ) => unknown;
+  const STASH = '__test_stash';
+  const MARK = '__test_mark';
+
+  afterEach(() => {
+    delete page[STASH];
+  });
+
+  // Each reference becomes `{ ref: node }`, so the outputs compare by which node sits where, and a node
+  // left in the result unreplaced doesn't pass for one that was
+  function withNodes(value: unknown, nodeOf: (ref: Record<string, unknown>) => unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => withNodes(item, nodeOf));
+    }
+    if (value === null || typeof value !== 'object') {
+      return value;
+    }
+    const node = nodeOf(value as Record<string, unknown>);
+    if (node !== undefined) {
+      return { ref: node };
+    }
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withNodes(item, nodeOf)]));
+  }
+
+  function fromDrivers(value: unknown) {
+    const result = refs.withRefs(value);
+    return result === value
+      ? value
+      : withNodes(result, (ref) => {
+          const id = ref[ELEMENT_KEY] ?? ref[SHADOW_KEY];
+          return typeof id === 'string' ? page[`__test_el_${id.replace(/-/g, '')}`] : undefined;
+        });
+  }
+
+  function fromElectrobun(value: unknown) {
+    const result = stashNodes(value, STASH, MARK) as Record<string, unknown>;
+    return result === value
+      ? value
+      : withNodes(result.value, (ref) =>
+          typeof ref[MARK] === 'number' ? (page[STASH] as unknown[])[ref[MARK] as number] : undefined,
+        );
+  }
+
+  it.each([
+    ['an element', () => byId('first')],
+    ['the same element twice', () => [byId('first'), { again: byId('first') }]],
+    ['a shadow root', () => byId('host').attachShadow({ mode: 'open' })],
+    ['a callable element', () => [Object.assign(() => undefined, { nodeType: 1, nodeName: 'EMBED' })]],
+    ['a plain function', () => [() => undefined]],
+    ['a NodeList', () => document.querySelectorAll('#first, #second')],
+    ['an HTMLCollection, nested', () => ({ divs: document.getElementsByTagName('div') })],
+    ['an empty list', () => ({ found: document.getElementsByClassName('missing') })],
+    ['a form element', () => ({ form: formWithInput() })],
+    ['a select element', () => [selectWithOption()]],
+    ['a fragment that is not a shadow root', () => [document.createDocumentFragment()]],
+    ['a text node', () => [document.createTextNode('text')]],
+    ['a typed array', () => new Uint8Array([1, 2])],
+    ['a plain object keyed by index', () => ({ 0: byId('first'), length: 1 })],
+    ['the rest of a result with nodes', () => ({ el: byId('first'), when: new Date(0), nan: Number.NaN })],
+    ['a result with no nodes', () => ({ when: new Date(0), list: [1, 'two'] })],
+  ])('should turn %s into what the embedded drivers send', (_name, make) => {
+    const value = make();
+
+    expect(fromElectrobun(value)).toEqual(fromDrivers(value));
+  });
+
+  it('should return a result JSON.stringify rejects as it is, as the embedded drivers do', () => {
+    const cyclic: Record<string, unknown> = { el: byId('first') };
+    cyclic.self = cyclic;
+
+    expect(fromElectrobun(cyclic)).toBe(cyclic);
+    expect(fromDrivers(cyclic)).toBe(cyclic);
   });
 });
