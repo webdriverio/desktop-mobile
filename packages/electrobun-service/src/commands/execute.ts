@@ -1,9 +1,5 @@
-// browser.electrobun.execute implementation.
-//
-// The user's code runs once, in the bridge's active target, via `Runtime.evaluate`
-// (or its W3C stand-in on Linux). A string-built IIFE is built from the user's
-// function source, with args inlined as JSON literals. The first callback arg is
-// the in-webview surface `window.__WDIO_ELECTROBUN__` (may be `{}`).
+// browser.electrobun.execute implementation. The user's code runs once, in the bridge's active target,
+// via `Runtime.evaluate` (or its W3C stand-in on Linux).
 //
 // Invariant: this never issues Page.navigate — the bridge only enables Runtime
 // on the live target (see @wdio/native-cdp-bridge).
@@ -14,6 +10,8 @@ import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge'
 import type { ElectrobunAPIs } from '@wdio/native-types';
 import { errorMessage, hasSemicolonOutsideQuotes } from '@wdio/native-utils';
 
+import { STASH_NODES_JS } from './stashNodes.js';
+
 export type StashedNodeResolver = (stash: string) => Promise<unknown>;
 
 // Reads the nodes a script left on `window[stash]` through the WebDriver session, which returns them as
@@ -22,46 +20,6 @@ export function stashedNodeResolver(browser: WebdriverIO.Browser): StashedNodeRe
   return (stash) =>
     browser.execute('var nodes = window[arguments[0]]; delete window[arguments[0]]; return nodes;', stash);
 }
-
-// Runs in the page on the script's result, by the embedded drivers' rules (script-result-refs.js):
-// elements and shadow roots become placeholders, kept on `window[stash]`, and indexed lists such as a
-// NodeList become arrays. A result with neither, or one JSON.stringify rejects, comes back unchanged.
-export const STASH_NODES_JS = `function __wdioStashNodes(value, stash, mark) {
-  var nodes = [];
-  var replaced = false;
-  function isNode(item) {
-    // Chromium's <embed> and <object> elements are callable, so their typeof is 'function'
-    if (item === null || (typeof item !== 'object' && typeof item !== 'function')) return false;
-    return item.nodeType === 1 || (item.nodeType === 11 && !!item.host);
-  }
-  function listOf(item) {
-    if (item === null || typeof item !== 'object' || Array.isArray(item) || typeof item.nodeType === 'number') return undefined;
-    if (typeof item[Symbol.iterator] !== 'function' || typeof item.length !== 'number') return undefined;
-    return Array.from({ length: item.length }, function (_, i) { return item[i]; });
-  }
-  var json;
-  try {
-    json = JSON.stringify(value, function (_key, item) {
-      if (isNode(item)) {
-        replaced = true;
-        var placeholder = {};
-        placeholder[mark] = nodes.push(item) - 1;
-        return placeholder;
-      }
-      var list = listOf(item);
-      if (list === undefined) return item;
-      replaced = true;
-      return list;
-    });
-  } catch (e) {
-    return value;
-  }
-  if (!replaced) return value;
-  if (nodes.length > 0) window[stash] = nodes;
-  var envelope = { value: JSON.parse(json) };
-  envelope[mark] = nodes.length;
-  return envelope;
-}`;
 
 interface RemoteObject {
   type?: string;
@@ -174,8 +132,14 @@ function replacePlaceholders(value: unknown, mark: string, refs: unknown[]): unk
   return Object.fromEntries(keys.map((key) => [key, replacePlaceholders(record[key], mark, refs)]));
 }
 
-async function discardStashedNodes(bridge: CdpBridge, stash: string): Promise<void> {
-  await evaluateInActiveTarget(bridge, `delete window[${JSON.stringify(stash)}]`).catch(() => {});
+// `label` is the target the script ran in, which switchWindow() may have moved the bridge away from
+async function discardStashedNodes(bridge: CdpBridge, label: string | undefined, stash: string): Promise<void> {
+  const params = { expression: `delete window[${JSON.stringify(stash)}]` };
+  try {
+    await (label ? bridge.sendTo(label, 'Runtime.evaluate', params) : bridge.send('Runtime.evaluate', params));
+  } catch {
+    // Best effort: the page drops the nodes when it navigates
+  }
 }
 
 async function withElementReferences(
@@ -183,6 +147,7 @@ async function withElementReferences(
   mark: string,
   stash: string,
   bridge: CdpBridge,
+  label: string | undefined,
   resolveNodes: StashedNodeResolver,
 ): Promise<unknown> {
   if (!isStashEnvelope(result, mark)) {
@@ -195,11 +160,13 @@ async function withElementReferences(
   try {
     refs = await resolveNodes(stash);
   } catch (error) {
-    await discardStashedNodes(bridge, stash);
-    throw new Error(`browser.electrobun.execute could not return the result's DOM nodes: ${errorMessage(error)}`);
+    await discardStashedNodes(bridge, label, stash);
+    throw new Error(`browser.electrobun.execute could not return the result's DOM nodes: ${errorMessage(error)}`, {
+      cause: error,
+    });
   }
   if (!Array.isArray(refs)) {
-    await discardStashedNodes(bridge, stash);
+    await discardStashedNodes(bridge, label, stash);
     throw new Error(
       "browser.electrobun.execute returned DOM nodes, but the WebDriver session isn't on the window or frame " +
         'the script ran in, so they have no element references there. Switch windows with ' +
@@ -242,6 +209,15 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     return __wdioStashNodes(await ${run}, ${JSON.stringify(stash)}, ${JSON.stringify(mark)});
   })()`;
 
-  const result = await evaluateInActiveTarget<unknown>(bridge, expression);
-  return (await withElementReferences(result, mark, stash, bridge, resolveNodes)) as Awaited<ReturnValue>;
+  const label = bridge.activeLabel;
+  let result: unknown;
+  try {
+    result = await evaluateInActiveTarget<unknown>(bridge, expression);
+  } catch (error) {
+    // The page may have stashed nodes before the call failed, e.g. on a timeout. Don't wait on the cleanup:
+    // the connection that just failed could make it fail slowly too.
+    void discardStashedNodes(bridge, label, stash);
+    throw error;
+  }
+  return (await withElementReferences(result, mark, stash, bridge, label, resolveNodes)) as Awaited<ReturnValue>;
 }

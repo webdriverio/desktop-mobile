@@ -1,7 +1,8 @@
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import { describe, expect, it, vi } from 'vitest';
 
-import { execute, STASH_NODES_JS, stashedNodeResolver } from '../src/commands/execute.js';
+import { execute, stashedNodeResolver } from '../src/commands/execute.js';
+import { STASH_NODES_JS } from '../src/commands/stashNodes.js';
 import { WebDriverEvalBridge } from '../src/webdriverEval.js';
 
 function makeBridge(response: unknown): { bridge: CdpBridge; send: ReturnType<typeof vi.fn> } {
@@ -126,6 +127,17 @@ describe('the page-side node stash', () => {
 
     expect(result).toEqual({ mark: 2, value: { a: [{ mark: 0 }, { b: { mark: 1 } }], n: 1 } });
     expect(win.stash).toEqual([element('x'), root]);
+  });
+
+  it('should keep a node that appears twice once, with both placeholders pointing at it', () => {
+    const win: FakeWindow = {};
+    const el = element('counter');
+
+    expect(stashNodes(win)([el, { again: el }], 'stash', 'mark')).toEqual({
+      mark: 1,
+      value: [{ mark: 0 }, { again: { mark: 0 } }],
+    });
+    expect(win.stash).toEqual([el]);
   });
 
   it('should treat a callable element as an element', () => {
@@ -293,15 +305,72 @@ describe('execute — DOM nodes in the result', () => {
     expect(Object.keys(win)).toEqual(['el']);
   });
 
+  it('should return an element that appears twice as the same reference, reading it once', async () => {
+    const win: FakeWindow = { el: element('counter') };
+    const resolve = sessionResolver(win);
+    let stashed: unknown;
+    resolve.mockImplementationOnce(async (stash: string) => {
+      stashed = win[stash];
+      return [{ [ELEMENT_KEY]: 'counter' }];
+    });
+
+    const result = await execute(pageBridge(win).bridge, resolve, 'return [window.el, { again: window.el }]');
+
+    expect(result).toEqual([{ [ELEMENT_KEY]: 'counter' }, { again: { [ELEMENT_KEY]: 'counter' } }]);
+    expect(stashed).toEqual([element('counter')]);
+  });
+
   it('should throw and discard the nodes when the session errors', async () => {
     const win: FakeWindow = { el: element('counter') };
+    const error = new Error('no such window');
 
     await expect(
-      execute(pageBridge(win).bridge, vi.fn().mockRejectedValue(new Error('no such window')), 'return window.el'),
+      execute(pageBridge(win).bridge, vi.fn().mockRejectedValue(error), 'return window.el'),
     ).rejects.toMatchObject({
       message: "browser.electrobun.execute could not return the result's DOM nodes: no such window",
+      cause: error,
     });
     expect(Object.keys(win)).toEqual(['el']);
+  });
+
+  it('should discard the nodes in the target the script ran in, after a switch', async () => {
+    const win: FakeWindow = { el: element('counter') };
+    const { bridge } = pageBridge(win);
+    const sendTo = vi.fn(async (_label: string, _method: string, params: { expression: string }) =>
+      (bridge.send as unknown as (method: string, params: { expression: string }) => Promise<unknown>)(
+        'Runtime.evaluate',
+        params,
+      ),
+    );
+    Object.assign(bridge, { activeLabel: 'main', sendTo });
+    const resolve = vi.fn(async () => {
+      Object.assign(bridge, { activeLabel: 'window-1' });
+      return null;
+    });
+
+    await expect(execute(bridge, resolve, 'return window.el')).rejects.toThrow();
+    expect(sendTo).toHaveBeenCalledWith('main', 'Runtime.evaluate', {
+      expression: expect.stringMatching(/^delete window\["__wdio_electrobun_nodes_[0-9a-f]{32}"\]$/),
+    });
+    expect(Object.keys(win)).toEqual(['el']);
+  });
+
+  it('should discard the nodes when the call fails after the page stashed them, and rethrow', async () => {
+    const win: FakeWindow = { el: element('counter') };
+    const { send: runInPage } = pageBridge(win);
+    const timeout = new Error('CDP timed out');
+    const send = vi.fn(async (method: string, params: { expression: string }) => {
+      await runInPage(method, params);
+      if (send.mock.calls.length === 1) {
+        throw timeout;
+      }
+      return { result: {} };
+    });
+
+    await expect(execute({ send } as unknown as CdpBridge, sessionResolver(win), 'return window.el')).rejects.toBe(
+      timeout,
+    );
+    await vi.waitFor(() => expect(Object.keys(win)).toEqual(['el']));
   });
 });
 

@@ -2,6 +2,7 @@ import { browser, expect } from '@wdio/globals';
 import '@wdio/native-types';
 
 const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+const SHADOW_KEY = 'shadow-6066-11e4-a52e-4f735466cecf';
 
 type ElementReference = { [ELEMENT_KEY]: string };
 
@@ -9,7 +10,6 @@ function anElementReference() {
   return { [ELEMENT_KEY]: expect.any(String) };
 }
 
-// `$` turns a reference into an element.
 function idOf(ref: unknown) {
   return browser.$(ref as ElementReference).getAttribute('id');
 }
@@ -38,6 +38,35 @@ describe('Electrobun execute — element results', () => {
 
     expect(result).toEqual({ count: 1, el: anElementReference() });
     expect(await idOf(result.el)).toBe('counter');
+  });
+
+  it('should return an element that appears twice as the same reference both times', async () => {
+    const result = (await browser.electrobun.execute(() => {
+      const counter = document.querySelector('#counter');
+      return [counter, { again: counter }];
+    })) as unknown as [ElementReference, { again: ElementReference }];
+
+    expect(result).toEqual([anElementReference(), { again: anElementReference() }]);
+    expect(result[1].again).toEqual(result[0]);
+    expect(await idOf(result[1].again)).toBe('counter');
+  });
+
+  it('should return a shadow root as a reference that shadow root commands accept', async () => {
+    try {
+      const result = (await browser.electrobun.execute(() => {
+        const host = document.createElement('div');
+        host.id = 'element-results-shadow-host';
+        document.body.append(host);
+        host.attachShadow({ mode: 'open' }).innerHTML = '<span id="in-shadow"></span>';
+        return host.shadowRoot;
+      })) as unknown as Record<string, string>;
+
+      expect(result).toEqual({ [SHADOW_KEY]: expect.any(String) });
+      const inShadow = await browser.findElementFromShadowRoot(result[SHADOW_KEY], 'css selector', '#in-shadow');
+      expect(await idOf(inShadow)).toBe('in-shadow');
+    } finally {
+      await browser.electrobun.execute(() => document.querySelector('#element-results-shadow-host')?.remove());
+    }
   });
 
   it('should return a NodeList as an array of references', async () => {
