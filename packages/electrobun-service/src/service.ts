@@ -322,14 +322,21 @@ function installRootMultiremoteGuard(mrBrowser: WebdriverIO.MultiRemoteBrowser):
  * are open (the fixture opens main + second). The bridge (execute/mock) tracks its own
  * active target, so without this `$()`/`click`/`getText` would drift onto a different
  * window. Call after attach and after every `switchWindow` so element commands and
- * `execute` stay on the same window. Matches the active target by URL, falling back to
- * the first non-blank window. Best-effort: failures are logged, not fatal.
+ * `execute` stay on the same window. Matches the active target by its DevTools ID, then by
+ * URL, falling back to the first non-blank window. Best-effort: failures are logged, not fatal.
  */
 async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBridge): Promise<void> {
   try {
     const targets = bridge.listTargets();
-    const targetUrl = targets.find((t) => t.label === bridge.activeLabel)?.url ?? targets[0]?.url;
+    const active = targets.find((t) => t.label === bridge.activeLabel) ?? targets[0];
     const handles = await browser.getWindowHandles();
+    // Chromedriver and msedgedriver name each window by its DevTools target ID, which survives navigation
+    // and tells apart windows that share a URL
+    if (active && handles.includes(active.id)) {
+      await browser.switchToWindow(active.id);
+      return;
+    }
+    const targetUrl = active?.url;
     const originalHandle = await browser.getWindowHandle().catch(() => undefined);
     let fallback: string | undefined;
     for (const handle of handles) {

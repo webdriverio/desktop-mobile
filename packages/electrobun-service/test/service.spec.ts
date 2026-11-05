@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const connectMock = vi.fn().mockResolvedValue(undefined);
 const sendMock = vi.fn();
+const sendToMock = vi.fn();
 const switchTargetMock = vi.fn().mockResolvedValue(undefined);
 const listWindowsMock = vi.fn().mockReturnValue(['main', 'second']);
 const targetsMock = vi.fn().mockReturnValue([
@@ -19,6 +20,7 @@ vi.mock('@wdio/native-cdp-bridge', () => ({
     }
     connect = connectMock;
     send = sendMock;
+    sendTo = sendToMock;
     switchTarget = switchTargetMock;
     listWindows = listWindowsMock;
     listTargets = targetsMock;
@@ -121,6 +123,19 @@ describe('ElectrobunWorkerService', () => {
 
       // Ends on the content window so $/click target the app, not about:blank.
       expect(vi.mocked(browser.switchToWindow).mock.calls.at(-1)?.[0]).toBe('win-main');
+    });
+
+    it("should pick the window whose handle is the active target's ID, even when another shares its URL", async () => {
+      const browser = makeBrowser([
+        { handle: 't-2', url: 'views://mainview/index.html' },
+        { handle: 't-main', url: 'views://mainview/index.html' },
+      ]);
+      const service = new ElectrobunWorkerService({}, {});
+
+      await service.before(nativeCap(), [], browser);
+
+      expect(vi.mocked(browser.switchToWindow).mock.calls).toEqual([['t-main']]);
+      expect(browser.getUrl).not.toHaveBeenCalled();
     });
 
     it('should install browser.electrobun with the full API surface', async () => {
