@@ -449,7 +449,7 @@ If your output directory holds builds for more than one architecture, the servic
 | Windows x64               | `x64`, `ia32`, `arm64`      |
 | Windows ARM64             | `arm64`, `x64`, `ia32`      |
 | Linux x64                 | `x64`, `arm64`, `armv7l`    |
-| Linux ARM64               | `arm64`, `armv7l`, `x64`    |
+| Linux ARM64               | `arm64`, `x64`, `armv7l`    |
 | Apple Silicon Mac         | `arm64`, `universal`, `x64` |
 | Intel Mac                 | `x64`, `universal`, `arm64` |
 

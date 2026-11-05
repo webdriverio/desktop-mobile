@@ -39,7 +39,7 @@ const ARCHS: Record<SupportedPlatform, BuilderArch[]> = {
 // The archs a host runs besides its own, emulated or in 32-bit mode
 const ALSO_RUNS: Record<SupportedPlatform, Partial<Record<BuilderArch, BuilderArch[]>>> = {
   darwin: { arm64: ['universal', 'x64'], x64: ['universal'] },
-  linux: { arm64: ['armv7l'] },
+  linux: {},
   win32: { arm64: ['x64', 'ia32'], x64: ['ia32'] },
 };
 
@@ -291,14 +291,12 @@ export function generateBinaryPaths(
  * Returns detailed information about both path generation and validation
  * @param packageJsonPath path to the nearest package.json
  * @param appBuildInfo build information about the Electron application
- * @param _electronVersion unused; kept so `p` stays the fourth argument
  * @param p process object (used for testing purposes)
  * @returns detailed result with binary path and diagnostic information
  */
 export async function getBinaryPath(
   packageJsonPath: string,
   appBuildInfo: AppBuildInfo,
-  _electronVersion?: string,
   p = process,
 ): Promise<BinaryPathResult> {
   // Phase 1: Generate possible binary paths

@@ -93,13 +93,12 @@ async function getElectronConfigContext(): Promise<ElectronConfigContext> {
 
     try {
       // Import async utilities and resolve binary path directly
-      const { getBinaryPath, getAppBuildInfo, getElectronVersion } = await import('@wdio/electron-service');
+      const { getBinaryPath, getAppBuildInfo } = await import('@wdio/electron-service');
       const { isOk } = await import('@wdio/native-utils');
 
       const pkg = { packageJson, path: packageJsonPath };
-      const electronVersion = await getElectronVersion(pkg);
       const appBuildInfo = await getAppBuildInfo(pkg);
-      const binaryResult = await getBinaryPath(packageJsonPath, appBuildInfo, electronVersion);
+      const binaryResult = await getBinaryPath(packageJsonPath, appBuildInfo);
 
       // Extract the actual path string from the result object
       if (!isOk(binaryResult)) {
