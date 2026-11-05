@@ -231,13 +231,15 @@ async fn perform_actions<R: Runtime + 'static>(
                 executor.dispatch_key_event(value, true, &held_modifiers.state()).await?;
               }
               KeyAction::KeyUp { value } => {
+                // Let go before dispatch too, so Release Actions doesn't resend a keyup that timed out.
                 held_modifiers.release(value);
-                executor.dispatch_key_event(value, false, &held_modifiers.state()).await?;
-                // Remove from tracked keys
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.release_key(value);
+                {
+                  let mut sessions = state.sessions.write().await;
+                  if let Ok(session) = sessions.get_mut(&session_id) {
+                    session.action_state.release_key(value);
+                  }
                 }
+                executor.dispatch_key_event(value, false, &held_modifiers.state()).await?;
               }
               KeyAction::Pause { .. } => {}
             }

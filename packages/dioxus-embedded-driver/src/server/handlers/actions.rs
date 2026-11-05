@@ -534,6 +534,14 @@ pub async fn perform(
             match action {
               PointerAction::PointerDown { button } => {
                 held_mask |= button_to_mask(*button);
+                // Record presses and releases before dispatch, as for keys, so Release Actions
+                // matches what reached the page when a mousedown, mouseup or click handler times out.
+                {
+                  let mut sessions = state.sessions.write().await;
+                  if let Ok(session) = sessions.get_mut(&session_id) {
+                    session.action_state.press_button(id, *button);
+                  }
+                }
                 eval(
                   pointer_event_js(
                     "mousedown",
@@ -547,13 +555,15 @@ pub async fn perform(
                 )
                 .await?;
                 down_pos.insert(*button, (pointer_state.x, pointer_state.y));
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.press_button(id, *button);
-                }
               }
               PointerAction::PointerUp { button } => {
                 held_mask &= !button_to_mask(*button);
+                {
+                  let mut sessions = state.sessions.write().await;
+                  if let Ok(session) = sessions.get_mut(&session_id) {
+                    session.action_state.release_button(id, *button);
+                  }
+                }
                 eval(
                   pointer_event_js(
                     "mouseup",
@@ -593,10 +603,6 @@ pub async fn perform(
                       last_click_pos = Some(pos);
                     }
                   }
-                }
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.release_button(id, *button);
                 }
               }
               PointerAction::PointerMove { x, y, origin, .. } => {
