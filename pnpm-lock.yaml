@@ -279,7 +279,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
@@ -395,8 +395,8 @@ importers:
   fixtures/e2e-apps/electrobun:
     dependencies:
       electrobun:
-        specifier: 2.0.5
-        version: 2.0.5
+        specifier: 2.0.6
+        version: 2.0.6
     devDependencies:
       '@types/bun':
         specifier: 1.4.4
@@ -430,7 +430,7 @@ importers:
         version: 26.18.0(electron-builder-squirrel-windows@26.18.0)(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -463,7 +463,7 @@ importers:
         version: 45.2.3(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -493,7 +493,7 @@ importers:
         version: 45.2.3(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -541,8 +541,8 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
       vite:
-        specifier: ^8.3.5
-        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+        specifier: ^8.3.6
+        version: 8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   fixtures/package-tests/dioxus-app:
     devDependencies:
@@ -574,8 +574,8 @@ importers:
   fixtures/package-tests/electrobun-app:
     dependencies:
       electrobun:
-        specifier: 2.0.5
-        version: 2.0.5
+        specifier: 2.0.6
+        version: 2.0.6
     devDependencies:
       '@types/bun':
         specifier: 1.4.4
@@ -635,14 +635,14 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 45.2.2
-        version: 45.2.2(supports-color@8.1.1)
+        specifier: 45.2.3
+        version: 45.2.3(supports-color@8.1.1)
       electron-builder:
         specifier: 26.18.0
         version: 26.18.0(electron-builder-squirrel-windows@26.18.0)(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -674,14 +674,14 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 45.2.2
-        version: 45.2.2(supports-color@8.1.1)
+        specifier: 45.2.3
+        version: 45.2.3(supports-color@8.1.1)
       electron-builder:
         specifier: 26.18.0
         version: 26.18.0(electron-builder-squirrel-windows@26.18.0)(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -734,11 +734,11 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 45.2.2
-        version: 45.2.2(supports-color@8.1.1)
+        specifier: 45.2.3
+        version: 45.2.3(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -791,11 +791,11 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 45.2.2
-        version: 45.2.2(supports-color@8.1.1)
+        specifier: 45.2.3
+        version: 45.2.3(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -830,11 +830,11 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 45.2.2
-        version: 45.2.2(supports-color@8.1.1)
+        specifier: 45.2.3
+        version: 45.2.3(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       semver:
         specifier: ^7.8.6
         version: 7.8.6
@@ -872,11 +872,11 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 45.2.2
-        version: 45.2.2(supports-color@8.1.1)
+        specifier: 45.2.3
+        version: 45.2.3(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       semver:
         specifier: ^7.8.6
         version: 7.8.6
@@ -1027,7 +1027,7 @@ importers:
         version: 4.67.5
       rollup-plugin-node-externals:
         specifier: ^9.0.1
-        version: 9.0.1(rollup@4.67.5)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 9.0.1(rollup@4.67.5)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -1052,7 +1052,7 @@ importers:
         version: 4.23.15
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/dioxus-bridge:
     devDependencies:
@@ -1076,7 +1076,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/dioxus-service:
     dependencies:
@@ -1128,7 +1128,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       webdriverio:
         specifier: catalog:default
         version: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -1186,7 +1186,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       webdriverio:
         specifier: catalog:default
         version: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -1221,8 +1221,8 @@ importers:
         specifier: ^8.0.2
         version: 8.0.2
       electron-to-chromium:
-        specifier: ^1.5.476
-        version: 1.5.476
+        specifier: ^1.5.477
+        version: 1.5.477
       fast-copy:
         specifier: ^4.3.1
         version: 4.3.1
@@ -1304,7 +1304,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       webdriverio:
         specifier: catalog:default
         version: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -1359,7 +1359,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       webdriverio:
         specifier: catalog:default
         version: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -1414,7 +1414,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-core:
     dependencies:
@@ -1454,7 +1454,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-mobile-core:
     dependencies:
@@ -1494,7 +1494,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       webdriverio:
         specifier: catalog:default
         version: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -1518,7 +1518,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-types:
     devDependencies:
@@ -1612,7 +1612,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       webdriverio:
         specifier: catalog:default
         version: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -1664,7 +1664,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       webdriverio:
         specifier: catalog:default
         version: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -1698,7 +1698,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/tauri-service:
     dependencies:
@@ -1759,7 +1759,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       webdriverio:
         specifier: catalog:default
         version: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -1780,7 +1780,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
 packages:
 
@@ -4761,8 +4761,8 @@ packages:
     engines: {node: '>=0.12.18'}
     hasBin: true
 
-  electrobun@2.0.5:
-    resolution: {integrity: sha512-/4Vp0p6LgdD7bySSblnoqM0rtcQT5uYsGeqZPhsOESeSxMGeiKsfQkBjNwMnjFI5z4StJKXfs386ay2mpif1BA==}
+  electrobun@2.0.6:
+    resolution: {integrity: sha512-qt3x6Ko7F7ufM3tGCtGSpHoGPsXioIdZP/dU4Gd7o7Imzoy+c3hqi0IWaecXkJY5fE5e3gTivhmwu9iob6furA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -4793,8 +4793,8 @@ packages:
   electron-publish@26.18.0:
     resolution: {integrity: sha512-MagnqaZSALSWjcdKu5HEVhYUZD/2BDL3q7XzrqWwub6gf/UfD3ItMgmthVDv9w5y9E0gH1C3JWqKaXwf6f4ROg==}
 
-  electron-to-chromium@1.5.476:
-    resolution: {integrity: sha512-LnPnRZ0esKB9NjsSIaC+mffW+5dAtBui6kbK5f9Qykblj4Q33cn6yIhuCcTVjwpvL3YJPqqQ4IlsNyriGNpyFQ==}
+  electron-to-chromium@1.5.477:
+    resolution: {integrity: sha512-PN++F4zWZoVDGWinxMnSCpVqKhqFOJfLXxdU8bYJKudAEsHL/XKVITOKWVbfMt1r276Mi9RDLU9VHx9uKJ4RMQ==}
 
   electron-vite@6.0.0:
     resolution: {integrity: sha512-zafg2uizgll7jdx0BNDkkzO/SowsUBsiHqYN3v9Ieq7XPDHreRGZ4G9IRY/+RslgBktpLOjLM4jlP+IVpV0BGw==}
@@ -4814,11 +4814,6 @@ packages:
   electron-winstaller@5.4.4:
     resolution: {integrity: sha512-j9ETcBGJaXxAY/b6UBpR7LZfjdU4BAO+yvr4ifqHEdyuc3UNCy91PDGkWKY5UQ4coHNYfnwFggrqD6QPeFGAlg==}
     engines: {node: '>=8.0.0'}
-
-  electron@45.2.2:
-    resolution: {integrity: sha512-hxSYRX1YeijdPg4lDwXnDb3eB33zRsitd6DhwA7ElgLXjzHOqIERYKspGo8uhRkzI2KinIZhkuELVwq9+MyX4g==}
-    engines: {node: '>= 22.12.0'}
-    hasBin: true
 
   electron@45.2.3:
     resolution: {integrity: sha512-Vurzu5UOA5nTGT4LqIwXD16QFGrOZdiXxF+1UP4KNsAOo/YtDcT3/u0jhP4WSwNJ0iLrLDi85hzBJ0arnGDhyw==}
@@ -7314,8 +7309,8 @@ packages:
     resolution: {integrity: sha512-u4J1hr6Y+C/hit34GwL3eIcUf3wngT8TlYUjK7tk0jxydKLAq3sYvifjdTDA6U3KCKRcQCQDGf/srjxfZF3l7g==}
     engines: {node: '>=18.12.0'}
 
-  vite@8.3.5:
-    resolution: {integrity: sha512-z1YpjieJ9g0ebTmQpLBv/oq9E3F9EIlOe+7LahW8SrE3LTiG3udBRUXQOlYXP9b+IC2q2phHeVxj9xGlw34OEQ==}
+  vite@8.3.6:
+    resolution: {integrity: sha512-UI7dK29NnS54Fk+mmo7o+jI6U8Fp7hDl+X5Q1k45WH+d4dSlbLVUETGQ+hfkNgvLQGyoElPj837nZyv4MBc0VA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -9490,7 +9485,7 @@ snapshots:
       obug: 3.0.0
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   '@vitest/eslint-plugin@1.6.28(eslint@10.14.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)(vitest@5.1.0)':
     dependencies:
@@ -9499,7 +9494,7 @@ snapshots:
       eslint: 10.14.0(jiti@2.7.0)(supports-color@8.1.1)
     optionalDependencies:
       typescript: 6.0.3
-      vitest: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -9509,14 +9504,14 @@ snapshots:
     dependencies:
       '@vitest/istanbul-lib-coverage': 2.1.0
 
-  '@vitest/mocker@5.1.0(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
+  '@vitest/mocker@5.1.0(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.1.0
       estree-walker: 3.0.3
       magic-string: 1.4.5
     optionalDependencies:
-      vite: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/pretty-format@5.1.0':
     dependencies:
@@ -9787,7 +9782,7 @@ snapshots:
       decamelize: 7.0.0
       deepmerge-ts: 8.0.2
       edgedriver: 8.0.0(@wdio/logger@10.2.0)
-      electron-to-chromium: 1.5.476
+      electron-to-chromium: 1.5.477
       geckodriver: 8.0.0(@wdio/logger@10.2.0)
       get-port: 7.2.0
       import-meta-resolve: 4.2.0
@@ -10430,7 +10425,7 @@ snapshots:
     dependencies:
       baseline-browser-mapping: 2.11.35
       caniuse-lite: 1.0.30001820
-      electron-to-chromium: 1.5.476
+      electron-to-chromium: 1.5.477
       node-releases: 2.0.63
       update-browserslist-db: 1.3.4(browserslist@4.29.5)
 
@@ -10962,7 +10957,7 @@ snapshots:
 
   ejs@7.0.2: {}
 
-  electrobun@2.0.5: {}
+  electrobun@2.0.6: {}
 
   electron-builder-squirrel-windows@26.18.0(dmg-builder@26.18.0)(supports-color@8.1.1):
     dependencies:
@@ -11044,9 +11039,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron-to-chromium@1.5.476: {}
+  electron-to-chromium@1.5.477: {}
 
-  electron-vite@6.0.0(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+  electron-vite@6.0.0(supports-color@8.1.1)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@babel/core': 7.29.13(supports-color@8.1.1)
       '@babel/plugin-transform-arrow-functions': 7.29.7(@babel/core@7.29.13(supports-color@8.1.1))
@@ -11054,7 +11049,7 @@ snapshots:
       magic-string: 1.4.5
       picocolors: 1.1.1
       rolldown: 1.2.16
-      vite: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -11083,14 +11078,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
     optional: true
-
-  electron@45.2.2(supports-color@8.1.1):
-    dependencies:
-      '@electron-internal/extract-zip': 1.0.8
-      '@electron/get': 5.1.0(supports-color@8.1.1)
-      '@types/node': 24.19.2
-    transitivePeerDependencies:
-      - supports-color
 
   electron@45.2.3(supports-color@8.1.1):
     dependencies:
@@ -13063,10 +13050,10 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.2.16
       '@rolldown/binding-win32-x64-msvc': 1.2.16
 
-  rollup-plugin-node-externals@9.0.1(rollup@4.67.5)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+  rollup-plugin-node-externals@9.0.1(rollup@4.67.5)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     optionalDependencies:
       rollup: 4.67.5
-      vite: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   rollup@4.67.5:
     dependencies:
@@ -13733,7 +13720,7 @@ snapshots:
 
   verkit@0.5.0: {}
 
-  vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
+  vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -13749,10 +13736,10 @@ snapshots:
       tsx: 4.23.15
       yaml: 2.9.1
 
-  vitest@5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+  vitest@5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.1.0(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      '@vitest/mocker': 5.1.0(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -13763,7 +13750,7 @@ snapshots:
       tinybench: 6.2.3
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@opentelemetry/api': 1.10.0
