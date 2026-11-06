@@ -7,18 +7,53 @@
 import { randomUUID } from 'node:crypto';
 
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
-import type { ElectrobunAPIs } from '@wdio/native-types';
+import type { ElectrobunAPIs, Result } from '@wdio/native-types';
 import { errorMessage, hasSemicolonOutsideQuotes } from '@wdio/native-utils';
 
 import { STASH_NODES_JS } from './stashNodes.js';
 
-export type StashedNodeResolver = (stash: string) => Promise<unknown>;
+const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+const SHADOW_KEY = 'shadow-6066-11e4-a52e-4f735466cecf';
+
+export type StashedNodeResolver = (stash: string, count: number) => Promise<Result<unknown[]>>;
+
+function isReference(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return typeof (record[ELEMENT_KEY] ?? record[SHADOW_KEY]) === 'string';
+}
 
 // Reads the nodes a script left on `window[stash]` through the WebDriver session, which returns them as
 // references. syncWebDriverWindow keeps the session on the bridge's active target, where they were left.
 export function stashedNodeResolver(browser: WebdriverIO.Browser): StashedNodeResolver {
-  return (stash) =>
-    browser.execute('var nodes = window[arguments[0]]; delete window[arguments[0]]; return nodes;', stash);
+  return async (stash, count) => {
+    let refs: unknown;
+    try {
+      refs = await browser.execute(
+        'var nodes = window[arguments[0]]; delete window[arguments[0]]; return nodes;',
+        stash,
+      );
+    } catch (error) {
+      const message = `browser.electrobun.execute could not return the result's DOM nodes: ${errorMessage(error)}`;
+      return { ok: false, error: new Error(message, { cause: error }) };
+    }
+    if (!Array.isArray(refs)) {
+      const message =
+        "browser.electrobun.execute returned DOM nodes, but the WebDriver session couldn't find them: it isn't on " +
+        'the window or frame the script ran in, or the page navigated first. Switch windows with ' +
+        'browser.electrobun.switchWindow(), and leave a frame with browser.switchFrame(null).';
+      return { ok: false, error: new Error(message) };
+    }
+    if (refs.length !== count || !refs.every(isReference)) {
+      const message =
+        `browser.electrobun.execute expected ${count} element or shadow root references from the WebDriver ` +
+        `session, but got ${JSON.stringify(refs)}`;
+      return { ok: false, error: new Error(message) };
+    }
+    return { ok: true, value: refs };
+  };
 }
 
 interface RemoteObject {
@@ -82,10 +117,11 @@ const STATEMENT_KEYWORD = /^(const|let|var|if|for|while|switch|throw|try|do|retu
  */
 function wrapStringScript(script: string): string {
   const trimmed = script.trim();
+  // The newline ends a `//` comment at the end of the script
   if (STATEMENT_KEYWORD.test(trimmed) || hasSemicolonOutsideQuotes(trimmed)) {
-    return `(async function () { ${script} })()`;
+    return `(async function () { ${script}\n})()`;
   }
-  return `(async function () { return (${script}); })()`;
+  return `(async function () { return (${script}\n); })()`;
 }
 
 /**
@@ -98,18 +134,23 @@ export async function evaluateInActiveTarget<ReturnValue>(
   expression: string,
   context = 'browser.electrobun.execute',
 ): Promise<ReturnValue> {
-  const response = (await bridge.send('Runtime.evaluate', {
+  return evaluatedValue<ReturnValue>(await sendEvaluate(bridge, expression), context);
+}
+
+function sendEvaluate(bridge: CdpBridge, expression: string): Promise<EvaluateResponse> {
+  return bridge.send('Runtime.evaluate', {
     expression,
     returnByValue: true,
     awaitPromise: true,
-  })) as EvaluateResponse;
+  }) as Promise<EvaluateResponse>;
+}
 
+function evaluatedValue<ReturnValue>(response: EvaluateResponse, context: string): ReturnValue {
   if (response.exceptionDetails) {
     const detail =
       response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Unknown evaluation error';
     throw new Error(`${context} failed: ${detail}`);
   }
-
   return response.result?.value as ReturnValue;
 }
 
@@ -132,9 +173,19 @@ function replacePlaceholders(value: unknown, mark: string, refs: unknown[]): unk
   return Object.fromEntries(keys.map((key) => [key, replacePlaceholders(record[key], mark, refs)]));
 }
 
-// `label` is the target the script ran in, which switchWindow() may have moved the bridge away from
-async function discardStashedNodes(bridge: CdpBridge, label: string | undefined, stash: string): Promise<void> {
-  const params = { expression: `delete window[${JSON.stringify(stash)}]` };
+// `label` is the target the script ran in, which switchWindow() may have moved the bridge away from. A script
+// that may still be running gets a null stash instead, which tells it not to stash its nodes.
+async function discardStashedNodes(
+  bridge: CdpBridge,
+  label: string | undefined,
+  stash: string,
+  mayStillRun = false,
+): Promise<void> {
+  const name = JSON.stringify(stash);
+  const expression = mayStillRun
+    ? `window[${name}] === undefined ? (window[${name}] = null) : delete window[${name}]`
+    : `delete window[${name}]`;
+  const params = { expression };
   try {
     await (label ? bridge.sendTo(label, 'Runtime.evaluate', params) : bridge.send('Runtime.evaluate', params));
   } catch {
@@ -153,27 +204,16 @@ async function withElementReferences(
   if (!isStashEnvelope(result, mark)) {
     return result;
   }
-  if (result[mark] === 0) {
+  const count = result[mark] as number;
+  if (count === 0) {
     return result.value;
   }
-  let refs: unknown;
-  try {
-    refs = await resolveNodes(stash);
-  } catch (error) {
+  const refs = await resolveNodes(stash, count);
+  if (!refs.ok) {
     await discardStashedNodes(bridge, label, stash);
-    throw new Error(`browser.electrobun.execute could not return the result's DOM nodes: ${errorMessage(error)}`, {
-      cause: error,
-    });
+    throw refs.error;
   }
-  if (!Array.isArray(refs)) {
-    await discardStashedNodes(bridge, label, stash);
-    throw new Error(
-      "browser.electrobun.execute returned DOM nodes, but the WebDriver session isn't on the window or frame " +
-        'the script ran in, so they have no element references there. Switch windows with ' +
-        'browser.electrobun.switchWindow(), and leave a frame with browser.switchFrame(null).',
-    );
-  }
-  return replacePlaceholders(result.value, mark, refs);
+  return replacePlaceholders(result.value, mark, refs.value);
 }
 
 /**
@@ -204,20 +244,23 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
           return await userFn(eb, ${inlineArgs(args)});
         })()`
       : wrapStringScript(script);
-  const expression = `(async () => {
-    ${STASH_NODES_JS}
-    return __wdioStashNodes(await ${run}, ${JSON.stringify(stash)}, ${JSON.stringify(mark)});
-  })()`;
+  // The helper comes after the user's code, so the line numbers in its errors match the script
+  const expression = `(async () => { return __wdioStashNodes(await ${run}, ${JSON.stringify(stash)}, ${JSON.stringify(mark)});
+${STASH_NODES_JS}
+})()`;
 
   const label = bridge.activeLabel;
-  let result: unknown;
+  let response: EvaluateResponse;
   try {
-    result = await evaluateInActiveTarget<unknown>(bridge, expression);
+    response = await sendEvaluate(bridge, expression);
   } catch (error) {
-    // The page may have stashed nodes before the call failed, e.g. on a timeout. Don't wait on the cleanup:
-    // the connection that just failed could make it fail slowly too.
-    void discardStashedNodes(bridge, label, stash);
+    // Unlike a script error, a failed call can leave a stash: the script may have stashed before the response
+    // failed, or may still be running after a timeout. Don't wait on the cleanup; the failed connection could
+    // stall it. Linux reports a WebKit script timeout as a script error, so a stash made after one stays until
+    // the page navigates.
+    void discardStashedNodes(bridge, label, stash, true);
     throw error;
   }
+  const result = evaluatedValue<unknown>(response, 'browser.electrobun.execute');
   return (await withElementReferences(result, mark, stash, bridge, label, resolveNodes)) as Awaited<ReturnValue>;
 }

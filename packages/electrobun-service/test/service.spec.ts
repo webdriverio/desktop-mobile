@@ -280,7 +280,7 @@ describe('ElectrobunWorkerService', () => {
       const result = await (browser as unknown as Installed).electrobun.execute('1 + 1');
 
       expect(result).toBe('ok');
-      expect(sendMock.mock.calls[0][1].expression).toContain('await (async function () { return (1 + 1); })()');
+      expect(sendMock.mock.calls[0][1].expression).toContain('await (async function () { return (1 + 1\n); })()');
     });
 
     it("should turn DOM nodes in the result into the session's element references", async () => {

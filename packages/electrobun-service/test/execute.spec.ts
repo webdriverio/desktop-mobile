@@ -1,4 +1,5 @@
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
+import type { Result } from '@wdio/native-types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { execute, stashedNodeResolver } from '../src/commands/execute.js';
@@ -37,7 +38,7 @@ describe('execute', () => {
 
     await execute(bridge, noNodes, 'document.title');
 
-    expect(send.mock.calls[0][1].expression).toContain('await (async function () { return (document.title); })()');
+    expect(send.mock.calls[0][1].expression).toContain('await (async function () { return (document.title\n); })()');
   });
 
   it('should wrap a statement-style string (leading return) as a function body', async () => {
@@ -45,7 +46,22 @@ describe('execute', () => {
 
     await execute(bridge, noNodes, 'return 42');
 
-    expect(send.mock.calls[0][1].expression).toContain('await (async function () { return 42 })()');
+    expect(send.mock.calls[0][1].expression).toContain('await (async function () { return 42\n})()');
+  });
+
+  it('should return the value of a string script that ends in a line comment', async () => {
+    const win: FakeWindow = { title: 'My App' };
+
+    expect(await execute(pageBridge(win).bridge, noNodes, 'window.title // the title')).toBe('My App');
+    expect(await execute(pageBridge(win).bridge, noNodes, 'return window.title // the title')).toBe('My App');
+  });
+
+  it("should put a string script on the expression's first line, so its errors keep their line numbers", async () => {
+    const { bridge, send } = makeBridge({ result: { value: 1 } });
+
+    await execute(bridge, noNodes, 'return 1');
+
+    expect((send.mock.calls[0][1].expression as string).split('\n')[0]).toContain('return 1');
   });
 
   it('should throw a descriptive error for non-JSON-serialisable args', async () => {
@@ -129,6 +145,14 @@ describe('the page-side node stash', () => {
     expect(win.stash).toEqual([element('x'), root]);
   });
 
+  it('should keep nothing, and remove the null, when the stash was nulled by a failed call', () => {
+    const win: FakeWindow = { stash: null };
+    const value = [element('counter')];
+
+    expect(stashNodes(win)(value, 'stash', 'mark')).toBe(value);
+    expect(win).not.toHaveProperty('stash');
+  });
+
   it('should keep a node that appears twice once, with both placeholders pointing at it', () => {
     const win: FakeWindow = {};
     const el = element('counter');
@@ -199,10 +223,13 @@ function pageBridge(win: FakeWindow): { bridge: CdpBridge; send: ReturnType<type
 
 // What the WebDriver session's Execute Script returns for the stashed nodes.
 function sessionResolver(win: FakeWindow) {
-  return vi.fn(async (stash: string) => {
-    const nodes = win[stash] as Array<{ nodeType: number; id?: string; host?: { id: string } }> | undefined;
+  return vi.fn(async (stash: string, _count: number): Promise<Result<unknown[]>> => {
+    const nodes = win[stash] as Array<{ nodeType: number; id?: string; host?: { id: string } }>;
     delete win[stash];
-    return nodes?.map((node) => (node.nodeType === 1 ? { [ELEMENT_KEY]: node.id } : { [SHADOW_KEY]: node.host?.id }));
+    return {
+      ok: true,
+      value: nodes.map((node) => (node.nodeType === 1 ? { [ELEMENT_KEY]: node.id } : { [SHADOW_KEY]: node.host?.id })),
+    };
   });
 }
 
@@ -214,7 +241,7 @@ describe('execute — DOM nodes in the result', () => {
     const result = await execute(pageBridge(win).bridge, resolve, 'return window.el');
 
     expect(result).toEqual({ [ELEMENT_KEY]: 'counter' });
-    expect(resolve).toHaveBeenCalledWith(expect.stringMatching(/^__wdio_electrobun_nodes_[0-9a-f]{32}$/));
+    expect(resolve).toHaveBeenCalledWith(expect.stringMatching(/^__wdio_electrobun_nodes_[0-9a-f]{32}$/), 1);
     expect(Object.keys(win)).toEqual(['el']);
   });
 
@@ -294,13 +321,14 @@ describe('execute — DOM nodes in the result', () => {
     });
   });
 
-  it("should throw and discard the nodes when the session can't find them", async () => {
+  it("should throw the resolver's error and discard the nodes", async () => {
     const win: FakeWindow = { el: element('counter') };
     const { bridge, send } = pageBridge(win);
+    const error = new Error('no such window');
 
-    await expect(execute(bridge, vi.fn().mockResolvedValue(null), 'return window.el')).rejects.toMatchObject({
-      message: expect.stringContaining("the WebDriver session isn't on the window or frame the script ran in"),
-    });
+    await expect(execute(bridge, vi.fn().mockResolvedValue({ ok: false, error }), 'return window.el')).rejects.toBe(
+      error,
+    );
     expect(send).toHaveBeenCalledTimes(2);
     expect(Object.keys(win)).toEqual(['el']);
   });
@@ -311,26 +339,13 @@ describe('execute — DOM nodes in the result', () => {
     let stashed: unknown;
     resolve.mockImplementationOnce(async (stash: string) => {
       stashed = win[stash];
-      return [{ [ELEMENT_KEY]: 'counter' }];
+      return { ok: true, value: [{ [ELEMENT_KEY]: 'counter' }] };
     });
 
     const result = await execute(pageBridge(win).bridge, resolve, 'return [window.el, { again: window.el }]');
 
     expect(result).toEqual([{ [ELEMENT_KEY]: 'counter' }, { again: { [ELEMENT_KEY]: 'counter' } }]);
     expect(stashed).toEqual([element('counter')]);
-  });
-
-  it('should throw and discard the nodes when the session errors', async () => {
-    const win: FakeWindow = { el: element('counter') };
-    const error = new Error('no such window');
-
-    await expect(
-      execute(pageBridge(win).bridge, vi.fn().mockRejectedValue(error), 'return window.el'),
-    ).rejects.toMatchObject({
-      message: "browser.electrobun.execute could not return the result's DOM nodes: no such window",
-      cause: error,
-    });
-    expect(Object.keys(win)).toEqual(['el']);
   });
 
   it('should discard the nodes in the target the script ran in, after a switch', async () => {
@@ -343,9 +358,9 @@ describe('execute — DOM nodes in the result', () => {
       ),
     );
     Object.assign(bridge, { activeLabel: 'main', sendTo });
-    const resolve = vi.fn(async () => {
+    const resolve = vi.fn(async (): Promise<Result<unknown[]>> => {
       Object.assign(bridge, { activeLabel: 'window-1' });
-      return null;
+      return { ok: false, error: new Error('no such window') };
     });
 
     await expect(execute(bridge, resolve, 'return window.el')).rejects.toThrow();
@@ -372,17 +387,112 @@ describe('execute — DOM nodes in the result', () => {
     );
     await vi.waitFor(() => expect(Object.keys(win)).toEqual(['el']));
   });
+
+  it("should stop a script that's still running when the call fails from stashing its nodes later", async () => {
+    const win: FakeWindow = { el: element('counter') };
+    const { send: runInPage } = pageBridge(win);
+    const timeout = new Error('CDP timed out');
+    let script: { expression: string } | undefined;
+    const send = vi.fn(async (method: string, params: { expression: string }) => {
+      if (!script) {
+        script = params;
+        throw timeout;
+      }
+      return runInPage(method, params);
+    });
+
+    await expect(execute({ send } as unknown as CdpBridge, sessionResolver(win), 'return window.el')).rejects.toBe(
+      timeout,
+    );
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    await runInPage('Runtime.evaluate', script as { expression: string });
+
+    expect(Object.keys(win)).toEqual(['el']);
+  });
+
+  it('should discard the nodes over the Linux W3C eval bridge when the request fails', async () => {
+    const win: FakeWindow = { el: element('counter') };
+    const failure = new Error('execute/async request timed out');
+    let calls = 0;
+    const poster = (script: string) =>
+      new Promise<{ value: unknown }>((resolve, reject) => {
+        calls += 1;
+        const first = calls === 1;
+        new Function('window', script)(win, (value: unknown) =>
+          first ? reject(failure) : resolve({ value: JSON.parse(JSON.stringify(value)) }),
+        );
+      });
+
+    await expect(
+      execute(new WebDriverEvalBridge(poster) as unknown as CdpBridge, sessionResolver(win), 'return window.el'),
+    ).rejects.toBe(failure);
+    await vi.waitFor(() => expect(Object.keys(win)).toEqual(['el']));
+  });
+
+  it("should not clean up after the user's script throws", async () => {
+    const { bridge, send } = makeBridge({ exceptionDetails: { text: 'Error: boom' } });
+
+    await expect(execute(bridge, noNodes, 'throw new Error("boom")')).rejects.toThrow('boom');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('stashedNodeResolver', () => {
-  it("should read and delete the stash through the session's Execute Script", async () => {
-    const refs = [{ [ELEMENT_KEY]: 'x' }];
-    const browser = { execute: vi.fn().mockResolvedValue(refs) } as unknown as WebdriverIO.Browser;
+  function sessionReturning(value: unknown) {
+    return {
+      execute: typeof value === 'function' ? vi.fn(value as () => unknown) : vi.fn().mockResolvedValue(value),
+    } as unknown as WebdriverIO.Browser;
+  }
 
-    expect(await stashedNodeResolver(browser)('__wdio_electrobun_nodes_abc')).toBe(refs);
+  it("should read and delete the stash through the session's Execute Script", async () => {
+    const refs = [{ [ELEMENT_KEY]: 'x' }, { [SHADOW_KEY]: 'y' }];
+    const browser = sessionReturning(refs);
+
+    expect(await stashedNodeResolver(browser)('__wdio_electrobun_nodes_abc', 2)).toEqual({ ok: true, value: refs });
     expect(browser.execute).toHaveBeenCalledWith(
       'var nodes = window[arguments[0]]; delete window[arguments[0]]; return nodes;',
       '__wdio_electrobun_nodes_abc',
     );
+  });
+
+  it("should fail when the session doesn't find the stash, naming the likely causes", async () => {
+    const result = await stashedNodeResolver(sessionReturning(null))('stash', 1);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          "the WebDriver session couldn't find them: it isn't on the window or frame the script ran in, or the page navigated first",
+        ),
+      },
+    });
+  });
+
+  it("should fail with the session's error as the cause", async () => {
+    const error = new Error('no such window');
+
+    const result = await stashedNodeResolver(sessionReturning(() => Promise.reject(error)))('stash', 1);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        message: "browser.electrobun.execute could not return the result's DOM nodes: no such window",
+        cause: error,
+      },
+    });
+  });
+
+  it.each([
+    ['too few references', [{ [ELEMENT_KEY]: 'x' }]],
+    ['a null reference', [{ [ELEMENT_KEY]: 'x' }, null]],
+    ['a reference without an ID', [{ [ELEMENT_KEY]: 'x' }, { [ELEMENT_KEY]: undefined }]],
+    ['something else', [{ [ELEMENT_KEY]: 'x' }, { id: 'y' }]],
+  ])('should fail when the session returns %s', async (_name, refs) => {
+    const result = await stashedNodeResolver(sessionReturning(refs))('stash', 2);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining('expected 2 element or shadow root references') },
+    });
   });
 });

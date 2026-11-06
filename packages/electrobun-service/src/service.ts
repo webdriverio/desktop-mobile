@@ -407,7 +407,8 @@ function installApiW3C(
   evalBridge: WebDriverEvalBridge,
   mockStore: ElectrobunMockStore,
 ): void {
-  // Safe cast: execute/mock only call `send('Runtime.evaluate', …)`, which WebDriverEvalBridge implements.
+  // Safe cast: execute and mock only call `send('Runtime.evaluate', …)`, which WebDriverEvalBridge implements.
+  // It has no `activeLabel`, so execute's cleanup uses `send`, never `sendTo`.
   const bridge = evalBridge as unknown as CdpBridge;
   const resolveStashedNodes = stashedNodeResolver(browser);
   const electrobun: ElectrobunServiceAPI = {
