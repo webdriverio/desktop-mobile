@@ -11,11 +11,7 @@ type InstanceName = 'browserA' | 'browserB';
 
 const isMacOS = process.platform === 'darwin';
 // Protocol handlers need the packaged app.
-const canTargetInstances =
-  process.env.BINARY !== 'false' &&
-  !isMacOS &&
-  // Workaround for webdriverio/webdriverio#16242; drop once a release with it is in the catalog
-  process.platform !== 'win32';
+const canTargetInstances = process.env.BINARY !== 'false' && !isMacOS;
 
 const root = () => multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
 const instance = (name: InstanceName) => root().getInstance(name);
