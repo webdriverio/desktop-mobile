@@ -19,8 +19,8 @@ const crabNebulaOnMacOS = process.platform === 'darwin' && process.env.DRIVER_PR
 // The external providers' Linux driver is WebKitWebDriver, which sends a shadow root as an element reference (#1052)
 const webKitWebDriver = process.platform === 'linux' && process.env.DRIVER_PROVIDER !== 'embedded';
 
-// Every provider: the embedded plugin and, on the external providers, the WebDriver session turn elements into
-// references and references in the arguments back into elements.
+// Every provider: the embedded plugin and, on the external providers, the WebDriver session turn elements in the
+// result into references.
 (crabNebulaOnMacOS ? describe.skip : describe)('Tauri Execute - element results from browser.tauri.execute', () => {
   it('should return an element as a reference that element commands accept', async () => {
     const result = await browser.tauri.execute(() => document.querySelector('#counter'));
@@ -103,9 +103,12 @@ const webKitWebDriver = process.platform === 'linux' && process.env.DRIVER_PROVI
     expect(result).toEqual(anElementReference());
     expect(await idOf(result)).toBe('counter');
   });
+});
 
+// Every provider, CrabNebula on macOS included, as these don't need a reference from a script result (#1060)
+describe('Tauri Execute - element arguments to browser.tauri.execute', () => {
   it('should pass a reference in an argument to the script as its element', async () => {
-    const ref = await browser.tauri.execute(() => document.querySelector('#counter'));
+    const ref = { [ELEMENT_KEY]: (await browser.$('#counter')).elementId };
 
     const result = await browser.tauri.execute(
       (_tauri, args: { el: unknown }) => (args.el instanceof HTMLElement ? args.el.id : typeof args.el),
@@ -125,7 +128,7 @@ const webKitWebDriver = process.platform === 'linux' && process.env.DRIVER_PROVI
   });
 });
 
-// When this fails, CrabNebula's macOS driver returns references: drop this suite and run the one above on macOS too
+// When this fails, CrabNebula's macOS driver returns references: drop this suite and run the results suite on macOS too
 (crabNebulaOnMacOS ? describe : describe.skip)('Tauri Execute - element results (CrabNebula on macOS)', () => {
   it('should still return an element as an empty object', async () => {
     expect(await browser.tauri.execute(() => document.querySelector('#counter'))).toEqual({});
