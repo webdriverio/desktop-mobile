@@ -49,21 +49,19 @@ const WDIO_FOCUS_LOSS_EVENTS = ['blur', 'focusout'];
 // Reads a node property through its built-in getter. A page element named after a property, such as
 // `<img name="host">`, hides it on a document or a form, and a walk up the tree would then loop.
 function wdioGetter(proto, name) {
-  const get = Object.getOwnPropertyDescriptor(proto, name)?.get;
-  return (node) => (get ? get.call(node) : node[name]);
+  const get = Object.getOwnPropertyDescriptor(proto, name).get;
+  return (node) => get.call(node);
 }
 
 const wdioNodeType = wdioGetter(Node.prototype, 'nodeType');
 const wdioParentNode = wdioGetter(Node.prototype, 'parentNode');
 const wdioAssignedSlot = wdioGetter(Element.prototype, 'assignedSlot');
 
-// The host of a shadow root, else undefined. A shadow root has no named properties, so reading `host`
-// off one is safe.
+// A shadow root has no named properties, so reading `host` off one is safe.
 function wdioShadowHost(node) {
   return wdioNodeType(node) === 11 ? node.host : undefined;
 }
 
-// The parent of `node`, or the host of a shadow root.
 function wdioParentOrHost(node) {
   return wdioParentNode(node) || wdioShadowHost(node);
 }
@@ -71,12 +69,6 @@ function wdioParentOrHost(node) {
 // The node `node` renders inside: the slot that shows it, else its parent, else a shadow root's host.
 function wdioRenderedParent(node) {
   return (wdioNodeType(node) === 1 && wdioAssignedSlot(node)) || wdioParentOrHost(node);
-}
-
-// A browser fires `change` only when focus moves on, not for a blur a field gets while it keeps
-// focus, as when its window loses focus or the page dispatches one.
-function wdioKeepsFocus(el, root) {
-  return root.activeElement === el;
 }
 
 // Records that `el` owes a `change` once it loses focus, unless its value is `value` again by then.
@@ -98,15 +90,15 @@ function wdioRecordPendingChange(el, value) {
 // drivers install this file as the page loads (unless Tauri installed it late, on the first command
 // that needed it). It also listens on the field's root while a change is owed: a focus move inside a
 // shadow root never reaches the window, and `document.open()` drops the window's listeners. At the
-// window, a field in a shadow root shows up as its host.
+// window, a field in a shadow root shows up as its host, and only for a composed event, as a real blur
+// is: a page dispatching its own `blur` on the host doesn't mean the field lost focus.
 function wdioFocusLoss(event) {
   const record = window.__wdio_pending_change;
-  if (!record || wdioKeepsFocus(record.el, record.root)) {
-    return;
-  }
-  for (let node = record.el; node; node = wdioShadowHost(Node.prototype.getRootNode.call(node))) {
+  for (let node = record?.el; node; node = wdioShadowHost(Node.prototype.getRootNode.call(node))) {
     if (node === event.target) {
-      wdioFirePendingChange(record.el);
+      if (node === record.el || event.composed) {
+        wdioFirePendingChange(record.el);
+      }
       return;
     }
   }
@@ -388,11 +380,7 @@ function wdioRenderedChildren(el) {
   return wdioChildren(el);
 }
 
-// Read through Element.prototype, because a form's named controls hide its own properties: with a
-// control named "children", `form.children` is that control.
-function wdioChildren(el) {
-  return Object.getOwnPropertyDescriptor(Element.prototype, 'children').get.call(el);
-}
+const wdioChildren = wdioGetter(Element.prototype, 'children');
 
 function wdioSummary(details) {
   return Array.from(details.children).find((child) => child.localName === 'summary');

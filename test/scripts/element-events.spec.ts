@@ -212,12 +212,14 @@ describe('pending change', () => {
     expect(log).toEqual([]);
   });
 
-  it('should keep it through a blur the field gets while it keeps focus, as when its window loses focus', () => {
+  // When the window loses focus, the field gets a blur but keeps focus. Chrome fires no change then;
+  // telling that blur apart safely needs the drivers to fire the change in their own focus moves (#1055).
+  it("should fire it on a blur at the field, even one it keeps focus through, but not on the window's", () => {
     type($('#a'), 'x');
-    $('#a').dispatchEvent(new FocusEvent('blur'));
     window.dispatchEvent(new FocusEvent('blur'));
-    $('#b').focus();
-    expect(log).toEqual(['blur a=x', 'change a=x', 'blur a=x', 'focus b=']);
+    expect(log).toEqual([]);
+    $('#a').dispatchEvent(new FocusEvent('blur'));
+    expect(log).toEqual(['change a=x', 'blur a=x']);
   });
 
   it('should keep it through a blur or focusout on another element', () => {
