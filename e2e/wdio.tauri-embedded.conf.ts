@@ -8,6 +8,8 @@ import { createEnvironmentContext } from './config/envSchema.js';
 import { webkitDisplayServer } from './lib/display.js';
 import { fileExists, getLogDirName, resolveTauriFixtureBinary, safeJsonParse } from './lib/utils.js';
 
+process.env.DRIVER_PROVIDER = 'embedded';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
