@@ -179,7 +179,12 @@ export default class DioxusWorkerService {
       }) as DioxusServiceAPI['isMockFunction'],
       switchWindow: (label: string) => switchWindowByLabel(browser, label),
       listWindows: () => listWindowLabels(browser),
-      triggerDeeplink: (url: string) => triggerDeeplink(url, { instancesShareApp: this.instancesShareApp }),
+      triggerDeeplink: async (url: string) => {
+        if (this.browserMode) {
+          throw new Error('browser.dioxus.triggerDeeplink() is not supported in browser mode.');
+        }
+        return triggerDeeplink(url, { instancesShareApp: this.instancesShareApp });
+      },
     };
     (browser as unknown as { dioxus: DioxusServiceAPI }).dioxus = dioxus;
   }
