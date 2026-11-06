@@ -8,6 +8,8 @@ import { createEnvironmentContext } from './config/envSchema.js';
 import { webkitDisplayServer } from './lib/display.js';
 import { fileExists, getLogDirName, resolveTauriFixtureBinary, safeJsonParse } from './lib/utils.js';
 
+process.env.DRIVER_PROVIDER = 'embedded';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -114,12 +116,8 @@ switch (envContext.testType) {
     // Exclude:
     // - window tests (require splash)
     // - deeplink tests (require single-instance)
-    // - trace-debug tests (WebKit limitation - not captured in embedded mode)
-    exclude = [
-      './test/tauri/window.spec.ts',
-      './test/tauri/deeplink.spec.ts',
-      './test/tauri/logging.tauri-driver.spec.ts',
-    ];
+    // - tauri-driver-only tests (*.tauri-driver.spec.ts, not applicable to the embedded driver)
+    exclude = ['./test/tauri/window.spec.ts', './test/tauri/deeplink.spec.ts', './test/tauri/*.tauri-driver.spec.ts'];
     // Note: logging.embedded.spec.ts is included to document the limitation
     break;
 }

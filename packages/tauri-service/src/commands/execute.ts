@@ -1,12 +1,15 @@
-import type { TauriAPIs, TauriExecuteOptions } from '@wdio/native-types';
+import type { Result, TauriAPIs, TauriExecuteOptions } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 import { DirectEvalClient } from '../directEvalClient.js';
 import { hasReference, toElementReferences } from '../elementReferences.js';
 import { isPluginAvailabilityCached, setPluginAvailabilityCached } from '../pluginCache.js';
+import { CONSOLE_WRAPPER_SCRIPT } from '../scripts/console-wrapper.js';
 import { getCurrentWindowLabel, getDefaultWindowLabel, getSessionProvider } from '../windowState.js';
-import { wrapScriptForDirectEval } from '../wrapForDirectEval.js';
+import { wrapScriptForDirectEval, wrapScriptForPluginIpc, wrapScriptForWebDriver } from '../wrapForDirectEval.js';
 
 const log = createLogger('tauri-service', 'service');
+
+type ScriptOutcome = Result<unknown, string> & { undef?: boolean };
 
 const directEvalClientCache = new WeakMap<WebdriverIO.Browser, { client: DirectEvalClient; port: number }>();
 
@@ -56,8 +59,9 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   return runScript(browser, script, args, false);
 }
 
-// For browser.tauri.execute(): on the embedded provider, the plugin turns nodes in the result into references in
-// the session, and references in the arguments into nodes
+// For browser.tauri.execute(): DOM nodes in the result come back as references in the session, and references in
+// the arguments reach the script as nodes. The embedded plugin converts them itself; on the external providers, the
+// WebDriver session does, for a script in its current window.
 export async function executeWithElementRefs<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   browser: WebdriverIO.Browser,
   script: Script<ReturnValue, InnerArguments>,
@@ -106,9 +110,9 @@ async function runScript<ReturnValue, InnerArguments extends unknown[]>(
   }
 
   const provider = getSessionProvider(browser);
+  const scriptString = typeof script === 'function' ? script.toString() : script;
 
   if (provider === 'embedded') {
-    const scriptString = typeof script === 'function' ? script.toString() : script;
     const port = getDirectEvalPort(browser);
     const client = getOrCreateDirectEvalClient(browser, port);
     const argsJson = JSON.stringify(userArgs);
@@ -156,117 +160,60 @@ async function runScript<ReturnValue, InnerArguments extends unknown[]>(
     throw lastError;
   }
 
-  // Non-embedded path: use IPC via browser.execute (external/crabnebula providers)
-  if (!isPluginAvailabilityCached(browser)) {
-    const maxAttempts = 100;
-    const retryInterval = 50;
-    let pluginAvailable = false;
+  // External and CrabNebula providers: browser.tauri.execute() goes through the WebDriver session, which converts
+  // elements, and the service's own scripts through the plugin's IPC
+  await ensurePluginAvailable(browser);
+  return sendScript<ReturnValue>(
+    browser,
+    elementRefs
+      ? wrapScriptForWebDriver(scriptString, userArgs, executeOptions.windowLabel)
+      : wrapScriptForPluginIpc(scriptString, JSON.stringify(userArgs), executeOptions.windowLabel),
+  );
+}
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const result: unknown = await browser.execute(() => {
-        // @ts-expect-error - Plugin API injected at runtime
-        return typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.execute === 'function';
-      });
-      pluginAvailable = result === true;
+async function ensurePluginAvailable(browser: WebdriverIO.Browser): Promise<void> {
+  if (isPluginAvailabilityCached(browser)) {
+    return;
+  }
+  const maxAttempts = 100;
+  const retryInterval = 50;
+  let pluginAvailable = false;
 
-      if (pluginAvailable) {
-        break;
-      }
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const result: unknown = await browser.execute(() => {
+      // @ts-expect-error - Plugin API injected at runtime
+      return typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.execute === 'function';
+    });
+    pluginAvailable = result === true;
 
-      await new Promise((resolve) => setTimeout(resolve, retryInterval));
+    if (pluginAvailable) {
+      break;
     }
 
-    if (!pluginAvailable) {
-      throw new Error(
-        'Tauri plugin not available. Make sure @wdio/tauri-plugin is installed and registered in your Tauri app.',
-      );
-    }
-
-    setPluginAvailabilityCached(browser);
-    log.debug('Plugin availability cached for browser session');
+    await new Promise((resolve) => setTimeout(resolve, retryInterval));
   }
 
-  const scriptString = typeof script === 'function' ? script.toString() : script;
-  const argsJson = JSON.stringify(userArgs);
-
-  const result = await browser.execute(
-    async function executeWithinTauri(script: string, execOptions: { windowLabel?: string }, argsJson: string) {
-      // @ts-expect-error - Running in browser context
-      if (typeof window === 'undefined') {
-        return JSON.stringify({ __wdio_error__: 'window is undefined' });
-      }
-      // @ts-expect-error - Running in browser context
-      if (typeof window.wdioTauri === 'undefined') {
-        return JSON.stringify({ __wdio_error__: 'window.wdioTauri is undefined' });
-      }
-      // @ts-expect-error - Running in browser context
-      if (typeof window.wdioTauri.execute !== 'function') {
-        // @ts-expect-error - Running in browser context
-        return JSON.stringify({ __wdio_error__: `window.wdioTauri.execute is ${typeof window.wdioTauri.execute}` });
-      }
-
-      try {
-        // @ts-expect-error - Running in browser context
-        const execResult = window.wdioTauri.execute(script, execOptions, argsJson);
-        if (execResult && typeof execResult.then === 'function') {
-          try {
-            const awaited = await execResult;
-            if (
-              awaited !== null &&
-              typeof awaited === 'object' &&
-              (awaited as { __wdio_undefined__?: boolean }).__wdio_undefined__ === true
-            ) {
-              return JSON.stringify({ __wdio_undefined__: true });
-            }
-            return JSON.stringify({ __wdio_value__: awaited });
-          } catch (promiseError) {
-            return JSON.stringify({
-              __wdio_error__: `Promise error: ${promiseError instanceof Error ? promiseError.message : String(promiseError)}`,
-            });
-          }
-        }
-        if (
-          execResult !== null &&
-          typeof execResult === 'object' &&
-          (execResult as { __wdio_undefined__?: boolean }).__wdio_undefined__ === true
-        ) {
-          return JSON.stringify({ __wdio_undefined__: true });
-        }
-        return JSON.stringify({ __wdio_value__: execResult });
-      } catch (error) {
-        return JSON.stringify({
-          __wdio_error__: `Execute call error: ${error instanceof Error ? error.message : String(error)}`,
-        });
-      }
-    },
-    scriptString,
-    executeOptions,
-    argsJson,
-  );
-
-  try {
-    if (result && typeof result === 'string') {
-      const parsed = JSON.parse(result) as {
-        __wdio_error__?: string;
-        __wdio_value__?: unknown;
-        __wdio_undefined__?: boolean;
-      };
-      if (parsed.__wdio_error__) {
-        throw new Error(parsed.__wdio_error__);
-      }
-      if (parsed.__wdio_undefined__) {
-        return undefined as unknown as Awaited<ReturnValue>;
-      }
-      if (parsed.__wdio_value__ !== undefined) {
-        return parsed.__wdio_value__ as Awaited<ReturnValue>;
-      }
-    }
-  } catch (parseError) {
+  if (!pluginAvailable) {
     throw new Error(
-      `Failed to parse execute result: ${parseError instanceof Error ? parseError.message : String(parseError)}, raw result: ${result}`,
+      'Tauri plugin not available. Make sure @wdio/tauri-plugin is installed and registered in your Tauri app.',
     );
   }
 
-  return result as Awaited<ReturnValue>;
+  setPluginAvailabilityCached(browser);
+  log.debug('Plugin availability cached for browser session');
+}
+
+async function sendScript<ReturnValue>(
+  browser: WebdriverIO.Browser,
+  wrapped: { script: string; args: unknown[] },
+): Promise<Awaited<ReturnValue>> {
+  const outcome = (await browser.executeAsyncScript(
+    `${CONSOLE_WRAPPER_SCRIPT}\n${wrapped.script}`,
+    wrapped.args as Parameters<WebdriverIO.Browser['executeAsyncScript']>[1],
+  )) as ScriptOutcome;
+  if (!outcome.ok) {
+    throw new Error(outcome.error);
+  }
+  return (outcome.undef ? undefined : outcome.value) as Awaited<ReturnValue>;
 }

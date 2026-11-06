@@ -14,7 +14,8 @@ function idOf(ref: unknown) {
   return browser.$(ref as ElementReference).getAttribute('id');
 }
 
-// The embedded driver serialises script results itself. Chromedriver sends an element as a reference.
+// The embedded driver serialises browser.execute()'s results itself, as chromedriver does. browser.tauri.execute()'s
+// cases, which every provider runs, are in execute-refs.spec.ts.
 describe('Tauri Execute - element results (embedded)', () => {
   it('should return an element as a reference that element commands accept', async () => {
     const result = await browser.execute(() => document.querySelector('#counter'));
@@ -95,95 +96,5 @@ describe('Tauri Execute - element results (embedded)', () => {
 
     expect(result).toEqual([anElementReference()]);
     expect(await browser.$(result[0] as ElementReference).getTagName()).toBe('body');
-  });
-});
-
-// Embedded only: the external providers run browser.tauri.execute() through the plugin's IPC, which returns plain JSON.
-describe('Tauri Execute - element results from browser.tauri.execute (embedded)', () => {
-  it('should return an element as a reference that element commands accept', async () => {
-    const result = await browser.tauri.execute(() => document.querySelector('#counter'));
-
-    expect(result).toEqual(anElementReference());
-    expect(await idOf(result)).toBe('counter');
-  });
-
-  it('should return each element in an array as a reference', async () => {
-    const result = (await browser.tauri.execute(() => [
-      document.querySelector('#counter'),
-      document.querySelector('#increment-button'),
-    ])) as unknown[];
-
-    expect(result).toEqual([anElementReference(), anElementReference()]);
-    expect(await Promise.all(result.map(idOf))).toEqual(['counter', 'increment-button']);
-  });
-
-  it('should return an element next to a command result as a reference', async () => {
-    const result = (await browser.tauri.execute(async ({ core }) => ({
-      os: ((await core.invoke('get_platform_info')) as { os: string }).os,
-      el: document.querySelector('#counter'),
-    }))) as { os: string; el: unknown };
-
-    expect(result).toEqual({ os: expect.any(String), el: anElementReference() });
-    expect(await idOf(result.el)).toBe('counter');
-  });
-
-  it('should return a NodeList as an array of references', async () => {
-    const result = (await browser.tauri.execute(() =>
-      document.querySelectorAll('#counter, #increment-button'),
-    )) as unknown as unknown[];
-
-    expect(result).toEqual([anElementReference(), anElementReference()]);
-    expect(await Promise.all(result.map(idOf))).toEqual(['counter', 'increment-button']);
-  });
-
-  it('should return a shadow root as a reference that shadow root commands accept', async () => {
-    try {
-      const result = (await browser.tauri.execute(() => {
-        const host = document.createElement('div');
-        host.id = 'tauri-execute-shadow-host';
-        document.body.append(host);
-        host.attachShadow({ mode: 'open' }).innerHTML = '<span id="in-shadow"></span>';
-        return host.shadowRoot;
-      })) as unknown as Record<string, string>;
-
-      expect(result).toEqual({ [SHADOW_KEY]: expect.any(String) });
-      const inShadow = await browser.findElementFromShadowRoot(result[SHADOW_KEY], 'css selector', '#in-shadow');
-      expect(await idOf(inShadow)).toBe('in-shadow');
-      expect(
-        await browser.tauri.execute(
-          (_tauri, root: unknown) => (root instanceof ShadowRoot ? root.querySelector('span')?.id : typeof root),
-          result,
-        ),
-      ).toBe('in-shadow');
-    } finally {
-      await browser.execute(() => document.querySelector('#tauri-execute-shadow-host')?.remove());
-    }
-  });
-
-  it('should return an element from a string script as a reference', async () => {
-    const result = await browser.tauri.execute("document.querySelector('#counter')");
-
-    expect(result).toEqual(anElementReference());
-    expect(await idOf(result)).toBe('counter');
-  });
-
-  it('should pass a reference in an argument to the script as its element', async () => {
-    const ref = await browser.tauri.execute(() => document.querySelector('#counter'));
-
-    const result = await browser.tauri.execute(
-      (_tauri, args: { el: unknown }) => (args.el instanceof HTMLElement ? args.el.id : typeof args.el),
-      { el: ref },
-    );
-
-    expect(result).toBe('counter');
-  });
-
-  it('should pass an element from browser.$() to the script as its element', async () => {
-    const result = await browser.tauri.execute(
-      (_tauri, el: unknown) => (el instanceof HTMLElement ? el.id : typeof el),
-      await browser.$('#counter'),
-    );
-
-    expect(result).toBe('counter');
   });
 });
