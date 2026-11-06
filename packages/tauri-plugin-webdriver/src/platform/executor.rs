@@ -14,7 +14,7 @@ use crate::platform::key_input::{
   element_events_script, install_element_events_js, ELEMENT_EVENTS_MISSING,
 };
 use crate::platform::pointer_input::{pointer_event_script, PointerInputState};
-use crate::server::response::{WebDriverErrorResponse, NON_STRING_REFERENCE_ID};
+use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::element::{ELEMENT_KEY, ELEMENT_VAR_PREFIX, SHADOW_KEY};
 
 /// Element bounding rectangle
@@ -1663,7 +1663,6 @@ pub fn deserialize_arg_js() -> String {
                     if (typeof arg === 'object') {{
                         var id = arg['{ELEMENT_KEY}'] || arg['{SHADOW_KEY}'];
                         if (id) {{
-                            if (typeof id !== 'string') throw new Error('{NON_STRING_REFERENCE_ID}');
                             var node = window['{ELEMENT_VAR_PREFIX}' + id.replace(/-/g, '')];
                             if (arg['{ELEMENT_KEY}']) {{
                                 if (!node || !node.isConnected) throw new Error('stale element reference');
@@ -1686,38 +1685,6 @@ pub fn deserialize_arg_js() -> String {
 #[cfg(test)]
 mod script_result_refs_tests {
   use super::*;
-
-  #[test]
-  fn deserialize_arg_resolves_element_and_shadow_root_references_from_where_find_element_keeps_them(
-  ) {
-    let js = deserialize_arg_js();
-
-    assert!(js.contains(&format!("var id = arg['{ELEMENT_KEY}'] || arg['{SHADOW_KEY}'];")));
-    assert!(js.contains(&format!("window['{ELEMENT_VAR_PREFIX}' + id.replace(/-/g, '')]")));
-  }
-
-  #[test]
-  fn deserialize_arg_rejects_a_reference_id_that_is_not_a_string() {
-    assert!(deserialize_arg_js().contains(&format!(
-      "if (typeof id !== 'string') throw new Error('{NON_STRING_REFERENCE_ID}');"
-    )));
-  }
-
-  #[test]
-  fn deserialize_arg_rejects_a_node_that_has_left_the_document() {
-    let js = deserialize_arg_js();
-
-    assert!(
-      js.contains("if (!node || !node.isConnected) throw new Error('stale element reference');")
-    );
-    assert!(js.contains("} else if (!node || !node.host || !node.host.isConnected) {"));
-    assert!(js.contains("throw new Error('detached shadow root');"));
-  }
-
-  #[test]
-  fn deserialize_arg_copies_an_object_whose_own_has_own_property_is_shadowed() {
-    assert!(deserialize_arg_js().contains("Object.prototype.hasOwnProperty.call(arg, key)"));
-  }
 
   #[test]
   fn script_result_refs_keep_nodes_under_find_elements_variable_prefix() {

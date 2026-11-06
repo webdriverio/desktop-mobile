@@ -874,7 +874,7 @@ async function runOnEachInstance<T>(
   const scheduler = getMockUpdateScheduler(root as unknown as WebdriverIO.Browser);
   if (failures.length === 0) {
     await scheduler.schedule();
-    return values as T[];
+    return values;
   }
   // Sync if some instances ran, so their calls are recorded, but throw the failures: a broken session
   // fails the sync too

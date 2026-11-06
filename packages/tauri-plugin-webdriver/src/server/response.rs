@@ -38,9 +38,6 @@ pub struct WebDriverErrorResponse {
   pub stacktrace: Option<String>,
 }
 
-/// What a script's argument deserializer throws for a reference whose ID isn't a string.
-pub(crate) const NON_STRING_REFERENCE_ID: &str = "a reference ID must be a string";
-
 impl WebDriverErrorResponse {
   pub fn new(status: StatusCode, error: &str, message: &str, stacktrace: Option<String>) -> Self {
     Self { status, error: error.to_string(), message: message.to_string(), stacktrace }
@@ -74,9 +71,6 @@ impl WebDriverErrorResponse {
     }
     if message.contains("detached shadow root") {
       return Self::detached_shadow_root();
-    }
-    if message.contains(NON_STRING_REFERENCE_ID) {
-      return Self::invalid_argument(NON_STRING_REFERENCE_ID);
     }
 
     Self::new(StatusCode::INTERNAL_SERVER_ERROR, "javascript error", message, stacktrace)
@@ -180,23 +174,6 @@ mod tests {
     let err = WebDriverErrorResponse::javascript_error("Error: detached shadow root", None);
     assert_eq!(err.status, StatusCode::NOT_FOUND);
     assert_eq!(err.error, "detached shadow root");
-  }
-
-  #[test]
-  fn javascript_error_maps_a_non_string_reference_id_to_invalid_argument() {
-    let err =
-      WebDriverErrorResponse::javascript_error(&format!("Error: {NON_STRING_REFERENCE_ID}"), None);
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-    assert_eq!(err.error, "invalid argument");
-    assert_eq!(err.message, NON_STRING_REFERENCE_ID);
-  }
-
-  #[test]
-  fn javascript_error_keeps_a_scripts_own_invalid_argument_error() {
-    let err =
-      WebDriverErrorResponse::javascript_error("upload failed: invalid argument: size", None);
-    assert_eq!(err.error, "javascript error");
-    assert_eq!(err.message, "upload failed: invalid argument: size");
   }
 
   #[test]

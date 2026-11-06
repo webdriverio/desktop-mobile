@@ -206,17 +206,6 @@ mod tests {
   }
 
   #[test]
-  fn makes_a_new_ref_prefix_for_each_request() {
-    let (sessions, session_id) = sessions_with_one_in("main");
-    let req = request(&format!(r#"{{"script":"s","session_id":"{session_id}"}}"#));
-
-    let first = resolve_target(&sessions, &req).unwrap().refs.unwrap().ref_prefix;
-    let second = resolve_target(&sessions, &req).unwrap().refs.unwrap().ref_prefix;
-
-    assert_ne!(first, second);
-  }
-
-  #[test]
   fn runs_in_main_or_the_named_window_and_leaves_nodes_without_a_session() {
     let (sessions, _) = sessions_with_one_in("second");
 

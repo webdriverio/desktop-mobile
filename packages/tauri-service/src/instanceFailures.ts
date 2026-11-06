@@ -5,13 +5,12 @@ export interface InstanceFailure {
   error: unknown;
 }
 
-// A failed target leaves `undefined` in `values`, so each value stays at its target's index
 export async function settleOnEach<T extends { name?: string }, R>(
   targets: readonly T[],
   run: (target: T) => Promise<R>,
-): Promise<{ values: Array<R | undefined>; failures: InstanceFailure[] }> {
+): Promise<{ values: R[]; failures: InstanceFailure[] }> {
   const results = await Promise.allSettled(targets.map(async (target) => run(target)));
-  const values = results.map((result) => (result.status === 'fulfilled' ? result.value : undefined));
+  const values = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
   const failures = results.flatMap((result, i) =>
     result.status === 'rejected' ? [{ name: targets[i].name, error: result.reason as unknown }] : [],
   );

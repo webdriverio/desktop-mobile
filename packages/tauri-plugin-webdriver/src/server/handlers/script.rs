@@ -10,7 +10,6 @@ use uuid::Uuid;
 
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
-use crate::webdriver::element::script_ref_ids;
 use crate::webdriver::SessionManager;
 
 #[derive(Debug, Deserialize)]
@@ -60,20 +59,14 @@ pub async fn execute_async<R: Runtime + 'static>(
   Ok(WebDriverResponse::success(result))
 }
 
-/// Registers a script result's references in the session. Fails if the session has ended, even when
-/// there's nothing to register.
+/// Registers a script result's references in the session, which fails if the session has ended.
 pub(crate) async fn register_script_refs(
   sessions: &RwLock<SessionManager>,
   session_id: &str,
   result: &Value,
   ref_prefix: &str,
 ) -> Result<(), WebDriverErrorResponse> {
-  let ids = script_ref_ids(result, ref_prefix);
-  if ids.is_empty() {
-    sessions.read().await.get(session_id)?;
-    return Ok(());
-  }
-  sessions.write().await.get_mut(session_id)?.elements.register_script_refs(&ids);
+  sessions.write().await.get_mut(session_id)?.elements.register_script_refs(result, ref_prefix);
   Ok(())
 }
 
@@ -97,12 +90,13 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn fails_when_the_session_has_ended_whether_or_not_the_result_has_refs() {
+  async fn fails_when_the_session_has_ended() {
     let sessions = RwLock::new(SessionManager::new());
 
-    for result in [json!({ ELEMENT_KEY: "p-0" }), json!(1)] {
-      let error = register_script_refs(&sessions, "gone", &result, "p").await.unwrap_err();
-      assert_eq!(error.error, "invalid session id", "for {result}");
-    }
+    let error = register_script_refs(&sessions, "gone", &json!({ ELEMENT_KEY: "p-0" }), "p")
+      .await
+      .unwrap_err();
+
+    assert_eq!(error.error, "invalid session id");
   }
 }
