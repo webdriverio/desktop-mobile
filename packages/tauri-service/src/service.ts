@@ -9,7 +9,7 @@ import {
   isMultiremote,
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
-import { execute } from './commands/execute.js';
+import { execute, executeWithElementRefs } from './commands/execute.js';
 import {
   clearAllMocks,
   getMockTargets,
@@ -20,6 +20,8 @@ import {
   runOnMockTargets,
 } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
+import { toElementReferences } from './elementReferences.js';
+import { instanceFailuresError, settleOnEach } from './instanceFailures.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
 import { mergeServiceOptions } from './serviceConfig.js';
@@ -28,14 +30,12 @@ import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, Taur
 import {
   clearWindowState,
   ensureActiveWindowFocus,
-  getDefaultWindowLabel,
   isInternalWindowSwitch,
   listWindowLabels,
-  setCurrentWindowLabel,
-  setSessionProvider,
   suppressActiveWindowFocus,
   switchWindowByLabel,
 } from './window.js';
+import { getDefaultWindowLabel, setCurrentWindowLabel, setSessionProvider } from './windowState.js';
 
 const log = createLogger('tauri-service', 'service');
 
@@ -265,7 +265,8 @@ export default class TauriWorkerService {
   }
 
   async beforeCommand(commandName: string, _args: unknown[]): Promise<void> {
-    if (!this.browser || isMultiremote(this.browser)) {
+    // Browser mode has no Tauri backend to ask for window states
+    if (!this.browser || isMultiremote(this.browser) || this.mode === 'browser') {
       return;
     }
 
@@ -498,7 +499,15 @@ export default class TauriWorkerService {
             'browser.tauri.execute() is not supported in browser mode. Use browser.execute() for frontend code or browser.tauri.mock() to intercept Tauri commands.',
           );
         }
-        const result = await execute<ReturnValue, InnerArguments>(browser, script, ...args);
+        if (isMultiremote(browser)) {
+          const results = await runOnEachInstance(
+            browser as unknown as WebdriverIO.MultiRemoteBrowser,
+            'execute',
+            (instance) => executeWithElementRefs<ReturnValue, InnerArguments>(instance, script, ...args),
+          );
+          return results as Awaited<ReturnValue>;
+        }
+        const result = await executeWithElementRefs<ReturnValue, InnerArguments>(browser, script, ...args);
         await getMockUpdateScheduler(browser).schedule();
         return result;
       },
@@ -564,37 +573,11 @@ export default class TauriWorkerService {
           await getMockUpdateScheduler(browser).schedule();
           return;
         }
-        const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-        const instanceNames = mrBrowser.instances;
-        const results = await Promise.allSettled(
-          instanceNames.map(async (name) =>
-            emitTauriEvent(requireInstance(mrBrowser, name), browserMode, eventName, payload, target),
-          ),
+        await runOnEachInstance(
+          browser as unknown as WebdriverIO.MultiRemoteBrowser,
+          `emitEvent('${eventName}')`,
+          (instance) => emitTauriEvent(instance, browserMode, eventName, payload, target),
         );
-        const failures = results.flatMap((result, i) =>
-          result.status === 'rejected' ? [{ instance: instanceNames[i], error: result.reason as unknown }] : [],
-        );
-        if (failures.length === 0) {
-          await getMockUpdateScheduler(browser).schedule();
-          return;
-        }
-        // Sync if some instances emitted, so their calls are recorded, but throw the emit failures: a
-        // broken session fails the sync too
-        if (failures.length < instanceNames.length) {
-          await getMockUpdateScheduler(browser)
-            .schedule()
-            .catch((error: unknown) => log.warn('Mock sync failed after a failed emitEvent:', error));
-        }
-        // Reporters print only the message, not `cause` or `errors`, so the message names each failure
-        const message = `emitEvent('${eventName}') failed on ${failures
-          .map(({ instance, error }) => `${instance}: ${errorMessage(error)}`)
-          .join('; ')}`;
-        throw failures.length === 1
-          ? new Error(message, { cause: failures[0].error })
-          : new AggregateError(
-              failures.map(({ error }) => error),
-              message,
-            );
       },
     };
   }
@@ -703,24 +686,6 @@ export default class TauriWorkerService {
     patchedBrowser[EXECUTE_PATCHED] = true;
     log.debug('browser.execute() patched with console forwarding');
   }
-}
-
-// W3C WebDriver's web element identifier: https://www.w3.org/TR/webdriver2/#elements
-const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
-
-/** Sends WebdriverIO elements as W3C element references, as `browser.execute` does for its arguments. */
-function toElementReferences(args: unknown[]): Parameters<WebdriverIO.Browser['executeAsyncScript']>[1] {
-  return args.map((arg) => {
-    if (typeof arg !== 'object' || arg === null || !('selector' in arg) || !('elementId' in arg)) {
-      return arg;
-    }
-    if (!arg.elementId) {
-      throw new Error(
-        `The element with selector "${String(arg.selector)}" you are trying to pass into the execute method wasn't found`,
-      );
-    }
-    return { [ELEMENT_KEY]: arg.elementId };
-  }) as Parameters<WebdriverIO.Browser['executeAsyncScript']>[1];
 }
 
 function sleep(ms: number): Promise<void> {
@@ -897,6 +862,28 @@ async function emitTauriEvent(
     args,
     { 'Wdio-Skip-Mocks': '1' },
   );
+}
+
+async function runOnEachInstance<T>(
+  root: WebdriverIO.MultiRemoteBrowser,
+  commandName: string,
+  run: (instance: WebdriverIO.Browser) => Promise<T>,
+): Promise<T[]> {
+  const instances = root.instances.map((name) => ({ name }));
+  const { values, failures } = await settleOnEach(instances, ({ name }) => run(requireInstance(root, name)));
+  const scheduler = getMockUpdateScheduler(root as unknown as WebdriverIO.Browser);
+  if (failures.length === 0) {
+    await scheduler.schedule();
+    return values;
+  }
+  // Sync if some instances ran, so their calls are recorded, but throw the failures: a broken session
+  // fails the sync too
+  if (failures.length < instances.length) {
+    await scheduler
+      .schedule()
+      .catch((error: unknown) => log.warn(`Mock sync failed after a failed ${commandName}:`, error));
+  }
+  throw instanceFailuresError(commandName, failures);
 }
 
 // A multiremote root's commands fan out to every instance, so it sees every instance's mocks

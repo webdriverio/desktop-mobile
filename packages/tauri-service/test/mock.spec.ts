@@ -28,7 +28,8 @@ vi.mock('../src/commands/execute.js', () => ({
 import { execute as tauriExecute } from '../src/commands/execute.js';
 import { createMock } from '../src/mock.js';
 import mockStore from '../src/mockStore.js';
-import { clearWindowState, setCurrentWindowLabel } from '../src/window.js';
+import { clearWindowState } from '../src/window.js';
+import { setCurrentWindowLabel } from '../src/windowState.js';
 
 const mockExecute = vi.mocked(tauriExecute);
 

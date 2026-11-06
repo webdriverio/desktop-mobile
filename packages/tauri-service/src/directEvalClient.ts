@@ -9,6 +9,8 @@ export class DirectEvalClient {
     opts: {
       windowLabel?: string;
       timeoutMs?: number;
+      sessionId?: string;
+      args?: unknown[];
     } = {},
   ): Promise<unknown> {
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
@@ -20,6 +22,12 @@ export class DirectEvalClient {
     };
     if (opts.windowLabel !== undefined) {
       body.window_label = opts.windowLabel;
+    }
+    if (opts.sessionId !== undefined) {
+      body.session_id = opts.sessionId;
+    }
+    if (opts.args !== undefined) {
+      body.args = opts.args;
     }
 
     const response = await fetch(url, {

@@ -14,10 +14,10 @@ use webkit2gtk::{
 
 use crate::platform::alert_state::{AlertStateManager, AlertType, PendingAlert};
 use crate::platform::{
-  script_result_refs_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
+  deserialize_arg_js, script_result_refs_js, wrap_script_for_frame_context, FrameId,
+  PlatformExecutor, PrintOptions,
 };
 use crate::server::response::WebDriverErrorResponse;
-use crate::webdriver::element::ELEMENT_VAR_PREFIX;
 use crate::webdriver::Timeouts;
 
 /// Convert a JavaScriptCore value to JSON with multiple fallback strategies.
@@ -434,8 +434,13 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
     self.run_async_script(script, args, Some(ref_prefix)).await
   }
 
-  async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
-    self.run_async_script(script, &[], None).await
+  async fn execute_direct_eval(
+    &self,
+    script: &str,
+    args: &[Value],
+    ref_prefix: Option<&str>,
+  ) -> Result<Value, WebDriverErrorResponse> {
+    self.run_async_script(script, args, ref_prefix).await
   }
 }
 
@@ -452,31 +457,15 @@ impl<R: Runtime + 'static> LinuxExecutor<R> {
       Some(prefix) => (script_result_refs_js(prefix), "__wdio_refs.withRefs(result)"),
       None => (String::new(), "result"),
     };
+    let deserialize_arg_js = deserialize_arg_js();
 
     // Build wrapper that includes argument deserialization.
     // call_async_javascript_function_future treats the body as function statements,
     // so `return` is required — without it the function returns undefined immediately.
     let wrapper = format!(
       r"return new Promise((resolve, reject) => {{
-                var ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
                 {refs_js}
-                function deserializeArg(arg) {{
-                    if (arg === null || arg === undefined) return arg;
-                    if (Array.isArray(arg)) return arg.map(deserializeArg);
-                    if (typeof arg === 'object') {{
-                        if (arg[ELEMENT_KEY]) {{
-                            var el = window['{ELEMENT_VAR_PREFIX}' + arg[ELEMENT_KEY].replace(/-/g, '')];
-                            if (!el) throw new Error('stale element reference');
-                            return el;
-                        }}
-                        var result = {{}};
-                        for (var key in arg) {{
-                            if (arg.hasOwnProperty(key)) result[key] = deserializeArg(arg[key]);
-                        }}
-                        return result;
-                    }}
-                    return arg;
-                }}
+                {deserialize_arg_js}
                 var __done = function(result, error) {{
                     if (error) {{
                         reject(new Error(typeof error === 'string' ? error : String(error)));

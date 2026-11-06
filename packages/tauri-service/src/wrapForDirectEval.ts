@@ -12,15 +12,18 @@ import { hasSemicolonOutsideQuotes, isFunctionSource } from '@wdio/native-utils'
  *
  * The output script uses the W3C async-callback contract:
  * arguments[arguments.length - 1] is called with { ok, value, undef } or { ok, error }.
+ * When the plugin passes the arguments before the callback, the script uses those instead of `argsJson`.
+ * An older plugin passes only the callback.
  */
 export function wrapScriptForDirectEval(script: string, argsJson: string): string {
   const trimmed = script.trim();
+  const prelude = `var __cb = arguments[arguments.length - 1];
+var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0, -1) : ${argsJson};`;
 
   if (isFunctionSource(trimmed)) {
-    return `var __cb = arguments[arguments.length - 1];
+    return `${prelude}
 (async () => {
   try {
-    const __wdio_args = ${argsJson};
     const __wdio_core_ref = window.__wdio_original_core__;
     let __wdio_invoke_real;
     if (__wdio_core_ref && typeof __wdio_core_ref.invoke === 'function') {
@@ -58,8 +61,7 @@ export function wrapScriptForDirectEval(script: string, argsJson: string): strin
     ? `(async function() { ${script} }).apply(null, __wdio_args)`
     : `(async function() { return ${script}; }).apply(null, __wdio_args)`;
 
-  return `var __cb = arguments[arguments.length - 1];
-const __wdio_args = ${argsJson};
+  return `${prelude}
 (async () => {
   try {
     const __result = await ${invocation};

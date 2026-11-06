@@ -69,6 +69,9 @@ impl WebDriverErrorResponse {
     if message.contains("stale element reference") {
       return Self::stale_element_reference();
     }
+    if message.contains("detached shadow root") {
+      return Self::detached_shadow_root();
+    }
 
     Self::new(StatusCode::INTERNAL_SERVER_ERROR, "javascript error", message, stacktrace)
   }
@@ -78,6 +81,15 @@ impl WebDriverErrorResponse {
       StatusCode::NOT_FOUND,
       "stale element reference",
       "Element is no longer attached to the DOM",
+      None,
+    )
+  }
+
+  pub fn detached_shadow_root() -> Self {
+    Self::new(
+      StatusCode::NOT_FOUND,
+      "detached shadow root",
+      "Shadow root's host is no longer attached to the DOM",
       None,
     )
   }
@@ -155,6 +167,13 @@ mod tests {
     let err = WebDriverErrorResponse::javascript_error("stale element reference", None);
     assert_eq!(err.status, StatusCode::NOT_FOUND);
     assert_eq!(err.error, "stale element reference");
+  }
+
+  #[test]
+  fn javascript_error_maps_detached_shadow_root() {
+    let err = WebDriverErrorResponse::javascript_error("Error: detached shadow root", None);
+    assert_eq!(err.status, StatusCode::NOT_FOUND);
+    assert_eq!(err.error, "detached shadow root");
   }
 
   #[test]

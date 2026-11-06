@@ -17,6 +17,19 @@ Execute JavaScript code in the Tauri frontend context. Requires tauri-plugin-wdi
 
 **Returns:** `Promise<Awaited<ReturnValue>>`
 
+With the embedded provider:
+
+- A DOM element or shadow root in the result comes back as a W3C reference, as from `browser.execute()`. Pass it to `browser.$()` to get an element.
+- Any other object that is iterable and has a numeric `length`, such as a `NodeList`, an `HTMLCollection`, `el.classList` or a typed array, comes back as an array.
+- A reference in the arguments, or an element from `browser.$()`, reaches the script as its node.
+- The script runs in the top document of the window the service targets, as the mocks do: the [`windowLabel`](./configuration.md#windowlabel-string-optional) option's window (`main` unless set), the one `browser.tauri.switchWindow()` chose, or the one a per-call `windowLabel` names.
+
+As with `browser.$()`, a reference only works in the document it came from. One in the result works while the session is in that window and not in a frame, and one passed in must come from that window's top document.
+
+The `tauri-plugin-wdio-webdriver` crate does these conversions, so update it along with the service. An older crate leaves elements as they are: one in the result comes back as `{}` or makes the call time out, depending on the platform, and a reference in the arguments reaches the script as a plain object.
+
+**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. It rejects if any instance fails, and the error names each one. To run it in one app, call it on that instance: `browser.getInstance('app1').tauri.execute(...)`. A reference belongs to the instance it came from, so pass it to that instance's `execute`, not the root's.
+
 **Example:**
 
 ```typescript

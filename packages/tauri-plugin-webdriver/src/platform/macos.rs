@@ -23,7 +23,10 @@ use tokio::sync::oneshot;
 
 use crate::eval_channel::EvalResultRegistry;
 use crate::platform::alert_state::{AlertState, AlertStateManager, AlertType, PendingAlert};
-use crate::platform::{wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions};
+use crate::platform::{
+  deserialize_arg_js, script_result_refs_js, wrap_script_for_frame_context, FrameId,
+  PlatformExecutor, PrintOptions,
+};
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
 
@@ -274,27 +277,23 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
   /// (`AsyncScriptState`). https://github.com/webdriverio/desktop-mobile/issues/540
   ///
   /// `wrapScriptForDirectEval` produces a callback-style script (`arguments[last]` is its
-  /// done-callback); `__report` forwards the result to the message handler then `resolve`s so the
-  /// `callAsyncJavaScript` promise settles.
-  async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
+  /// done-callback); see [`direct_eval_wrapper`] for how each attempt runs it.
+  async fn execute_direct_eval(
+    &self,
+    script: &str,
+    args: &[Value],
+    ref_prefix: Option<&str>,
+  ) -> Result<Value, WebDriverErrorResponse> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let id = format!("wdio_de_{}", COUNTER.fetch_add(1, Ordering::Relaxed));
+    let args_json = serde_json::to_string(args)
+      .map_err(|e| WebDriverErrorResponse::invalid_argument(&e.to_string()))?;
 
     // Register the waiter before dispatching, so a fast report can't arrive before we're listening.
     let registry = self.window.state::<Arc<EvalResultRegistry>>().inner().clone();
     let mut rx = registry.register(id.clone());
-
-    // id is alphanumeric + '_', so it needs no escaping in the JS string literal below.
-    let wrapper = format!(
-      r#"return new Promise((resolve) => {{
-  var __report = function (r) {{
-    try {{ window.webkit.messageHandlers.wdioEvalResult.postMessage({{ id: "{id}", result: r }}); }} catch (e) {{}}
-    resolve(r);
-  }};
-  (function () {{ {script} }}).apply(null, [__report]);
-}});"#
-    );
+    let wrapper = direct_eval_wrapper(script, &args_json, &id, ref_prefix);
 
     const MAX_ATTEMPTS: usize = 3;
     // After a reclaim, wait this long for a racing message-handler post before re-running.
@@ -335,7 +334,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
     if result.is_err() {
       registry.cancel(&id);
     }
-    result
+    result.and_then(reported_failure)
   }
 
   // =========================================================================
@@ -860,9 +859,73 @@ fn async_script_as_promise(script: &str) -> String {
   )
 }
 
+/// The `callAsyncJavaScript` body for one DirectEval attempt.
+///
+/// The wrapper's own failures (an argument it can't resolve, a result it can't send) resolve with
+/// `{ __wdio_error }` for [`reported_failure`]. Rejecting, or resolving with a value WebKit can't
+/// return, would look like WebKit reclaiming the call, which runs the script again.
+fn direct_eval_wrapper(
+  script: &str,
+  args_json: &str,
+  id: &str,
+  ref_prefix: Option<&str>,
+) -> String {
+  let (refs_js, result_js) = match ref_prefix {
+    Some(prefix) => (script_result_refs_js(prefix), "__wdio_refs.withRefs(r)"),
+    None => (String::new(), "r"),
+  };
+  let deserialize_arg_js = deserialize_arg_js();
+  // id is alphanumeric + '_', so it needs no escaping in the JS string literal below.
+  format!(
+    r#"return new Promise((resolve) => {{
+  {refs_js}
+  {deserialize_arg_js}
+  var __post = function (result) {{
+    window.webkit.messageHandlers.wdioEvalResult.postMessage({{ id: "{id}", result: result }});
+  }};
+  var __fail = function (message) {{
+    var failure = {{ __wdio_error: message }};
+    try {{ __post(failure); }} catch (e) {{}}
+    resolve(failure);
+  }};
+  var __report = function (r) {{
+    var result = {result_js};
+    try {{
+      __post(result);
+    }} catch (e) {{
+      if (e && e.name === 'DataCloneError') {{
+        __fail("The script's result can't be sent back: " + e.message);
+        return;
+      }}
+    }}
+    resolve(result);
+  }};
+  var __args;
+  try {{
+    __args = {args_json}.map(deserializeArg);
+  }} catch (e) {{
+    __fail(e.message || String(e));
+    return;
+  }}
+  __args.push(__report);
+  (function () {{ {script} }}).apply(null, __args);
+}});"#
+  )
+}
+
+/// Turns the wrapper's own failure into the error Linux and Windows would return.
+fn reported_failure(result: Value) -> Result<Value, WebDriverErrorResponse> {
+  match result.get("__wdio_error").and_then(Value::as_str) {
+    Some(message) => Err(WebDriverErrorResponse::javascript_error(message, None)),
+    None => Ok(result),
+  }
+}
+
 #[cfg(test)]
 mod tests {
-  use super::async_script_as_promise;
+  use serde_json::json;
+
+  use super::{async_script_as_promise, reported_failure};
 
   #[test]
   fn async_script_as_promise_passes_the_arguments_then_done() {
@@ -872,5 +935,14 @@ mod tests {
     assert!(body.contains("return new Promise(function (done) {"));
     assert!(body.contains("__args.push(done);"));
     assert!(body.contains("(function () { arguments[1](arguments[0] * 2) }).apply(null, __args);"));
+  }
+
+  #[test]
+  fn reported_failure_turns_the_wrappers_failure_into_the_w3c_error() {
+    let error = reported_failure(json!({ "__wdio_error": "stale element reference" })).unwrap_err();
+    assert_eq!(error.error, "stale element reference");
+
+    let result = json!({ "ok": true, "value": 1 });
+    assert_eq!(reported_failure(result.clone()).unwrap(), result);
   }
 }
