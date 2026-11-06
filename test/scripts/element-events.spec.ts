@@ -69,7 +69,7 @@ function enter() {
   events.wdioEnterKey(events.wdioDeepActiveElement());
 }
 
-// Hides `blur` and `focus` from the page, as a WebKitGTK window without focus fires neither for
+// Hides `blur` and `focus` from the page, as a WebKitGTK window without focus can fire neither for
 // scripted focus moves.
 function withoutBlurOrFocus(run: () => void) {
   const stop = (event: Event) => event.stopImmediatePropagation();
@@ -148,7 +148,7 @@ describe('pending change', () => {
     expect(log).toEqual(['change a=x', 'blur a=x', 'focus a=x', 'blur a=x']);
   });
 
-  it("should fire it on focusout when no blur arrives, as in WebKitGTK's unfocused windows", () => {
+  it('should fire it on focusout when no blur arrives, as can happen in a WebKitGTK window without focus', () => {
     type($('#a'), 'x');
     withoutBlurOrFocus(() => $('#b').focus());
     expect(log).toEqual(['change a=x']);
@@ -595,7 +595,7 @@ describe('Tab', () => {
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
   });
 
-  it("should select the next text field and fire the change when no blur or focus arrives, as in WebKitGTK's unfocused windows", () => {
+  it('should select the next text field and fire the change when no blur or focus arrives, as can happen in a WebKitGTK window without focus', () => {
     render('<input id="a"><input id="b" value="old">');
     type($('#a'), 'x');
     withoutBlurOrFocus(() => tab());
@@ -751,7 +751,7 @@ describe('Tab', () => {
 
   it.each([
     ['a window in front', ['blur', 'focusout']],
-    ["WebKitGTK's window without focus", ['focusout']],
+    ['a WebKitGTK window that sends only focusout', ['focusout']],
   ])('should stay on a field whose blur or change handler sends focus back to it, in %s', (_, eventTypes) => {
     render('<input id="qty"><input id="name"><input id="email">');
     // In Chrome and WebKit, a handler that refocuses the field cancels the move, so focus stays.

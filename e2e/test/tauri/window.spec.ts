@@ -341,22 +341,8 @@ describe('Embedded WebDriver Close Window', () => {
 
 // Last in the file: it leaves the window minimized, as Set Window Rect doesn't restore it.
 describe('Embedded WebDriver focus emulation', () => {
-  before(async function () {
-    if (process.env.DRIVER_PROVIDER !== 'embedded' || process.platform !== 'win32') {
-      this.skip();
-    }
-
-    await browser.tauri.execute(({ core }) => core.invoke('switch_to_main'));
-    await browser.tauri.switchWindow('main');
-  });
-
-  it('should keep the page focused and visible while the window is minimized', async () => {
-    await browser.minimizeWindow();
-    await browser.waitUntil(() =>
-      browser.tauri.execute(({ core }) => core.invoke<boolean>('plugin:window|is_minimized')),
-    );
-
-    const result = await browser.execute(() => {
+  const moveFocus = () =>
+    browser.execute(() => {
       const first = document.createElement('input');
       const second = document.createElement('input');
       document.body.append(first, second);
@@ -371,6 +357,32 @@ describe('Embedded WebDriver focus emulation', () => {
       return { hasFocus: document.hasFocus(), visibility: document.visibilityState, blurred };
     });
 
-    expect(result).toEqual({ hasFocus: true, visibility: 'visible', blurred: true });
+  before(async function () {
+    if (process.env.DRIVER_PROVIDER !== 'embedded' || process.platform !== 'win32') {
+      this.skip();
+    }
+
+    await browser.tauri.execute(({ core }) => core.invoke('switch_to_main'));
+    await browser.tauri.switchWindow('main');
+  });
+
+  it('should keep the page focused in a hidden window opened after the session started', async () => {
+    await browser.tauri.execute(({ core }) => core.invoke('open_close_guard_window'));
+    await browser.switchToWindow('close-guard');
+    try {
+      await expect(browser).toHaveTitle('Splash Screen');
+      expect(await moveFocus()).toMatchObject({ hasFocus: true, blurred: true });
+    } finally {
+      await browser.tauri.switchWindow('main');
+    }
+  });
+
+  it('should keep the page focused and visible while the window is minimized', async () => {
+    await browser.minimizeWindow();
+    await browser.waitUntil(() =>
+      browser.tauri.execute(({ core }) => core.invoke<boolean>('plugin:window|is_minimized')),
+    );
+
+    expect(await moveFocus()).toEqual({ hasFocus: true, visibility: 'visible', blurred: true });
   });
 });
