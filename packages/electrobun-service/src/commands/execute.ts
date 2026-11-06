@@ -12,23 +12,12 @@ import { errorMessage, hasSemicolonOutsideQuotes } from '@wdio/native-utils';
 
 import { STASH_NODES_JS } from './stashNodes.js';
 
-const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
-const SHADOW_KEY = 'shadow-6066-11e4-a52e-4f735466cecf';
-
-export type StashedNodeResolver = (stash: string, count: number) => Promise<Result<unknown[]>>;
-
-function isReference(value: unknown): boolean {
-  if (value === null || typeof value !== 'object') {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  return typeof (record[ELEMENT_KEY] ?? record[SHADOW_KEY]) === 'string';
-}
+export type StashedNodeResolver = (stash: string) => Promise<Result<unknown[]>>;
 
 // Reads the nodes a script left on `window[stash]` through the WebDriver session, which returns them as
 // references. syncWebDriverWindow keeps the session on the bridge's active target, where they were left.
 export function stashedNodeResolver(browser: WebdriverIO.Browser): StashedNodeResolver {
-  return async (stash, count) => {
+  return async (stash) => {
     let refs: unknown;
     try {
       refs = await browser.execute(
@@ -44,12 +33,6 @@ export function stashedNodeResolver(browser: WebdriverIO.Browser): StashedNodeRe
         "browser.electrobun.execute returned DOM nodes, but the WebDriver session couldn't find them: it isn't on " +
         'the window or frame the script ran in, or the page navigated first. Switch windows with ' +
         'browser.electrobun.switchWindow(), and leave a frame with browser.switchFrame(null).';
-      return { ok: false, error: new Error(message) };
-    }
-    if (refs.length !== count || !refs.every(isReference)) {
-      const message =
-        `browser.electrobun.execute expected ${count} element or shadow root references from the WebDriver ` +
-        `session, but got ${JSON.stringify(refs)}`;
       return { ok: false, error: new Error(message) };
     }
     return { ok: true, value: refs };
@@ -183,22 +166,10 @@ function replacePlaceholders(value: unknown, mark: string, refs: unknown[]): unk
   return Object.fromEntries(keys.map((key) => [key, replacePlaceholders(record[key], mark, refs)]));
 }
 
-// Deletes the stash in `label`, the target the script ran in, even if switchWindow() has since moved the bridge.
-// A script that could still be running gets a null stash instead, which tells it to keep nothing. Callers don't
-// wait for this: the connection that just failed, or a busy renderer, could stall it.
-async function discardStashedNodes(
-  bridge: CdpBridge,
-  label: string | undefined,
-  stash: string,
-  mayStillRun = false,
-): Promise<void> {
-  const name = sourceLiteral(stash);
-  const expression = mayStillRun
-    ? `window[${name}] === undefined ? (window[${name}] = null) : delete window[${name}]`
-    : `delete window[${name}]`;
-  const params = { expression };
+// Callers don't wait for this: the connection that just failed, or a busy renderer, could stall it.
+async function discardStashedNodes(bridge: CdpBridge, stash: string): Promise<void> {
   try {
-    await (label ? bridge.sendTo(label, 'Runtime.evaluate', params) : bridge.send('Runtime.evaluate', params));
+    await bridge.send('Runtime.evaluate', { expression: `delete window[${sourceLiteral(stash)}]` });
   } catch {
     // Best effort: the page drops the nodes when it navigates
   }
@@ -209,15 +180,14 @@ async function withElementReferences(
   mark: string,
   stash: string,
   bridge: CdpBridge,
-  label: string | undefined,
   resolveNodes: StashedNodeResolver,
 ): Promise<unknown> {
   if (!isStashEnvelope(result, mark)) {
     return result;
   }
-  const refs = await resolveNodes(stash, result[mark] as number);
+  const refs = await resolveNodes(stash);
   if (!refs.ok) {
-    void discardStashedNodes(bridge, label, stash);
+    void discardStashedNodes(bridge, stash);
     throw refs.error;
   }
   return replacePlaceholders(result.value, mark, refs.value);
@@ -256,17 +226,14 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
 ${STASH_NODES_JS}
 })()`;
 
-  const label = bridge.activeLabel;
   let response: EvaluateResponse;
   try {
     response = await sendEvaluate(bridge, expression);
   } catch (error) {
-    // Unlike a script error, a failed call can leave a stash: the script may have stashed before the response
-    // failed, or may still be running after a timeout. Linux reports a WebKit script timeout as a script error,
-    // so a stash made after one stays until the page navigates.
-    void discardStashedNodes(bridge, label, stash, true);
+    // Unlike a script error, a failed call can leave a stash, as when the response fails after the script ran
+    void discardStashedNodes(bridge, stash);
     throw error;
   }
   const result = evaluatedValue<unknown>(response, 'browser.electrobun.execute');
-  return (await withElementReferences(result, mark, stash, bridge, label, resolveNodes)) as Awaited<ReturnValue>;
+  return (await withElementReferences(result, mark, stash, bridge, resolveNodes)) as Awaited<ReturnValue>;
 }

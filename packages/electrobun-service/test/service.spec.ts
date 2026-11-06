@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const connectMock = vi.fn().mockResolvedValue(undefined);
 const sendMock = vi.fn();
-const sendToMock = vi.fn();
 const switchTargetMock = vi.fn().mockResolvedValue(undefined);
 const listWindowsMock = vi.fn().mockReturnValue(['main', 'second']);
 const targetsMock = vi.fn().mockReturnValue([
@@ -20,7 +19,6 @@ vi.mock('@wdio/native-cdp-bridge', () => ({
     }
     connect = connectMock;
     send = sendMock;
-    sendTo = sendToMock;
     switchTarget = switchTargetMock;
     listWindows = listWindowsMock;
     listTargets = targetsMock;

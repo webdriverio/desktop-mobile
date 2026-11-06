@@ -145,14 +145,6 @@ describe('the page-side node stash', () => {
     expect(win.stash).toEqual([element('x'), root]);
   });
 
-  it('should keep nothing, and remove the null, when the stash was nulled by a failed call', () => {
-    const win: FakeWindow = { stash: null };
-    const value = [element('counter')];
-
-    expect(stashNodes(win)(value, 'stash', 'mark')).toBe(value);
-    expect(win).not.toHaveProperty('stash');
-  });
-
   it('should keep a node that appears twice once, with both placeholders pointing at it', () => {
     const win: FakeWindow = {};
     const el = element('counter');
@@ -223,7 +215,7 @@ function pageBridge(win: FakeWindow): { bridge: CdpBridge; send: ReturnType<type
 
 // What the WebDriver session's Execute Script returns for the stashed nodes.
 function sessionResolver(win: FakeWindow) {
-  return vi.fn(async (stash: string, _count: number): Promise<Result<unknown[]>> => {
+  return vi.fn(async (stash: string): Promise<Result<unknown[]>> => {
     const nodes = win[stash] as Array<{ nodeType: number; id?: string; host?: { id: string } }>;
     delete win[stash];
     return {
@@ -241,7 +233,7 @@ describe('execute — DOM nodes in the result', () => {
     const result = await execute(pageBridge(win).bridge, resolve, 'return window.el');
 
     expect(result).toEqual({ [ELEMENT_KEY]: 'counter' });
-    expect(resolve).toHaveBeenCalledWith(expect.stringMatching(/^__wdio_electrobun_nodes_[0-9a-f]{32}$/), 1);
+    expect(resolve).toHaveBeenCalledWith(expect.stringMatching(/^__wdio_electrobun_nodes_[0-9a-f]{32}$/));
     expect(Object.keys(win)).toEqual(['el']);
   });
 
@@ -348,45 +340,6 @@ describe('execute — DOM nodes in the result', () => {
     expect(stashed).toEqual([element('counter')]);
   });
 
-  it("should throw the resolver's error without waiting for a cleanup that stalls", async () => {
-    const win: FakeWindow = { el: element('counter') };
-    const { send: runInPage } = pageBridge(win);
-    const send = vi.fn((method: string, params: { expression: string }) =>
-      send.mock.calls.length === 1 ? runInPage(method, params) : new Promise(() => {}),
-    );
-    const error = new Error('script timeout');
-    const waited = new Promise((_, reject) => setTimeout(() => reject(new Error('waited for the cleanup')), 200));
-
-    await expect(
-      Promise.race([
-        execute({ send } as unknown as CdpBridge, vi.fn().mockResolvedValue({ ok: false, error }), 'return window.el'),
-        waited,
-      ]),
-    ).rejects.toBe(error);
-  });
-
-  it('should discard the nodes in the target the script ran in, after a switch', async () => {
-    const win: FakeWindow = { el: element('counter') };
-    const { bridge } = pageBridge(win);
-    const sendTo = vi.fn(async (_label: string, _method: string, params: { expression: string }) =>
-      (bridge.send as unknown as (method: string, params: { expression: string }) => Promise<unknown>)(
-        'Runtime.evaluate',
-        params,
-      ),
-    );
-    Object.assign(bridge, { activeLabel: 'main', sendTo });
-    const resolve = vi.fn(async (): Promise<Result<unknown[]>> => {
-      Object.assign(bridge, { activeLabel: 'window-1' });
-      return { ok: false, error: new Error('no such window') };
-    });
-
-    await expect(execute(bridge, resolve, 'return window.el')).rejects.toThrow();
-    await vi.waitFor(() => expect(Object.keys(win)).toEqual(['el']));
-    expect(sendTo).toHaveBeenCalledWith('main', 'Runtime.evaluate', {
-      expression: expect.stringMatching(/^delete window\["__wdio_electrobun_nodes_[0-9a-f]{32}"\]$/),
-    });
-  });
-
   it('should discard the nodes when the call fails after the page stashed them, and rethrow', async () => {
     const win: FakeWindow = { el: element('counter') };
     const { send: runInPage } = pageBridge(win);
@@ -403,28 +356,6 @@ describe('execute — DOM nodes in the result', () => {
       timeout,
     );
     await vi.waitFor(() => expect(Object.keys(win)).toEqual(['el']));
-  });
-
-  it("should stop a script that's still running when the call fails from stashing its nodes later", async () => {
-    const win: FakeWindow = { el: element('counter') };
-    const { send: runInPage } = pageBridge(win);
-    const timeout = new Error('CDP timed out');
-    let script: { expression: string } | undefined;
-    const send = vi.fn(async (method: string, params: { expression: string }) => {
-      if (!script) {
-        script = params;
-        throw timeout;
-      }
-      return runInPage(method, params);
-    });
-
-    await expect(execute({ send } as unknown as CdpBridge, sessionResolver(win), 'return window.el')).rejects.toBe(
-      timeout,
-    );
-    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
-    await runInPage('Runtime.evaluate', script as { expression: string });
-
-    expect(Object.keys(win)).toEqual(['el']);
   });
 
   it('should discard the nodes over the Linux W3C eval bridge when the request fails', async () => {
@@ -496,20 +427,6 @@ describe('stashedNodeResolver', () => {
         message: "browser.electrobun.execute could not return the result's DOM nodes: no such window",
         cause: error,
       },
-    });
-  });
-
-  it.each([
-    ['too few references', [{ [ELEMENT_KEY]: 'x' }]],
-    ['a null reference', [{ [ELEMENT_KEY]: 'x' }, null]],
-    ['a reference without an ID', [{ [ELEMENT_KEY]: 'x' }, { [ELEMENT_KEY]: undefined }]],
-    ['something else', [{ [ELEMENT_KEY]: 'x' }, { id: 'y' }]],
-  ])('should fail when the session returns %s', async (_name, refs) => {
-    const result = await stashedNodeResolver(sessionReturning(refs))('stash', 2);
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: { message: expect.stringContaining('expected 2 element or shadow root references') },
     });
   });
 });

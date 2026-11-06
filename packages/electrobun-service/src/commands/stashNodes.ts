@@ -1,13 +1,8 @@
 // Runs in the page on the script's result, by the embedded drivers' rules in script-result-refs.js
 // (test/scripts/script-result-refs.spec.ts checks they match). Elements and shadow roots become placeholders
 // and indexed lists such as a NodeList become arrays; a result with neither, or one JSON.stringify rejects,
-// comes back unchanged. Each node goes on `window[stash]` once, so the session's reply never repeats one. A
-// null stash means the call has already failed, so nothing goes there.
+// comes back unchanged. Each node goes on `window[stash]` once, so the session's reply never repeats one.
 export const STASH_NODES_JS = `function __wdioStashNodes(value, stash, mark) {
-  if (window[stash] === null) {
-    delete window[stash];
-    return value;
-  }
   var nodes = [];
   var indexes = new Map();
   var replaced = false;
