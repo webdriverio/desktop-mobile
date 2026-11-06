@@ -78,5 +78,22 @@ describe('Electrobun Multi-Window Support', () => {
       });
       expect(mainId).toBe('app-title');
     });
+
+    // switchWindow() moves the WebDriver session too, so it can read the element's reference.
+    it('should return an element from the active window as a reference after switching', async () => {
+      const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+
+      await browser.electrobun.switchWindow('window-1');
+      const second = (await browser.electrobun.execute(() =>
+        (globalThis as unknown as PageWindow).document.getElementById('second-title'),
+      )) as unknown as { [ELEMENT_KEY]: string };
+      expect(await browser.$(second).getAttribute('id')).toBe('second-title');
+
+      await browser.electrobun.switchWindow('main');
+      const main = (await browser.electrobun.execute(() =>
+        (globalThis as unknown as PageWindow).document.getElementById('app-title'),
+      )) as unknown as { [ELEMENT_KEY]: string };
+      expect(await browser.$(main).getAttribute('id')).toBe('app-title');
+    });
   });
 });

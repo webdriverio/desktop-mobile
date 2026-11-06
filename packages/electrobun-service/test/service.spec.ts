@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const connectMock = vi.fn().mockResolvedValue(undefined);
 const sendMock = vi.fn();
+const sendToMock = vi.fn();
 const switchTargetMock = vi.fn().mockResolvedValue(undefined);
 const listWindowsMock = vi.fn().mockReturnValue(['main', 'second']);
 const targetsMock = vi.fn().mockReturnValue([
@@ -19,6 +20,7 @@ vi.mock('@wdio/native-cdp-bridge', () => ({
     }
     connect = connectMock;
     send = sendMock;
+    sendTo = sendToMock;
     switchTarget = switchTargetMock;
     listWindows = listWindowsMock;
     listTargets = targetsMock;
@@ -121,6 +123,19 @@ describe('ElectrobunWorkerService', () => {
 
       // Ends on the content window so $/click target the app, not about:blank.
       expect(vi.mocked(browser.switchToWindow).mock.calls.at(-1)?.[0]).toBe('win-main');
+    });
+
+    it("should pick the window whose handle is the active target's ID, even when another shares its URL", async () => {
+      const browser = makeBrowser([
+        { handle: 't-2', url: 'views://mainview/index.html' },
+        { handle: 't-main', url: 'views://mainview/index.html' },
+      ]);
+      const service = new ElectrobunWorkerService({}, {});
+
+      await service.before(nativeCap(), [], browser);
+
+      expect(vi.mocked(browser.switchToWindow).mock.calls).toEqual([['t-main']]);
+      expect(browser.getUrl).not.toHaveBeenCalled();
     });
 
     it('should install browser.electrobun with the full API surface', async () => {
@@ -265,7 +280,28 @@ describe('ElectrobunWorkerService', () => {
       const result = await (browser as unknown as Installed).electrobun.execute('1 + 1');
 
       expect(result).toBe('ok');
-      expect(sendMock.mock.calls[0][1].expression).toBe('(async function () { return (1 + 1); })()');
+      expect(sendMock.mock.calls[0][1].expression).toContain('await (async function () { return (1 + 1\n); })()');
+    });
+
+    it("should turn DOM nodes in the result into the session's element references", async () => {
+      sendMock.mockImplementationOnce(async (_method: string, { expression }: { expression: string }) => {
+        const mark = /__wdio_node_[0-9a-f]{32}__/.exec(expression)?.[0] as string;
+        return { result: { value: { [mark]: 1, value: { el: { [mark]: 0 } } } } };
+      });
+      const browser = makeBrowser();
+      const ref = { 'element-6066-11e4-a52e-4f735466cecf': 'node-1' };
+      const sessionExecute = vi.fn().mockResolvedValue([ref]);
+      Object.assign(browser, { execute: sessionExecute });
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(nativeCap(), [], browser);
+
+      const result = await (browser as unknown as Installed).electrobun.execute('return { el: document.body }');
+
+      expect(result).toEqual({ el: ref });
+      expect(sessionExecute).toHaveBeenCalledWith(
+        expect.stringContaining('delete window[arguments[0]]'),
+        expect.stringMatching(/^__wdio_electrobun_nodes_[0-9a-f]{32}$/),
+      );
     });
 
     it('should throw when Runtime.evaluate reports exceptionDetails', async () => {
@@ -732,6 +768,26 @@ describe('ElectrobunWorkerService', () => {
 
       expect(result).toBe(7);
       expect(poster).toHaveBeenCalled();
+    });
+
+    it("should turn DOM nodes in the result into the session's element references", async () => {
+      const browser = makeW3CBrowser();
+      poster.mockImplementation(async (script: string) => {
+        const mark = /__wdio_node_[0-9a-f]{32}__/.exec(script)?.[0] as string;
+        return { value: { ok: true, value: { [mark]: 1, value: [{ [mark]: 0 }] } } };
+      });
+      const ref = { 'element-6066-11e4-a52e-4f735466cecf': 'node-1' };
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+      browser.execute.mockResolvedValueOnce([ref]);
+
+      const result = await (browser as unknown as Installed).electrobun.execute('return [document.body]');
+
+      expect(result).toEqual([ref]);
+      expect(browser.execute).toHaveBeenLastCalledWith(
+        expect.stringContaining('delete window[arguments[0]]'),
+        expect.stringMatching(/^__wdio_electrobun_nodes_[0-9a-f]{32}$/),
+      );
     });
 
     it('should surface a page-level error message from execute', async () => {
