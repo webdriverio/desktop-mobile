@@ -3092,7 +3092,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-wdio"
-version = "1.5.1"
+version = "2.0.0"
 dependencies = [
  "log",
  "serde",
