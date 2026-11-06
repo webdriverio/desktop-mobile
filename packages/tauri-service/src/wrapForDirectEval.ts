@@ -84,7 +84,27 @@ export function wrapScriptForWebDriver(
   argsJson: string,
   windowLabel?: string,
 ): { script: string; args: string[] } {
-  const inPage = wrapScriptForDirectEval(script, argsJson);
+  // The driver returns an `undefined` in a plain object as `null`, where JSON, which the embedded provider and the
+  // plugin's IPC use, drops the key, so drop it here too. Other objects, such as elements, are left for the driver.
+  const inPage = `var __wdio_done = arguments[arguments.length - 1];
+function __wdio_withoutUndefined(value) {
+  if (Array.isArray(value)) return value.map(__wdio_withoutUndefined);
+  if (value === null || typeof value !== 'object') return value;
+  var proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return value;
+  var copy = {};
+  for (var key in value) {
+    if (Object.prototype.hasOwnProperty.call(value, key) && value[key] !== undefined) {
+      copy[key] = __wdio_withoutUndefined(value[key]);
+    }
+  }
+  return copy;
+}
+(function () {
+${wrapScriptForDirectEval(script, argsJson)}
+})(function (r) {
+  __wdio_done(r.ok ? { ok: true, value: __wdio_withoutUndefined(r.value), undef: r.undef } : r);
+});`;
   if (windowLabel === undefined) {
     return { script: inPage, args: [] };
   }

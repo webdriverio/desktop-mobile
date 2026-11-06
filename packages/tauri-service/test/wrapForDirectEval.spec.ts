@@ -213,10 +213,29 @@ describe('wrapScriptForWebDriver', () => {
     };
   }
 
+  it('should drop undefined-valued keys from plain objects, as JSON does, and leave other objects alone', async () => {
+    const window = tauriWindow(undefined, async () => undefined);
+    const element = { nodeType: 1 };
+
+    const outcome = await runInPage(
+      wrapScriptForWebDriver(
+        '() => ({ a: undefined, b: 1, nested: { c: undefined }, list: [1], el: window.el })',
+        '[]',
+      ),
+      { ...window, el: element },
+    );
+
+    const value = outcome.value as { nested: object; el: unknown };
+    expect(Object.keys(value)).toEqual(['b', 'nested', 'list', 'el']);
+    expect(Object.keys(value.nested)).toEqual([]);
+    expect(value.el).toBe(element);
+  });
+
   it('should run the script in the page when no window is chosen', async () => {
     const wrapped = wrapScriptForWebDriver('(tauri, a) => a * 2', '[21]');
 
-    expect(wrapped).toEqual({ script: wrapScriptForDirectEval('(tauri, a) => a * 2', '[21]'), args: [] });
+    expect(wrapped.args).toEqual([]);
+    expect(wrapped.script).toContain(wrapScriptForDirectEval('(tauri, a) => a * 2', '[21]'));
     expect(
       await runInPage(
         wrapped,

@@ -13,9 +13,13 @@ function idOf(ref: unknown) {
   return browser.$(ref as ElementReference).getAttribute('id');
 }
 
+// CrabNebula's macOS driver sends script results back as JSON, so elements come back as `{}`
+const crabNebulaOnMacOS = process.platform === 'darwin' && process.env.DRIVER_PROVIDER === 'crabnebula';
+const withRefs = crabNebulaOnMacOS ? describe.skip : describe;
+
 // The external and CrabNebula providers run the script through the WebDriver session, so the driver serialises
-// elements. The embedded provider's cases are in element-results.embedded.spec.ts.
-describe('Tauri Execute - element results from browser.tauri.execute (external providers)', () => {
+// elements. The embedded provider's cases are in execute-refs.embedded.spec.ts.
+withRefs('Tauri Execute - element results from browser.tauri.execute (external providers)', () => {
   it('should return an element as a reference that element commands accept', async () => {
     const result = await browser.tauri.execute(() => document.querySelector('#counter'));
 
@@ -67,5 +71,12 @@ describe('Tauri Execute - element results from browser.tauri.execute (external p
 
     expect(result).toEqual(anElementReference());
     expect(await idOf(result)).toBe('counter');
+  });
+});
+
+// When this fails, CrabNebula's macOS driver returns references: drop this suite and run the one above on macOS too
+(crabNebulaOnMacOS ? describe : describe.skip)('Tauri Execute - element results (CrabNebula on macOS)', () => {
+  it('should still return an element as an empty object', async () => {
+    expect(await browser.tauri.execute(() => document.querySelector('#counter'))).toEqual({});
   });
 });

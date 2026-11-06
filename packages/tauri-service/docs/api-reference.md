@@ -48,7 +48,7 @@ const href = await browser.tauri.execute('window.location.href');
 
 **Note:** Requires tauri-plugin-wdio to be installed. See [Plugin Setup](./plugin-setup.md).
 
-With the external and CrabNebula providers, the script runs through the WebDriver session, so a DOM element in the result comes back as a W3C reference, as from `browser.execute()`. Pass it to `browser.$()` to get an element.
+With the external and CrabNebula providers, the script runs through the WebDriver session, so a DOM element in the result comes back as a W3C reference, as from `browser.execute()`. Pass it to `browser.$()` to get an element. CrabNebula on macOS is the exception: its driver sends script results back as JSON, so an element comes back as `{}`.
 
 **Browser Mode:** Not available. `browser.tauri.execute()` requires a live Tauri backend and plugin bridge. Use `browser.execute()` for renderer-side code, or `browser.tauri.mock()` to intercept Tauri commands.
 
