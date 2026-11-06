@@ -168,7 +168,7 @@ The `wdio-` prefix is used rather than `dioxus-` to leave the `dioxus-*` namespa
     "vitest": "catalog:default"
   },
   "peerDependencies": {
-    "webdriverio": "^9.0.0"
+    "webdriverio": "^9.33.0 || ^10.2.0"
   },
   "repository": {
     "type": "git",

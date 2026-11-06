@@ -71,8 +71,8 @@
     "webdriverio": "catalog:default"
   },
   "peerDependencies": {
-    "@wdio/types": "^9.0.0 || ^10.0.0",
-    "webdriverio": "^9.0.0 || ^10.0.0"
+    "@wdio/types": "^9.33.0 || ^10.2.0",
+    "webdriverio": "^9.33.0 || ^10.2.0"
   },
   "peerDependenciesMeta": {
     "@wdio/types": {
