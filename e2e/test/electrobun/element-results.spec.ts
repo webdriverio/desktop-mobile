@@ -61,6 +61,12 @@ describe('Electrobun execute — element results', () => {
         return host.shadowRoot;
       })) as unknown as Record<string, string>;
 
+      // WebKitWebDriver sends a shadow root as an element reference (#1052). This fails once it doesn't: then
+      // drop the Linux branch and close the issue.
+      if (process.platform === 'linux') {
+        expect(result).toEqual(anElementReference());
+        return;
+      }
       expect(result).toEqual({ [SHADOW_KEY]: expect.any(String) });
       const inShadow = await browser.findElementFromShadowRoot(result[SHADOW_KEY], 'css selector', '#in-shadow');
       expect(await idOf(inShadow)).toBe('in-shadow');

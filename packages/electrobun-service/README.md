@@ -101,7 +101,8 @@ expect(title).toBe('My App');
 ```
 
 A DOM element or shadow root in the result comes back as a W3C reference, so pass it to `browser.$()` to
-get an element. An iterable with a numeric length, such as a `NodeList`, an `HTMLCollection` or a typed
+get an element. On Linux, WebKitWebDriver returns a shadow root as an element reference instead
+([#1052](https://github.com/webdriverio/desktop-mobile/issues/1052)). An iterable with a numeric length, such as a `NodeList`, an `HTMLCollection` or a typed
 array, comes back as an array. A result that holds an element or a list goes through `JSON.stringify`'s
 rules, so its other values can come back differently from when they're returned on their own: a `Date`
 becomes a string, for example. The service reads the references through the WebDriver session, so switch
