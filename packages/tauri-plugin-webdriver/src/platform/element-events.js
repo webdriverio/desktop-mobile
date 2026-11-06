@@ -46,28 +46,10 @@ function wdioDeepActiveElement() {
 // WebKitGTK sends only `focusout`, not `blur`, while its window isn't focused.
 const WDIO_FOCUS_LOSS_EVENTS = ['blur', 'focusout'];
 
-// A page element named after a node property, such as `<img name="host">`, hides it on a document or
-// a form, and a walk up the tree reading it could loop. The built-in getter can't be hidden.
-function wdioGetter(proto, name) {
-  const get = Object.getOwnPropertyDescriptor(proto, name).get;
-  return (node) => get.call(node);
-}
-
-const wdioNodeType = wdioGetter(Node.prototype, 'nodeType');
-const wdioParentNode = wdioGetter(Node.prototype, 'parentNode');
-const wdioAssignedSlot = wdioGetter(Element.prototype, 'assignedSlot');
-
-// A shadow root has no named properties, so reading `host` off one is safe.
+// A page element named `host`, such as `<img name="host">`, hides a document's or a form's own `host`,
+// and a walk up the tree reading it would loop, so this reads it only off a shadow root.
 function wdioShadowHost(node) {
-  return wdioNodeType(node) === 11 ? node.host : undefined;
-}
-
-function wdioParentOrHost(node) {
-  return wdioParentNode(node) || wdioShadowHost(node);
-}
-
-function wdioRenderedParent(node) {
-  return (wdioNodeType(node) === 1 && wdioAssignedSlot(node)) || wdioParentOrHost(node);
+  return node instanceof ShadowRoot ? node.host : undefined;
 }
 
 // Records that `el` owes a `change` once it loses focus, unless its value is `value` again by then.
@@ -81,8 +63,7 @@ function wdioRecordPendingChange(el, value) {
   for (const type of WDIO_FOCUS_LOSS_EVENTS) {
     root.addEventListener(type, wdioFocusLoss, true);
   }
-  // The record keeps the listener it added: a second install of this file has its own copy of the function.
-  window.__wdio_pending_change = { el, value, root, onFocusLoss: wdioFocusLoss };
+  window.__wdio_pending_change = { el, value, root };
 }
 
 // Fires the owed `change` before page listeners see the field lose focus, as a browser does. It listens
@@ -100,6 +81,10 @@ function wdioFocusLoss(event) {
       return;
     }
   }
+}
+
+for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+  window.addEventListener(type, wdioFocusLoss, true);
 }
 
 // The built-in focus() for `el`, such as HTMLElement's or SVGElement's. A native Tab never calls a
@@ -127,7 +112,7 @@ function wdioTakePendingChange(el) {
     return undefined;
   }
   for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-    record.root.removeEventListener(type, record.onFocusLoss, true);
+    record.root.removeEventListener(type, wdioFocusLoss, true);
   }
   window.__wdio_pending_change = undefined;
   return record;
@@ -374,7 +359,11 @@ function wdioRenderedChildren(el) {
   return wdioChildren(el);
 }
 
-const wdioChildren = wdioGetter(Element.prototype, 'children');
+// Read through Element.prototype, because a form's named controls hide its own properties: with a
+// control named "children", `form.children` is that control.
+function wdioChildren(el) {
+  return Object.getOwnPropertyDescriptor(Element.prototype, 'children').get.call(el);
+}
 
 function wdioSummary(details) {
   return Array.from(details.children).find((child) => child.localName === 'summary');
@@ -491,7 +480,7 @@ function wdioFocusForClick(el) {
     node.getRootNode().activeElement === node && (!node.shadowRoot?.activeElement || node.shadowRoot.delegatesFocus);
   let node = el;
   // The walk follows the tree as rendered, through the slot that shows a slotted element.
-  for (; node && node !== document.body; node = wdioRenderedParent(node)) {
+  for (; node && node !== document.body; node = node.assignedSlot || node.parentNode || wdioShadowHost(node)) {
     if (typeof node.focus !== 'function') {
       continue;
     }
@@ -555,7 +544,7 @@ function wdioOwnMethod(node, name) {
 
 // Whether `el` renders inside `node`, as slotted content does inside the slot's shadow tree.
 function wdioRendersInside(node, el) {
-  for (let current = el; current; current = wdioRenderedParent(current)) {
+  for (let current = el; current; current = current.assignedSlot || current.parentNode || wdioShadowHost(current)) {
     if (current === node) {
       return true;
     }
@@ -565,7 +554,7 @@ function wdioRendersInside(node, el) {
 
 // Whether `el` is `node` or inside it, looking through shadow roots.
 function wdioContains(node, el) {
-  for (let current = el; current; current = wdioParentOrHost(current)) {
+  for (let current = el; current; current = current.parentNode || wdioShadowHost(current)) {
     if (current === node) {
       return true;
     }
@@ -625,9 +614,4 @@ function wdioSetValueControl(el, typed) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
   return 'set';
-}
-
-// Last, so an install that throws before here leaves no listener behind.
-for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-  window.addEventListener(type, wdioFocusLoss, true);
 }
