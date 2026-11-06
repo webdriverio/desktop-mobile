@@ -14,19 +14,17 @@ vi.mock('node:fs/promises', async (importActual) => {
   };
 });
 
-const log = vi.hoisted(() => ({
-  info: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-  error: vi.fn(),
-  trace: vi.fn(),
-}));
-
 vi.mock('@wdio/native-utils', async (importActual) => {
   const actual = await importActual<typeof import('@wdio/native-utils')>();
   return {
     ...actual,
-    createLogger: vi.fn(() => log),
+    createLogger: vi.fn(() => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+      trace: vi.fn(),
+    })),
   };
 });
 
@@ -209,6 +207,15 @@ async function resolveFrom(platform: string, arch: string | undefined, appBuildI
   mockBinaryPath(dirs.map((dir) => appPath(platform, dir)));
   const result = await getBinaryPath(pkgJSONPath, appBuildInfo, { platform, arch } as NodeJS.Process);
   return result.ok ? result.value.binaryPath.replace(/\\/g, '/') : undefined;
+}
+
+// The warning the service gives when it found no build the host can run
+async function hostWarningFrom(platform: string, arch: string, appBuildInfo: AppBuildInfo, dirs: string[]) {
+  mockBinaryPath(dirs.map((dir) => appPath(platform, dir)));
+  const result = await getBinaryPath(pkgJSONPath, appBuildInfo, { platform, arch } as NodeJS.Process);
+  const warnings =
+    result.ok && result.value.pathGeneration.ok ? (result.value.pathGeneration.value.warnings ?? []) : [];
+  return warnings.find(({ message }) => message.startsWith('No '))?.message;
 }
 
 describe('getBinaryPath', () => {
@@ -460,13 +467,9 @@ describe('getBinaryPath', () => {
       ['win32', 'x64', 'dist/win-unpacked', builderInfo({ win: { defaultArch: 'arm64' } }), 'arm64'],
       ['darwin', 'x64', 'out/my-app-darwin-arm64', forgeInfo, 'arm64'],
     ])('should warn on a %s %s host when only %s exists', async (platform, arch, dir, appBuildInfo, buildArch) => {
-      const binaryPath = await resolveFrom(platform, arch, appBuildInfo, [dir]);
-
-      expect(binaryPath).toBe(appPath(platform, dir));
-      expect(log.warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `No ${arch} build of the app was found, so the service is using the ${buildArch} build`,
-        ),
+      expect(await resolveFrom(platform, arch, appBuildInfo, [dir])).toBe(appPath(platform, dir));
+      expect(await hostWarningFrom(platform, arch, appBuildInfo, [dir])).toContain(
+        `No ${arch} build of the app was found, so the service is using the ${buildArch} build`,
       );
     });
 
@@ -477,10 +480,8 @@ describe('getBinaryPath', () => {
       ['linux', 'x64', 'dist/linux-unpacked'],
       ['linux', 'ppc64', 'dist/linux-unpacked'],
     ])('should not warn on a %s %s host when only %s exists', async (platform, arch, dir) => {
-      const binaryPath = await resolveFrom(platform, arch, builderInfo(), [dir]);
-
-      expect(binaryPath).toBe(appPath(platform, dir));
-      expect(log.warn).not.toHaveBeenCalled();
+      expect(await resolveFrom(platform, arch, builderInfo(), [dir])).toBe(appPath(platform, dir));
+      expect(await hostWarningFrom(platform, arch, builderInfo(), [dir])).toBeUndefined();
     });
   });
 });
