@@ -12,7 +12,6 @@ interface ServiceContext {
   browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   globalOptions: ElectronServiceGlobalOptions;
   userDataDir?: string;
-  /** Whether two multiremote instances run the same app binary. */
   instancesShareApp?: boolean;
 }
 
@@ -237,6 +236,7 @@ export async function triggerDeeplink(this: ServiceContext, url: string): Promis
     throw new Error(
       "triggerDeeplink() can't reach a multiremote instance on macOS when two instances run the same app. " +
         "It opens the URL with `open`, which can't tell the copies apart, so one of them gets it, whichever instance called. " +
+        'In script mode (`appEntryPoint`), every instance runs Electron itself, so they always count as the same app. ' +
         'Test deeplinks on macOS without multiremote.',
     );
   }

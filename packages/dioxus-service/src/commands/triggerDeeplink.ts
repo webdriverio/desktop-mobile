@@ -14,7 +14,6 @@ import { createLogger } from '@wdio/native-utils';
 const log = createLogger('dioxus-service', 'triggerDeeplink');
 
 interface TriggerDeeplinkOptions {
-  /** Whether two multiremote instances run the same app. */
   instancesShareApp?: boolean;
 }
 
