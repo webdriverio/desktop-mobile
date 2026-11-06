@@ -1,5 +1,5 @@
-// browser.electrobun.execute implementation. The user's code runs once, in the bridge's active target,
-// via `Runtime.evaluate` (or its W3C stand-in on Linux).
+// The user's code runs once, in the bridge's active target, over `Runtime.evaluate` or, on Linux, its W3C
+// stand-in.
 //
 // Invariant: this never issues Page.navigate — the bridge only enables Runtime
 // on the live target (see @wdio/native-cdp-bridge).
@@ -173,9 +173,9 @@ function replacePlaceholders(value: unknown, mark: string, refs: unknown[]): unk
   return Object.fromEntries(keys.map((key) => [key, replacePlaceholders(record[key], mark, refs)]));
 }
 
-// `label` is the target the script ran in, which switchWindow() may have moved the bridge away from. A script
-// that may still be running gets a null stash instead, which tells it not to stash its nodes. Callers don't wait
-// for this: the connection that just failed, or a busy renderer, could stall it.
+// Deletes the stash in `label`, the target the script ran in, even if switchWindow() has since moved the bridge.
+// A script that could still be running gets a null stash instead, which tells it to keep nothing. Callers don't
+// wait for this: the connection that just failed, or a busy renderer, could stall it.
 async function discardStashedNodes(
   bridge: CdpBridge,
   label: string | undefined,
@@ -241,7 +241,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
           return await userFn(eb, ${inlineArgs(args)});
         })()`
       : wrapStringScript(script);
-  // The helper comes after the user's code, so the line numbers in its errors match the script
+  // The helper goes after the user's code, so line numbers in the user's errors still match their script
   const expression = `(async () => { return __wdioStashNodes(await ${run}, ${JSON.stringify(stash)}, ${JSON.stringify(mark)});
 ${STASH_NODES_JS}
 })()`;

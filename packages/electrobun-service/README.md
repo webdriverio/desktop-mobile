@@ -100,15 +100,19 @@ const title = await browser.electrobun.execute(() => document.title);
 expect(title).toBe('My App');
 ```
 
-A DOM element or shadow root in the result comes back as a W3C reference, so pass it to `browser.$()` to
-get an element. On Linux, WebKitWebDriver returns a shadow root as an element reference instead
-([#1052](https://github.com/webdriverio/desktop-mobile/issues/1052)). An iterable with a numeric length, such as a `NodeList`, an `HTMLCollection` or a typed
-array, comes back as an array. A result that holds an element or a list goes through `JSON.stringify`'s
-rules, so its other values can come back differently from when they're returned on their own: a `Date`
-becomes a string, for example. The service reads the references through the WebDriver session, so switch
-windows with `browser.electrobun.switchWindow()`, which moves the session too, and don't leave the session
-in a frame. Unlike with `browser.execute()`, an element passed as an argument reaches the script as a plain
-object, because the arguments are inlined as JSON.
+DOM nodes and lists in the result:
+
+- An element or shadow root comes back as a W3C reference, so pass it to `browser.$()` to get an element.
+  On Linux, WebKitWebDriver returns a shadow root as an element reference instead
+  ([#1052](https://github.com/webdriverio/desktop-mobile/issues/1052)).
+- An iterable with a numeric length, such as a `NodeList`, an `HTMLCollection` or a typed array, comes back
+  as an array.
+- A result that holds an element or a list goes through `JSON.stringify`'s rules, so a `Date` in it comes
+  back as a string, for example.
+- The service reads the references through the WebDriver session. Switch windows with
+  `browser.electrobun.switchWindow()`, which moves the session too, and don't leave the session in a frame.
+- Unlike with `browser.execute()`, an element passed as an argument reaches the script as a plain object,
+  because the arguments are inlined as JSON.
 
 ## Supported surface (macOS + Windows + Linux)
 

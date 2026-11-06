@@ -222,8 +222,8 @@ describe('script-result-refs.js', () => {
   });
 });
 
-// Electrobun's page-side stash keeps the nodes in one array behind placeholders instead of under IDs, so it
-// can't be a copy of the file. It must still turn every result into the same shape with the same nodes.
+// Electrobun's page-side stash keeps the nodes in one array behind placeholders, not under IDs, so it can't be a
+// copy of script-result-refs.js. It must still turn every result into the same shape with the same nodes.
 describe("Electrobun's page-side stash", () => {
   const stashNodes = new Function(`${STASH_NODES_JS}\nreturn __wdioStashNodes;`)() as (
     value: unknown,
@@ -237,8 +237,8 @@ describe("Electrobun's page-side stash", () => {
     delete page[STASH];
   });
 
-  // Each reference becomes `{ ref: node }`, so the outputs compare by which node sits where, and a node
-  // left in the result unreplaced doesn't pass for one that was
+  // Swaps each reference for `{ ref: node }`, so the outputs compare by which node is where, and a node left
+  // unreplaced doesn't pass for a reference
   function withNodes(value: unknown, nodeOf: (ref: Record<string, unknown>) => unknown): unknown {
     if (Array.isArray(value)) {
       return value.map((item) => withNodes(item, nodeOf));

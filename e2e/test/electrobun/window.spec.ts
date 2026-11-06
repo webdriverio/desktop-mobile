@@ -79,7 +79,7 @@ describe('Electrobun Multi-Window Support', () => {
       expect(mainId).toBe('app-title');
     });
 
-    // The session reads the element's reference from the window switchWindow() moved it to.
+    // switchWindow() moves the WebDriver session too, so it can read the element's reference.
     it('should return an element from the active window as a reference after switching', async () => {
       const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
 

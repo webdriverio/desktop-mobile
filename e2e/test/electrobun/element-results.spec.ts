@@ -14,7 +14,8 @@ function idOf(ref: unknown) {
   return browser.$(ref as ElementReference).getAttribute('id');
 }
 
-// The script runs over CDP (or the Linux eval channel); the service gets its DOM nodes' references from the session.
+// The script runs over CDP, or the eval channel on Linux, and the service reads its DOM nodes' references
+// through the WebDriver session.
 describe('Electrobun execute — element results', () => {
   it('should return an element as a reference that element commands accept', async () => {
     const result = await browser.electrobun.execute(() => document.querySelector('#counter'));
@@ -61,8 +62,8 @@ describe('Electrobun execute — element results', () => {
         return host.shadowRoot;
       })) as unknown as Record<string, string>;
 
-      // WebKitWebDriver sends a shadow root as an element reference (#1052). This fails once it doesn't: then
-      // drop the Linux branch and close the issue.
+      // WebKitWebDriver sends a shadow root as an element reference (#1052). When WebKit fixes that, this check
+      // fails: drop the Linux branch then, and close the issue.
       if (process.platform === 'linux') {
         expect(result).toEqual(anElementReference());
         return;
