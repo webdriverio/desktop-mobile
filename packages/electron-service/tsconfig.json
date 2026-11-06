@@ -21,8 +21,7 @@
       "DOM"
     ],
     "types": [
-      "node",
-      "vitest/jsdom"
+      "node"
     ],
     "typeRoots": [
       "./node_modules",

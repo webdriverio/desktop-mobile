@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAppBuildInfo } from '../src/appBuildInfo.js';
 import { getConfig as getBuilderConfig } from '../src/config/builder.js';

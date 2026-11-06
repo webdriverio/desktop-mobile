@@ -1287,9 +1287,6 @@ importers:
       electron:
         specifier: catalog:default
         version: 45.2.3(supports-color@8.1.1)
-      jsdom:
-        specifier: ^30.1.3
-        version: 30.1.3(@noble/hashes@1.8.0)
       nock:
         specifier: ^15.0.5
         version: 15.0.5(supports-color@8.1.1)

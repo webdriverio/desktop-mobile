@@ -100,7 +100,6 @@
     "builder-util": "^26.16.0",
     "devtools-protocol": "^0.0.1734725",
     "electron": "catalog:default",
-    "jsdom": "^30.1.3",
     "nock": "^15.0.5",
     "shx": "^0.4.0",
     "tinyspy": "^4.0.6",

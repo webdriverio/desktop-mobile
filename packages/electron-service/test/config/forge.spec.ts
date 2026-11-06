@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { getConfig } from '../../src/config/forge.js';
 import { APP_NAME_DETECTION_ERROR } from '../../src/constants.js';
