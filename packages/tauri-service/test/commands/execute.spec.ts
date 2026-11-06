@@ -453,43 +453,72 @@ describe('execute — external and CrabNebula providers (WebDriver)', () => {
     });
   });
 
-  describe('script', () => {
-    it('should run a function in the page with its args through Execute Async Script', async () => {
+  describe('browser.tauri.execute(), in the page', () => {
+    it("should run a function in the page with the user's args as the script's own arguments", async () => {
       const fn = (_tauri: unknown, a: number, b: number) => a + b;
-      await execute<number, [number, number]>(browser, fn, 1, 2);
+      await executeWithElementRefs<number, [number, number]>(browser, fn, 1, 2);
 
-      const [script, args] = (browser.executeAsyncScript as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(script).toContain(`await (${fn.toString()})(__wdio_tauri, ...__wdio_args)`);
-      expect(script).toContain('arguments.length > 1 ? Array.prototype.slice.call(arguments, 0, -1) : [1,2];');
-      expect(args).toEqual([]);
+      expect(sentScript(browser)).toContain(`await (${fn.toString()})(__wdio_tauri, ...__wdio_args)`);
+      expect(sentArgs(browser)).toEqual([1, 2]);
+    });
+
+    it('should send an element as a reference, for the driver to turn into the element', async () => {
+      const ref = { 'element-6066-11e4-a52e-4f735466cecf': 'el-1' };
+      const element = { elementId: 'el-1', selector: '#counter' } as unknown as WebdriverIO.Element;
+
+      await executeWithElementRefs(browser, (_tauri, el: unknown) => el, element);
+
+      expect(sentArgs(browser)).toEqual([ref]);
     });
 
     it('should run a string script in the page', async () => {
-      await execute<string, []>(browser, 'return "hello"');
+      await executeWithElementRefs<string, []>(browser, 'return "hello"');
 
       expect(sentScript(browser)).toContain('(async function() { return "hello" }).apply(null, __wdio_args)');
     });
 
     it('should install console forwarding before the script', async () => {
-      await execute(browser, '() => 1');
+      await executeWithElementRefs(browser, '() => 1');
 
       expect(sentScript(browser).startsWith(CONSOLE_WRAPPER_SCRIPT)).toBe(true);
     });
-  });
 
-  describe('window label routing', () => {
     it('should leave out the IPC route when no window is chosen', async () => {
-      await execute(browser, '() => 1');
+      await executeWithElementRefs(browser, '() => 1');
 
       expect(sentScript(browser)).not.toContain('wdioTauri.execute');
       expect(sentArgs(browser)).toEqual([]);
     });
 
     it('should send a per-call window label to the page, which picks the route', async () => {
-      await execute(browser, '() => 1', { __wdioOptions__: true, windowLabel: 'popup' } as never);
+      await executeWithElementRefs(
+        browser,
+        '(tauri, a) => a',
+        { __wdioOptions__: true, windowLabel: 'popup' } as never,
+        7,
+      );
 
       expect(sentScript(browser)).toContain('window.wdioTauri.execute(');
-      expect(sentArgs(browser)).toEqual(['popup', '() => 1', '[]']);
+      expect(sentArgs(browser)).toEqual(['popup', '(tauri, a) => a', '[7]', 7]);
+    });
+
+    it("should send the session's window label after a switch", async () => {
+      setCurrentWindowLabel(browser, 'settings');
+
+      await executeWithElementRefs(browser, '() => 1');
+
+      expect(sentArgs(browser)).toEqual(['settings', '() => 1', '[]']);
+    });
+  });
+
+  // The service's own scripts, such as the focus check before each element command, go through the plugin, which
+  // answers at once in a frame or page without it
+  describe("the service's own scripts, through the plugin", () => {
+    it('should send the script and its args to the plugin, with no window chosen', async () => {
+      await execute(browser, '(tauri, a) => a', 7);
+
+      expect(sentScript(browser)).toContain('window.wdioTauri.execute(');
+      expect(sentArgs(browser)).toEqual([null, '(tauri, a) => a', '[7]']);
     });
 
     it("should send the session's window label after a switch", async () => {

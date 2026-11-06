@@ -1,15 +1,15 @@
-import type { TauriAPIs, TauriExecuteOptions } from '@wdio/native-types';
+import type { Result, TauriAPIs, TauriExecuteOptions } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 import { DirectEvalClient } from '../directEvalClient.js';
 import { hasReference, toElementReferences } from '../elementReferences.js';
 import { isPluginAvailabilityCached, setPluginAvailabilityCached } from '../pluginCache.js';
 import { CONSOLE_WRAPPER_SCRIPT } from '../scripts/console-wrapper.js';
 import { getCurrentWindowLabel, getDefaultWindowLabel, getSessionProvider } from '../windowState.js';
-import { wrapScriptForDirectEval, wrapScriptForWebDriver } from '../wrapForDirectEval.js';
+import { wrapScriptForDirectEval, wrapScriptForPluginIpc, wrapScriptForWebDriver } from '../wrapForDirectEval.js';
 
 const log = createLogger('tauri-service', 'service');
 
-type ScriptOutcome = { ok: true; value: unknown; undef?: boolean } | { ok: false; error: string };
+type ScriptOutcome = Result<unknown, string> & { undef?: boolean };
 
 const directEvalClientCache = new WeakMap<WebdriverIO.Browser, { client: DirectEvalClient; port: number }>();
 
@@ -191,10 +191,12 @@ async function runScript<ReturnValue, InnerArguments extends unknown[]>(
   }
 
   const scriptString = typeof script === 'function' ? script.toString() : script;
-  const wrapped = wrapScriptForWebDriver(scriptString, JSON.stringify(userArgs), executeOptions.windowLabel);
+  const wrapped = elementRefs
+    ? wrapScriptForWebDriver(scriptString, userArgs, executeOptions.windowLabel)
+    : wrapScriptForPluginIpc(scriptString, JSON.stringify(userArgs), executeOptions.windowLabel);
   const outcome = (await browser.executeAsyncScript(
     `${CONSOLE_WRAPPER_SCRIPT}\n${wrapped.script}`,
-    wrapped.args,
+    wrapped.args as Parameters<WebdriverIO.Browser['executeAsyncScript']>[1],
   )) as ScriptOutcome;
   if (!outcome.ok) {
     throw new Error(outcome.error);
