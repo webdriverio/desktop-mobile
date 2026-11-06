@@ -9,10 +9,8 @@ import type {
   PathGenerationResult,
   PathValidationResult,
 } from '@wdio/native-types';
-import { createLogger, validateBinaryPaths } from '@wdio/native-utils';
+import { validateBinaryPaths } from '@wdio/native-utils';
 import { SUPPORTED_BUILD_TOOL, SUPPORTED_PLATFORM } from './constants.js';
-
-const log = createLogger('electron-service', 'launcher');
 
 type SupportedPlatform = keyof typeof SUPPORTED_PLATFORM;
 type SupportedBuildTool = keyof typeof SUPPORTED_BUILD_TOOL;
@@ -184,16 +182,21 @@ function toBinaryOptions(
 }
 
 // Builds the host runs are searched first, so landing on any other build means there wasn't one
-function warnIfHostCannotRun(binaryPath: string, options: BinaryOptions): void {
+function unrunnableBuildWarning(binaryPath: string, options: BinaryOptions): PathGenerationError | undefined {
   const { platform, hostArch } = options;
   const runnable = getRunnableArchs(platform, hostArch);
   const buildArch = ARCHS[platform].find((arch) => getCandidatePaths(options, [arch]).includes(binaryPath));
   const [host] = runnable;
-  if (host && buildArch && !runnable.includes(buildArch)) {
-    log.warn(
-      `No ${host} build of the app was found, so the service is using the ${buildArch} build at ${binaryPath}, which this ${host} machine likely can't run. Build the app for ${host}, or set appBinaryPath.`,
-    );
+  if (!host || !buildArch || runnable.includes(buildArch)) {
+    return undefined;
   }
+  return {
+    type: 'CONFIG_WARNING',
+    message:
+      `No ${host} build of the app was found, so the service is using the ${buildArch} build at ${binaryPath}, which a ${host} machine likely can't run. ` +
+      `Build the app for ${host}, or set appBinaryPath. ` +
+      "The machine's arch comes from Node.js, so if Node.js itself runs emulated, such as an x64 Node.js on Apple Silicon, ignore this.",
+  };
 }
 
 /**
@@ -348,14 +351,20 @@ export async function getBinaryPath(
   // Combine results - TypeScript needs explicit narrowing
   if (pathGeneration.ok && pathValidation.ok) {
     const binaryPath = pathValidation.value.validPath;
-    if (isSupportedPlatform(p.platform)) {
-      warnIfHostCannotRun(binaryPath, toBinaryOptions(packageJsonPath, appBuildInfo, p.platform, p.arch));
-    }
+    const hostWarning = isSupportedPlatform(p.platform)
+      ? unrunnableBuildWarning(binaryPath, toBinaryOptions(packageJsonPath, appBuildInfo, p.platform, p.arch))
+      : undefined;
+    const generation: PathGenerationResult = hostWarning
+      ? {
+          ok: true,
+          value: { ...pathGeneration.value, warnings: [...(pathGeneration.value.warnings ?? []), hostWarning] },
+        }
+      : pathGeneration;
     return {
       ok: true,
       value: {
         binaryPath,
-        pathGeneration,
+        pathGeneration: generation,
         pathValidation,
       },
     };
