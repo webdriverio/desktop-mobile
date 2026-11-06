@@ -13,7 +13,7 @@ function idOf(ref: unknown) {
   return browser.$(ref as ElementReference).getAttribute('id');
 }
 
-// CrabNebula's macOS driver sends script results back as JSON, so elements come back as `{}`
+// Workaround for #1060: CrabNebula's macOS driver sends script results back as JSON, so elements come back as `{}`
 const crabNebulaOnMacOS = process.platform === 'darwin' && process.env.DRIVER_PROVIDER === 'crabnebula';
 const withRefs = crabNebulaOnMacOS ? describe.skip : describe;
 
