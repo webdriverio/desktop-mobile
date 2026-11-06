@@ -101,6 +101,16 @@ export function jsonLiteral(value: unknown, context: string, index?: number): st
   }
 }
 
+// A string as a literal in script source. The names this inlines are our own, so the escaping changes
+// nothing, but it's what CodeQL's js/bad-code-sanitization recognises: JSON.stringify leaves U+2028,
+// U+2029 and `<` raw.
+function sourceLiteral(value: string): string {
+  return JSON.stringify(value)
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+    .replace(/</g, '\\x3C');
+}
+
 function inlineArgs(args: unknown[]): string {
   return args.map((arg, index) => jsonLiteral(arg, 'browser.electrobun.execute argument', index)).join(', ');
 }
@@ -182,7 +192,7 @@ async function discardStashedNodes(
   stash: string,
   mayStillRun = false,
 ): Promise<void> {
-  const name = JSON.stringify(stash);
+  const name = sourceLiteral(stash);
   const expression = mayStillRun
     ? `window[${name}] === undefined ? (window[${name}] = null) : delete window[${name}]`
     : `delete window[${name}]`;
@@ -242,7 +252,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
         })()`
       : wrapStringScript(script);
   // The helper goes after the user's code, so line numbers in the user's errors still match their script
-  const expression = `(async () => { return __wdioStashNodes(await ${run}, ${JSON.stringify(stash)}, ${JSON.stringify(mark)});
+  const expression = `(async () => { return __wdioStashNodes(await ${run}, ${sourceLiteral(stash)}, ${sourceLiteral(mark)});
 ${STASH_NODES_JS}
 })()`;
 
