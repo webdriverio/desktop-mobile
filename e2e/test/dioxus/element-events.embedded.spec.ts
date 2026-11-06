@@ -23,7 +23,9 @@ async function focusedId() {
 }
 
 // A field that logs input, change and blur with its value, next to a button to move focus to.
+// With `inShadowHost`, the field is in the open shadow root of `#fresh-field-host`.
 async function fillChangeScratch(initialValue = '', { inShadowHost = false } = {}) {
+  const field = `<input id="fresh-field" value="${initialValue}">`;
   await browser.execute(
     `var scratch = document.querySelector("#change-scratch") || (function () {
       var div = document.createElement("div");
@@ -31,10 +33,9 @@ async function fillChangeScratch(initialValue = '', { inShadowHost = false } = {
       document.body.appendChild(div);
       return div;
     })();
-    scratch.innerHTML = '<div id="fresh-host"></div><button id="fresh-other">other</button>';
-    var host = document.querySelector("#fresh-host");
-    var parent = ${inShadowHost ? 'host.attachShadow({ mode: "open", delegatesFocus: true })' : 'host'};
-    parent.innerHTML = '<input id="fresh-field" value="${initialValue}">';
+    scratch.innerHTML = '${inShadowHost ? '<div id="fresh-field-host"></div>' : field}<button id="fresh-other">other</button>';
+    var parent = ${inShadowHost ? 'document.querySelector("#fresh-field-host").attachShadow({ mode: "open", delegatesFocus: true })' : 'scratch'};
+    ${inShadowHost ? `parent.innerHTML = '${field}';` : ''}
     window.__fieldEvents = [];
     for (var type of ["input", "change", "blur"]) {
       parent.querySelector("#fresh-field").addEventListener(type, function (ev) {
@@ -145,7 +146,7 @@ describe('Dioxus element events (embedded)', () => {
   // At the window and document, a field in a shadow root shows up as its host.
   for (const [name, inShadowHost, targetId] of [
     ['a field', false, 'fresh-field'],
-    ['a field in a shadow root', true, 'fresh-host'],
+    ['a field in a shadow root', true, 'fresh-field-host'],
   ] as const) {
     it(`should fire change before the page's capture listeners on the window and document see ${name} lose focus, as Chrome does`, async () => {
       await fillChangeScratch('', { inShadowHost });
@@ -163,7 +164,7 @@ describe('Dioxus element events (embedded)', () => {
         const field = inShadowHost
           ? browser.$(
               (await browser.execute(
-                'return document.querySelector("#fresh-host").shadowRoot.querySelector("#fresh-field")',
+                'return document.querySelector("#fresh-field-host").shadowRoot.querySelector("#fresh-field")',
               )) as unknown as { 'element-6066-11e4-a52e-4f735466cecf': string },
             )
           : browser.$('#fresh-field');
