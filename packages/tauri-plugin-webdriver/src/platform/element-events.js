@@ -3,8 +3,8 @@
 // a user's input causes in a browser. A published crate can only include its own files, so
 // tauri-plugin-wdio-webdriver and wdio-dioxus-embedded-driver each keep an identical copy.
 // test/scripts/element-events.spec.ts tests it and checks the copies match.
-// Declare top-level names with `function` or `const` at the start of a line: the drivers install
-// only those.
+// The drivers run this file once in each page and frame, and give their scripts the names it declares
+// with `function` or `const` at the start of a line.
 
 // The inputs that take typed text. Chromium counts only these for implicit submission, where the
 // HTML spec also counts the date and time inputs.
@@ -46,6 +46,18 @@ function wdioDeepActiveElement() {
 // WebKitGTK sends only `focusout`, not `blur`, while its window isn't focused.
 const WDIO_FOCUS_LOSS_EVENTS = ['blur', 'focusout'];
 
+// The host of a shadow root, else undefined. A page element named `host` hides a document's or a
+// form's `host`, so it's never read off them.
+function wdioShadowHost(node) {
+  return node instanceof ShadowRoot ? node.host : undefined;
+}
+
+// A browser fires `change` only when focus moves on, not for a blur a field gets while it keeps
+// focus, as when its window loses focus or the page dispatches one.
+function wdioKeepsFocus(el, root) {
+  return root.activeElement === el;
+}
+
 // Records that `el` owes a `change` once it loses focus, unless its value is `value` again by then.
 // An earlier record for `el` wins, as it holds the value from before the first edit.
 function wdioRecordPendingChange(el, value) {
@@ -53,26 +65,32 @@ function wdioRecordPendingChange(el, value) {
     return;
   }
   wdioFirePendingChange();
-  const root = el.getRootNode();
-  // A focus move inside a shadow root never reaches the window's listener, so the field's root
-  // listens too. Whichever event arrives first fires the `change`.
+  const root = Node.prototype.getRootNode.call(el);
   const onFocusLoss = (event) => {
-    if (event.target === el) {
+    if (event.target === el && !wdioKeepsFocus(el, root)) {
       wdioFirePendingChange(el);
     }
   };
-  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-    root.addEventListener(type, onFocusLoss, true);
+  // A focus move inside a shadow root never reaches the window's listener, so the root listens too.
+  // Whichever event arrives first fires the `change`.
+  if (root instanceof ShadowRoot) {
+    for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+      root.addEventListener(type, onFocusLoss, true);
+    }
   }
   window.__wdio_pending_change = { el, value, root, onFocusLoss };
 }
 
 // Fires the owed `change` before any page listener sees the field lose focus, as a browser does.
 // The drivers install this file as the page loads, so this capture listener on the window comes
-// before the page's. Here a field in a shadow root shows up as its host.
+// before the page's, unless Tauri installed it late, on the first command that needed it. At the
+// window, a field in a shadow root shows up as its host.
 function wdioFocusLossOnWindow(event) {
   const record = window.__wdio_pending_change;
-  for (let node = record?.el; node; node = node.getRootNode().host) {
+  if (!record || wdioKeepsFocus(record.el, record.root)) {
+    return;
+  }
+  for (let node = record.el; node; node = wdioShadowHost(Node.prototype.getRootNode.call(node))) {
     if (node === event.target) {
       wdioFirePendingChange(record.el);
       return;
@@ -477,7 +495,7 @@ function wdioFocusForClick(el) {
     node.getRootNode().activeElement === node && (!node.shadowRoot?.activeElement || node.shadowRoot.delegatesFocus);
   let node = el;
   // The walk follows the tree as rendered, through the slot that shows a slotted element.
-  for (; node && node !== document.body; node = node.assignedSlot || node.parentNode || node.host) {
+  for (; node && node !== document.body; node = node.assignedSlot || node.parentNode || wdioShadowHost(node)) {
     if (typeof node.focus !== 'function') {
       continue;
     }
@@ -541,7 +559,7 @@ function wdioOwnMethod(node, name) {
 
 // Whether `el` renders inside `node`, as slotted content does inside the slot's shadow tree.
 function wdioRendersInside(node, el) {
-  for (let current = el; current; current = current.assignedSlot || current.parentNode || current.host) {
+  for (let current = el; current; current = current.assignedSlot || current.parentNode || wdioShadowHost(current)) {
     if (current === node) {
       return true;
     }
@@ -551,7 +569,7 @@ function wdioRendersInside(node, el) {
 
 // Whether `el` is `node` or inside it, looking through shadow roots.
 function wdioContains(node, el) {
-  for (let current = el; current; current = current.parentNode || current.host) {
+  for (let current = el; current; current = current.parentNode || wdioShadowHost(current)) {
     if (current === node) {
       return true;
     }

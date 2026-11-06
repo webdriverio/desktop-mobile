@@ -101,6 +101,31 @@ function click(el: HTMLElement) {
   events.wdioRelease(el);
 }
 
+// A page element named `host` hides the document's `host`, and a walk up through `host` then loops
+// forever. This stands in for one for the helpers, counting their reads and throwing to end a loop.
+// jsdom's own reads, from its selector engine, get the usual `undefined`.
+function hideDocumentHost() {
+  const reads = { count: 0 };
+  Object.defineProperty(document, 'host', {
+    configurable: true,
+    get() {
+      if (!new Error().stack?.includes('at wdio')) {
+        return undefined;
+      }
+      reads.count += 1;
+      if (reads.count > 100) {
+        throw new Error('read document.host in a loop');
+      }
+      return document.body;
+    },
+  });
+  return reads;
+}
+
+afterEach(() => {
+  Reflect.deleteProperty(document, 'host');
+});
+
 describe('element-events.js', () => {
   it('should be the same in both embedded driver crates', () => {
     expect(readFileSync(join(REPO_ROOT, DIOXUS_COPY), 'utf8'), `copy ${TAURI_COPY} over ${DIOXUS_COPY}`).toBe(source);
@@ -169,6 +194,42 @@ describe('pending change', () => {
     $('#a').remove();
     events.wdioRecordPendingChange($('#b'), '');
     expect(log).toEqual([]);
+  });
+
+  it('should keep it through a blur the field gets while it keeps focus, as when its window loses focus', () => {
+    type($('#a'), 'x');
+    $('#a').dispatchEvent(new FocusEvent('blur'));
+    window.dispatchEvent(new FocusEvent('blur'));
+    $('#b').focus();
+    expect(log).toEqual(['blur a=x', 'change a=x', 'blur a=x', 'focus b=']);
+  });
+
+  it('should keep it through a blur or focusout on another element', () => {
+    type($('#a'), 'x');
+    $('#b').dispatchEvent(new FocusEvent('blur'));
+    $('#b').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    $('#a').blur();
+    expect(log).toEqual(['blur b=', 'change a=x', 'blur a=x']);
+  });
+
+  it("should keep it through a blur the page dispatches on the field's shadow host", () => {
+    render('<div id="host"></div>');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<input id="s">';
+    const field = root.querySelector('#s') as HTMLInputElement;
+    field.addEventListener('change', () => log.push('change s'));
+    type(field, 'x');
+    $('#host').dispatchEvent(new FocusEvent('blur'));
+    expect(log).toEqual(['blur host']);
+  });
+
+  it('should not read host off the document, which a page element named host can hide', () => {
+    const reads = hideDocumentHost();
+    $('#a').value = 'x';
+    events.wdioRecordPendingChange($('#a'), '');
+    $('#b').dispatchEvent(new FocusEvent('blur'));
+    expect(reads.count).toBe(0);
+    expect(log).toEqual(['blur b=']);
   });
 
   it('should fire it rather than drop it when another field records a change', () => {
@@ -242,7 +303,15 @@ describe('pending change', () => {
         listen();
         type(field, 'x');
         $('#b').focus();
-        expect(log.slice(0, 3)).toEqual(['change s', 'window blur', 'document blur']);
+        expect(log).toEqual([
+          'change s',
+          'window blur',
+          'document blur',
+          'blur host',
+          'window focusout',
+          'document focusout',
+          'focus b=',
+        ]);
       },
     );
   });
@@ -731,6 +800,18 @@ describe('Tab', () => {
     expect(tabs(4)).toEqual(['d2', 'body', 'd1', 'd2']);
   });
 
+  it('should keep focus within a modal dialog without reading host off the document', () => {
+    render('<input id="a"><dialog id="d" open><input id="d1"></dialog><input id="z">');
+    const dialog = $('#d');
+    Object.defineProperty(dialog, 'matches', {
+      value: (selector: string) => selector === ':modal' || Element.prototype.matches.call(dialog, selector),
+    });
+    $('#d1').focus();
+    const reads = hideDocumentHost();
+    expect(tab()).toBe('body');
+    expect(reads.count).toBe(0);
+  });
+
   it("should keep focus within a shadow root's modal dialog, including the fields slotted into it", () => {
     render('<input id="a"><div id="host"><input id="s1"><input id="s2"></div><input id="z">');
     const root = $('#host').attachShadow({ mode: 'open' });
@@ -996,9 +1077,14 @@ describe('wdioFocusForClick', () => {
 
   it('should stop when focus leaves the field, as when WebKitGTK cancels a move in a window without focus', () => {
     type($('#a'), 'x');
-    // WebKit cancels a focus move that a focusout handler undoes; jsdom doesn't, so this fakes it.
+    // WebKit takes focus off the field and sends focusout, then cancels the move when a focusout
+    // handler undoes it. jsdom doesn't cancel, so this fakes it.
+    const { blur, focus } = HTMLElement.prototype;
     vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {
-      $('#a').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      withoutBlurOrFocus(() => {
+        blur.call($('#a'));
+        focus.call($('#a'));
+      });
     });
     events.wdioFocusForClick($('#b'));
     expect(document.activeElement?.id).toBe('a');
