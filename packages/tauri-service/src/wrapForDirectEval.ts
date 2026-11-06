@@ -74,15 +74,16 @@ var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0
 })();`;
 }
 
-// The plugin runs the script in the window `__wdio_label` names, or the one calling it without one, and reports to
-// `__wdio_done` as the scripts above do. The script and its arguments arrive as data, in arguments 1 and 2.
+// The plugin runs `__wdio_in.script` in the window `__wdio_in.label` names, or the one calling it without one, and
+// reports to `__wdio_done` as the scripts above do. The inputs arrive as data, not source.
 const PLUGIN_IPC_JS = `if (typeof window.wdioTauri === 'undefined') {
   __wdio_done({ ok: false, error: 'window.wdioTauri is undefined' });
 } else if (typeof window.wdioTauri.execute !== 'function') {
   __wdio_done({ ok: false, error: 'window.wdioTauri.execute is ' + typeof window.wdioTauri.execute });
 } else {
   try {
-    window.wdioTauri.execute(arguments[1], __wdio_label ? { windowLabel: __wdio_label } : {}, arguments[2]).then(
+    var options = __wdio_in.label ? { windowLabel: __wdio_in.label } : {};
+    window.wdioTauri.execute(__wdio_in.script, options, __wdio_in.argsJson).then(
       function (v) {
         var undef = v === undefined || (v !== null && typeof v === 'object' && v.__wdio_undefined__ === true);
         __wdio_done({ ok: true, value: undef ? null : v, undef: undef });
@@ -98,6 +99,8 @@ const PLUGIN_IPC_JS = `if (typeof window.wdioTauri === 'undefined') {
 
 // For the service's own scripts on the external and CrabNebula providers: they never need element references, and
 // the plugin answers at once in a frame or page without it, where a script run in the page would wait for it.
+// Both wrappers send their inputs inside one object or array argument, as CrabNebula's macOS driver throws on a `null`
+// argument.
 export function wrapScriptForPluginIpc(
   script: string,
   argsJson: string,
@@ -105,16 +108,16 @@ export function wrapScriptForPluginIpc(
 ): { script: string; args: unknown[] } {
   return {
     script: `var __wdio_done = arguments[arguments.length - 1];
-var __wdio_label = arguments[0];
+var __wdio_in = arguments[0];
 ${PLUGIN_IPC_JS}`,
-    args: [windowLabel, script, argsJson],
+    args: [{ label: windowLabel, script, argsJson }],
   };
 }
 
 // For browser.tauri.execute() on the external and CrabNebula providers. The script runs in the session's current
-// webview, with the user's arguments as its own, so the driver turns references in them into elements and DOM nodes
-// in the result into references. A script for another window goes through the plugin's IPC, as a reference only
-// works in the window it came from. The page decides, as only it knows which webview the session is in.
+// webview, with the user's arguments in one array argument, so the driver turns references in them into elements and
+// DOM nodes in the result into references. A script for another window goes through the plugin's IPC, as a reference
+// only works in the window it came from. The page decides, as only it knows which webview the session is in.
 export function wrapScriptForWebDriver(
   script: string,
   userArgs: unknown[],
@@ -129,24 +132,23 @@ ${wrapScriptForDirectEval(script, '[]')}
   if (windowLabel === undefined) {
     return {
       script: `var __wdio_done = arguments[arguments.length - 1];
-${inPage('Array.prototype.slice.call(arguments, 0, -1)')}`,
-      args: userArgs,
+${inPage('arguments[0]')}`,
+      args: [userArgs],
     };
   }
 
-  // The label and the plugin's inputs travel as arguments, not source, ahead of the user's arguments.
   // The plugin looks a window up by its webview's label.
   return {
     script: `var __wdio_done = arguments[arguments.length - 1];
-var __wdio_label = arguments[0];
+var __wdio_in = arguments[0];
 var __wdio_meta = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.metadata;
-if (__wdio_meta && __wdio_meta.currentWebview && __wdio_meta.currentWebview.label === __wdio_label) {
+if (__wdio_meta && __wdio_meta.currentWebview && __wdio_meta.currentWebview.label === __wdio_in.label) {
   (function (__wdio_userArgs) {
 ${inPage('__wdio_userArgs')}
-  })(Array.prototype.slice.call(arguments, 3, -1));
+  })(arguments[1]);
 } else {
 ${PLUGIN_IPC_JS}
 }`,
-    args: [windowLabel, script, JSON.stringify(userArgs), ...userArgs],
+    args: [{ label: windowLabel, script, argsJson: JSON.stringify(userArgs) }, userArgs],
   };
 }

@@ -215,7 +215,7 @@ describe('wrapScriptForWebDriver', () => {
   it("should run the script in the page with the user's args as the script's own arguments", async () => {
     const wrapped = wrapScriptForWebDriver('(tauri, a, b) => a * b', [21, 2]);
 
-    expect(wrapped.args).toEqual([21, 2]);
+    expect(wrapped.args).toEqual([[21, 2]]);
     expect(
       await runInPage(
         wrapped,
@@ -283,10 +283,8 @@ describe('wrapScriptForWebDriver', () => {
 
   it("should send the label and the plugin's inputs as data, ahead of the user's args", () => {
     expect(wrapScriptForWebDriver('(tauri, a) => a', ['</script>'], 'po"pup').args).toEqual([
-      'po"pup',
-      '(tauri, a) => a',
-      '["</script>"]',
-      '</script>',
+      { label: 'po"pup', script: '(tauri, a) => a', argsJson: '["</script>"]' },
+      ['</script>'],
     ]);
   });
 
@@ -377,7 +375,7 @@ describe('wrapScriptForPluginIpc', () => {
     const wrapped = wrapScriptForPluginIpc(userScript, '["</script>"]', 'po"pup');
     const outcome = await runInPage(wrapped, window);
 
-    expect(wrapped.args).toEqual(['po"pup', userScript, '["</script>"]']);
+    expect(wrapped.args).toEqual([{ label: 'po"pup', script: userScript, argsJson: '["</script>"]' }]);
     expect(outcome).toEqual({ ok: true, value: { from: 'popup' }, undef: false });
     expect(window.wdioTauri.execute).toHaveBeenCalledWith(userScript, { windowLabel: 'po"pup' }, '["</script>"]');
   });
@@ -415,5 +413,23 @@ describe('wrapScriptForPluginIpc', () => {
       ok: false,
       error: 'window.wdioTauri is undefined',
     });
+  });
+});
+
+// CrabNebula's macOS driver runs this on each argument, which throws on `null`
+function crabNebulaMapArg(arg: unknown) {
+  return typeof arg === 'object' && '__selector__' in (arg as object) && '__position__' in (arg as object);
+}
+
+describe('arguments sent to the driver', () => {
+  it.each([
+    ['the plugin, with no window chosen', wrapScriptForPluginIpc('(tauri, a) => a', '[null]')],
+    ['the page', wrapScriptForWebDriver('(tauri, a) => a', [null])],
+    ['the page, with a window chosen', wrapScriptForWebDriver('(tauri, a) => a', [null], 'main')],
+  ])('should include no null on the way to %s', (_route, wrapped) => {
+    // WebdriverIO sends the arguments as JSON, where undefined becomes null
+    const sent: unknown[] = JSON.parse(JSON.stringify(wrapped.args));
+
+    expect(() => sent.map(crabNebulaMapArg)).not.toThrow();
   });
 });
