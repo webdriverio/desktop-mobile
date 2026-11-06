@@ -102,10 +102,9 @@ function click(el: HTMLElement) {
   events.wdioRelease(el);
 }
 
-// A page element named after a node property, such as `<img name="host">`, hides that property on
-// the document, and a walk up the tree that reads it then loops forever. This stands in for one,
-// counting the helpers' reads and throwing to end a loop. Other code, such as jsdom's selector
-// engine, gets the property's usual value.
+// Stands in for a page element named after a node property, such as `<img name="host">`, which hides it
+// on the document. It counts the helpers' reads, throwing to end a loop, and gives other code, such as
+// jsdom's selector engine, the usual value.
 function hideOnDocument(name: string, usual: unknown) {
   const reads = { count: 0 };
   Object.defineProperty(document, name, {
@@ -127,14 +126,14 @@ function hideOnDocument(name: string, usual: unknown) {
 
 const hiddenOnDocument: string[] = [];
 
-// Whether the code reading a property is one of the helpers, looking past jsdom's named-property proxy.
-// V8 names a helper called as a method `Object.wdioX`, and one jsdom calls as a listener `Proxy.wdioX`.
+// Whether the helpers made the read, looking past jsdom's named-property proxy. They run from
+// `new Function`, so each of their stack frames says `eval at`.
 function readByHelper() {
   const caller = new Error().stack
     ?.split('\n')
     .slice(3)
     .find((frame) => !/Reflect\.get|ProxyHandler\.get/.test(frame));
-  return /^at (?:[\w$]+\.)?wdio/.test(caller?.trim() ?? '');
+  return caller?.includes('eval at') ?? false;
 }
 
 afterEach(() => {
@@ -151,7 +150,7 @@ describe('element-events.js', () => {
   it.each(['packages/tauri-plugin-webdriver/src', 'packages/dioxus-embedded-driver/src'])(
     'should define every helper the Rust code in %s calls',
     (dir) => {
-      const defined = new Set(Array.from(source.matchAll(/^function (wdio\w+)/gm), (match) => match[1]));
+      const defined = new Set(Array.from(source.matchAll(/^(?:function|const) (wdio\w+)/gm), (match) => match[1]));
       const called = readdirSync(join(REPO_ROOT, dir), { recursive: true, encoding: 'utf8' })
         .filter((file) => file.endsWith('.rs'))
         .flatMap((file) =>
@@ -266,30 +265,6 @@ describe('pending change', () => {
     }
   });
 
-  it.each([
-    ['host', undefined],
-    ['assignedSlot', undefined],
-    ['parentNode', null],
-  ])("should check a component's own focus() kept focus without reading %s off the document", (name, usual) => {
-    render('<input id="a"><div id="comp" tabindex="0"></div>');
-    // A focus() that keeps focus where it was, so the click asks whether focus is inside the component
-    $('#comp').focus = () => undefined;
-    $('#a').focus();
-    const reads = hideOnDocument(name, usual);
-    events.wdioFocusForClick($('#comp'));
-    expect(reads.count).toBe(0);
-  });
-
-  it.each([
-    ['host', undefined],
-    ['assignedSlot', undefined],
-    ['parentNode', null],
-  ])('should look for a focusable ancestor of the root element without reading %s off the document', (name, usual) => {
-    const reads = hideOnDocument(name, usual);
-    events.wdioFocusForClick(document.documentElement);
-    expect(reads.count).toBe(0);
-  });
-
   it('should fire it rather than drop it when another field records a change', () => {
     $('#a').value = 'x';
     events.wdioRecordPendingChange($('#a'), '');
@@ -313,8 +288,7 @@ describe('pending change', () => {
     expect(shadowLog).toEqual(['change', 'blur']);
   });
 
-  // The page's listeners come after the helpers' window listener, as the drivers install the
-  // helpers as the page loads.
+  // The page's listeners come after the helpers' window listener, which the drivers add as the page loads.
   describe('with capture listeners the page adds to the window and document', () => {
     const listeners: [EventTarget, string, () => void][] = [];
     const listen = () => {
@@ -1122,6 +1096,29 @@ describe('wdioPress and wdioRelease', () => {
 });
 
 describe('wdioFocusForClick', () => {
+  it.each([
+    ['host', undefined],
+    ['parentNode', null],
+  ])("should check a component's own focus() kept focus without reading %s off the document", (name, usual) => {
+    render('<input id="a"><div id="comp" tabindex="0"></div>');
+    // A focus() that keeps focus where it was, so the click asks whether focus is inside the component
+    $('#comp').focus = () => undefined;
+    $('#a').focus();
+    const reads = hideOnDocument(name, usual);
+    events.wdioFocusForClick($('#comp'));
+    expect(reads.count).toBe(0);
+  });
+
+  it.each([
+    ['host', undefined],
+    ['assignedSlot', undefined],
+    ['parentNode', null],
+  ])('should look for a focusable ancestor of the root element without reading %s off the document', (name, usual) => {
+    const reads = hideOnDocument(name, usual);
+    events.wdioFocusForClick(document.documentElement);
+    expect(reads.count).toBe(0);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
