@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { STASH_NODES_JS } from '../../packages/electrobun-service/src/commands/stashNodes.js';
+import { RESULT_AS_JSON_JS } from '../../packages/tauri-service/src/scripts/result-as-json.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const TAURI_COPY = 'packages/tauri-plugin-webdriver/src/platform/script-result-refs.js';
@@ -222,6 +223,51 @@ describe('script-result-refs.js', () => {
   });
 });
 
+// Swaps each reference for `{ ref: node }`, so outputs compare by which node is where, and a node left unreplaced
+// doesn't pass for a reference. A callable element is a function, so functions are checked too.
+function withNodes(value: unknown, nodeOf: (ref: Record<string, unknown>) => unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => withNodes(item, nodeOf));
+  }
+  if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
+    return value;
+  }
+  const node = nodeOf(value as Record<string, unknown>);
+  if (node !== undefined) {
+    return { ref: node };
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withNodes(item, nodeOf)]));
+}
+
+function fromDrivers(value: unknown) {
+  const result = refs.withRefs(value);
+  return result === value
+    ? value
+    : withNodes(result, (ref) => {
+        const id = ref[ELEMENT_KEY] ?? ref[SHADOW_KEY];
+        return typeof id === 'string' ? page[`__test_el_${id.replace(/-/g, '')}`] : undefined;
+      });
+}
+
+const RESULTS: [string, () => unknown][] = [
+  ['an element', () => byId('first')],
+  ['the same element twice', () => [byId('first'), { again: byId('first') }]],
+  ['a shadow root', () => byId('host').attachShadow({ mode: 'open' })],
+  ['a callable element', () => [Object.assign(() => undefined, { nodeType: 1, nodeName: 'EMBED' })]],
+  ['a plain function', () => [() => undefined]],
+  ['a NodeList', () => document.querySelectorAll('#first, #second')],
+  ['an HTMLCollection, nested', () => ({ divs: document.getElementsByTagName('div') })],
+  ['an empty list', () => ({ found: document.getElementsByClassName('missing') })],
+  ['a form element', () => ({ form: formWithInput() })],
+  ['a select element', () => [selectWithOption()]],
+  ['a fragment that is not a shadow root', () => [document.createDocumentFragment()]],
+  ['a text node', () => [document.createTextNode('text')]],
+  ['a typed array', () => new Uint8Array([1, 2])],
+  ['a plain object keyed by index', () => ({ 0: byId('first'), length: 1 })],
+  ['the rest of a result with nodes', () => ({ el: byId('first'), when: new Date(0), nan: Number.NaN })],
+  ['a result with no nodes', () => ({ when: new Date(0), list: [1, 'two'] })],
+];
+
 // Electrobun's page-side stash keeps the nodes in one array behind placeholders, not under IDs, so it can't be a
 // copy of script-result-refs.js. It must still turn every result into the same shape with the same nodes.
 describe("Electrobun's page-side stash", () => {
@@ -237,32 +283,6 @@ describe("Electrobun's page-side stash", () => {
     delete page[STASH];
   });
 
-  // Swaps each reference for `{ ref: node }`, so the outputs compare by which node is where, and a node left
-  // unreplaced doesn't pass for a reference
-  function withNodes(value: unknown, nodeOf: (ref: Record<string, unknown>) => unknown): unknown {
-    if (Array.isArray(value)) {
-      return value.map((item) => withNodes(item, nodeOf));
-    }
-    if (value === null || typeof value !== 'object') {
-      return value;
-    }
-    const node = nodeOf(value as Record<string, unknown>);
-    if (node !== undefined) {
-      return { ref: node };
-    }
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withNodes(item, nodeOf)]));
-  }
-
-  function fromDrivers(value: unknown) {
-    const result = refs.withRefs(value);
-    return result === value
-      ? value
-      : withNodes(result, (ref) => {
-          const id = ref[ELEMENT_KEY] ?? ref[SHADOW_KEY];
-          return typeof id === 'string' ? page[`__test_el_${id.replace(/-/g, '')}`] : undefined;
-        });
-  }
-
   function fromElectrobun(value: unknown) {
     const result = stashNodes(value, STASH, MARK) as Record<string, unknown> | undefined;
     if (result === value || typeof result?.[MARK] !== 'number') {
@@ -273,24 +293,7 @@ describe("Electrobun's page-side stash", () => {
     );
   }
 
-  it.each([
-    ['an element', () => byId('first')],
-    ['the same element twice', () => [byId('first'), { again: byId('first') }]],
-    ['a shadow root', () => byId('host').attachShadow({ mode: 'open' })],
-    ['a callable element', () => [Object.assign(() => undefined, { nodeType: 1, nodeName: 'EMBED' })]],
-    ['a plain function', () => [() => undefined]],
-    ['a NodeList', () => document.querySelectorAll('#first, #second')],
-    ['an HTMLCollection, nested', () => ({ divs: document.getElementsByTagName('div') })],
-    ['an empty list', () => ({ found: document.getElementsByClassName('missing') })],
-    ['a form element', () => ({ form: formWithInput() })],
-    ['a select element', () => [selectWithOption()]],
-    ['a fragment that is not a shadow root', () => [document.createDocumentFragment()]],
-    ['a text node', () => [document.createTextNode('text')]],
-    ['a typed array', () => new Uint8Array([1, 2])],
-    ['a plain object keyed by index', () => ({ 0: byId('first'), length: 1 })],
-    ['the rest of a result with nodes', () => ({ el: byId('first'), when: new Date(0), nan: Number.NaN })],
-    ['a result with no nodes', () => ({ when: new Date(0), list: [1, 'two'] })],
-  ])('should turn %s into what the embedded drivers send', (_name, make) => {
+  it.each(RESULTS)('should turn %s into what the embedded drivers send', (_name, make) => {
     const value = make();
 
     expect(fromElectrobun(value)).toEqual(fromDrivers(value));
@@ -302,5 +305,33 @@ describe("Electrobun's page-side stash", () => {
 
     expect(fromElectrobun(cyclic)).toBe(cyclic);
     expect(fromDrivers(cyclic)).toBe(cyclic);
+  });
+});
+
+// The Tauri service's external providers convert a result in the page and leave the nodes in it for the driver. The
+// embedded drivers' transport sends their result as JSON, so the rest of it must come out the same.
+describe("the Tauri service's in-page result conversion", () => {
+  const asJson = new Function(`${RESULT_AS_JSON_JS}\nreturn __wdio_asJson;`)() as (value: unknown) => unknown;
+
+  function fromTauri(value: unknown) {
+    return withNodes(asJson(value), (item) => (item.nodeType === 1 || item.nodeType === 11 ? item : undefined));
+  }
+
+  function fromDriversAsSent(value: unknown) {
+    const result = fromDrivers(value);
+    return result === value ? JSON.parse(JSON.stringify(value)) : result;
+  }
+
+  it.each(RESULTS)('should turn %s into what the embedded drivers send', (_name, make) => {
+    const value = make();
+
+    expect(fromTauri(value)).toEqual(fromDriversAsSent(value));
+  });
+
+  it('should return a result JSON.stringify rejects as it is, as the embedded drivers do', () => {
+    const cyclic: Record<string, unknown> = { el: byId('first') };
+    cyclic.self = cyclic;
+
+    expect(asJson(cyclic)).toBe(cyclic);
   });
 });
