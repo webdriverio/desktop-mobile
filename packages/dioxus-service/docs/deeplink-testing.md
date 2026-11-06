@@ -88,9 +88,9 @@ The service handles platform-specific differences automatically:
 
 ## Multiremote
 
-In a session where two instances run the same app, `triggerDeeplink()` throws, on every instance and on the root. It opens the URL through the OS, which can't pick one of two copies of the same app: it starts another copy, or hands the URL to one of them, whichever instance called.
+In a session where two instances run the same app, `triggerDeeplink()` throws, on every instance and on the root. It opens the URL through the OS, which can't pick one of two copies of the same app: it starts another copy or hands the URL to either one.
 
-When each instance runs a different app, it still works, but the OS opens the URL in the app that handles its scheme, whichever instance called, and a root call opens it only once.
+When each instance runs a different app, the call goes through, but the OS opens the URL in the app that handles its scheme, not necessarily the calling instance's. A root call opens it only once.
 
 ## App Implementation
 

@@ -235,7 +235,7 @@ export async function triggerDeeplink(this: ServiceContext, url: string): Promis
   if (platform === 'darwin' && this.instancesShareApp) {
     throw new Error(
       "triggerDeeplink() can't reach a multiremote instance on macOS when two instances run the same app. " +
-        "It opens the URL with `open`, which can't tell the copies apart, so one of them gets it, whichever instance called. " +
+        "It opens the URL with `open`, which can't tell the copies apart. " +
         'In script mode (`appEntryPoint`), every instance runs Electron itself, so they always count as the same app. ' +
         'Test deeplinks on macOS without multiremote.',
     );
