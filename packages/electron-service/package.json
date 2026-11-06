@@ -1,6 +1,6 @@
 {
   "name": "@wdio/electron-service",
-  "version": "10.4.1",
+  "version": "11.0.0",
   "description": "WebdriverIO service to enable Electron testing",
   "author": "Sam Maister <goosewobbler@protonmail.com>",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/electron-service",
