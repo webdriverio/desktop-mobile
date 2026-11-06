@@ -3,8 +3,8 @@ import { hasSemicolonOutsideQuotes, isFunctionSource } from '@wdio/native-utils'
 /**
  * Wrap a user script for execution via the direct eval channel.
  *
- * Mirrors the script-wrapping logic in packages/tauri-plugin/guest-js/index.ts
- * to produce behaviorally identical output:
+ * Follows the script-wrapping logic in packages/tauri-plugin/guest-js/index.ts, except that it waits for the
+ * plugin's core only when the script calls invoke:
  * - Function-like scripts receive __wdio_tauri (with mock-routing invoke) as first arg
  * - String scripts are wrapped as async functions with args via apply()
  * - __wdio_original_core__ is used to bypass Proxy invariant issues on macOS
@@ -58,9 +58,10 @@ var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0
   // Mock routing does not apply here. This matches the IPC path's behaviour for string scripts.
   const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(trimmed);
   const hasStatement = hasStatementKeyword || hasSemicolonOutsideQuotes(trimmed);
+  // The newline ends a `//` comment at the end of the script
   const invocation = hasStatement
-    ? `(async function() { ${script} }).apply(null, __wdio_args)`
-    : `(async function() { return ${script}; }).apply(null, __wdio_args)`;
+    ? `(async function() { ${script}\n}).apply(null, __wdio_args)`
+    : `(async function() { return ${script}\n; }).apply(null, __wdio_args)`;
 
   return `${prelude}
 (async () => {
@@ -73,10 +74,18 @@ var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0
 })();`;
 }
 
-// The plugin runs the script in the window `__wdio_label` names, or its default window without one, and
-// reports to `__wdio_done` as the scripts above do. The script and its arguments arrive as data, in
-// arguments 1 and 2.
-const PLUGIN_IPC = `if (typeof window.wdioTauri === 'undefined') {
+// For the service's own scripts, and a script for another window, on the external and CrabNebula providers. The
+// plugin runs the script in the window `windowLabel` names, or the one calling it without one, and answers at once
+// in a frame or page without the plugin, where a script run in the page would wait for it.
+export function wrapScriptForPluginIpc(
+  script: string,
+  argsJson: string,
+  windowLabel?: string,
+): { script: string; args: unknown[] } {
+  return {
+    script: `var __wdio_done = arguments[arguments.length - 1];
+var __wdio_label = arguments[0];
+if (typeof window.wdioTauri === 'undefined') {
   __wdio_done({ ok: false, error: 'window.wdioTauri is undefined' });
 } else if (typeof window.wdioTauri.execute !== 'function') {
   __wdio_done({ ok: false, error: 'window.wdioTauri.execute is ' + typeof window.wdioTauri.execute });
@@ -94,72 +103,57 @@ const PLUGIN_IPC = `if (typeof window.wdioTauri === 'undefined') {
   } catch (e) {
     __wdio_done({ ok: false, error: (e && e.message) || String(e) });
   }
-}`;
-
-// For the service's own scripts on the external and CrabNebula providers: they never need element references,
-// and the plugin answers at once in a frame or page without it, where a script run in the page would wait for it.
-export function wrapScriptForPluginIpc(
-  script: string,
-  argsJson: string,
-  windowLabel?: string,
-): { script: string; args: unknown[] } {
-  return {
-    script: `var __wdio_done = arguments[arguments.length - 1];
-var __wdio_label = arguments[0];
-${PLUGIN_IPC}`,
-    args: [windowLabel ?? null, script, argsJson],
+}`,
+    args: [windowLabel, script, argsJson],
   };
 }
 
-// For browser.tauri.execute() on the external and CrabNebula providers. The script runs in the session's current
-// webview, so the driver returns DOM elements as references and turns references in the arguments into elements.
-// A script for another window goes through the plugin's IPC, as a reference only works in the window it came from.
-export function wrapScriptForWebDriver(
-  script: string,
-  userArgs: unknown[],
-  windowLabel?: string,
-): { script: string; args: unknown[] } {
-  // The driver returns an `undefined` in a plain object as `null`, where JSON, which the embedded provider and the
-  // plugin's IPC use, drops the key, so drop it here too. Other objects, such as elements, are left for the driver.
-  const inPage = (argsExpression: string) => `function __wdio_withoutUndefined(value) {
-  if (Array.isArray(value)) return value.map(__wdio_withoutUndefined);
-  if (value === null || typeof value !== 'object') return value;
-  var proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) return value;
-  var copy = {};
-  for (var key in value) {
-    if (Object.prototype.hasOwnProperty.call(value, key) && value[key] !== undefined) {
-      copy[key] = __wdio_withoutUndefined(value[key]);
-    }
+// For browser.tauri.execute() in the session's current window on the external and CrabNebula providers. The user's
+// arguments are the script's own, so the driver turns references in them into elements, and DOM nodes in the result
+// into references.
+export function wrapScriptForWebDriver(script: string, userArgs: unknown[]): { script: string; args: unknown[] } {
+  // Results follow JSON, as on the embedded provider and the plugin's IPC, apart from DOM nodes and the lists that
+  // hold them, which are left for the driver. The rules are script-result-refs.js's, which the embedded drivers use.
+  return {
+    script: `var __wdio_done = arguments[arguments.length - 1];
+function __wdio_asJson(value) {
+  var nodes = [];
+  var mark = '__wdio_node_' + Math.random().toString(36).slice(2);
+  function isNode(item) {
+    // Chromium's <embed> and <object> elements are callable, so their typeof is 'function'
+    if (item === null || (typeof item !== 'object' && typeof item !== 'function')) return false;
+    return item.nodeType === 1 || (item.nodeType === 11 && !!item.host);
   }
-  return copy;
+  function listOf(item) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item) || typeof item.nodeType === 'number') return undefined;
+    if (typeof item[Symbol.iterator] !== 'function' || typeof item.length !== 'number') return undefined;
+    return Array.from({ length: item.length }, function (_, i) { return item[i]; });
+  }
+  var json;
+  try {
+    json = JSON.stringify(value, function (_key, item) {
+      if (isNode(item)) {
+        var placeholder = {};
+        placeholder[mark] = nodes.push(item) - 1;
+        return placeholder;
+      }
+      var list = listOf(item);
+      return list === undefined ? item : list;
+    });
+  } catch (e) {
+    // A result JSON rejects, such as a cycle, goes to the driver as it is, which reports it
+    return value;
+  }
+  if (json === undefined) return null;
+  return JSON.parse(json, function (_key, item) {
+    return item !== null && typeof item === 'object' && typeof item[mark] === 'number' ? nodes[item[mark]] : item;
+  });
 }
 (function () {
 ${wrapScriptForDirectEval(script, '[]')}
-}).apply(null, ${argsExpression}.concat([function (r) {
-  __wdio_done(r.ok ? { ok: true, value: __wdio_withoutUndefined(r.value), undef: r.undef } : r);
-}]));`;
-  if (windowLabel === undefined) {
-    return {
-      script: `var __wdio_done = arguments[arguments.length - 1];
-${inPage('Array.prototype.slice.call(arguments, 0, -1)')}`,
-      args: userArgs,
-    };
-  }
-
-  // The label and the plugin's inputs travel as arguments, not source, ahead of the user's arguments.
-  // The plugin looks a window up by its webview's label.
-  return {
-    script: `var __wdio_done = arguments[arguments.length - 1];
-var __wdio_label = arguments[0];
-var __wdio_meta = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.metadata;
-if (__wdio_meta && __wdio_meta.currentWebview && __wdio_meta.currentWebview.label === __wdio_label) {
-  (function (__wdio_userArgs) {
-${inPage('__wdio_userArgs')}
-  })(Array.prototype.slice.call(arguments, 3, -1));
-} else {
-${PLUGIN_IPC}
-}`,
-    args: [windowLabel, script, JSON.stringify(userArgs), ...userArgs],
+}).apply(null, Array.prototype.slice.call(arguments, 0, -1).concat([function (r) {
+  __wdio_done(r.ok ? { ok: true, value: __wdio_asJson(r.value), undef: r.undef } : r);
+}]));`,
+    args: userArgs,
   };
 }

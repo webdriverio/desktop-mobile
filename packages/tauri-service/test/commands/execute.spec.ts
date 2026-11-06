@@ -474,7 +474,7 @@ describe('execute — external and CrabNebula providers (WebDriver)', () => {
     it('should run a string script in the page', async () => {
       await executeWithElementRefs<string, []>(browser, 'return "hello"');
 
-      expect(sentScript(browser)).toContain('(async function() { return "hello" }).apply(null, __wdio_args)');
+      expect(sentScript(browser)).toContain('(async function() { return "hello"\n}).apply(null, __wdio_args)');
     });
 
     it('should install console forwarding before the script', async () => {
@@ -490,24 +490,46 @@ describe('execute — external and CrabNebula providers (WebDriver)', () => {
       expect(sentArgs(browser)).toEqual([]);
     });
 
-    it('should send a per-call window label to the page, which picks the route', async () => {
+    it("should run in the page when a per-call window label names the session's current window", async () => {
       await executeWithElementRefs(
         browser,
         '(tauri, a) => a',
-        { __wdioOptions__: true, windowLabel: 'popup' } as never,
+        { __wdioOptions__: true, windowLabel: 'main' } as never,
         7,
       );
 
-      expect(sentScript(browser)).toContain('window.wdioTauri.execute(');
-      expect(sentArgs(browser)).toEqual(['popup', '(tauri, a) => a', '[7]', 7]);
+      expect(sentScript(browser)).not.toContain('wdioTauri.execute');
+      expect(sentArgs(browser)).toEqual([7]);
     });
 
-    it("should send the session's window label after a switch", async () => {
+    it('should run in the page after a switch, which moved the session there', async () => {
       setCurrentWindowLabel(browser, 'settings');
 
       await executeWithElementRefs(browser, '() => 1');
 
-      expect(sentArgs(browser)).toEqual(['settings', '() => 1', '[]']);
+      expect(sentScript(browser)).not.toContain('wdioTauri.execute');
+    });
+
+    it('should not check for the plugin, which a page script in a frame without it would not need', async () => {
+      (browser.execute as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+      await executeWithElementRefs(browser, () => document.title);
+
+      expect(browser.execute).not.toHaveBeenCalled();
+    });
+
+    it('should send a script for another window through the plugin, with its args as JSON only', async () => {
+      const ref = { 'element-6066-11e4-a52e-4f735466cecf': 'el-1' };
+
+      await executeWithElementRefs(
+        browser,
+        '(tauri, a) => a',
+        { __wdioOptions__: true, windowLabel: 'popup' } as never,
+        ref,
+      );
+
+      expect(sentScript(browser)).toContain('window.wdioTauri.execute(');
+      expect(sentArgs(browser)).toEqual(['popup', '(tauri, a) => a', JSON.stringify([ref])]);
     });
   });
 
@@ -518,7 +540,7 @@ describe('execute — external and CrabNebula providers (WebDriver)', () => {
       await execute(browser, '(tauri, a) => a', 7);
 
       expect(sentScript(browser)).toContain('window.wdioTauri.execute(');
-      expect(sentArgs(browser)).toEqual([null, '(tauri, a) => a', '[7]']);
+      expect(sentArgs(browser)).toEqual([undefined, '(tauri, a) => a', '[7]']);
     });
 
     it("should send the session's window label after a switch", async () => {

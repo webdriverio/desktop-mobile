@@ -311,7 +311,7 @@ The `execute` method supports optional per-call options to override session defa
   - `windowLabel` (string) - Override the default window for this call only
 - `...args` (any[]) - Additional arguments passed to the script
 
-With the external and CrabNebula providers, a script for a window other than the session's current one runs through the plugin's IPC, so a DOM element in its result comes back as `{}`. A reference only works in the window it came from: switch to the window with `browser.tauri.switchWindow()` first.
+With the external and CrabNebula providers, a script for a window other than the session's current one runs through the plugin's IPC, so a DOM element in its result comes back as `{}`, and a reference in its arguments reaches the script as a plain object. A reference only works in the window it came from: switch to the window with `browser.tauri.switchWindow()` first.
 
 **Example:**
 

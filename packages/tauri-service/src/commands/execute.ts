@@ -59,8 +59,9 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   return runScript(browser, script, args, false);
 }
 
-// For browser.tauri.execute(): on the embedded provider, the plugin turns nodes in the result into references in
-// the session, and references in the arguments into nodes
+// For browser.tauri.execute(): DOM nodes in the result come back as references in the session, and references in
+// the arguments reach the script as nodes. The embedded plugin converts them itself; on the external providers, the
+// WebDriver session does, for a script in its current window.
 export async function executeWithElementRefs<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   browser: WebdriverIO.Browser,
   script: Script<ReturnValue, InnerArguments>,
@@ -159,41 +160,57 @@ async function runScript<ReturnValue, InnerArguments extends unknown[]>(
     throw lastError;
   }
 
-  // External and CrabNebula providers: the script runs through the WebDriver session
-  if (!isPluginAvailabilityCached(browser)) {
-    const maxAttempts = 100;
-    const retryInterval = 50;
-    let pluginAvailable = false;
+  // External and CrabNebula providers: browser.tauri.execute() runs in the session's current window, where the driver
+  // converts elements. The service's own scripts, and a script for another window, go through the plugin's IPC.
+  const scriptString = typeof script === 'function' ? script.toString() : script;
+  const toOtherWindow = options.windowLabel !== undefined && options.windowLabel !== sessionWindowLabel;
+  if (elementRefs && !toOtherWindow) {
+    return sendScript<ReturnValue>(browser, wrapScriptForWebDriver(scriptString, userArgs));
+  }
+  await ensurePluginAvailable(browser);
+  return sendScript<ReturnValue>(
+    browser,
+    wrapScriptForPluginIpc(scriptString, JSON.stringify(userArgs), executeOptions.windowLabel),
+  );
+}
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const result: unknown = await browser.execute(() => {
-        // @ts-expect-error - Plugin API injected at runtime
-        return typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.execute === 'function';
-      });
-      pluginAvailable = result === true;
+async function ensurePluginAvailable(browser: WebdriverIO.Browser): Promise<void> {
+  if (isPluginAvailabilityCached(browser)) {
+    return;
+  }
+  const maxAttempts = 100;
+  const retryInterval = 50;
+  let pluginAvailable = false;
 
-      if (pluginAvailable) {
-        break;
-      }
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const result: unknown = await browser.execute(() => {
+      // @ts-expect-error - Plugin API injected at runtime
+      return typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.execute === 'function';
+    });
+    pluginAvailable = result === true;
 
-      await new Promise((resolve) => setTimeout(resolve, retryInterval));
+    if (pluginAvailable) {
+      break;
     }
 
-    if (!pluginAvailable) {
-      throw new Error(
-        'Tauri plugin not available. Make sure @wdio/tauri-plugin is installed and registered in your Tauri app.',
-      );
-    }
-
-    setPluginAvailabilityCached(browser);
-    log.debug('Plugin availability cached for browser session');
+    await new Promise((resolve) => setTimeout(resolve, retryInterval));
   }
 
-  const scriptString = typeof script === 'function' ? script.toString() : script;
-  const wrapped = elementRefs
-    ? wrapScriptForWebDriver(scriptString, userArgs, executeOptions.windowLabel)
-    : wrapScriptForPluginIpc(scriptString, JSON.stringify(userArgs), executeOptions.windowLabel);
+  if (!pluginAvailable) {
+    throw new Error(
+      'Tauri plugin not available. Make sure @wdio/tauri-plugin is installed and registered in your Tauri app.',
+    );
+  }
+
+  setPluginAvailabilityCached(browser);
+  log.debug('Plugin availability cached for browser session');
+}
+
+async function sendScript<ReturnValue>(
+  browser: WebdriverIO.Browser,
+  wrapped: { script: string; args: unknown[] },
+): Promise<Awaited<ReturnValue>> {
   const outcome = (await browser.executeAsyncScript(
     `${CONSOLE_WRAPPER_SCRIPT}\n${wrapped.script}`,
     wrapped.args as Parameters<WebdriverIO.Browser['executeAsyncScript']>[1],
