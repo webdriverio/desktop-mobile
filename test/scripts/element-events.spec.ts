@@ -13,6 +13,7 @@ const DIOXUS_COPY = 'packages/dioxus-embedded-driver/src/server/handlers/element
 type ElementEvents = {
   wdioDeepActiveElement(): Element;
   wdioRecordPendingChange(el: HTMLElement, value: string): void;
+  wdioFocusLoss(event: Event): void;
   wdioTakePendingChange(el?: HTMLElement): { el: HTMLElement; value: string } | undefined;
   wdioCommitOnEnter(el: HTMLElement): void;
   wdioSubmitOnEnter(el: HTMLElement): void;
@@ -31,12 +32,12 @@ type ElementEvents = {
 
 // Registered before the helpers install, so it hides `blur` and `focus` from their window listener
 // too, as WebKitGTK does by not sending them.
-let hideBlurAndFocus = false;
+let hideBlurAndFocus = 0;
 for (const type of ['blur', 'focus']) {
   window.addEventListener(
     type,
     (event) => {
-      if (hideBlurAndFocus) {
+      if (hideBlurAndFocus > 0) {
         event.stopImmediatePropagation();
       }
     },
@@ -47,7 +48,7 @@ for (const type of ['blur', 'focus']) {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioDeepActiveElement, wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioDeepActiveElement, wdioRecordPendingChange, wdioFocusLoss, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -87,11 +88,11 @@ function enter() {
 // Hides `blur` and `focus` from the page, as a WebKitGTK window without focus fires neither for
 // scripted focus moves.
 function withoutBlurOrFocus(run: () => void) {
-  hideBlurAndFocus = true;
+  hideBlurAndFocus += 1;
   try {
     run();
   } finally {
-    hideBlurAndFocus = false;
+    hideBlurAndFocus -= 1;
   }
 }
 
@@ -101,29 +102,44 @@ function click(el: HTMLElement) {
   events.wdioRelease(el);
 }
 
-// A page element named `host` hides the document's `host`, and a walk up through `host` then loops
-// forever. This stands in for one for the helpers, counting their reads and throwing to end a loop.
-// jsdom's own reads, from its selector engine, get the usual `undefined`.
-function hideDocumentHost() {
+// A page element named after a node property, such as `<img name="host">`, hides that property on
+// the document, and a walk up the tree that reads it then loops forever. This stands in for one,
+// counting the helpers' reads and throwing to end a loop. Other code, such as jsdom's selector
+// engine, gets the property's usual value.
+function hideOnDocument(name: string, usual: unknown) {
   const reads = { count: 0 };
-  Object.defineProperty(document, 'host', {
+  Object.defineProperty(document, name, {
     configurable: true,
     get() {
-      if (!new Error().stack?.includes('at wdio')) {
-        return undefined;
+      if (!readByHelper()) {
+        return usual;
       }
       reads.count += 1;
       if (reads.count > 100) {
-        throw new Error('read document.host in a loop');
+        throw new Error(`read document.${name} in a loop`);
       }
       return document.body;
     },
   });
+  hiddenOnDocument.push(name);
   return reads;
 }
 
+const hiddenOnDocument: string[] = [];
+
+// Whether the code reading a property is one of the helpers, looking past jsdom's named-property proxy
+function readByHelper() {
+  const caller = new Error().stack
+    ?.split('\n')
+    .slice(3)
+    .find((frame) => !/Reflect\.get|ProxyHandler\.get/.test(frame));
+  return caller?.trim().startsWith('at wdio') ?? false;
+}
+
 afterEach(() => {
-  Reflect.deleteProperty(document, 'host');
+  for (const name of hiddenOnDocument.splice(0)) {
+    Reflect.deleteProperty(document, name);
+  }
 });
 
 describe('element-events.js', () => {
@@ -224,12 +240,27 @@ describe('pending change', () => {
   });
 
   it('should not read host off the document, which a page element named host can hide', () => {
-    const reads = hideDocumentHost();
+    const reads = hideOnDocument('host', undefined);
     $('#a').value = 'x';
     events.wdioRecordPendingChange($('#a'), '');
     $('#b').dispatchEvent(new FocusEvent('blur'));
     expect(reads.count).toBe(0);
     expect(log).toEqual(['blur b=']);
+  });
+
+  it("should fire it from the field's root when the window's listener is gone, as after document.open()", () => {
+    for (const type of ['blur', 'focusout']) {
+      window.removeEventListener(type, events.wdioFocusLoss, true);
+    }
+    try {
+      type($('#a'), 'x');
+      $('#b').focus();
+      expect(log).toEqual(['change a=x', 'blur a=x', 'focus b=']);
+    } finally {
+      for (const type of ['blur', 'focusout']) {
+        window.addEventListener(type, events.wdioFocusLoss, true);
+      }
+    }
   });
 
   it('should fire it rather than drop it when another field records a change', () => {
@@ -800,14 +831,18 @@ describe('Tab', () => {
     expect(tabs(4)).toEqual(['d2', 'body', 'd1', 'd2']);
   });
 
-  it('should keep focus within a modal dialog without reading host off the document', () => {
+  it.each([
+    ['host', undefined],
+    ['assignedSlot', undefined],
+    ['parentNode', null],
+  ])('should keep focus within a modal dialog without reading %s off the document', (name, usual) => {
     render('<input id="a"><dialog id="d" open><input id="d1"></dialog><input id="z">');
     const dialog = $('#d');
     Object.defineProperty(dialog, 'matches', {
       value: (selector: string) => selector === ':modal' || Element.prototype.matches.call(dialog, selector),
     });
     $('#d1').focus();
-    const reads = hideDocumentHost();
+    const reads = hideOnDocument(name, usual);
     expect(tab()).toBe('body');
     expect(reads.count).toBe(0);
   });

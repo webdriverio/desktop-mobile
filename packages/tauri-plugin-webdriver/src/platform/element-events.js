@@ -3,8 +3,8 @@
 // a user's input causes in a browser. A published crate can only include its own files, so
 // tauri-plugin-wdio-webdriver and wdio-dioxus-embedded-driver each keep an identical copy.
 // test/scripts/element-events.spec.ts tests it and checks the copies match.
-// The drivers run this file once in each page and frame, and give their scripts the names it declares
-// with `function` or `const` at the start of a line.
+// Tauri runs this file once in each page and frame, and Dioxus once in the top page. Both give their
+// scripts the names it declares with `function` or `const` at the start of a line.
 
 // The inputs that take typed text. Chromium counts only these for implicit submission, where the
 // HTML spec also counts the date and time inputs.
@@ -46,10 +46,31 @@ function wdioDeepActiveElement() {
 // WebKitGTK sends only `focusout`, not `blur`, while its window isn't focused.
 const WDIO_FOCUS_LOSS_EVENTS = ['blur', 'focusout'];
 
-// The host of a shadow root, else undefined. A page element named `host` hides a document's or a
-// form's `host`, so it's never read off them.
+// Reads a node property through its built-in getter. A page element named after a property, such as
+// `<img name="host">`, hides it on a document or a form, and a walk up the tree would then loop.
+function wdioGetter(proto, name) {
+  const get = Object.getOwnPropertyDescriptor(proto, name)?.get;
+  return (node) => (get ? get.call(node) : node[name]);
+}
+
+const wdioNodeType = wdioGetter(Node.prototype, 'nodeType');
+const wdioParentNode = wdioGetter(Node.prototype, 'parentNode');
+const wdioAssignedSlot = wdioGetter(Element.prototype, 'assignedSlot');
+
+// The host of a shadow root, else undefined. A shadow root has no named properties, so reading `host`
+// off one is safe.
 function wdioShadowHost(node) {
-  return node instanceof ShadowRoot ? node.host : undefined;
+  return wdioNodeType(node) === 11 ? node.host : undefined;
+}
+
+// The parent of `node`, or the host of a shadow root.
+function wdioParentOrHost(node) {
+  return wdioParentNode(node) || wdioShadowHost(node);
+}
+
+// The node `node` renders inside: the slot that shows it, else its parent, else a shadow root's host.
+function wdioRenderedParent(node) {
+  return (wdioNodeType(node) === 1 && wdioAssignedSlot(node)) || wdioParentOrHost(node);
 }
 
 // A browser fires `change` only when focus moves on, not for a blur a field gets while it keeps
@@ -66,26 +87,19 @@ function wdioRecordPendingChange(el, value) {
   }
   wdioFirePendingChange();
   const root = Node.prototype.getRootNode.call(el);
-  const onFocusLoss = (event) => {
-    if (event.target === el && !wdioKeepsFocus(el, root)) {
-      wdioFirePendingChange(el);
-    }
-  };
-  // A focus move inside a shadow root never reaches the window's listener, so the root listens too.
-  // Whichever event arrives first fires the `change`.
-  if (root instanceof ShadowRoot) {
-    for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-      root.addEventListener(type, onFocusLoss, true);
-    }
+  for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+    root.addEventListener(type, wdioFocusLoss, true);
   }
-  window.__wdio_pending_change = { el, value, root, onFocusLoss };
+  window.__wdio_pending_change = { el, value, root };
 }
 
-// Fires the owed `change` before any page listener sees the field lose focus, as a browser does.
-// The drivers install this file as the page loads, so this capture listener on the window comes
-// before the page's, unless Tauri installed it late, on the first command that needed it. At the
+// Fires the owed `change` before any page listener sees the field lose focus, as a browser does. It
+// listens in the capture phase on the window, where it comes before the page's listeners, as the
+// drivers install this file as the page loads (unless Tauri installed it late, on the first command
+// that needed it). It also listens on the field's root while a change is owed: a focus move inside a
+// shadow root never reaches the window, and `document.open()` drops the window's listeners. At the
 // window, a field in a shadow root shows up as its host.
-function wdioFocusLossOnWindow(event) {
+function wdioFocusLoss(event) {
   const record = window.__wdio_pending_change;
   if (!record || wdioKeepsFocus(record.el, record.root)) {
     return;
@@ -99,7 +113,7 @@ function wdioFocusLossOnWindow(event) {
 }
 
 for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-  window.addEventListener(type, wdioFocusLossOnWindow, true);
+  window.addEventListener(type, wdioFocusLoss, true);
 }
 
 // The built-in focus() for `el`, such as HTMLElement's or SVGElement's. A native Tab never calls a
@@ -127,7 +141,7 @@ function wdioTakePendingChange(el) {
     return undefined;
   }
   for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-    record.root.removeEventListener(type, record.onFocusLoss, true);
+    record.root.removeEventListener(type, wdioFocusLoss, true);
   }
   window.__wdio_pending_change = undefined;
   return record;
@@ -495,7 +509,7 @@ function wdioFocusForClick(el) {
     node.getRootNode().activeElement === node && (!node.shadowRoot?.activeElement || node.shadowRoot.delegatesFocus);
   let node = el;
   // The walk follows the tree as rendered, through the slot that shows a slotted element.
-  for (; node && node !== document.body; node = node.assignedSlot || node.parentNode || wdioShadowHost(node)) {
+  for (; node && node !== document.body; node = wdioRenderedParent(node)) {
     if (typeof node.focus !== 'function') {
       continue;
     }
@@ -559,7 +573,7 @@ function wdioOwnMethod(node, name) {
 
 // Whether `el` renders inside `node`, as slotted content does inside the slot's shadow tree.
 function wdioRendersInside(node, el) {
-  for (let current = el; current; current = current.assignedSlot || current.parentNode || wdioShadowHost(current)) {
+  for (let current = el; current; current = wdioRenderedParent(current)) {
     if (current === node) {
       return true;
     }
@@ -569,7 +583,7 @@ function wdioRendersInside(node, el) {
 
 // Whether `el` is `node` or inside it, looking through shadow roots.
 function wdioContains(node, el) {
-  for (let current = el; current; current = current.parentNode || wdioShadowHost(current)) {
+  for (let current = el; current; current = wdioParentOrHost(current)) {
     if (current === node) {
       return true;
     }
