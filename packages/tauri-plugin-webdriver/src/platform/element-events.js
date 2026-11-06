@@ -46,8 +46,8 @@ function wdioDeepActiveElement() {
 // WebKitGTK sends only `focusout`, not `blur`, while its window isn't focused.
 const WDIO_FOCUS_LOSS_EVENTS = ['blur', 'focusout'];
 
-// Reads a node property through its built-in getter. A page element named after a property, such as
-// `<img name="host">`, hides it on a document or a form, and a walk up the tree would then loop.
+// A page element named after a node property, such as `<img name="host">`, hides it on a document or
+// a form, and a walk up the tree reading it could loop. The built-in getter can't be hidden.
 function wdioGetter(proto, name) {
   const get = Object.getOwnPropertyDescriptor(proto, name).get;
   return (node) => get.call(node);
@@ -81,18 +81,15 @@ function wdioRecordPendingChange(el, value) {
   for (const type of WDIO_FOCUS_LOSS_EVENTS) {
     root.addEventListener(type, wdioFocusLoss, true);
   }
-  // The record keeps the listener it added, as a second install of this file has its own copy of it.
+  // The record keeps the listener it added: a second install of this file has its own copy of the function.
   window.__wdio_pending_change = { el, value, root, onFocusLoss: wdioFocusLoss };
 }
 
-// Fires the owed `change` before any page listener sees the field lose focus, as a browser does. It
-// listens in the capture phase on the window, where it comes before the page's listeners as the drivers
-// install this file as the page loads. It doesn't when Tauri installs it late, on the first command
-// that needs it, or when a Dioxus app's custom index runs `<head>` scripts before it. It also listens
-// on the field's root while a change is owed: a focus move inside a shadow root never reaches the
-// window, and `document.open()` drops the window's listeners. At the
-// window, a field in a shadow root shows up as its host, and only for a composed event, as a real blur
-// is: a page dispatching its own `blur` on the host doesn't mean the field lost focus.
+// Fires the owed `change` before page listeners see the field lose focus, as a browser does. It listens
+// in the capture phase on the window from when the helpers install. While a change is owed, it also
+// listens on the field's root: a focus move inside a shadow root never reaches the window, and
+// `document.open()` removes the window's listener. At the window, a field in a shadow root shows up as
+// its host, and only a composed event counts, as a page's own `blur` on the host usually isn't one.
 function wdioFocusLoss(event) {
   const record = window.__wdio_pending_change;
   for (let node = record?.el; node; node = wdioShadowHost(Node.prototype.getRootNode.call(node))) {
