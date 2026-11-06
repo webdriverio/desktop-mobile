@@ -228,6 +228,23 @@ describe('createMock call data', () => {
     ]);
     expect(mock).toHaveBeenCalledWith({ a: 1 }, undefined);
   });
+
+  it('should serialise a repeated object each time and mark only true cycles', async () => {
+    const { bridge, ctx } = realmBridge({ greet: () => 'orig' });
+    const mock = await createMock('greet', bridge, new ReactNativeMockStore());
+    const greet = ctx.greet as (...a: unknown[]) => unknown;
+    const cfg = { a: 1 };
+    const self: Record<string, unknown> = { a: 1 };
+    self.self = self;
+
+    greet(cfg);
+    greet(cfg, [cfg]);
+    greet(self);
+
+    await mock.update();
+
+    expect(mock.mock.calls).toStrictEqual([[{ a: 1 }], [{ a: 1 }, [{ a: 1 }]], [{ a: 1, self: '[Circular]' }]]);
+  });
 });
 
 describe('createMockAll', () => {

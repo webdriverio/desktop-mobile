@@ -230,14 +230,16 @@ export function buildReadCallDataScript(target: string): string {
     if (!entry || !entry.spy || !entry.spy.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
     var m = entry.spy.mock;
     var makeSafe = function() {
-      var seen = [];
+      var ancestors = [];
       return function(_k, v) {
         if (v === undefined) { return { __wdioUndefined: true }; }
         if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
         if (typeof v === 'function') { return '[Function]'; }
         if (v && typeof v === 'object') {
-          if (seen.indexOf(v) !== -1) { return '[Circular]'; }
-          seen.push(v);
+          // Only the path from the root counts, so an object passed twice is serialised twice
+          while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) { ancestors.pop(); }
+          if (ancestors.indexOf(v) !== -1) { return '[Circular]'; }
+          ancestors.push(v);
         }
         return v;
       };

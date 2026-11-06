@@ -76,6 +76,13 @@ describe('createIpcInterceptor', () => {
         expect(data.results).toStrictEqual([{ type: 'return', value: undefined }]);
       });
 
+      it('should keep an own __proto__ key as data', () => {
+        const raw = JSON.parse('{"calls":[[{"__proto__":{"x":1},"y":2}]]}');
+        const arg = interceptor.parseCallData(raw).calls[0][0] as Record<string, unknown>;
+        expect(Object.keys(arg)).toStrictEqual(['__proto__', 'y']);
+        expect(Object.getPrototypeOf(arg)).toBe(Object.prototype);
+      });
+
       it('should be exported for services that read call data their own way', () => {
         expect(parseCallData({ calls: [[{ __wdioUndefined: true }]] }).calls).toStrictEqual([[undefined]]);
       });

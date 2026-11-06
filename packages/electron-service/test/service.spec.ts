@@ -1,6 +1,6 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { BrowserExtension, ElectronFunctionMock, ElectronServiceOptions } from '@wdio/native-types';
-import { waitUntilWindowAvailable } from '@wdio/native-utils';
+import { createLogger, waitUntilWindowAvailable } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { clearAllMocks } from '../src/commands/clearAllMocks.js';
 import { execute } from '../src/commands/executeCdp.js';
@@ -96,6 +96,9 @@ const { mockSpawn } = vi.hoisted(() => ({ mockSpawn: vi.fn() }));
 vi.mock('node:child_process', () => ({ default: { spawn: mockSpawn }, spawn: mockSpawn }));
 
 let instance: ElectronWorkerService | undefined;
+
+// The loggers the source modules created on import, kept before beforeEach clears createLogger's record.
+const loggers = vi.mocked(createLogger).mock.results.map((r) => r.value as unknown as { warn: Mock });
 
 beforeEach(async () => {
   mockProcessProperty('platform', 'darwin');
@@ -430,7 +433,7 @@ describe('Electron Worker Service', () => {
       executeMock.mockClear();
       const electron = { app: { getName: { mock: { calls: [['x', undefined], [{ b: undefined }]], results: [] } } } };
       // Run the main-process reader against a fake electron, and return its result as JSON, as CDP does.
-      executeMock.mockImplementation((async (
+      executeMock.mockImplementationOnce((async (
         _browser: unknown,
         _bridge: unknown,
         script: unknown,
@@ -539,6 +542,9 @@ describe('Electron Worker Service', () => {
 
       expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
       expect(mockObj.__applyCalls).toHaveBeenCalledWith(expect.objectContaining({ calls: [], results: [] }));
+      expect(loggers.flatMap((l) => l.warn.mock.calls)).toContainEqual([
+        'Native batch read failed for mock "electron.app.getName": boom: app undefined',
+      ]);
     });
 
     it('should batch updates for ≥2 browser-mode mocks into a single browser.execute call', async () => {

@@ -196,16 +196,18 @@ export function buildReadCallDataScript(target: string): string {
     // Fresh replacer per stringify: serialise undefined and Errors to markers, and guard
     // against circular/function values (e.g. mockReturnThis storing a live
     // \`this\` that back-references its parent) so update() never throws a
-    // "Converting circular structure to JSON" out of the page.
+    // "Converting circular structure to JSON" out of the page. Only the path from
+    // the root counts as circular, so an object passed twice is serialised twice.
     var makeSafe = function() {
-      var seen = [];
+      var ancestors = [];
       return function(_k, v) {
         if (v === undefined) { return { __wdioUndefined: true }; }
         if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
         if (typeof v === 'function') { return '[Function]'; }
         if (v && typeof v === 'object') {
-          if (seen.indexOf(v) !== -1) { return '[Circular]'; }
-          seen.push(v);
+          while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) { ancestors.pop(); }
+          if (ancestors.indexOf(v) !== -1) { return '[Circular]'; }
+          ancestors.push(v);
         }
         return v;
       };

@@ -149,6 +149,23 @@ describe('createMock (Electrobun mocking)', () => {
       expect(mock).toHaveBeenCalledWith({ a: 1 }, undefined);
     });
 
+    it('should serialise a repeated object each time and mark only true cycles', async () => {
+      const { bridge, window } = makeBridge({ api: { fetchData: () => 'real' } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      const spy = (window.api as { fetchData: (...a: unknown[]) => unknown }).fetchData;
+      const cfg = { a: 1 };
+      const self: Record<string, unknown> = { a: 1 };
+      self.self = self;
+
+      spy(cfg);
+      spy(cfg, [cfg]);
+      spy(self);
+
+      await mock.update();
+
+      expect(mock.mock.calls).toStrictEqual([[{ a: 1 }], [{ a: 1 }, [{ a: 1 }]], [{ a: 1, self: '[Circular]' }]]);
+    });
+
     it('should replace outer state wholesale when the inner history shrinks', async () => {
       const { bridge, window } = makeBridge({ api: { fetchData: () => 1 } });
       const mock = await createMock('api.fetchData', bridge, store);

@@ -25,11 +25,8 @@ function reviveMarkers(value: unknown): unknown {
     }
     return err;
   }
-  const out: Record<string, unknown> = {};
-  for (const k of Object.keys(obj)) {
-    out[k] = reviveMarkers(obj[k]);
-  }
-  return out;
+  // fromEntries defines each key, so an own `__proto__` key stays data instead of setting the prototype
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, reviveMarkers(v)]));
 }
 
 /** Restore the `undefined` and `Error` markers the in-page read script writes (`CALL_DATA_REPLACER`). */

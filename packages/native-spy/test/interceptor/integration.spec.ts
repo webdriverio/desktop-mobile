@@ -239,11 +239,25 @@ describe('ElectronAdapter integration (synthetic window)', () => {
   });
 });
 
-describe.each(['tauri', 'electron', 'dioxus'] as const)('%s call data read (synthetic window)', (framework) => {
+// Native mode records calls with native-spy's fn; browser mode with the spy its injection script defines.
+const callDataCases = (['tauri', 'electron', 'dioxus'] as const).flatMap((framework) =>
+  (['native-spy', 'browser-mode'] as const).map((spy) => [framework, spy] as const),
+);
+
+describe.each(callDataCases)('%s call data read with the %s spy (synthetic window)', (framework, spy) => {
   const interceptor = createIpcInterceptor(framework);
 
+  function makeWindow(): SyntheticWindow {
+    if (spy === 'native-spy') {
+      return makeSyntheticWindow();
+    }
+    const win = {} as SyntheticWindow;
+    new Function('window', interceptor.buildBrowserIpcInjectionScript())(win);
+    return win;
+  }
+
   function setup() {
-    const win = makeSyntheticWindow();
+    const win = makeWindow();
     evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
     return { win, mock: win.__wdio_mocks__.my_cmd };
   }
@@ -292,5 +306,24 @@ describe.each(['tauri', 'electron', 'dioxus'] as const)('%s call data read (synt
     }
     expect(outer).toHaveBeenCalledWith({ a: 1 }, undefined);
     expect(outer).not.toHaveBeenCalledWith({ a: 1 }, null);
+  });
+
+  it('should serialise an object each time it is passed', () => {
+    const { win, mock } = setup();
+    const cfg = { a: 1 };
+    mock(cfg);
+    mock(cfg, [cfg]);
+
+    expect(read(win).calls).toStrictEqual([[{ a: 1 }], [{ a: 1 }, [{ a: 1 }]]]);
+  });
+
+  it('should read a result that contains itself', () => {
+    const { win, mock } = setup();
+    const self: Record<string, unknown> = { a: 1 };
+    self.self = self;
+    mock.mockReturnThis();
+    mock.call(self);
+
+    expect(read(win).results).toStrictEqual([{ type: 'return', value: { a: 1, self: '[Circular]' } }]);
   });
 });
