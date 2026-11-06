@@ -110,6 +110,8 @@ export interface DioxusServiceAPI {
    * Trigger a deeplink (custom-protocol URL) at the OS level so the Dioxus
    * app's registered protocol handler receives it. Use for testing the
    * production protocol-handler code path; rejects http/https/file URLs.
+   *
+   * @throws Error in a multiremote session where two instances run the same app
    */
   triggerDeeplink(url: string): Promise<void>;
 }

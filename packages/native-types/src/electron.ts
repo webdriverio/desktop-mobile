@@ -105,6 +105,7 @@ export interface ElectronServiceAPI {
    * @returns a Promise that resolves when the deeplink has been triggered
    * @throws Error if appBinaryPath is not configured (Windows only)
    * @throws Error if the URL is invalid or uses http/https/file protocols
+   * @throws Error on macOS in a multiremote session where two instances run the same app
    *
    * @example
    * ```ts

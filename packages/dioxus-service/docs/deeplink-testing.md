@@ -87,6 +87,12 @@ The service handles platform-specific differences automatically:
 
 - Uses `xdg-open` to trigger the deeplink.
 
+## Multiremote
+
+In a session where two instances run the same app, `triggerDeeplink()` throws, on every instance and on the root. It opens the URL through the OS, which can't pick one of two copies of the same app: it starts another copy or hands the URL to either one.
+
+When each instance runs a different app, the call goes through, but the OS opens the URL in the app that handles its scheme, not necessarily the calling instance's. A root call opens it only once.
+
 ## App Implementation
 
 Your Dioxus app needs to listen for deeplinks. The implementation depends on how you register the URL scheme. A typical pattern:

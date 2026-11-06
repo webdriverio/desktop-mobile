@@ -65,6 +65,15 @@ describe('triggerDeeplink', () => {
     await expect(triggerDeeplink('not a url')).rejects.toThrow(/Invalid deeplink URL/);
   });
 
+  it('should refuse to open the URL when two multiremote instances run the same app', async () => {
+    await expect(triggerDeeplink('myapp://open', { instancesShareApp: true })).rejects.toMatchObject({
+      message: expect.stringContaining(
+        "triggerDeeplink() can't reach a multiremote instance when two instances run the same app",
+      ),
+    });
+    expect(executeDeeplinkCommand).not.toHaveBeenCalled();
+  });
+
   it('should propagate spawn failures from native-core', async () => {
     vi.mocked(executeDeeplinkCommand).mockRejectedValueOnce(new Error('ENOENT'));
 
