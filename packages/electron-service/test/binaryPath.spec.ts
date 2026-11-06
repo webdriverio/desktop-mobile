@@ -1,4 +1,3 @@
-// @vitest-environment node
 import fs from 'node:fs/promises';
 import { normalize } from 'node:path';
 import type { AppBuildInfo, BuilderConfig } from '@wdio/native-types';
