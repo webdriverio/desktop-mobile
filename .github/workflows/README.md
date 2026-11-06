@@ -29,6 +29,7 @@ The `release.yml` workflow handles both manual and automated releases using the 
 Automated releases trigger when CI completes on `main` with release labels on merged PRs. The `release-preview.yml` workflow runs on PRs to show what will be released.
 
 **Release Labels:**
+
 - **Scope labels** (prefix `scope:`):
   - `scope:electron` - Release Electron packages
   - `scope:tauri` - Release Tauri packages
@@ -41,6 +42,7 @@ Automated releases trigger when CI completes on `main` with release labels on me
   - `release:stable` - Use with bump labels to clean prerelease to stable
 
 **Examples:**
+
 - `scope:electron` + `bump:major` → Electron packages at major bump
 - `scope:tauri` + `bump:minor` → Tauri packages at minor bump
 
@@ -51,6 +53,7 @@ Automated releases trigger when CI completes on `main` with release labels on me
 ## Dry Runs
 
 Always run with `dry_run: true` first to verify:
+
 - Correct packages will be released
 - Version numbers are as expected
 - Changelog entries are correct

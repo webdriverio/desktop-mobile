@@ -16,6 +16,7 @@ Current browser version is 143.0.3650.139
 ## The Solution
 
 The tauri-service automatically:
+
 1. **Detects** your Edge browser version from Windows registry
 2. **Checks** if a matching msedgedriver.exe exists
 3. **Downloads** the correct version if needed (enabled by default)
@@ -69,6 +70,7 @@ With auto-download disabled, you must ensure msedgedriver matches your Edge vers
 ### 1. Version Detection
 
 The service detects Edge version from:
+
 - Windows Registry: `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}`
 - WMIC query: `wmic datafile where name="C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" get Version`
 
@@ -79,6 +81,7 @@ Checks if msedgedriver.exe in PATH matches the detected Edge version (major vers
 ### 3. Download & Install
 
 If mismatch detected:
+
 - Downloads msedgedriver from `https://msedgedriver.azureedge.net/{version}/`
 - Caches in temp directory: `%TEMP%\msedgedriver\{majorVersion}\`
 - Passes it to tauri-driver by path, so a `PATH` in the app's `env` can't hide it. A `nativeDriverPath` you set takes precedence.
@@ -93,6 +96,7 @@ Current browser version is 149.0.4022.98 ... tauri-e2e-app.exe
 ```
 
 The service resolves the target version in this precedence order:
+
 1. **Explicit pin** — the `edgeDriverVersion` service option, or the `EDGEDRIVER_VERSION` environment variable, is used as the exact msedgedriver version verbatim (a CI escape hatch for the next Evergreen drift that breaks automation).
 2. **Fixed-version runtime folder** — if `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, the runtime version is read from the `msedgewebview2.exe` in that folder, and the driver is matched to it. This is read from the first capability's `env` option (or the service-level one) first, then `process.env`, which is what the app gets.
 3. **Evergreen** — the installed runtime from the registry (the default, and the canary that catches runtime regressions).
@@ -141,11 +145,13 @@ services: [
 ### "Failed to download msedgedriver"
 
 **Causes**:
+
 - Network/proxy issues
 - Microsoft's CDN temporarily unavailable
 - Invalid Edge version format
 
 **Solutions**:
+
 1. Check internet connection and proxy settings
 2. Retry - CDN may be temporarily down
 3. Manual download from https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/
@@ -162,10 +168,12 @@ services: [
 **Symptom**: Download works locally but fails in CI
 
 **Causes**:
+
 - GitHub Actions runners may have outdated Edge
 - Network restrictions
 
 **Solutions**:
+
 ```yaml
 # .github/workflows/test.yml
 - name: Update Edge (if needed)
@@ -285,6 +293,7 @@ msedgedriver.exe --version
 ### Cache Location
 
 Downloaded drivers are cached at:
+
 ```
 %TEMP%\msedgedriver\{majorVersion}\msedgedriver.exe
 ```
@@ -294,6 +303,7 @@ Example: `C:\Users\YourName\AppData\Local\Temp\msedgedriver\143\msedgedriver.exe
 ### Logging
 
 Enable debug logs to troubleshoot:
+
 ```javascript
 export const config = {
   logLevel: 'debug',

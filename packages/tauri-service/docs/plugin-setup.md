@@ -3,6 +3,7 @@
 ## Overview
 
 The `tauri-plugin-wdio` is a **required** Tauri plugin that enables WebdriverIO testing of Tauri applications. It provides:
+
 - **Execute API** - Run JavaScript in the app's frontend from tests, and call its commands
 - **Mocking Support** - Mock Tauri backend commands for isolated testing
 - **Log Forwarding** - Capture console logs from both frontend and backend
@@ -41,6 +42,7 @@ Error: Tauri plugin not available. Make sure @wdio/tauri-plugin is installed and
 ### What Works Without the Plugin
 
 Only basic WebDriver operations work without the plugin:
+
 - Element interactions (click, type, etc.)
 - Navigation and page access
 - Basic WebDriver commands
@@ -48,6 +50,7 @@ Only basic WebDriver operations work without the plugin:
 ### What Requires the Plugin
 
 All advanced testing features require the plugin:
+
 - ✅ `browser.tauri.execute()` - Run JavaScript in the frontend and call commands
 - ✅ `browser.tauri.mock()` - Mock backend commands
 - ✅ All mocking operations
@@ -148,6 +151,7 @@ Make sure `withGlobalTauri` is enabled in `src-tauri/tauri.conf.json`:
 Import the frontend plugin in your main frontend entry file (usually `index.html` or `main.ts`):
 
 **In HTML:**
+
 ```html
 <script type="module">
   import '@wdio/tauri-plugin';
@@ -155,6 +159,7 @@ Import the frontend plugin in your main frontend entry file (usually `index.html
 ```
 
 **In TypeScript/JavaScript:**
+
 ```typescript
 import '@wdio/tauri-plugin';
 ```
@@ -162,6 +167,7 @@ import '@wdio/tauri-plugin';
 `@wdio/tauri-plugin` uses your app's `@tauri-apps/api` (2.10 or later) rather than bringing its own copy.
 
 This import must happen **before** your tests run. The plugin auto-initializes on import and sets up:
+
 - `window.wdioTauri` API
 - Console forwarding
 - Invoke interception for mocking
@@ -206,6 +212,7 @@ it('should execute JavaScript', async () => {
 ### "Tauri plugin not available" Error
 
 This means the plugin is not detected. Check:
+
 1. **Plugin registered in Rust**
 
    ```rust
@@ -234,6 +241,7 @@ This means the plugin is not detected. Check:
 ### "window.wdioTauri is undefined" Error
 
 The frontend plugin didn't initialize. Make sure:
+
 1. The import statement is in your **main entry point**, before tests run
 2. You're not running in an iframe or separate context
 3. The app has time to initialize (add a small delay if needed):
@@ -251,6 +259,7 @@ it('should have wdioTauri', async () => {
 ### Mocking Doesn't Work
 
 Make sure:
+
 1. Plugin is installed and available (see verification methods above)
 2. You're using `browser.tauri.mock()`, not trying to mock directly
 3. The mock is set up **before** calling the command:
@@ -271,6 +280,7 @@ const mock = await browser.tauri.mock('my_command');
 ### Plugin Compilation Errors
 
 If you get Rust compilation errors:
+
 1. **Ensure Rust toolchain is up to date**
 
    ```bash
@@ -301,6 +311,7 @@ If you get Rust compilation errors:
 ### How It Works
 
 The plugin consists of two parts:
+
 1. **Rust Backend** (`packages/tauri-plugin/src/`)
    - Provides Tauri commands: `execute`, `log_frontend`, `debug_plugin`
    - Handles script execution via `window.eval()`
@@ -315,6 +326,7 @@ The plugin consists of two parts:
 ### Plugin Lifecycle
 
 When you import `@wdio/tauri-plugin`:
+
 1. Plugin code loads and detects Tauri APIs
 2. Sets up console forwarding
 3. Sets up invoke interception for mocking
@@ -325,6 +337,7 @@ When you import `@wdio/tauri-plugin`:
 ### Permissions Detail
 
 The `wdio:default` permission includes every plugin command:
+
 - `wdio:allow-execute` - Execute JavaScript in frontend context
 - `wdio:allow-emit-deep-link` - Emit a deep link for `triggerDeeplink()`
 - `wdio:allow-log-frontend` - Forward frontend logs
@@ -350,6 +363,7 @@ If you want a smaller surface, you can grant a subset — `wdio:allow-execute` a
 ### Should I Include the Plugin in Production?
 
 **No**, the plugin is **test-only**. For production builds:
+
 1. **Conditionally register the plugin**
 
    ```rust
@@ -401,6 +415,7 @@ If you want a smaller surface, you can grant a subset — `wdio:allow-execute` a
 ### Plugin Security
 
 The plugin:
+
 - Only accepts code from WebdriverIO service (not from page scripts)
 - Cannot access browser or system permissions without being granted
 - Is disabled in production builds
@@ -409,6 +424,7 @@ The plugin:
 ## Next Steps
 
 Once the plugin is installed and verified:
+
 1. Read [Quick Start](./quick-start.md) for minimal test setup
 2. See [API Reference](./api-reference.md) for available functions
 3. Check [Usage Examples](./usage-examples.md) for testing patterns
@@ -487,6 +503,7 @@ services: [
 ```
 
 Or set the port via environment variable:
+
 ```bash
 TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
 ```

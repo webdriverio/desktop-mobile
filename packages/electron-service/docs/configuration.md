@@ -116,6 +116,7 @@ Here are some examples of binary paths using default build configurations for a 
 Electron Builder names other architectures' folders the same way, such as `win-ia32-unpacked` and `linux-armv7l-unpacked`. Setting its `defaultArch` changes the names: see [Which build is used](#which-build-is-used).
 
 Note:
+
 - The above examples assume electron-builder's `"directories": { "output": "dist-electron" }` config (default is `"dist"`). Your actual binary path depends on your electron-builder configuration.
 - Electron Forge uses a standardised output directory which can be represented as `out/{appName}-{OS}-{arch}`
 
@@ -168,6 +169,7 @@ Controls which test execution mode the service uses.
 Type: `'native' | 'browser'`
 
 Default: `'native'`
+
 - **`'native'`** (default) — launches your packaged Electron app via Chromedriver, establishes a CDP bridge to the main process, and provides the full `browser.electron.*` API surface.
 - **`'browser'`** — skips binary detection, Chromedriver setup, and the CDP bridge entirely. The service sets `browserName` to `'chrome'` and navigates to `devServerUrl`. IPC calls are intercepted at the `window.electron.ipcRenderer` JavaScript boundary, making it suitable for fast renderer-only tests against a running dev server.
 
@@ -224,6 +226,7 @@ Default: `3`
 ### `apparmorAutoInstall`:
 
 Control automatic installation of AppArmor profiles on Linux if needed. This helps resolve Electron startup issues on Ubuntu 24.04+ and other AppArmor-enabled Linux distributions where unprivileged user namespace restrictions prevent Electron from starting.
+
 - `false` (default): Never install; warn and continue without AppArmor profile
 - `true`: Install only if running as root (no sudo)
 - `'sudo'`: Install if root or via non-interactive sudo (`sudo -n`) if available
@@ -423,11 +426,13 @@ Each instance applies `captureMainProcessLogs`, `captureRendererLogs`, `mainProc
 ## Log Capture Requirements
 
 **Main Process Logs:**
+
 - Requires the `EnableNodeCliInspectArguments` Electron fuse to be enabled
 - Requires CDP bridge connection to main process
 - If CDP bridge is unavailable (e.g., fuse disabled), main process log capture will be disabled with a warning
 
 **Renderer Process Logs:**
+
 - Uses Puppeteer CDP sessions - works independently of main process CDP bridge
 - Does NOT require the `EnableNodeCliInspectArguments` fuse
 - Will continue to work even if main process CDP bridge is unavailable
@@ -463,6 +468,7 @@ To use a different build, set [`appBinaryPath`](#appbinarypath).
 ### Build tool compatibility
 
 The v10 release is exercised in CI against:
+
 - **electron-builder** 26.x
 - **@electron-forge/cli** 7.x
 

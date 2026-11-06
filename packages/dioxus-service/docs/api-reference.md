@@ -11,12 +11,14 @@ The following methods are available on the `browser.dioxus` object when connecte
 Execute JavaScript code in the Dioxus webview context with access to Dioxus IPC APIs. Requires `wdio_dioxus::install(config)` in your app. See [App Setup](./app-setup.md).
 
 **Parameters:**
+
 - `script` (Function | string) - JavaScript code to execute. If a function, receives a `DioxusAPIs` object (`dx`) as the first parameter
 - `...args` (any[]) - Additional arguments passed to the script
 
 **Returns:** `Promise<ReturnValue>`
 
 **`DioxusAPIs` (`dx`) object:**
+
 ```typescript
 interface DioxusAPIs {
   invoke: (command: string, args?: unknown) => Promise<unknown>;
@@ -31,6 +33,7 @@ interface DioxusAPIs {
 ```
 
 **Example:**
+
 ```typescript
 // Execute with destructured DioxusAPIs
 const result = await browser.dioxus.execute(({ invoke }) => {
@@ -60,11 +63,13 @@ const href = await browser.dioxus.execute('window.location.href');
 Mock a specific Dioxus backend command. Returns a `DioxusMock` object for configuring the mock behavior.
 
 **Parameters:**
+
 - `command` (string) - Name of the Dioxus command to mock (must match what your app passes to `invoke()`)
 
 **Returns:** `Promise<DioxusMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.dioxus.mock('read_file');
 await mock.mockReturnValue('mocked file content');
@@ -83,11 +88,13 @@ expect(content).toBe('mocked file content');
 Check if a value is a Dioxus mock function. This is a TypeScript type guard.
 
 **Parameters:**
+
 - `fn` (unknown) - Value to check
 
 **Returns:** `boolean` (type narrows to `DioxusMockInstance` when true)
 
 **Example:**
+
 ```typescript
 const mock = await browser.dioxus.mock('clipboard_read');
 if (browser.dioxus.isMockFunction(mock)) {
@@ -103,11 +110,13 @@ if (browser.dioxus.isMockFunction(mock)) {
 Clear all mock call history and reset results, but keep the mock implementations in place. In multiremote, an instance clears only its own mocks, and the root clears every instance's.
 
 **Parameters:**
+
 - `commandPrefix` (string, optional) - If provided, only mocks with command names starting with this prefix will be cleared
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 // Clear all mocks
 await browser.dioxus.clearAllMocks();
@@ -123,6 +132,7 @@ await browser.dioxus.clearAllMocks('clipboard');
 Reset all mocks to their initial state (clears implementations and call history). In multiremote, an instance resets only its own mocks, and the root resets every instance's.
 
 **Parameters:**
+
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are reset
 
 **Returns:** `Promise<void>`
@@ -134,11 +144,13 @@ Reset all mocks to their initial state (clears implementations and call history)
 Remove all mocks and restore original command implementations. In multiremote, an instance restores only its own mocks, and the root restores every instance's.
 
 **Parameters:**
+
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are restored
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 await browser.dioxus.restoreAllMocks();
 // Commands now call the real Dioxus backend again
@@ -151,11 +163,13 @@ await browser.dioxus.restoreAllMocks();
 Switch the active Dioxus window for subsequent operations. Changes the window that `browser.dioxus.execute()` and other Dioxus-specific operations target.
 
 **Parameters:**
+
 - `label` (string) - The window label to switch to. Windows are labelled in the order they open: `'main'`, then `'window-1'`, `'window-2'` and so on
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 // Switch to the second window the app opened
 await browser.dioxus.switchWindow('window-1');
@@ -178,6 +192,7 @@ Get a list of all available Dioxus window labels in the application.
 **Returns:** `Promise<string[]>`
 
 **Example:**
+
 ```typescript
 const windows = await browser.dioxus.listWindows();
 console.log(windows); // ['main', 'window-1']
@@ -190,11 +205,13 @@ console.log(windows); // ['main', 'window-1']
 Trigger a deeplink to the Dioxus application for testing protocol handlers. Uses platform-specific commands (`open` on macOS, `xdg-open` on Linux, `cmd /c start` on Windows).
 
 **Parameters:**
+
 - `url` (string) - The deeplink URL to trigger (e.g., `'myapp://open?file=test.txt'`)
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 await browser.dioxus.triggerDeeplink('myapp://open?file=test.txt');
 
@@ -225,6 +242,7 @@ Set a custom implementation function for the mock.
 **Returns:** `Promise<DioxusMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.dioxus.mock('calculate');
 await mock.mockImplementation(async (args) => args.x + args.y);
@@ -250,6 +268,7 @@ Set the mock to always return a specific value.
 **Returns:** `Promise<DioxusMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.dioxus.mock('get_user');
 await mock.mockReturnValue({ id: 1, name: 'John' });
@@ -264,6 +283,7 @@ Set the mock to return a specific value for the next call only.
 **Returns:** `Promise<DioxusMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.dioxus.mock('counter');
 await mock.mockReturnValueOnce(1);
@@ -296,6 +316,7 @@ Set the mock to return a promise that rejects with an error.
 **Returns:** `Promise<DioxusMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.dioxus.mock('risky_operation');
 await mock.mockRejectedValue(new Error('Operation failed'));
@@ -372,6 +393,7 @@ Temporarily use a different implementation while a callback runs, and return the
 **Returns:** `Promise<ReturnValue>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.dioxus.mock('my_command');
 await mock.mockReturnValue('default');
@@ -403,12 +425,14 @@ console.log(after); // 'default'
 Initialize the Dioxus service in standalone mode. Use this when you want to manage the session manually outside of WebdriverIO's lifecycle.
 
 **Parameters:**
+
 - `capabilities` (Capabilities) - WebdriverIO capabilities with Dioxus options
 - `globalOptions?` (DioxusServiceGlobalOptions & StandaloneSessionOptions) - Global service and standalone session options
 
 **Returns:** `Promise<Browser>`
 
 **Example:**
+
 ```typescript
 import { startWdioSession } from '@wdio/dioxus-service';
 

@@ -117,6 +117,7 @@ void main() {
 ```
 
 Build a debug app:
+
 - **Android**: `flutter build apk --debug`
 - **iOS** (simulator): `flutter build ios --debug --simulator`
 

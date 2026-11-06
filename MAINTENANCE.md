@@ -16,16 +16,19 @@ This repository **does not maintain LTS or backport branches**. Each service rec
 ### Why This Approach
 
 **Multi-service monorepo complexity:**
+
 - Different services at different maturity levels (Electron v10, Tauri v1)
 - Services evolve at different paces with different release cycles
 - Backporting across multiple services would be complex and error-prone
 
 **Resource optimization:**
+
 - Focuses maintainer effort on moving forward rather than maintaining multiple versions
 - Reduces testing and release overhead
 - Allows faster iteration and innovation
 
 **Aligns with project goals:**
+
 - Agile development approach
 - Rapid integration of new features
 - Community-driven with limited maintainer bandwidth
@@ -33,11 +36,13 @@ This repository **does not maintain LTS or backport branches**. Each service rec
 ### Comparison with Parent Project
 
 The parent [WebdriverIO project](https://github.com/webdriverio/webdriverio) **does support LTS and backporting**:
+
 - Maintains 2 major versions simultaneously
 - Uses `backport-requested` labels for cherry-picking fixes
 - Has dedicated maintenance branches (e.g., `v8.x`)
 
 This difference is intentional and reflects:
+
 - WebdriverIO core has larger team and user base
 - desktop-mobile services are newer with smaller adoption
 - Different resource availability
@@ -55,6 +60,7 @@ This difference is intentional and reflects:
 Check npm or each package's `package.json` for current version numbers.
 
 **Legend:**
+
 - ✅ Active - Receives all updates
 - ⚠️ Security Only - Only critical security fixes (none currently)
 - ❌ Unsupported - No longer maintained
@@ -90,6 +96,7 @@ Pre-release packages (`-next.X`) may have more frequent updates during active de
 ## Security Policy
 
 While we don't backport general fixes, **security vulnerabilities are treated differently**:
+
 1. Critical security issues in current versions are fixed immediately
 2. Security issues in previous major versions are evaluated case-by-case
 3. If feasible and impact is severe, security patches may be backported
@@ -99,6 +106,7 @@ To report security vulnerabilities, contact the maintainers privately (not via p
 ## Migration Support
 
 When major versions are released, we provide:
+
 - **Migration guides** - Documentation of breaking changes
 - **Deprecation warnings** - Advanced notice in previous versions when possible
 - **Community support** - Help via Discord and Discussions

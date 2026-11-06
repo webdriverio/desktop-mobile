@@ -134,6 +134,7 @@ Workaround: use the `embedded` provider on Linux for visual testing. The `extern
 CrabNebula's macOS driver captures via OS-level Screen Recording (AVFoundation / ScreenCaptureKit). Hosted GitHub Actions macOS runners can't grant Screen Recording permission programmatically (TCC has no scriptable approval path on hosted runners), so visual specs hang or error.
 
 Workarounds:
+
 - Run visual tests against the `embedded` provider on macOS CI.
 - Use a self-hosted macOS runner with TCC pre-populated.
 - Skip `crabnebula × macOS-CI × visual` from your matrix and rely on Linux / Windows coverage.
@@ -145,6 +146,7 @@ Visual testing doesn't work with Dioxus yet: the embedded driver's screenshots a
 ## Asserting native UI behaviour without pixels
 
 The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. Use your framework service's mock APIs instead — they intercept at the framework layer, where the native UI originates. The shape varies per framework; examples:
+
 - **Electron** — see [API Reference](../packages/electron-service/docs/api-reference.md):
 
   ```ts

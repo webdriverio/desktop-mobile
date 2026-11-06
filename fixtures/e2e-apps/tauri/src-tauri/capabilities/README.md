@@ -5,6 +5,7 @@ This directory contains capability files that define the ACL (Access Control Lis
 ## WebDriverIO Plugin Permissions
 
 The `@wdio/tauri-plugin` exposes the following permissions:
+
 - `wdio:allow-execute` - Allows executing JavaScript in the frontend with access to Tauri APIs
 - `wdio:allow-emit-deep-link` - Allows `triggerDeeplink()` to emit a deep link in the app
 - `wdio:allow-log-frontend` - Allows the plugin to forward frontend logs through Rust's logger

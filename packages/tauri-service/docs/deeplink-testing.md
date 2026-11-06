@@ -11,6 +11,7 @@ Deeplink testing allows you to verify that your Tauri application correctly hand
 ### When Should You Use It?
 
 Use `browser.tauri.triggerDeeplink()` when you need to:
+
 - Test that your app correctly handles custom protocol URLs
 - Verify deeplink parameter parsing and routing logic
 - Test protocol handler registration and activation, on the providers that open the URL through the OS (see [How the Deeplink Reaches Your App](#how-the-deeplink-reaches-your-app))

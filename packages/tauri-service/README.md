@@ -63,14 +63,17 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 ## Documentation
 
 **Getting Started**
+
 - [Quick Start Guide](./docs/quick-start.md) - Set up in minutes
 - [Plugin Setup](./docs/plugin-setup.md) - Install tauri-plugin-wdio
 
 **Reference**
+
 - [Configuration](./docs/configuration.md) - All service options
 - [API Reference](./docs/api-reference.md) - Complete API documentation
 
 **Guides**
+
 - [Browser Mode](./docs/browser-mode.md) - Test the renderer in Chrome without a Tauri binary
 - [Usage Examples](./docs/usage-examples.md) - Common testing patterns
 - [Log Forwarding](./docs/log-forwarding.md) - Capture app logs
@@ -80,6 +83,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 - [Video Recording](../../docs/video-recording.md) - Record video of test runs with `wdio-video-reporter`
 
 **Help & Support**
+
 - [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions
 - [Development](./docs/development.md) - Contributing guide
 
@@ -105,6 +109,7 @@ Check out the E2E test fixtures in the [desktop-mobile repository](https://githu
 ## Support
 
 Having trouble? Here are some resources:
+
 1. **[Troubleshooting Guide](./docs/troubleshooting.md)** - Solutions for common issues
 2. **[GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)** - Bug reports and feature requests for tauri-service
 3. **[WebdriverIO Forum](https://github.com/webdriverio/webdriverio/discussions)** - General community help and discussions
@@ -112,6 +117,7 @@ Having trouble? Here are some resources:
 ## Contributing
 
 We welcome contributions! Please see our [Development Guide](./docs/development.md) for:
+
 - Setting up your development environment
 - Running tests
 - Code style guidelines

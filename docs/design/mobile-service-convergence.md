@@ -223,6 +223,7 @@ appium-service direction question (Sequencing step 3) — the convergence happen
 The `add-native-service` skill is the right **mechanics checklist** for this build (Appium plumbing, CI
 shape, fixtures, tests, release). But this service is a **base/substrate**, not a leaf framework
 service, so several of the skill's _default motions do not apply_ — a plan must consciously skip them:
+
 - **Extract-up, not clone-a-sibling.** The build _promotes_ an existing library (`native-mobile-core`),
   most of which already exists — it is not a fresh clone of RN.
 - **A base, not a leaf.** Design the worker for subclassing (the per-instance realm-bridge seam;

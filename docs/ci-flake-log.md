@@ -9,6 +9,7 @@ over time to raise the **first-time pass rate** of CI.
 ## How to use
 
 When a CI run goes red (or suspiciously green) on something unrelated to the change:
+
 1. Match each failure to a class below (or add a new one: `F#` transient red, `E#`
    deterministic — retry won't help, `C#` cache/silent-pass trap).
 2. Append a row to the **Occurrence log** (newest first): date, run id, PR, job, class.
@@ -35,6 +36,7 @@ When a CI run goes red (or suspiciously green) on something unrelated to the cha
 | **F15** | Tauri Windows CrabNebula late plugin          | `Tauri plugin not available. Make sure @wdio/tauri-plugin is installed and registered in your Tauri app.` on the first test of a spec in the first batch, on all three attempts. The worker log (`crabnebula-standard-tauri\<spec>-0-N.log`) shows the plugin check returning `false` for about 55 s. The external and embedded passes in the same job pass                                       | `E2E - Tauri [Windows] - standard` (CrabNebula provider)                                              | Unfixed, cause unknown. `window.wdioTauri` appears about 55 s late in one or two of the five apps that start together, while specs in later batches find it at once. Waiting longer in the service would hide the delay. Rerun clears                                                                                                                                                                                        |
 
 **Allow-listed (expected red, not counted against pass rate):**
+
 - **WebView2 150 elevated-host regression (#542 / WebView2Feedback #5645)** — runner Edge
   149→150 broke Windows CDP E2E for **official Tauri + Electrobun** providers (session
   timeout; by-design elevated-host hardening). Our **embedded** Tauri driver is immune.
@@ -117,6 +119,7 @@ Not the PR's fault, but not flakes either.
 ## Priority to raise first-time pass rate
 
 Ranked by recurrence × fixability observed so far:
+
 1. **F1 (Tauri macOS #540)** — most frequent; fix already in flight (#553). Land it.
 2. **F2 (Electron Windows E2E teardown)** — recurs on every full-matrix run; no owner. Best next target.
 3. **C4 (inline docker false green)** — silent, actively hiding failures; cheap to fix.

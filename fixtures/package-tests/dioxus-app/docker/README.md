@@ -14,6 +14,7 @@ The crucial difference from the [Tauri Docker harness](../../tauri-app/docker/RE
 the Dioxus fixture uses the **`'embedded'` driver provider**. The WebDriver server is
 compiled _into_ the app from `wdio-dioxus-embedded-driver`, so there is **no system
 `WebKitWebDriver` binary to detect or install**. These images therefore:
+
 - install only the WebKitGTK **build** dependencies (Wry links against `webkit2gtk-4.1`);
 - **omit** `webkit2gtk-driver` / `webkitgtk-6.0` and the `WebKitWebDriver` lookup;
 - verify the build invariant with `pkg-config --exists webkit2gtk-4.1` instead.
@@ -48,6 +49,7 @@ each distro's WebKitGTK — not driver discovery.
 
 Same exclusions as the Tauri harness, for the same reasons (they are properties of
 WebKitGTK on Linux, not of the driver model):
+
 - **Alpine** — musl/static linking is incompatible with GTK/WebKit (no static libs).
 - **CentOS Stream 9 / RHEL 9** — glib too old for the WebKitGTK stack.
 - **CentOS Stream 10 / RHEL 10** — WebKitGTK removed by Red Hat.
@@ -66,6 +68,7 @@ The CI runner (Node 24, full workspace toolchain) builds the packages and packs 
 to tarballs _before_ Docker starts; the container receives them via a `/tarballs`
 bind-mount and never runs the workspace toolchain itself — no `pnpm install`, Turbo, or
 `.ts` execution, which is what broke on the container's older Node (#350). Per container:
+
 1. Build the Docker image (system packages, Node 24, Rust toolchain, WebKitGTK build deps).
 2. Mount the workspace at `/workspace` and the packed tarballs at `/tarballs`; start Xvfb.
 3. Verify the bridge guest-js bundle (`packages/dioxus-bridge/dist-js/index.js`) is present —

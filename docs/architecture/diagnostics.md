@@ -16,6 +16,7 @@ interface DiagnosticResult {
 ## Standard Checks
 
 All services should check:
+
 - **Platform** — OS, arch, Node version
 - **Binary** — App exists, is executable, correct permissions
 - **Driver** — Required driver found and correct version

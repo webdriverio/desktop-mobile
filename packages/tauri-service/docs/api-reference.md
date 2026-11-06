@@ -11,12 +11,14 @@ The following methods are available on the `browser.tauri` object when connected
 Execute JavaScript code in the Tauri frontend context. Requires tauri-plugin-wdio to be installed and configured.
 
 **Parameters:**
+
 - `script` (Function | string) - JavaScript code to execute. If a function, it receives `{ core: { invoke } }` as the first parameter. `core.invoke` goes through any mocks set up in that window with `browser.tauri.mock()`.
 - `...args` (any[]) - Additional arguments passed to the script
 
 **Returns:** `Promise<Awaited<ReturnValue>>`
 
 **Example:**
+
 ```typescript
 // Call your app's commands
 const info = await browser.tauri.execute(({ core }) => core.invoke<PlatformInfo>('get_platform_info'));
@@ -44,6 +46,7 @@ Emit a Tauri event to all listeners registered via `listen()` or `once()` in the
 The call skips any mocks of `plugin:event|emit` / `plugin:event|emit_to`, so it always reaches the listeners. On the multiremote root, it emits on every instance.
 
 **Parameters:**
+
 - `event` (string) - The event name to emit
 - `payload?` (T) - Optional payload, JSON-serialized to listeners
 - `target?` (string | TauriEventTarget) - Optional target. A string is a label, the same as `{ kind: 'AnyLabel', label }`. A listener receives the event when:
@@ -56,6 +59,7 @@ The call skips any mocks of `plugin:event|emit` / `plugin:event|emit_to`, so it 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 // Frontend subscribes via @tauri-apps/api/event
 import { listen } from '@tauri-apps/api/event';
@@ -74,6 +78,7 @@ await browser.tauri.emitEvent('focus-window', undefined, 'main');
 **Browser Mode:** Routes through the in-page registry installed by the IPC injection. `listen()`, `once()`, and `unlisten()` work as expected. See the [Events section in the Browser Mode guide](./browser-mode.md#events) for details.
 
 **See Also:**
+
 - [Browser Mode Guide — Events](./browser-mode.md#events)
 
 ---
@@ -83,11 +88,13 @@ await browser.tauri.emitEvent('focus-window', undefined, 'main');
 Mock a specific Tauri backend command. Returns a TauriMock object for configuring the mock behavior.
 
 **Parameters:**
+
 - `command` (string) - Name of the Tauri command to mock
 
 **Returns:** `Promise<TauriMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.tauri.mock('read_file');
 await mock.mockReturnValue('mocked file content');
@@ -121,6 +128,7 @@ See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 **Multiremote:** Each instance has its own mocks. `browser.getInstance('app1').tauri.mock('read_file')` and `browser.getInstance('app2').tauri.mock('read_file')` return different mocks, each registered in its own app. `clearAllMocks()`, `resetAllMocks()`, `restoreAllMocks()` and `isMockFunction('read_file')` on an instance only see that instance's mocks. On the multiremote root, they cover every instance.
 
 **See Also:**
+
 - [Browser Mode Guide](./browser-mode.md)
 
 ---
@@ -130,11 +138,13 @@ See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 Check if a value is a Tauri mock function. This is a TypeScript type guard.
 
 **Parameters:**
+
 - `fn` (unknown) - Value to check
 
 **Returns:** `boolean` (type narrows to `TauriMockInstance` when true)
 
 **Example:**
+
 ```typescript
 const mock = await browser.tauri.mock('clipboard_read');
 if (browser.tauri.isMockFunction(mock)) {
@@ -150,11 +160,13 @@ if (browser.tauri.isMockFunction(mock)) {
 Clear all mock call history and reset results, but keep the mock implementations in place. In multiremote, an instance clears only its own mocks, and the root clears every instance's.
 
 **Parameters:**
+
 - `commandPrefix` (string, optional) - If provided, only mocks with command names starting with this prefix will be cleared
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 // Clear all mocks
 await browser.tauri.clearAllMocks();
@@ -170,6 +182,7 @@ await browser.tauri.clearAllMocks('clipboard');
 Reset all mocks to their initial state (clears implementations and call history). In multiremote, an instance resets only its own mocks, and the root resets every instance's.
 
 **Parameters:**
+
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are reset
 
 **Returns:** `Promise<void>`
@@ -181,11 +194,13 @@ Reset all mocks to their initial state (clears implementations and call history)
 Remove all mocks and restore original command implementations. In multiremote, an instance restores only its own mocks, and the root restores every instance's.
 
 **Parameters:**
+
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are restored
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 await browser.tauri.restoreAllMocks();
 // Commands now call the real Tauri backend again
@@ -198,11 +213,13 @@ await browser.tauri.restoreAllMocks();
 Trigger a deeplink to the Tauri application for testing protocol handlers. With the `embedded` provider, and CrabNebula on macOS, it has tauri-plugin-wdio emit the deep-link plugin's `deep-link://new-url` event inside the app, which needs `wdio:allow-emit-deep-link` in the app's capabilities (`wdio:default` includes it). Otherwise it opens the URL through the OS (`rundll32` on Windows, `gio open` on Linux). Either way, the app's `onOpenUrl` / `on_open_url` handlers receive it. On Windows and Linux, the OS route needs the single-instance plugin; see [How the Deeplink Reaches Your App](./deeplink-testing.md#how-the-deeplink-reaches-your-app).
 
 **Parameters:**
+
 - `url` (string) - The deeplink URL to trigger (e.g., `'myapp://open?file=test.txt'`)
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 await browser.tauri.triggerDeeplink('myapp://open?file=test.txt');
 
@@ -227,11 +244,13 @@ See [Deeplink Testing](./deeplink-testing.md) for full usage guide.
 Switch the active Tauri window for subsequent operations. Changes the window that `browser.tauri.execute()` and other Tauri-specific operations target. Existing mocks stay in the window they were created in.
 
 **Parameters:**
+
 - `label` (string) - The window label to switch to (e.g., `'main'`, `'settings'`)
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```typescript
 // Switch to the settings window
 await browser.tauri.switchWindow('settings');
@@ -256,6 +275,7 @@ Get a list of all available Tauri window labels in the application.
 **Returns:** `Promise<string[]>`
 
 **Example:**
+
 ```typescript
 const windows = await browser.tauri.listWindows();
 console.log(windows); // ['main', 'settings', 'dialog']
@@ -270,12 +290,14 @@ console.log(windows); // ['main', 'settings', 'dialog']
 The `execute` method supports optional per-call options to override session defaults:
 
 **Parameters:**
+
 - `script` (Function | string) - JavaScript code to execute
 - `options` (object, optional) - Per-call execution options
   - `windowLabel` (string) - Override the default window for this call only
 - `...args` (any[]) - Additional arguments passed to the script
 
 **Example:**
+
 ```typescript
 import { withExecuteOptions } from '@wdio/tauri-service';
 
@@ -306,6 +328,7 @@ Set a custom implementation function for the mock.
 **Returns:** `Promise<TauriMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.tauri.mock('calculate');
 await mock.mockImplementation(async (args) => args.x + args.y);
@@ -331,6 +354,7 @@ Set the mock to always return a specific value.
 **Returns:** `Promise<TauriMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.tauri.mock('get_user');
 await mock.mockReturnValue({ id: 1, name: 'John' });
@@ -345,6 +369,7 @@ Set the mock to return a specific value for the next call only.
 **Returns:** `Promise<TauriMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.tauri.mock('counter');
 await mock.mockReturnValueOnce(1);
@@ -377,6 +402,7 @@ Set the mock to return a promise that rejects with an error.
 **Returns:** `Promise<TauriMock>`
 
 **Example:**
+
 ```typescript
 const mock = await browser.tauri.mock('risky_operation');
 await mock.mockRejectedValue(new Error('Operation failed'));
@@ -449,6 +475,7 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the mock's window like an `execute()` script, and receives the same `{ core: { invoke } }`. The implementation is restored when the callback returns, or when its promise settles.
 
 **Example:**
+
 ```typescript
 const mock = await browser.tauri.mock('my_command');
 await mock.mockReturnValue('default');
@@ -482,12 +509,14 @@ These functions are exported from `@wdio/tauri-service` for use in standalone mo
 Initialize the Tauri service in standalone mode. Use this when you want to manage the session manually outside of WebdriverIO's lifecycle.
 
 **Parameters:**
+
 - `capabilities` (Capabilities) - WebdriverIO capabilities with Tauri options
 - `globalOptions?` (TauriServiceGlobalOptions & StandaloneSessionOptions) - Global service and standalone session options
 
 **Returns:** `Promise<Browser>`
 
 **Example:**
+
 ```typescript
 import { startWdioSession } from '@wdio/tauri-service';
 
@@ -507,6 +536,7 @@ await browser.deleteSession();
 Clean up a Tauri session started with `startWdioSession`.
 
 **Parameters:**
+
 - `browser` (WebdriverIO.Browser) - Browser instance to clean up
 
 **Returns:** `Promise<void>`
@@ -518,12 +548,14 @@ Clean up a Tauri session started with `startWdioSession`.
 Create Tauri-specific capabilities for use in WebdriverIO config.
 
 **Parameters:**
+
 - `appBinaryPath` (string) - Path to the Tauri app binary
 - `options?` - Optional `appArgs`, `logLevel`, `startTimeout`, `driverProvider` and `autoInstallTauriDriver`. `appArgs` goes into `tauri:options.args`.
 
 **Returns:** `TauriCapabilities`
 
 **Example:**
+
 ```typescript
 import { createTauriCapabilities } from '@wdio/tauri-service';
 

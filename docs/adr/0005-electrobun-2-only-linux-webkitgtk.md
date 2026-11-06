@@ -33,6 +33,7 @@ possible in the first place.
 
 Adopting 2.0 unlocks the **Linux WebKitGTK** transport, a **W3C-WebDriver** path that sits alongside
 the existing CDP-attach paths:
+
 - **macOS** — CEF over CDP (unchanged).
 - **Windows** — native WebView2 over CDP (unchanged).
 - **Linux** — native WebKitGTK over **W3C WebDriver**: `WebKitWebDriver` _launches_ the app (via

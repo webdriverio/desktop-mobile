@@ -21,6 +21,7 @@ In normal (`native`) mode the service launches your compiled Dioxus app, drives 
 Browser mode is the right choice when your tests are renderer-focused: asserting UI state, verifying that components call the correct Dioxus commands with the right arguments, or checking that the renderer handles mock responses correctly.
 
 It is **not** suitable when your tests need to:
+
 - Call `browser.dioxus.execute()` to run code with access to the bridge
 - Test window management with `browser.dioxus.switchWindow()` or `browser.dioxus.listWindows()`
 - Use `browser.dioxus.triggerDeeplink()`
@@ -105,6 +106,7 @@ devServer: async () => {
 ```
 
 Notes:
+
 - `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode. The service ignores a `devServer` set in a capability.
 - Every capability opens the managed server's URL, in place of its own `devServerUrl`. With the string or object form, set `devServerUrl` in the service options: it is the URL the service waits for.
 - In standalone mode, pass `devServer` in the global options, `startWdioSession()`'s second argument. A dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
@@ -117,6 +119,7 @@ Notes:
 ### How It Works
 
 When the session starts, the service injects a script into the page that:
+
 1. Creates `window.__wdio_mocks__` — a registry of per-command mock functions.
 2. Patches the Dioxus invoke API to look up `window.__wdio_mocks__[command]` and call it; throws if the command has no registered mock.
 

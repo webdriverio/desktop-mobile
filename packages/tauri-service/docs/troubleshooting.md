@@ -73,6 +73,7 @@ sudo xbps-install -y libwebkit2gtk41
 ```
 
 **Unsupported Distributions**
+
 - **Alpine Linux**: Cannot build Tauri apps (musl incompatibility). Use Ubuntu, Debian, Fedora, or Arch instead.
 - **CentOS/RHEL**: Stream 9 has glib too old (requires 2.70+), Stream 10 removed WebKitGTK. Use **Fedora 40+** instead.
 - **openSUSE**: Untested. WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6).
@@ -108,6 +109,7 @@ services: [
 ```
 
 **Solution 2: Manual Download**
+
 1. Check your WebView2 version:
    - Build your app: `npm run tauri build -- --debug`
    - Right-click the .exe → Properties → Details
@@ -216,6 +218,7 @@ it('should have plugin', async () => {
 **Solution 2: Check Import Timing**
 
 Make sure the plugin is imported **before** tests run:
+
 - In `index.html` for standard Tauri apps
 - In your main framework entry point (main.ts, main.js)
 - Not inside an iframe or separate context
@@ -414,6 +417,7 @@ Get-Process -Id (Get-NetTCPConnection -LocalPort 4444).OwningProcess | Stop-Proc
 `'embedded'` is the default provider on every platform, and it requires `tauri-plugin-wdio-webdriver` in your app. If the plugin is missing or not registered, the embedded server never starts and the session times out waiting for it.
 
 **Solution 1: Add the embedded plugin (recommended)**
+
 1. Install `tauri-plugin-wdio-webdriver` in your Tauri app:
 
    ```bash
@@ -469,6 +473,7 @@ See [Plugin Setup](./plugin-setup.md) for the full setup guide.
 **Why this happens:** The window label you specified doesn't exist in your Tauri application.
 
 **Solutions:**
+
 1. Check available windows with `browser.tauri.listWindows()`
 2. Verify the window label matches exactly (case-sensitive)
 3. Ensure the window is created before your test runs
@@ -486,6 +491,7 @@ console.log('Available:', windows);
 **Why this happens:** The sentinel is required to distinguish options from script arguments. Plain objects are treated as user arguments, not options.
 
 **Solutions:**
+
 1. Verify the window exists: `const windows = await browser.tauri.listWindows();`
 2. Use `browser.tauri.switchWindow(label)` to change the session default
 3. Check that @wdio/tauri-plugin is installed and registered in your Tauri app
@@ -591,6 +597,7 @@ export const config = {
 ### Tests Fail in CI But Pass Locally
 
 **Common Causes:**
+
 1. **Missing WebDriver on CI**
    - Install WebKitWebDriver on Linux CI
    - Download MSEdgeDriver on Windows CI
@@ -614,6 +621,7 @@ See the [Quick Start](./quick-start.md#cicd-integration) for an example GitHub A
 ## Getting Help
 
 If you're still stuck:
+
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
 3. **See [Plugin Setup](./plugin-setup.md)** for plugin requirements

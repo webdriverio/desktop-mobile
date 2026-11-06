@@ -21,6 +21,7 @@ In normal (`native`) mode the service launches your compiled Tauri app, drives i
 Browser mode is the right choice when your tests are renderer-focused: asserting UI state, verifying that components call the correct Tauri commands with the right arguments, or checking that the renderer handles mock responses correctly.
 
 It is **not** suitable when your tests need to:
+
 - Call `browser.tauri.execute()` to run code with access to the Tauri plugin bridge
 - Test window management with `browser.tauri.switchWindow()` or `browser.tauri.listWindows()`
 - Use `browser.tauri.triggerDeeplink()`
@@ -110,6 +111,7 @@ devServer: async () => {
 ```
 
 Notes:
+
 - `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode. The service ignores a `devServer` set in a capability.
 - Every capability opens the managed server's URL, in place of its own `devServerUrl`. With the string or object form, set `devServerUrl` in the service options: it is the URL the service waits for.
 - In standalone mode, pass `devServer` in the global options, `startWdioSession()`'s second argument. A dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
@@ -122,6 +124,7 @@ Notes:
 ### How It Works
 
 When the session starts, the service injects a script into the page that:
+
 1. Creates `window.__wdio_mocks__` — a registry of per-command mock functions.
 2. Patches `window.__TAURI_INTERNALS__.invoke` to look up `window.__wdio_mocks__[command]` and call it; throws if the command has no registered mock.
 3. Stubs `window.__TAURI_INTERNALS__.transformCallback` and related internals as no-ops where applicable.
@@ -202,6 +205,7 @@ Tauri's event API (`listen` / `once` / `unlisten` / `emit` / `emitTo` from `@tau
 ### How It Works
 
 The injection script:
+
 1. Provides minimal stubs for `window.__TAURI_INTERNALS__.callbacks`, `transformCallback`, `runCallback`, and `unregisterCallback` (the bridge that real Tauri ships uses).
 2. Maintains `window.__wdio_tauri_listeners__` — a per-event registry of `{ handlerId, target }` entries keyed by a monotonic event id.
 3. Intercepts `plugin:event|listen` to register the handler and resolve with a numeric event id.
@@ -356,6 +360,7 @@ The injection script runs after `browser.url()` resolves (document `readyState` 
 ### `withImplementation` in browser mode
 
 `mock.withImplementation(implFn, callbackFn)` serialises **both** functions via `.toString()` and runs them inside the browser page. This means:
+
 - The `callbackFn` runs in the browser page, **not** in the Node.js test-runner process. It receives `{ core: { invoke } }`, as in native mode.
 - It cannot close over test-runner variables, call WebdriverIO commands (`browser.$()`, `browser.click()`, etc.), or use Node.js APIs (`fs`, `path`, etc.) — those symbols do not exist in the page context.
 - Only use `withImplementation` when both functions are fully self-contained browser-side snippets.

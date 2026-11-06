@@ -37,10 +37,12 @@ Alpine uses **musl libc** which defaults to static linking. GTK/webkit libraries
 #### CentOS Stream / RHEL
 
 **Status:** ❌ Unsupported
+
 - **CentOS Stream 9 / RHEL 9:** Ships with glib 2.68.4, but Tauri requires glib >= 2.70
 - **CentOS Stream 10 / RHEL 10:** WebKitGTK was **intentionally removed** by Red Hat
 
 **Why WebKitGTK was removed from RHEL 10:**
+
 - **Security:** Accumulated 200+ unfixed CVEs enabling remote code execution
 - **Maintenance burden:** Upstream requires frequent updates incompatible with RHEL's 10-year support model
 - **Strategic shift:** Red Hat migrated to QtWebEngine (Chromium-based) for better security and enterprise hardening
@@ -48,12 +50,14 @@ Alpine uses **musl libc** which defaults to static linking. GTK/webkit libraries
 **Alternative:** Use **Fedora 40+** for RHEL-based workflows.
 
 **References:**
+
 - [RHEL 10 Release Notes - Removed Features](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/10.0_release_notes/removed-features)
 - [Fedora Devel Discussion on WebKitGTK Removal](https://lists.fedoraproject.org/archives/list/devel@lists.fedoraproject.org/thread/AKVB363GFCHHJ5MTHGVYHYT6NLLTF5VM/)
 
 ## Distribution Requirements
 
 All supported distributions must provide:
+
 1. **glib-2.0 >= 2.70** (critical for Tauri)
 2. **webkit2gtk** (4.0 or 4.1)
 3. **GTK 3** development libraries
@@ -110,6 +114,7 @@ Tests if the Docker image can be built with all system dependencies:
 ```
 
 **What it does:**
+
 - Pulls base image
 - Installs system packages
 - Installs Node.js, Rust
@@ -125,6 +130,7 @@ Builds the Docker image and runs the complete test suite inside:
 ```
 
 **What it does:**
+
 1. On the runner (Node 24, before Docker): build the `@wdio/*` packages and pack them to tarballs
 2. Build Docker image (same as `build` mode)
 3. Mount workspace at `/workspace` + tarballs at `/tarballs` into container
@@ -141,6 +147,7 @@ Build with verbose output and no caching:
 ```
 
 **When to use:**
+
 - Debugging package installation issues
 - Investigating build failures
 - Finding which layer fails
@@ -179,6 +186,7 @@ CMD ["bash"]
 ## CI Integration
 
 These Dockerfiles are used in:
+
 - `.github/workflows/ci.yml` - CI workflow for cross-distribution compatibility tests
 - Local development testing
 - Cross-distribution compatibility verification
@@ -275,11 +283,13 @@ CMD ["tauri-app"]
 ```
 
 **Benefits:**
+
 - Smaller final image size
 - Minimal attack surface
 - Only runtime dependencies
 
 **Caveats:**
+
 - Must ensure all dynamic libraries are compatible
 - May need additional runtime libraries
 - Test thoroughly before production use
@@ -287,6 +297,7 @@ CMD ["tauri-app"]
 ## Contributing
 
 When adding support for a new distribution:
+
 1. Create `distro-name.dockerfile` based on existing templates
 2. Add entry to `get_test_case()` in `test.sh`
 3. Add to `get_all_test_keys()` in `test.sh`
@@ -302,17 +313,20 @@ When adding support for a new distribution:
 All distributions are tested using Docker containers with:
 
 **System Package Installation:**
+
 - Official base image from distribution
 - All required development packages
 - Rust toolchain (latest stable)
 - Node.js 24.x
 
 **Build Testing:**
+
 - Install the runner-packed `@wdio/*` tarballs with npm (no in-container workspace build)
 - Tauri example app build (web assets + `tauri build --debug`)
 - WebdriverIO test execution with Xvfb
 
 **Pass Criteria:**
+
 - Docker image builds successfully
 - All packages install without errors
 - Tauri app compiles without errors

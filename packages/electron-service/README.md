@@ -16,6 +16,7 @@ Spiritual successor to [Spectron](https://github.com/electron-userland/spectron)
 ### Features
 
 Makes testing Electron applications much easier via:
+
 - 🚗 Auto-setup of required Chromedriver (for Electron v26 and above)
 - 📦 Automatic path detection of your Electron application
   - Supports [Electron Forge](https://www.electronforge.io/), [Electron Builder](https://www.electron.build/) and unpackaged apps

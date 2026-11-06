@@ -83,6 +83,7 @@ cd e2e && pnpm wdio run wdio.dioxus-embedded.conf.ts
 ```
 
 Platform-specific notes:
+
 - **Linux**: Install Xvfb. WebdriverIO starts it for the run.
 
 ## Code Quality
@@ -94,6 +95,7 @@ See the [Monorepo Setup Guide](../../../docs/setup.md#code-quality) for formatti
 ### Embedded Driver Provider
 
 Located in `src/providers/embedded.ts`:
+
 - Spawns the Dioxus app with `DIOXUS_WEBVIEW_AUTOMATION=true` and `WDIO_EMBEDDED_PORT`
 - Polls the embedded WebDriver server `/status` endpoint on startup
 - Each worker gets a unique port (basePort + workerIndex)
@@ -101,6 +103,7 @@ Located in `src/providers/embedded.ts`:
 ### Bridge Communication
 
 `wdio-dioxus-bridge` provides:
+
 - Script execution via the `wdio://` custom protocol
 - `window.__WDIO_DIOXUS__.invoke`, which the service patches with `@wdio/native-spy`'s interceptor for command mocking
 - Log forwarding via the bridge's log pipeline
@@ -237,6 +240,7 @@ See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for the broader release process 
 ## Contributing
 
 See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for contribution guidelines, commit message format, and PR process.
+
 - **Questions**: [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
 - **Bugs**: [GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)
 - **Help Wanted**: [help:wanted issues](https://github.com/webdriverio/desktop-mobile/issues?q=is%3Aissue+is%3Aopen+label%3Ahelp%3Awanted+label%3Ascope%3Adioxus)

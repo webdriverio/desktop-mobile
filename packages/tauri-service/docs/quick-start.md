@@ -362,6 +362,7 @@ npx wdio run wdio.conf.ts --logLevel debug
 ### "Cannot find module '@wdio/tauri-plugin'"
 
 The frontend plugin import is failing. Make sure:
+
 1. Install the peer dependencies:
 
    ```bash
@@ -373,6 +374,7 @@ The frontend plugin import is failing. Make sure:
 ### "tauri-driver not found" or "No driverProvider configured"
 
 The service couldn't determine which driver to use, or couldn't find tauri-driver. Solutions:
+
 1. **Use embedded provider** (no external driver needed):
 
    ```typescript
@@ -397,6 +399,7 @@ The service couldn't determine which driver to use, or couldn't find tauri-drive
 ### "Application not found at path"
 
 The `appBinaryPath` is wrong. Verify:
+
 1. You built a debug binary: `npm run tauri build -- --debug`
 2. The path exists: `./src-tauri/target/debug/my-app.exe`
 3. Update the path in `wdio.conf.ts` if needed
@@ -404,6 +407,7 @@ The `appBinaryPath` is wrong. Verify:
 ### Tests timeout on Windows
 
 Edge WebDriver version mismatch. The service auto-manages this, but if issues persist:
+
 1. See [Edge WebDriver (Windows)](./edge-webdriver-windows.md)
 2. Check your Edge version: Settings → About Microsoft Edge
 3. Verify the driver version matches

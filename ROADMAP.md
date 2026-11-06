@@ -117,11 +117,13 @@ Promote the shared `@wdio/native-mobile-core` layer into a concrete, publishable
 **Target Platforms:** iOS, Android
 
 **Why Capacitor:**
+
 - Ionic's 1M+ app ecosystem
 - Pure WebView pattern (zero new complexity)
 - Replaces deprecated Cordova/PhoneGap
 
 **Technical approach:**
+
 - Standard Appium WebView context switching
 - appPackage/appActivity capabilities
 
@@ -132,11 +134,13 @@ Promote the shared `@wdio/native-mobile-core` layer into a concrete, publishable
 **Target Platforms:** Windows, macOS, Linux
 
 **Why Neutralino:**
+
 - Extremely lightweight alternative to Electron
 - JavaScript ecosystem alignment
 - Web-based architecture
 
 **Technical approach:**
+
 - System webview automation via ChromeDriver CDP
 - `neutralinojs --enable-inspector` launch integration
 - Electron service patterns (devtools endpoint detection)
@@ -149,6 +153,7 @@ Promote the shared `@wdio/native-mobile-core` layer into a concrete, publishable
 **Target Platforms:** iOS, Android (experimental)
 
 **Why experimental:**
+
 - Dioxus mobile is early-stage
 - Reuses established mobile scaffold
 - Completes Rust ecosystem coverage
@@ -160,6 +165,7 @@ Promote the shared `@wdio/native-mobile-core` layer into a concrete, publishable
 **Target Platforms:** Windows, macOS, Linux
 
 **Why later:**
+
 - Less mature than React Native mobile
 - Lower demand vs mobile priorities
 - Leverages the React Native mobile experience
@@ -180,6 +186,7 @@ The following frameworks were evaluated and excluded from the roadmap:
 ## Evaluation Criteria
 
 When prioritizing services, we consider:
+
 1. **Market demand** - User requests and ecosystem size
 2. **Technical feasibility** - Availability of drivers and tooling
 3. **Maintenance burden** - Ongoing support requirements
@@ -190,12 +197,14 @@ When prioritizing services, we consider:
 ## Contributing to Roadmap
 
 We welcome community input on the roadmap! To suggest changes:
+
 1. Open a [GitHub Discussion](https://github.com/webdriverio/desktop-mobile/discussions)
 2. Provide use case and demand evidence
 3. Suggest technical approach if known
 4. Indicate willingness to contribute
 
 Roadmap priorities may shift based on:
+
 - Community contributions
 - Framework ecosystem changes
 - Technical breakthroughs
@@ -204,6 +213,7 @@ Roadmap priorities may shift based on:
 ## Timeline Disclaimer
 
 Timelines are estimates and subject to change based on:
+
 - Maintainer availability
 - Community contributions
 - Technical challenges

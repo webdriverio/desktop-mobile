@@ -11,6 +11,7 @@ Deeplink testing allows you to verify that your Electron application correctly h
 ### Why is it Needed?
 
 Testing protocol handlers presents unique challenges:
+
 - **Windows Issue**: On Windows, triggering a deeplink normally launches a new app instance instead of routing to the running test instance. This happens because the test instance and the externally-triggered instance use different user data directories.
 - **Test Automation**: You need a programmatic way to trigger deeplinks without manual intervention.
 - **Cross-Platform Testing**: Different platforms use different mechanisms to trigger protocol handlers.
@@ -18,6 +19,7 @@ Testing protocol handlers presents unique challenges:
 ### When Should You Use It?
 
 Use `browser.electron.triggerDeeplink()` when you need to:
+
 - Test that your app correctly handles custom protocol URLs
 - Verify deeplink parameter parsing and routing logic
 - Ensure single-instance behavior works correctly
@@ -88,11 +90,13 @@ The service handles platform-specific differences automatically:
 ### Windows
 
 **Behavior:**
+
 - Uses `cmd /c start` command to trigger the deeplink
 - Automatically appends the test instance's `userData` directory as a query parameter
 - Cannot use script-based apps (`appEntryPoint`) - requires packaged binary
 
 **URL Modification:**
+
 ```typescript
 // Input URL
 'myapp://test?foo=bar';
@@ -108,11 +112,13 @@ On Windows, when a protocol URL is opened, the OS launches the registered applic
 ### macOS
 
 **Behavior:**
+
 - Uses `open` command to trigger the deeplink
 - No URL modification needed (OS handles single-instance automatically)
 - No special configuration required
 
 **URL Modification:**
+
 ```typescript
 // URL passed unchanged
 'myapp://test?foo=bar';
@@ -121,11 +127,13 @@ On Windows, when a protocol URL is opened, the OS launches the registered applic
 ### Linux
 
 **Behavior:**
+
 - Uses `gio open` command to trigger the deeplink
 - Automatically appends the test instance's `userData` directory as a query parameter (like Windows)
 - Cannot use script-based apps (`appEntryPoint`) - requires packaged binary
 
 **URL Modification:**
+
 ```typescript
 // Input URL
 'myapp://test?foo=bar';
@@ -209,6 +217,7 @@ export const config = {
 ```
 
 **Important Notes:**
+
 - `appEntryPoint` will NOT work for protocol handler testing on Windows/Linux
 - You must use `appBinaryPath` or let the service auto-detect your binary
 - The service will warn you if you're using `appEntryPoint` with protocol handlers
@@ -443,6 +452,7 @@ function performAction(params: Record<string, string>) {
 **Cause:** The test instance and the deeplink-triggered instance are using different user data directories, preventing Electron's single-instance lock from working.
 
 **Solution:**
+
 1. Ensure you're using a packaged binary (not `appEntryPoint`) in your WDIO configuration
 2. Verify your app parses the `userData` parameter on Windows and Linux:
 
@@ -523,6 +533,7 @@ await browser.electron.triggerDeeplink('file:///path/to/file'); // Throws error
 **Symptom:** The deeplink is triggered but your app doesn't receive it.
 
 **Possible Causes and Solutions:**
+
 1. **Protocol not registered:**
    - Verify `app.setAsDefaultProtocolClient()` is called
    - Check your app's package.json has correct protocol configuration

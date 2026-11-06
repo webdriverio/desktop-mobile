@@ -34,6 +34,7 @@ Test Process (WDIO Worker)              App Process (Electron/Tauri)
 
 The sub-path export `@wdio/native-spy/interceptor` is **test-process-only** (never bundled into the app).
 It provides a shared `IpcInterceptor` interface for building the script strings injected into the app context.
+
 - **Tauri** uses `createIpcInterceptor('tauri')` — all `build*Script` methods port from `tauri-service/src/mock.ts`
 - **Electron** uses `createIpcInterceptor('electron')` — stub (throws `Not implemented`), filled in by a future browser-mode spec
 - Transport stays in each service (`tauriExecute`, CDP, etc.) — interceptor returns strings only
@@ -44,6 +45,7 @@ Error values in `mockRejectedValue`/`mockRejectedValueOnce` are serialized with 
 ## Mock Methods (all async)
 
 Every mock method operates on **both** inner and outer:
+
 - `mockImplementation(fn)` — serializes function string to inner, sets on outer
 - `mockReturnValue(value)` — sets on inner via execute, sets on outer
 - `mockClear()` — clears both inner and outer call history

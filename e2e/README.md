@@ -5,6 +5,7 @@ This directory contains end-to-end tests for WebdriverIO desktop & mobile servic
 ## Overview
 
 The E2E testing framework provides comprehensive testing capabilities for desktop applications built with Electron and Tauri frameworks. It includes:
+
 - **Framework-aware configuration**: Automatic detection and configuration based on the target framework
 - **Multi-platform support**: Windows, macOS, and Linux testing
 - **Comprehensive test coverage**: API testing, window management, file operations, and more
@@ -145,6 +146,7 @@ tsx scripts/run-matrix.ts --concurrency=3
 ### Electron Testing
 
 Electron tests focus on:
+
 - **API Testing**: Electron main process APIs
 - **Window Management**: BrowserWindow operations
 - **DOM Interaction**: Renderer process testing
@@ -172,6 +174,7 @@ describe('Electron API', () => {
 ### Tauri Testing
 
 Tauri tests focus on:
+
 - **Command Execution**: Rust backend commands
 - **Window Management**: Tauri window operations
 - **File Operations**: File system access
@@ -251,6 +254,7 @@ tsx scripts/build-apps.ts --clean
 ### Electron Test Apps
 
 Located in `../fixtures/e2e-apps/`:
+
 - `electron-builder`: Electron Builder app (ESM only)
 - `electron-forge`: Electron Forge app (ESM only)
 - `electron-script`: Development mode app (ESM only)
@@ -260,6 +264,7 @@ Located in `../fixtures/e2e-apps/`:
 ### Tauri Test Apps
 
 Located in `../fixtures/e2e-apps/`:
+
 - `tauri`: Tauri app with core functionality
 
 ## CI/CD Integration
@@ -295,6 +300,7 @@ Test logs are stored in `logs/` directory with framework and configuration-speci
 ### Debug Mode
 
 Enable debug output:
+
 ```bash
 WDIO_MATRIX_DEBUG=true tsx scripts/run-matrix.ts
 WDIO_VERBOSE=true pnpm e2e
@@ -329,6 +335,7 @@ tsx scripts/build-apps.ts --all
 ## Contributing
 
 When adding new tests:
+
 1. **Framework-specific tests**: Place in `test/electron/` or `test/tauri/` directories
 2. **Test naming**: Use descriptive names that indicate the test purpose
 3. **Environment variables**: Update `envSchema.ts` for new configuration options
@@ -337,6 +344,7 @@ When adding new tests:
 ## Architecture
 
 The E2E framework follows a modular architecture:
+
 - **Configuration Layer**: Environment-aware configuration management
 - **Test Layer**: Framework-specific test implementations
 - **Build Layer**: Application building and artifact management

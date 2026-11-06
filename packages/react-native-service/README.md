@@ -303,6 +303,7 @@ await browser.reactNative.switchContext('NATIVE_APP');
 
 The service forwards two independent channels into the WDIO test output, each opt-in
 and off by default:
+
 - **Backend** — native device logs: **logcat** (Android) / **syslog** (iOS). Enable with
   `captureBackendLogs`; filter with `backendLogLevel` (default `info`).
 - **Frontend** — the app's JS / Metro console (`console.log/info/warn/error`, via the

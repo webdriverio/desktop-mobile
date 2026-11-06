@@ -38,6 +38,7 @@ export const config = {
 ## Log Levels
 
 Both backend and frontend log capture support the following log levels (in order of priority):
+
 - `trace` - Most verbose
 - `debug` - Debug information
 - `info` - Informational messages (default)
@@ -49,6 +50,7 @@ Only logs at the configured level and above will be captured. For example, with 
 ## Log Format
 
 Captured logs are formatted with context tags:
+
 - Backend logs: `[Dioxus:Backend] message`
 - Frontend logs: `[Dioxus:Frontend] message`
 - Multiremote logs: `[Dioxus:Backend:instanceId] message` / `[Dioxus:Frontend:instanceId] message`
@@ -132,6 +134,7 @@ services: [
 ```
 
 Logs will appear as:
+
 - `[Dioxus:Backend:browserA] message`
 - `[Dioxus:Frontend:browserB] message`
 

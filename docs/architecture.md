@@ -80,6 +80,7 @@ All WDIO services follow a consistent architecture:
 ### Launcher (`launcher.ts`)
 
 Runs in the main process (no `browser` access). Responsible for:
+
 - Driver discovery/installation
 - Process spawning (ports, args, env)
 - Startup detection and health checks
@@ -91,6 +92,7 @@ Runs in the main process (no `browser` access). Responsible for:
 ### Service (`service.ts`)
 
 Runs in the worker process (receives `browser` via `before` hook). Responsible for:
+
 - API injection (`browser.tauri.*`, `browser.electron.*`, `browser.dioxus.*`, `browser.electrobun.*`)
 - Mock lifecycle management
 - Log forwarding setup

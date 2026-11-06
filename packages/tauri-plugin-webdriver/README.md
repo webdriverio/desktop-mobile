@@ -10,6 +10,7 @@ This is a fork of [`Choochmeque/tauri-plugin-webdriver`](https://github.com/Choo
 ## When to Use This Plugin
 
 This plugin is required when using the `'embedded'` driver provider with `@wdio/tauri-service`:
+
 - **macOS** — auto-detected, no configuration needed
 - **Windows/Linux** — set `driverProvider: 'embedded'` or `TAURI_WEBDRIVER_PORT` env var
 
@@ -161,6 +162,7 @@ let builder = builder.plugin(tauri_plugin_wdio_webdriver::init_with_port(9515));
 ```
 
 Port resolution order:
+
 1. `init_with_port(port)` — uses the specified port (ignores env var)
 2. `init()` — checks `TAURI_WEBDRIVER_PORT` env var, falls back to 4445
 
@@ -313,6 +315,7 @@ Key actions (`browser.keys()`) send keyboard events for every key but a carriage
 While Shift is held, a key sends and types the character Shift gives it on a US keyboard, as in Chrome: `browser.keys([Key.Shift, 'a', '1', ';'])` sends `key: 'A'`, `'!'` and `':'` and types `A!:`, and `addValue(Key.Shift + 'a1;')` types `A!:` too. The `code` and `keyCode` stay those of the key, and the numpad keys don't change.
 
 Unless a `keydown` handler cancels it, Enter acts as in Chrome, on the element focused after the `keydown`:
+
 - In a textarea or contenteditable, it breaks the line.
 - In an input, it fires any `change` the field owes, then submits the input's form:
   - From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button, unless that button is disabled. A form without a submit button is submitted if it has no other input of those types.
@@ -326,6 +329,7 @@ Space on a focused button clicks it on the `keyup`, as in Chrome. It doesn't cli
 Each click is a single `click` event, without pointer or mouse events. A `submit` that no handler cancels navigates the page.
 
 Unlike in Chrome, Enter and Space send only their key events in these cases:
+
 - Enter on a link, a `<summary>`, a colour or file input or a `<select>`.
 - Space on a checkbox, a radio button, a `<summary>`, a colour or file input or a `<select>`.
 - Either key with Control, Alt or Meta held.
@@ -333,6 +337,7 @@ Unlike in Chrome, Enter and Space send only their key events in these cases:
 The driver also sends no `keypress` events, so a `keypress` handler can't cancel Enter.
 
 Unless a `keydown` handler cancels it, Tab moves focus to the next element and Shift+Tab to the previous one, as in Chrome:
+
 - Elements with a positive `tabindex` come first, in ascending order, then those with `tabindex="0"` and those focusable by default, such as links, buttons and form fields, in tree order.
 - Tab skips disabled, `inert` and hidden elements, and everything outside an open modal `<dialog>`.
 - Tab goes through open shadow roots and slots.
@@ -343,6 +348,7 @@ Unless a `keydown` handler cancels it, Tab moves focus to the next element and S
 Tab selects the text of a single-line text input it moves to, so key actions, and the rest of the same Element Send Keys, replace it. In an email or number input, or with a later `addValue()`, the text goes at the end instead ([#927](https://github.com/webdriverio/desktop-mobile/issues/927)). The field Tab leaves fires `change` if its value changed. So `setValue('user\tpass')` fills two fields and fires `change` on the first, and the second fires its `change` when focus leaves it.
 
 Unlike in Chrome, Tab:
+
 - Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.
 - Stops once on an iframe, `<object>` or `<embed>`, or on an audio or video element's controls, and doesn't move inside them.
 - Doesn't stop on a scrolling box with nothing focusable inside it, or on an image map's areas.
