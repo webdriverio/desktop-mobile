@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     // Required for global test functions (describe, it, expect)
     globals: true,
-    // The service runs in Node, so no test needs a DOM; a jsdom per test file costs more than the tests do
+    // The service runs in Node, so no test needs a DOM
     environment: 'node',
     // Custom test setup for matchers and configuration
     setupFiles: ['test/setup.ts'],
