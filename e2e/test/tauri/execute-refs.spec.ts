@@ -103,12 +103,9 @@ const webKitWebDriver = process.platform === 'linux' && process.env.DRIVER_PROVI
     expect(result).toEqual(anElementReference());
     expect(await idOf(result)).toBe('counter');
   });
-});
 
-// Every provider, CrabNebula on macOS included, as these don't need a reference from a script result (#1060)
-describe('Tauri Execute - element arguments to browser.tauri.execute', () => {
-  it('should pass a reference in an argument to the script as its element', async () => {
-    const ref = { [ELEMENT_KEY]: (await browser.$('#counter')).elementId };
+  it('should pass a reference from a result back to the script as its element', async () => {
+    const ref = await browser.tauri.execute(() => document.querySelector('#counter'));
 
     const result = await browser.tauri.execute(
       (_tauri, args: { el: unknown }) => (args.el instanceof HTMLElement ? args.el.id : typeof args.el),
@@ -117,6 +114,25 @@ describe('Tauri Execute - element arguments to browser.tauri.execute', () => {
 
     expect(result).toBe('counter');
   });
+});
+
+// Every provider, CrabNebula on macOS included, as these don't need a reference from a script result
+describe('Tauri Execute - arguments to browser.tauri.execute', () => {
+  // CrabNebula's macOS driver looks for elements only among the top-level arguments, and the service sends the user's
+  // inside one array, so a reference reaches the script as a plain object (#1060). When these fail there, drop the
+  // branch
+  const expected = crabNebulaOnMacOS ? 'object' : 'counter';
+
+  it('should pass a reference in an argument to the script as its element', async () => {
+    const ref = { [ELEMENT_KEY]: (await browser.$('#counter')).elementId };
+
+    const result = await browser.tauri.execute(
+      (_tauri, args: { el: unknown }) => (args.el instanceof HTMLElement ? args.el.id : typeof args.el),
+      { el: ref },
+    );
+
+    expect(result).toBe(expected);
+  });
 
   it('should pass an element from browser.$() to the script as its element', async () => {
     const result = await browser.tauri.execute(
@@ -124,7 +140,11 @@ describe('Tauri Execute - element arguments to browser.tauri.execute', () => {
       await browser.$('#counter'),
     );
 
-    expect(result).toBe('counter');
+    expect(result).toBe(expected);
+  });
+
+  it('should pass a null argument to the script', async () => {
+    expect(await browser.tauri.execute((_tauri, a: unknown, b: unknown) => [a, b], null, 1)).toEqual([null, 1]);
   });
 });
 
