@@ -418,7 +418,7 @@ Once the plugin is installed and verified:
 
 This plugin embeds a W3C WebDriver HTTP server directly in your Tauri application. The default `embedded` provider needs it; the `external` and `crabnebula` providers don't.
 
-In builds that register it, the plugin also adds `window.__wdio_element_events` to every page and frame: the helpers its element and key commands call. It adds capture `blur` and `focusout` listeners to each window too, so a field the plugin typed into fires its `change` before the page's own listeners see it lose focus, as in a browser.
+In builds that register it, the plugin also adds `window.__wdio_element_events` to every page and frame: the helpers its element and key commands call. It adds capture `blur` and `focusout` listeners to each window too, so a field the plugin typed into fires its `change` before the page's own listeners see it lose focus, as in a browser. On a page where the plugin's init script didn't run, the helpers arrive with the first command that needs them, so a window listener the page added before then still runs first.
 
 ### Requirements
 
