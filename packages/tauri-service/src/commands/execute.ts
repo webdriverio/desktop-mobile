@@ -110,9 +110,9 @@ async function runScript<ReturnValue, InnerArguments extends unknown[]>(
   }
 
   const provider = getSessionProvider(browser);
+  const scriptString = typeof script === 'function' ? script.toString() : script;
 
   if (provider === 'embedded') {
-    const scriptString = typeof script === 'function' ? script.toString() : script;
     const port = getDirectEvalPort(browser);
     const client = getOrCreateDirectEvalClient(browser, port);
     const argsJson = JSON.stringify(userArgs);
@@ -160,17 +160,14 @@ async function runScript<ReturnValue, InnerArguments extends unknown[]>(
     throw lastError;
   }
 
-  // External and CrabNebula providers: browser.tauri.execute() runs in the session's current window, where the driver
-  // converts elements. The service's own scripts, and a script for another window, go through the plugin's IPC.
-  const scriptString = typeof script === 'function' ? script.toString() : script;
-  const toOtherWindow = options.windowLabel !== undefined && options.windowLabel !== sessionWindowLabel;
-  if (elementRefs && !toOtherWindow) {
-    return sendScript<ReturnValue>(browser, wrapScriptForWebDriver(scriptString, userArgs));
-  }
+  // External and CrabNebula providers: browser.tauri.execute() goes through the WebDriver session, which converts
+  // elements, and the service's own scripts through the plugin's IPC
   await ensurePluginAvailable(browser);
   return sendScript<ReturnValue>(
     browser,
-    wrapScriptForPluginIpc(scriptString, JSON.stringify(userArgs), executeOptions.windowLabel),
+    elementRefs
+      ? wrapScriptForWebDriver(scriptString, userArgs, executeOptions.windowLabel)
+      : wrapScriptForPluginIpc(scriptString, JSON.stringify(userArgs), executeOptions.windowLabel),
   );
 }
 

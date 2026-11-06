@@ -9,7 +9,7 @@ describe('wrapScriptForDirectEval', () => {
       expect(result).toContain('var __cb = arguments[arguments.length - 1]');
       expect(result).toContain(': [21];');
       expect(result).toContain('__wdio_tauri = { core: { invoke: __wdio_invoke } }');
-      expect(result).toContain('await ((tauri, x) => x * 2)(__wdio_tauri, ...__wdio_args)');
+      expect(result).toContain('await ((tauri, x) => x * 2\n)(__wdio_tauri, ...__wdio_args)');
       expect(result).toContain('__cb({ ok: true,');
       expect(result).toContain('__cb({ ok: false,');
     });
@@ -17,27 +17,27 @@ describe('wrapScriptForDirectEval', () => {
     it('should wrap a named function expression', () => {
       const result = wrapScriptForDirectEval('function myFn(tauri) { return 1; }', '[]');
       expect(result).toContain('var __cb = arguments[arguments.length - 1]');
-      expect(result).toContain('await (function myFn(tauri) { return 1; })(__wdio_tauri, ...__wdio_args)');
+      expect(result).toContain('await (function myFn(tauri) { return 1; }\n)(__wdio_tauri, ...__wdio_args)');
     });
 
     it('should wrap an async function', () => {
       const result = wrapScriptForDirectEval('async function fn(tauri) { return await fetch(); }', '[]');
-      expect(result).toContain('await (async function fn(tauri) { return await fetch(); })(__wdio_tauri');
+      expect(result).toContain('await (async function fn(tauri) { return await fetch(); }\n)(__wdio_tauri');
     });
 
     it('should wrap an async arrow function', () => {
       const result = wrapScriptForDirectEval('async (tauri) => 42', '[]');
-      expect(result).toContain('await (async (tauri) => 42)(__wdio_tauri');
+      expect(result).toContain('await (async (tauri) => 42\n)(__wdio_tauri');
     });
 
     it('should wrap a bare identifier arrow function', () => {
       const result = wrapScriptForDirectEval('x => x + 1', '[5]');
-      expect(result).toContain('await (x => x + 1)(__wdio_tauri');
+      expect(result).toContain('await (x => x + 1\n)(__wdio_tauri');
     });
 
     it('should wrap a bare identifier arrow function containing $', () => {
       const result = wrapScriptForDirectEval('t$ => t$.core', '[]');
-      expect(result).toContain('await (t$ => t$.core)(__wdio_tauri');
+      expect(result).toContain('await (t$ => t$.core\n)(__wdio_tauri');
     });
 
     it('should include mock-routing invoke block', () => {
@@ -254,6 +254,59 @@ describe('wrapScriptForWebDriver', () => {
     );
   });
 
+  it("should run the script in the page when the chosen window is the page's own", async () => {
+    const window = tauriWindow('main', async () => 'ipc');
+
+    const outcome = await runInPage(wrapScriptForWebDriver('(tauri, a) => a * 2', [21], 'main'), window);
+
+    expect(outcome).toEqual({ ok: true, value: 42, undef: false });
+    expect(window.wdioTauri.execute).not.toHaveBeenCalled();
+  });
+
+  it('should send the script to another window through the plugin, with its args as JSON', async () => {
+    const window = tauriWindow('main', async () => ({ from: 'popup' }));
+
+    const outcome = await runInPage(wrapScriptForWebDriver('(tauri, a) => a', [1], 'popup'), window);
+
+    expect(outcome).toEqual({ ok: true, value: { from: 'popup' }, undef: false });
+    expect(window.wdioTauri.execute).toHaveBeenCalledWith('(tauri, a) => a', { windowLabel: 'popup' }, '[1]');
+  });
+
+  it('should use the plugin when the page has no webview metadata', async () => {
+    expect(
+      await runInPage(
+        wrapScriptForWebDriver('() => 1', [], 'main'),
+        tauriWindow(undefined, async () => 'ipc'),
+      ),
+    ).toEqual({ ok: true, value: 'ipc', undef: false });
+  });
+
+  it("should send the label and the plugin's inputs as data, ahead of the user's args", () => {
+    expect(wrapScriptForWebDriver('(tauri, a) => a', ['</script>'], 'po"pup').args).toEqual([
+      'po"pup',
+      '(tauri, a) => a',
+      '["</script>"]',
+      '</script>',
+    ]);
+  });
+
+  it('should run a string script that starts with a newline, as a template literal does', async () => {
+    const window = { ...tauriWindow('main', async () => 'ipc'), title: 'My App' };
+
+    expect((await runInPage(wrapScriptForWebDriver('\n  window.title\n', []), window)).value).toBe('My App');
+  });
+
+  it('should run a function source that ends in a line comment', async () => {
+    expect(
+      (
+        await runInPage(
+          wrapScriptForWebDriver('() => 42 // the answer', []),
+          tauriWindow('main', async () => 'ipc'),
+        )
+      ).value,
+    ).toBe(42);
+  });
+
   it('should send the result as JSON would, leaving DOM nodes for the driver', async () => {
     const node = { nodeType: 1, id: 'counter' };
     const list = { 0: node, length: 1, [Symbol.iterator]: () => [node].values() };
@@ -295,16 +348,6 @@ describe('wrapScriptForWebDriver', () => {
 
     const value = outcome.value as { self: unknown };
     expect(value.self).toBe(value);
-  });
-
-  it('should run a script that never invokes a command without waiting for the plugin', async () => {
-    const window = { ...tauriWindow('main', async () => 'ipc'), __wdio_original_core__: undefined };
-
-    expect(await runInPage(wrapScriptForWebDriver('() => 1', []), window)).toEqual({
-      ok: true,
-      value: 1,
-      undef: false,
-    });
   });
 
   it('should name the plugin and withGlobalTauri when core.invoke never appears', async () => {
