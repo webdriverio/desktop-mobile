@@ -53,9 +53,12 @@ function toArch(name?: string): BuilderArch | undefined {
 
 // The first folder holding the app wins, so search the builds the host can run before the rest
 function getArchOrder(platform: SupportedPlatform, hostArch?: string): BuilderArch[] {
+  return [...new Set([...getRunnableArchs(platform, hostArch), ...ARCHS[platform]])];
+}
+
+function getRunnableArchs(platform: SupportedPlatform, hostArch?: string): BuilderArch[] {
   const host = toArch(hostArch);
-  const runnable = host && ARCHS[platform].includes(host) ? [host, ...(ALSO_RUNS[platform][host] ?? [])] : [];
-  return [...new Set([...runnable, ...ARCHS[platform]])];
+  return host && ARCHS[platform].includes(host) ? [host, ...(ALSO_RUNS[platform][host] ?? [])] : [];
 }
 
 function getForgeDistDir(
@@ -146,9 +149,8 @@ function getBinaryName(options: BinaryOptions): string {
   return appName;
 }
 
-function getOutDir(options: BinaryOptions): string[] {
-  const { buildTool, config, appName, platform, projectDir, hostArch } = options;
-  const archs = getArchOrder(platform, hostArch);
+function getOutDir(options: BinaryOptions, archs: BuilderArch[]): string[] {
+  const { buildTool, config, appName, platform, projectDir } = options;
 
   const outDirs =
     buildTool === SUPPORTED_BUILD_TOOL.forge
@@ -156,6 +158,45 @@ function getOutDir(options: BinaryOptions): string[] {
       : getBuilderDistDir(config as BuilderBuildInfo['config'], platform, archs);
 
   return outDirs.map((dir) => path.join(projectDir, dir));
+}
+
+function getCandidatePaths(options: BinaryOptions, archs: BuilderArch[]): string[] {
+  const binaryName = getBinaryName(options);
+  return getOutDir(options, archs).map((dir) => getPlatformBinaryPath(dir, binaryName, options.platform, options));
+}
+
+function toBinaryOptions(
+  packageJsonPath: string,
+  appBuildInfo: AppBuildInfo,
+  platform: SupportedPlatform,
+  hostArch: string,
+): BinaryOptions {
+  return {
+    buildTool: appBuildInfo.isForge ? SUPPORTED_BUILD_TOOL.forge : SUPPORTED_BUILD_TOOL.builder,
+    platform,
+    appName: appBuildInfo.appName,
+    config: appBuildInfo.config,
+    projectDir: path.dirname(packageJsonPath),
+    hostArch,
+  };
+}
+
+// Builds the host runs are searched first, so landing on any other build means there wasn't one
+function unrunnableBuildWarning(binaryPath: string, options: BinaryOptions): PathGenerationError | undefined {
+  const { platform, hostArch } = options;
+  const runnable = getRunnableArchs(platform, hostArch);
+  const buildArch = ARCHS[platform].find((arch) => getCandidatePaths(options, [arch]).includes(binaryPath));
+  const [host] = runnable;
+  if (!host || !buildArch || runnable.includes(buildArch)) {
+    return undefined;
+  }
+  return {
+    type: 'CONFIG_WARNING',
+    message:
+      `No ${host} build of the app was found, so the service is using the ${buildArch} build at ${binaryPath}, which a ${host} machine likely can't run. ` +
+      `Build the app for ${host}, or set appBinaryPath. ` +
+      "The machine's arch comes from Node.js, so if Node.js itself runs emulated, such as an x64 Node.js on Apple Silicon, ignore this.",
+  };
 }
 
 /**
@@ -202,19 +243,10 @@ export function generateBinaryPaths(
     }
 
     // Generate paths based on build tool configuration
-    const options: BinaryOptions = {
-      buildTool: appBuildInfo.isForge ? SUPPORTED_BUILD_TOOL.forge : SUPPORTED_BUILD_TOOL.builder,
-      platform: p.platform,
-      appName: appBuildInfo.appName,
-      config: appBuildInfo.config,
-      projectDir: path.dirname(packageJsonPath),
-      hostArch: p.arch,
-    };
+    const options = toBinaryOptions(packageJsonPath, appBuildInfo, p.platform, p.arch);
 
     try {
-      const outDirs = getOutDir(options);
-      const binaryName = getBinaryName(options);
-      paths = outDirs.map((dir) => getPlatformBinaryPath(dir, binaryName, options.platform, options));
+      paths = getCandidatePaths(options, getArchOrder(options.platform, options.hostArch));
 
       // Add warning if configuration seems incomplete
       if (appBuildInfo.isBuilder && !appBuildInfo.config?.directories?.output) {
@@ -318,11 +350,21 @@ export async function getBinaryPath(
 
   // Combine results - TypeScript needs explicit narrowing
   if (pathGeneration.ok && pathValidation.ok) {
+    const binaryPath = pathValidation.value.validPath;
+    const hostWarning = isSupportedPlatform(p.platform)
+      ? unrunnableBuildWarning(binaryPath, toBinaryOptions(packageJsonPath, appBuildInfo, p.platform, p.arch))
+      : undefined;
+    const generation: PathGenerationResult = hostWarning
+      ? {
+          ok: true,
+          value: { ...pathGeneration.value, warnings: [...(pathGeneration.value.warnings ?? []), hostWarning] },
+        }
+      : pathGeneration;
     return {
       ok: true,
       value: {
-        binaryPath: pathValidation.value.validPath,
-        pathGeneration,
+        binaryPath,
+        pathGeneration: generation,
         pathValidation,
       },
     };
