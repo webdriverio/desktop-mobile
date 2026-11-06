@@ -483,6 +483,37 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
   });
 
+  // At the window and document, a field in a shadow root shows up as its host.
+  for (const [name, inShadowHost, targetId] of [
+    ['a field', false, 'fresh-field'],
+    ['a field in a shadow root', true, 'fresh-host'],
+  ] as const) {
+    it(`should fire change before the page's capture listeners on the window and document see ${name} lose focus, as Chrome does`, async () => {
+      await fillChangeScratch({ inShadowHost });
+      await browser.execute(
+        `window.__logCaptureBlur = function (ev) {
+          if (ev.target.id === "${targetId}") {
+            window.__fieldEvents.push((ev.currentTarget === window ? "window " : "document ") + ev.type);
+          }
+        };
+        window.addEventListener("blur", window.__logCaptureBlur, true);
+        document.addEventListener("blur", window.__logCaptureBlur, true);`,
+      );
+      try {
+        await (inShadowHost ? browser.$('#fresh-host').shadow$('#fresh-field') : browser.$('#fresh-field')).addValue(
+          'x',
+        );
+        await browser.$('#fresh-other').click();
+      } finally {
+        await browser.execute(
+          'window.removeEventListener("blur", window.__logCaptureBlur, true);' +
+            'document.removeEventListener("blur", window.__logCaptureBlur, true);',
+        );
+      }
+      expect(await fieldEvents()).toEqual(['input x', 'change x', 'window blur', 'document blur', 'blur x']);
+    });
+  }
+
   it('should take focus off the field when a click lands on an element that cannot take it', async () => {
     await fillChangeScratch();
     await fillScratch(`scratch.insertAdjacentHTML("beforeend", '<div id="fresh-plain">plain</div>');`);

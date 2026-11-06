@@ -23,7 +23,8 @@ async function focusedId() {
 }
 
 // A field that logs input, change and blur with its value, next to a button to move focus to.
-async function fillChangeScratch(initialValue = '') {
+async function fillChangeScratch(initialValue = '', { inShadowHost = false } = {}) {
+  const field = `<input id="fresh-field" value="${initialValue}">`;
   await browser.execute(
     `var scratch = document.querySelector("#change-scratch") || (function () {
       var div = document.createElement("div");
@@ -31,10 +32,12 @@ async function fillChangeScratch(initialValue = '') {
       document.body.appendChild(div);
       return div;
     })();
-    scratch.innerHTML = '<input id="fresh-field" value="${initialValue}"><button id="fresh-other">other</button>';
+    scratch.innerHTML = '${inShadowHost ? '<div id="fresh-field-host"></div>' : field}<button id="fresh-other">other</button>';
+    var parent = ${inShadowHost ? 'document.querySelector("#fresh-field-host").attachShadow({ mode: "open", delegatesFocus: true })' : 'scratch'};
+    ${inShadowHost ? `parent.innerHTML = '${field}';` : ''}
     window.__fieldEvents = [];
     for (var type of ["input", "change", "blur"]) {
-      document.querySelector("#fresh-field").addEventListener(type, function (ev) {
+      parent.querySelector("#fresh-field").addEventListener(type, function (ev) {
         window.__fieldEvents.push(ev.type + " " + ev.target.value);
       });
     }`,
@@ -138,6 +141,43 @@ describe('Dioxus element events (embedded)', () => {
     await browser.execute('document.querySelector("#fresh-other").focus()');
     expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
   });
+
+  // At the window and document, a field in a shadow root shows up as its host.
+  for (const [name, inShadowHost, targetId] of [
+    ['a field', false, 'fresh-field'],
+    ['a field in a shadow root', true, 'fresh-field-host'],
+  ] as const) {
+    it(`should fire change before the page's capture listeners on the window and document see ${name} lose focus, as Chrome does`, async () => {
+      await fillChangeScratch('', { inShadowHost });
+      await browser.execute(
+        `window.__logCaptureBlur = function (ev) {
+          if (ev.target.id === "${targetId}") {
+            window.__fieldEvents.push((ev.currentTarget === window ? "window " : "document ") + ev.type);
+          }
+        };
+        window.addEventListener("blur", window.__logCaptureBlur, true);
+        document.addEventListener("blur", window.__logCaptureBlur, true);`,
+      );
+      try {
+        // The driver has no shadow root commands, so the script returns the field's reference
+        const field = inShadowHost
+          ? browser.$(
+              (await browser.execute(
+                'return document.querySelector("#fresh-field-host").shadowRoot.querySelector("#fresh-field")',
+              )) as unknown as { 'element-6066-11e4-a52e-4f735466cecf': string },
+            )
+          : browser.$('#fresh-field');
+        await field.addValue('x');
+        await browser.$('#fresh-other').click();
+      } finally {
+        await browser.execute(
+          'window.removeEventListener("blur", window.__logCaptureBlur, true);' +
+            'document.removeEventListener("blur", window.__logCaptureBlur, true);',
+        );
+      }
+      expect(await fieldEvents()).toEqual(['input x', 'change x', 'window blur', 'document blur', 'blur x']);
+    });
+  }
 
   it('should fire change when an input handler moves focus on', async () => {
     await fillChangeScratch();

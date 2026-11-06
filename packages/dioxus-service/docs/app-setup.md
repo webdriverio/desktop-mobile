@@ -161,6 +161,7 @@ When `@wdio/dioxus-service` launches the app, it sets `DIOXUS_WEBVIEW_AUTOMATION
    - registers a `wdio://` custom protocol on the webview (`http://wdio.invoke/` on Windows). This protocol is the IPC channel between the WDIO service process and the app's webview.
    - registers built-in commands for log forwarding and window management.
    - injects the guest-js bundle into the webview. This bundle exposes `window.__WDIO_DIOXUS__.invoke` (which the service patches at session start to intercept mocked commands), sets up console log forwarding, and runs the polling loop that executes WebDriver scripts.
+   - injects the helpers the driver's element and key commands use (`window.__wdio_element_events`), with capture `blur` and `focusout` listeners on the window, so a field the driver typed into fires its `change` before the page's listeners see it lose focus. A listener added before the helpers still runs first, such as one from a `<script>` early in the `<head>` of a `with_custom_index` page.
 3. **Starts the embedded WebDriver server** on a background thread, listening on `127.0.0.1` at the port in `WDIO_EMBEDDED_PORT` (default `4444`). `@wdio/dioxus-service` sets this variable when it launches the app; change it with the `embeddedPort` service option.
 
 Without `DIOXUS_WEBVIEW_AUTOMATION=true`, `install()` returns the config unchanged, so normal development runs don't start the server.

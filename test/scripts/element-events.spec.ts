@@ -13,6 +13,7 @@ const DIOXUS_COPY = 'packages/dioxus-embedded-driver/src/server/handlers/element
 type ElementEvents = {
   wdioDeepActiveElement(): Element;
   wdioRecordPendingChange(el: HTMLElement, value: string): void;
+  wdioFocusLoss(event: Event): void;
   wdioTakePendingChange(el?: HTMLElement): { el: HTMLElement; value: string } | undefined;
   wdioCommitOnEnter(el: HTMLElement): void;
   wdioSubmitOnEnter(el: HTMLElement): void;
@@ -29,10 +30,25 @@ type ElementEvents = {
   wdioSetValueControl(el: HTMLElement, typed: string): 'immutable' | 'invalid' | 'set' | undefined;
 };
 
+// Registered before the helpers install, so it hides `blur` and `focus` from their window listener
+// too, as WebKitGTK does by not sending them.
+let hideBlurAndFocus = false;
+for (const type of ['blur', 'focus']) {
+  window.addEventListener(
+    type,
+    (event) => {
+      if (hideBlurAndFocus) {
+        event.stopImmediatePropagation();
+      }
+    },
+    true,
+  );
+}
+
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioDeepActiveElement, wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioDeepActiveElement, wdioRecordPendingChange, wdioFocusLoss, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioTabStops, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -72,16 +88,11 @@ function enter() {
 // Hides `blur` and `focus` from the page, as a WebKitGTK window without focus can fire neither for
 // scripted focus moves.
 function withoutBlurOrFocus(run: () => void) {
-  const stop = (event: Event) => event.stopImmediatePropagation();
-  for (const type of ['blur', 'focus']) {
-    window.addEventListener(type, stop, true);
-  }
+  hideBlurAndFocus = true;
   try {
     run();
   } finally {
-    for (const type of ['blur', 'focus']) {
-      window.removeEventListener(type, stop, true);
-    }
+    hideBlurAndFocus = false;
   }
 }
 
@@ -99,7 +110,7 @@ describe('element-events.js', () => {
   it.each(['packages/tauri-plugin-webdriver/src', 'packages/dioxus-embedded-driver/src'])(
     'should define every helper the Rust code in %s calls',
     (dir) => {
-      const defined = new Set(Array.from(source.matchAll(/^function (wdio\w+)/gm), (match) => match[1]));
+      const defined = new Set(Array.from(source.matchAll(/^(?:function|const) (wdio\w+)/gm), (match) => match[1]));
       const called = readdirSync(join(REPO_ROOT, dir), { recursive: true, encoding: 'utf8' })
         .filter((file) => file.endsWith('.rs'))
         .flatMap((file) =>
@@ -161,6 +172,74 @@ describe('pending change', () => {
     expect(log).toEqual([]);
   });
 
+  // When the window loses focus, the field gets a blur but keeps focus. Chrome fires no change then;
+  // telling that blur apart safely needs the drivers to fire the change in their own focus moves (#1055).
+  it("should fire it on a blur at the field, even one it keeps focus through, but not on the window's", () => {
+    type($('#a'), 'x');
+    window.dispatchEvent(new FocusEvent('blur'));
+    expect(log).toEqual([]);
+    $('#a').dispatchEvent(new FocusEvent('blur'));
+    expect(log).toEqual(['change a=x', 'blur a=x']);
+  });
+
+  it('should keep it through a blur or focusout on another element', () => {
+    type($('#a'), 'x');
+    $('#b').dispatchEvent(new FocusEvent('blur'));
+    $('#b').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    $('#a').blur();
+    expect(log).toEqual(['blur b=', 'change a=x', 'blur a=x']);
+  });
+
+  it("should keep it through a blur the page dispatches on the field's shadow host", () => {
+    render('<div id="host"></div>');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<input id="s">';
+    const field = root.querySelector('#s') as HTMLInputElement;
+    field.addEventListener('change', () => log.push('change s'));
+    type(field, 'x');
+    $('#host').dispatchEvent(new FocusEvent('blur'));
+    expect(log).toEqual(['blur host']);
+  });
+
+  it('should not loop on a page element named host, which hides document.host', () => {
+    // Stands in for <img name="host">, counting reads and throwing to end a loop rather than hang
+    let reads = 0;
+    Object.defineProperty(document, 'host', {
+      configurable: true,
+      get() {
+        reads += 1;
+        if (reads > 100) {
+          throw new Error('read document.host in a loop');
+        }
+        return document.body;
+      },
+    });
+    try {
+      $('#a').value = 'x';
+      events.wdioRecordPendingChange($('#a'), '');
+      $('#b').dispatchEvent(new FocusEvent('blur'));
+      expect(reads).toBe(0);
+      expect(log).toEqual(['blur b=']);
+    } finally {
+      Reflect.deleteProperty(document, 'host');
+    }
+  });
+
+  it("should fire it from the field's root when the window's listener is gone, as after document.open()", () => {
+    for (const type of ['blur', 'focusout']) {
+      window.removeEventListener(type, events.wdioFocusLoss, true);
+    }
+    try {
+      type($('#a'), 'x');
+      $('#b').focus();
+      expect(log).toEqual(['change a=x', 'blur a=x', 'focus b=']);
+    } finally {
+      for (const type of ['blur', 'focusout']) {
+        window.addEventListener(type, events.wdioFocusLoss, true);
+      }
+    }
+  });
+
   it('should fire it rather than drop it when another field records a change', () => {
     $('#a').value = 'x';
     events.wdioRecordPendingChange($('#a'), '');
@@ -182,6 +261,66 @@ describe('pending change', () => {
     events.wdioRecordPendingChange(field, '');
     (root.querySelector('#t') as HTMLElement).focus();
     expect(shadowLog).toEqual(['change', 'blur']);
+  });
+
+  // The page's listeners come after the helpers' window listener, which the drivers add as the page loads.
+  describe('with capture listeners the page adds to the window and document', () => {
+    const listeners: [EventTarget, string, () => void][] = [];
+    const listen = () => {
+      for (const [target, name] of [
+        [window, 'window'],
+        [document, 'document'],
+      ] as const) {
+        for (const type of ['blur', 'focusout']) {
+          const listener = () => log.push(`${name} ${type}`);
+          target.addEventListener(type, listener, true);
+          listeners.push([target, type, listener]);
+        }
+      }
+    };
+    afterEach(() => {
+      for (const [target, type, listener] of listeners.splice(0)) {
+        target.removeEventListener(type, listener, true);
+      }
+    });
+
+    it('should fire change before they see the field lose focus, as Chrome does', () => {
+      listen();
+      type($('#a'), 'x');
+      $('#b').focus();
+      expect(log).toEqual([
+        'change a=x',
+        'window blur',
+        'document blur',
+        'blur a=x',
+        'window focusout',
+        'document focusout',
+        'focus b=',
+      ]);
+    });
+
+    it.each(['open', 'closed'] as const)(
+      'should fire change before they see a field in a %s shadow root lose focus, as Chrome does',
+      (mode) => {
+        render('<div id="host"></div><input id="b">');
+        const root = $('#host').attachShadow({ mode });
+        root.innerHTML = '<input id="s">';
+        const field = root.querySelector('#s') as HTMLInputElement;
+        field.addEventListener('change', () => log.push('change s'));
+        listen();
+        type(field, 'x');
+        $('#b').focus();
+        expect(log).toEqual([
+          'change s',
+          'window blur',
+          'document blur',
+          'blur host',
+          'window focusout',
+          'document focusout',
+          'focus b=',
+        ]);
+      },
+    );
   });
 });
 
@@ -866,17 +1005,17 @@ describe('wdioPress and wdioRelease', () => {
     const shapes: string[] = [];
     for (const name of CLICK_EVENTS) {
       $('#b').addEventListener(name, (event) => {
-        const { detail, pointerType } = event as PointerEvent;
-        shapes.push(`${name} ${event.constructor.name} ${detail} ${pointerType}`);
+        const { detail, pointerType, pointerId, isPrimary } = event as PointerEvent;
+        shapes.push(`${name} ${event.constructor.name} ${detail} ${pointerType} ${pointerId} ${isPrimary}`);
       });
     }
     click($('#b'));
     expect(shapes).toEqual([
-      'pointerdown PointerEvent 0 mouse',
-      'mousedown MouseEvent 0 undefined',
-      'pointerup PointerEvent 0 mouse',
-      'mouseup MouseEvent 0 undefined',
-      'click PointerEvent 1 mouse',
+      'pointerdown PointerEvent 0 mouse 1 true',
+      'mousedown MouseEvent 0 undefined undefined undefined',
+      'pointerup PointerEvent 0 mouse 1 true',
+      'mouseup MouseEvent 0 undefined undefined undefined',
+      'click PointerEvent 1 mouse 1 false',
     ]);
   });
 
@@ -933,9 +1072,14 @@ describe('wdioFocusForClick', () => {
 
   it('should stop when focus leaves the field, as when WebKitGTK cancels a move in a window without focus', () => {
     type($('#a'), 'x');
-    // WebKit cancels a focus move that a focusout handler undoes; jsdom doesn't, so this fakes it.
+    // WebKit takes focus off the field and sends focusout, then cancels the move when a focusout
+    // handler undoes it. jsdom doesn't cancel, so this fakes it.
+    const { blur, focus } = HTMLElement.prototype;
     vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {
-      $('#a').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      withoutBlurOrFocus(() => {
+        blur.call($('#a'));
+        focus.call($('#a'));
+      });
     });
     events.wdioFocusForClick($('#b'));
     expect(document.activeElement?.id).toBe('a');
