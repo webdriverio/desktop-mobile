@@ -256,7 +256,7 @@ describe('createMock call data', () => {
     await mock.update();
 
     expect(mock.mock.calls.slice(0, 2)).toStrictEqual([[{ a: 1 }], [{ a: 1 }]]);
-    // Following every path through the graph instead would double the output per level
+    // Reading every path rather than every object would double the size per level
     expect(JSON.stringify(mock.mock.calls[2]).length).toBeLessThan(5_000);
   });
 });

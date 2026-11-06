@@ -239,7 +239,7 @@ describe('ElectronAdapter integration (synthetic window)', () => {
   });
 });
 
-// Native mode records calls with native-spy's fn; browser mode with the spy its injection script defines.
+// Native mode records with native-spy's `fn`; browser mode with the injection script's `createMockFn`.
 const callDataCases = (['tauri', 'electron', 'dioxus'] as const).flatMap((framework) =>
   (['native-spy', 'browser-mode'] as const).map((spy) => [framework, spy] as const),
 );
@@ -262,7 +262,7 @@ describe.each(callDataCases)('%s call data read with the %s spy (synthetic windo
     return { win, mock: win.__wdio_mocks__.my_cmd };
   }
 
-  // The WebDriver or CDP result is JSON too, so clone it as the transport does.
+  // WebDriver and CDP return the result as JSON, so clone it the same way.
   function read(win: SyntheticWindow) {
     const raw = JSON.parse(JSON.stringify(evalScript(interceptor.buildCallDataReadScript('my_cmd'), win)));
     return interceptor.parseCallData(raw);

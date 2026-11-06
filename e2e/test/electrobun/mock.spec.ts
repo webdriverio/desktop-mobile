@@ -59,7 +59,7 @@ describe('Electrobun Mocking', () => {
       await defineTarget('writeValue');
       const mockWriteValue = await browser.electrobun.mock('writeValue');
 
-      // Call it in the page: callTarget's WebDriver arguments would turn undefined into null.
+      // Call the target in the page, as callTarget's WebDriver arguments would turn undefined into null.
       await browser.electrobun.execute(() =>
         (globalThis as unknown as Record<string, (...a: unknown[]) => unknown>).writeValue({ a: undefined }, undefined),
       );

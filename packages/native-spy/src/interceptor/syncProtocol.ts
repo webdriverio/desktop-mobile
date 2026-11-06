@@ -29,7 +29,7 @@ function reviveMarkers(value: unknown): unknown {
   return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, reviveMarkers(v)]));
 }
 
-/** Restore the `undefined` and `Error` markers the in-page read script writes (`CALL_DATA_REPLACER`). */
+/** Restore the `undefined` and `Error` markers that a call-data read writes. */
 export function parseCallData(raw: unknown): MockCallData {
   if (!raw || typeof raw !== 'object') {
     return { calls: [], results: [], invocationCallOrder: [] };

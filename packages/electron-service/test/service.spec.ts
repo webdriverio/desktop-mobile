@@ -97,7 +97,7 @@ vi.mock('node:child_process', () => ({ default: { spawn: mockSpawn }, spawn: moc
 
 let instance: ElectronWorkerService | undefined;
 
-// The loggers the source modules created on import, kept before beforeEach clears createLogger's record.
+// Loggers created at import, captured before beforeEach's clearAllMocks() wipes createLogger's results.
 const loggers = vi.mocked(createLogger).mock.results.map((r) => r.value as unknown as { warn: Mock });
 
 beforeEach(async () => {
@@ -432,7 +432,7 @@ describe('Electron Worker Service', () => {
       const executeMock = vi.mocked(await import('../src/commands/executeCdp.js')).execute;
       executeMock.mockClear();
       const electron = { app: { getName: { mock: { calls: [['x', undefined], [{ b: undefined }]], results: [] } } } };
-      // Run the main-process reader against a fake electron, and return its result as JSON, as CDP does.
+      // Run the main-process read against a fake electron. CDP returns the result as JSON.
       executeMock.mockImplementationOnce((async (
         _browser: unknown,
         _bridge: unknown,
@@ -518,10 +518,7 @@ describe('Electron Worker Service', () => {
 
       const executeMock = vi.mocked(await import('../src/commands/executeCdp.js')).execute;
       executeMock.mockClear();
-      // Simulate the inner script catching a per-mock failure and emitting
-      // an __error marker. The outer code log.warns it and still forwards an
-      // empty slice (__error stripped by parseCallData) to __applyCalls so the
-      // scheduler doesn't stall.
+      // The inner script caught this mock's read failure and returned an __error marker.
       executeMock.mockResolvedValue({
         'electron.app.getName': { calls: [], results: [], __error: 'boom: app undefined' },
       });

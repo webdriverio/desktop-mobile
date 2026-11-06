@@ -280,8 +280,8 @@ async function batchUpdateNativeMocks(
  * built by the interceptor (same serialisation contract as per-mock update()),
  * then the batch wrapper invokes them inside one round-trip. Ids and scripts
  * are passed as WebDriver args, not spliced into the script source. Raw
- * payloads run through parseCallData() per mock to reconstruct Error markers,
- * then go to __applyCalls.
+ * payloads run through parseCallData() per mock to restore the `undefined`
+ * and `Error` markers, then go to __applyCalls.
  */
 async function batchUpdateBrowserModeMocks(
   browser: WebdriverIO.Browser,

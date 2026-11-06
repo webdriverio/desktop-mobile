@@ -10,7 +10,6 @@ const createMockLogger = () => ({
   trace: vi.fn(),
 });
 
-// Mock createLogger to return a fresh mock logger instance
 export const createLogger = vi.fn(() => createMockLogger());
 
 // Export mocks for native-utils functions used in tests
