@@ -8,12 +8,12 @@ function anElementReference() {
   return { [ELEMENT_KEY]: expect.any(String) };
 }
 
-// WebdriverIO returns a script's result as the driver sends it; `$` turns a reference into an element.
+// `$` turns a returned reference back into an element.
 function idOf(ref: unknown) {
   return browser.$(ref as ElementReference).getAttribute('id');
 }
 
-// The embedded driver serialises script results itself. Chromedriver sends an element as a reference.
+// Chromedriver returns an element as a reference. The embedded driver serialises results itself, so it has to match.
 describe('Dioxus execute — element references (embedded)', () => {
   describe('browser.execute', () => {
     it('should return an element as a reference that element commands accept', async () => {
@@ -52,7 +52,7 @@ describe('Dioxus execute — element references (embedded)', () => {
       expect(await Promise.all(result.map(idOf))).toEqual(['counter', 'increment-button']);
     });
 
-    // An async function goes through Execute Async Script.
+    // Async functions take a separate driver path, Execute Async Script.
     it('should return an element from an async function as a reference', async () => {
       const result = await browser.execute(async () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -71,7 +71,7 @@ describe('Dioxus execute — element references (embedded)', () => {
     });
   });
 
-  // A function goes through a promise that wraps its result in an envelope, so the driver converts the awaited value.
+  // The service resolves a function's result inside an envelope, and the driver converts the value in it.
   describe('browser.dioxus.execute', () => {
     it('should return an element as a reference that element commands accept', async () => {
       const result = await browser.dioxus.execute(() => document.querySelector('#counter'));
