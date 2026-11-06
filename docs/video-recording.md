@@ -7,6 +7,7 @@ A complete working setup for every currently supported framework — see the [RE
 ## What you get (and what you don't)
 
 `wdio-video-reporter` captures via **screenshot stitching**, not a real video pipeline: it takes one screenshot after each command in a configurable allowlist (`click`, `setValue`, `keys`, navigation, etc.), optionally plus an interval timer, and stitches the frames into a `.webm` (or `.mp4`) at the end of each test. Practical consequences:
+
 - **Resolution and content** match whatever `browser.saveScreenshot` returns — renderer-only for webview-scoped providers (Electron, Tauri-`embedded`, Tauri-`external`); full OS window only on Tauri-`crabnebula` via its Screen Recording path. Dioxus screenshots are blank for now (#721), so Dioxus recordings are too.
 - **Frame rate is effectively the test's command rate**, not real video. With `videoSlowdownMultiplier: 3` (default) you get a 3–10 fps slideshow.
 - **Cursor motion between frames is invisible** ([upstream #588](https://github.com/webdriverio-community/wdio-video-reporter/issues/588)).
@@ -66,6 +67,7 @@ Tauri additionally appends `driverProvider` to the path because its three provid
 ## Output paths
 
 Per-OS / per-arch directories stop artefacts from different runners colliding. Some framework services need additional segments — for Tauri, the per-provider segment matters because a video recorded under `embedded` (webview only) looks very different from one recorded under `crabnebula` (full OS window) — keep them separate so you can compare like-for-like across runs.
+
 - **Default**: `__video__/<platform>/<arch>/<test-slug>-<timestamp>.webm`
 - **Tauri (extra `<provider>` segment)**: `__video__/<platform>/<arch>/<provider>/<test-slug>-<timestamp>.webm`
 
@@ -86,6 +88,7 @@ Tauri's three driver providers behave differently for video recording:
 CrabNebula's macOS driver routes `browser.saveScreenshot` through OS-level Screen Recording (AVFoundation / ScreenCaptureKit). Hosted GitHub Actions macOS runners can't grant Screen Recording permission programmatically (TCC has no scriptable approval path on hosted runners), so video recording hangs or errors.
 
 Workarounds:
+
 - Use the `embedded` provider on macOS CI.
 - Use a self-hosted macOS runner with TCC pre-populated.
 - Skip `crabnebula × macOS-CI × video` from your matrix and rely on Linux / Windows coverage.

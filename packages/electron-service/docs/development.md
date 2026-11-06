@@ -17,6 +17,7 @@ The project uses a catalog system to manage Electron versions across three catal
 See [Dependency Management](../../docs/setup.md#dependency-management) for catalog switching and update commands.
 
 For the `next` catalog:
+
 - `pnpm catalog:update --next` pins `electron-nightly` to its newest nightly that's old enough for pnpm's `minimumReleaseAge`
 - `pnpm catalog:next` replaces each package's `electron` dependency with `electron-nightly`, and switching to another catalog puts `electron` back
 
@@ -87,5 +88,6 @@ Project maintainers publish releases using GitHub Actions. Releases are driven b
 ### Contributing
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines, commit format, and PR process.
+
 - **[Help Wanted Issues](https://github.com/webdriverio/desktop-mobile/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3Ahelp%3Awanted)**
 - **[Beginner Friendly Issues](https://github.com/webdriverio/desktop-mobile/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3Ahelp%3Abeginner-friendly)**

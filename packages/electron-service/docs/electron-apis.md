@@ -36,6 +36,7 @@ await browser.electron.execute(
 ### How It Works
 
 The service uses the Chrome DevTools Protocol (CDP) to communicate with your Electron application's main process. This provides a reliable and efficient way to:
+
 - Execute JavaScript code in the main process context
 - Access all Electron APIs
 - Mock Electron APIs for testing
@@ -105,6 +106,7 @@ expect(mockTray.setToolTip).toHaveBeenCalledWith('Click for menu');
 ```
 
 Class mocks provide:
+
 - **`__constructor`**: An ElectronFunctionMock object that tracks calls to the class constructor
 - **Instance methods**: All class instance methods are available as mock objects
 - **`mockRestore()`**: Method to restore the original class
@@ -232,6 +234,7 @@ expect(await app2.electron.execute((electron) => electron.app.getName())).not.to
 ## API Reference
 
 For complete API documentation including all parameters, return types, and mock object methods:
+
 - [API Reference - `execute()`](./api-reference.md#execute)
 - [API Reference - Mocking Methods](./api-reference.md#mocking-methods)
 - [API Reference - Mock Object Methods](./api-reference.md#mock-object-methods)

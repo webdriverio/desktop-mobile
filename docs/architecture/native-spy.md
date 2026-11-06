@@ -20,6 +20,7 @@ const mock = fn(implementation); // Create with default implementation
 ## Vitest Compatibility
 
 Implements the full vitest Mock interface:
+
 - `mockClear()`, `mockReset()`, `mockRestore()`
 - `mockImplementation()`, `mockImplementationOnce()`
 - `mockReturnValue()`, `mockReturnValueOnce()`

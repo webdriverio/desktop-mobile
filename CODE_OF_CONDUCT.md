@@ -7,6 +7,7 @@ In the interest of fostering an open and welcoming environment, we as contributo
 ## Our Standards
 
 Examples of behavior that contributes to creating a positive environment include:
+
 - Participate in an authentic and active way. In doing so, you contribute to the health and longevity of this community.
 - Exercise consideration and respect in your speech and actions.
 - Attempt collaboration before conflict.
@@ -15,6 +16,7 @@ Examples of behavior that contributes to creating a positive environment include
 - Remember that community event venues may be shared with members of the public; please be respectful to all patrons of these locations.
 
 Examples of unacceptable behavior by participants include:
+
 - Violence, threats of violence or violent language directed against another person.
 - Sexist, racist, homophobic, transphobic, ableist or otherwise discriminatory jokes and language.
 - Posting or displaying sexually explicit or violent material.
@@ -48,12 +50,14 @@ Project maintainers who do not follow or enforce the Code of Conduct in good fai
 ### Project Spaces
 
 For reporting issues in spaces related to WebdriverIO Desktop & Mobile Testing, please contact the project maintainers. The project maintainers commit to:
+
 - maintain confidentiality with regard to the reporter of an incident
 - to participate in the path for escalation as outlined in the section on Escalation when required.
 
 ### Foundation Spaces
 
 For reporting issues in spaces managed by the OpenJS Foundation, for example, repositories within the OpenJS organization, use the email `report@lists.openjsf.org`. The Cross Project Council (CPC) is responsible for managing these reports and commits to:
+
 - maintain confidentiality with regard to the reporter of an incident
 - to participate in the path for escalation as outlined in the section on Escalation when required.
 
@@ -66,5 +70,6 @@ For more information, refer to the full [Code of Conduct governance document](ht
 ## Attribution
 
 This Code of Conduct is adapted from the [Contributor Covenant](http://contributor-covenant.org/), version 1.4, available at [http://contributor-covenant.org/version/1/4](http://contributor-covenant.org/version/1/4/) and also inspired among other things by:
+
 - [Citizen Code of Conduct](http://citizencodeofconduct.org/)
 - [Appium](https://github.com/appium/appium/blob/master/CONDUCT.md)

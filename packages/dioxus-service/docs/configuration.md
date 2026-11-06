@@ -29,6 +29,7 @@ export const config = {
 Path to the compiled Dioxus application binary.
 
 **Example:**
+
 ```typescript
 appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',    // debug build (driver and bridge active)
 appBinaryPath: './target/dx/my_app/release/linux/app/my_app',  // release build (driver and bridge inactive)
@@ -47,6 +48,7 @@ Command-line arguments to pass to the Dioxus application when launching. Each ar
 A capability's `'dioxus:options'.args` replaces this list, even when it's empty.
 
 **Example:**
+
 ```typescript
 appArgs: ['--debug', '--log-level', 'debug'];
 appArgs: ['--window-size=1920,1080'];
@@ -59,12 +61,14 @@ appArgs: ['--window-size=1920,1080'];
 ### `embeddedPort` (number, optional)
 
 Preferred port for the embedded WebDriver server.
+
 - The service spawns your app on this port if it's free. Each further app it spawns (multiremote instances, or more than one capability) prefers the next port up.
 - A port that's already in use is skipped for a free one, and the service connects to whichever port it chose.
 - Set it in an instance's `wdio:dioxusServiceOptions` to give that instance its own preferred port.
 - Can also be set via the `WDIO_EMBEDDED_PORT` environment variable.
 
 **Example:**
+
 ```typescript
 embeddedPort: 4445;
 ```
@@ -78,6 +82,7 @@ embeddedPort: 4445;
 Timeout in milliseconds for the `/status` endpoint poll during embedded WebDriver server startup. Increase this in slow CI environments where a healthy-but-busy server may miss the default deadline.
 
 **Example:**
+
 ```typescript
 statusPollTimeout: 5000;
 ```
@@ -91,6 +96,7 @@ statusPollTimeout: 5000;
 Timeout in milliseconds for the Dioxus app to start and become ready.
 
 **Example:**
+
 ```typescript
 startTimeout: 60000; // 60 seconds
 ```
@@ -104,6 +110,7 @@ startTimeout: 60000; // 60 seconds
 The window the session starts in. Set it here, or per capability in `wdio:dioxusServiceOptions` to override it. Windows are labelled in the order they open: `main`, then `window-1`, `window-2` and so on. The session waits up to 10 seconds for the window to open.
 
 **Example:**
+
 ```typescript
 windowLabel: 'window-1'; // Start in the second window the app opens
 ```
@@ -119,6 +126,7 @@ windowLabel: 'window-1'; // Start in the second window the app opens
 Capture logs from the Dioxus backend (Rust code) and forward them to WebdriverIO's logger.
 
 **Example:**
+
 ```typescript
 captureBackendLogs: true;
 ```
@@ -134,6 +142,7 @@ captureBackendLogs: true;
 Capture console logs from the frontend (JavaScript/TypeScript in the webview).
 
 **Example:**
+
 ```typescript
 captureFrontendLogs: true;
 ```
@@ -149,6 +158,7 @@ captureFrontendLogs: true;
 Minimum log level to capture from the Rust backend. Logs below this level are ignored.
 
 **Example:**
+
 ```typescript
 backendLogLevel: 'debug'; // Capture debug and above
 ```
@@ -164,6 +174,7 @@ backendLogLevel: 'debug'; // Capture debug and above
 Minimum log level to capture from the frontend webview. Logs below this level are ignored.
 
 **Example:**
+
 ```typescript
 frontendLogLevel: 'debug';
 ```
@@ -179,6 +190,7 @@ frontendLogLevel: 'debug';
 Additional environment variables to pass to the Dioxus application process.
 
 **Example:**
+
 ```typescript
 env: {
   RUST_LOG: 'debug',
@@ -193,10 +205,12 @@ env: {
 ### `mode` ('native' | 'browser', optional)
 
 Controls how the service connects to your application.
+
 - `'native'` (default) — launches your compiled Dioxus binary via the configured driver provider.
 - `'browser'` — skips all driver and binary setup; sets `browserName = 'chrome'`, navigates to `devServerUrl`, and intercepts the invoke API so Dioxus commands can be mocked without a running Rust backend.
 
 **Example:**
+
 ```typescript
 mode: 'browser';
 ```
@@ -214,6 +228,7 @@ See [Browser Mode](./browser-mode.md) for setup, mocking, and limitations.
 URL of the dev server to navigate to when `mode: 'browser'` is set. Validated with `new URL()` at startup.
 
 **Example:**
+
 ```typescript
 devServerUrl: 'http://localhost:8080';
 ```
@@ -404,6 +419,7 @@ dx build --desktop
 ```
 
 Binary locations:
+
 - Windows: `target\dx\my_app\debug\windows\app\my_app.exe`
 - Linux: `target/dx/my_app/debug/linux/app/my_app`
 - macOS: `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app`

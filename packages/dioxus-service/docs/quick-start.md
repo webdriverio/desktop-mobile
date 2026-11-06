@@ -235,6 +235,7 @@ npx wdio run wdio.conf.ts --logLevel debug
 ### "Embedded WebDriver server did not become ready" or "Bridge not available"
 
 `wdio-dioxus` is not wired into your app. Make sure:
+
 1. Add to `[dependencies]` in `Cargo.toml`:
 
    ```toml
@@ -252,6 +253,7 @@ The app was built with `cargo build`, which doesn't bundle the files loaded with
 ### "Application not found at path"
 
 The `appBinaryPath` or `dioxus:options.application` is wrong. Verify:
+
 1. You built the app: `dx build --desktop`
 2. The path exists: `dx` prints it when the build finishes (see [Building the Dioxus App](#building-the-dioxus-app))
 3. Update the path in `wdio.conf.ts` if needed

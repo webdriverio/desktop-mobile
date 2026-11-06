@@ -51,6 +51,7 @@ The app was built with `cargo build`. Files loaded with `asset!()` are only bund
 ### Compilation errors from `wdio-dioxus`
 
 `wdio-dioxus` tracks the latest Dioxus release; the exact version it supports is its own `dioxus-desktop` dependency — see its [dependencies on crates.io](https://crates.io/crates/wdio-dioxus).
+
 1. Update your Rust toolchain: `rustup update`
 2. Clear the Cargo cache: `cargo clean && dx build --desktop`
 3. Pin your `dioxus` to the same minor as `wdio-dioxus`'s `dioxus-desktop` dependency (link above)
@@ -217,6 +218,7 @@ The app has no display: see [Linux Without a Display](./quick-start.md#linux-wit
 ### Tests Fail in CI But Pass Locally
 
 **Common Causes:**
+
 1. **Missing Linux build dependencies**
 
    ```bash
@@ -282,6 +284,7 @@ npx wdio run wdio.conf.ts --logLevel debug
 ## Getting Help
 
 If you're still stuck:
+
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
 3. **See [App Setup](./app-setup.md)** for what the app needs

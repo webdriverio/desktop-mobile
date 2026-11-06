@@ -60,6 +60,7 @@ pnpm test
 ## 🧪 Testing
 
 The test suite demonstrates builder-specific features:
+
 1. **Builder Configuration** - Access to build settings and package info
 2. **Menu System** - Testing native application menus
 3. **Window Management** - Validation of window size and properties
@@ -69,6 +70,7 @@ The test suite demonstrates builder-specific features:
 ## 📋 When to Use This Setup
 
 Choose **Electron Builder** when you want:
+
 - Professional packaging and distribution
 - Code signing and notarization
 - Auto-updater functionality
@@ -81,6 +83,7 @@ Choose **Electron Builder** when you want:
 ### Builder Configuration
 
 The builder configuration is in `package.json` under the `build` section:
+
 - Custom app ID and product name
 - Platform-specific build targets
 - Output directory configuration
@@ -119,6 +122,7 @@ dist-electron/
 ## 📱 Distribution
 
 Builder supports:
+
 - **macOS**: DMG, PKG, MAS (App Store)
 - **Windows**: NSIS, Squirrel, MSI, AppX (Store)
 - **Linux**: AppImage, deb, rpm, snap, flatpak

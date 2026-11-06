@@ -11,6 +11,7 @@ Deeplink testing allows you to verify that your Dioxus application correctly han
 ### When Should You Use It?
 
 Use `browser.dioxus.triggerDeeplink()` when you need to:
+
 - Test that your app correctly handles custom protocol URLs
 - Verify deeplink parameter parsing and routing logic
 - Test protocol handler registration and activation
@@ -117,6 +118,7 @@ Store deeplink data in a globally accessible location so tests can read it via `
 **Symptom:** The deeplink is triggered but your app doesn't receive it.
 
 **Possible Causes:**
+
 1. **Protocol not registered** — verify your app is registered as the handler for the scheme.
 2. **Listener not set up before trigger** — ensure your deeplink listener is active before calling `triggerDeeplink()`.
 3. **Timing** — the OS may take a moment to route the deeplink to your running app.

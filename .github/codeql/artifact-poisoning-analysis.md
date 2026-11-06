@@ -45,6 +45,7 @@ This action implements the safeguards described below.
 ### The Alert
 
 CodeQL flagged the pattern:
+
 ```yaml
 run: pnpm exec tsx e2e/scripts/show-logs.ts
 ```
@@ -62,6 +63,7 @@ Artifacts are first extracted to `${RUNNER_TEMP}/artifact-extract-{run_id}-{atte
 #### 2. Copying of Specific Directories
 
 The "Extract and Copy Archive" step only copies specific directories to the workspace:
+
 - `**/dist` directories (build output)
 - `**/dist-js` directories (build output)
 - `**/target` directories (Rust/Tauri build output)
@@ -71,6 +73,7 @@ The "Extract and Copy Archive" step only copies specific directories to the work
 ### Conclusion
 
 Even if a malicious artifact contained a poisoned `e2e/scripts/show-logs.ts` file:
+
 1. The artifact extracts to a temp directory
 2. The copy logic only looks for `dist/`, `dist-js/`, and `target/`
 3. The `scripts/` directory is never touched
@@ -98,6 +101,7 @@ Artifacts are extracted to `${RUNNER_TEMP}/artifact-extract-{run_id}-{attempt}` 
 #### 2. Copying of Specific Directories
 
 The action only copies these specific directories:
+
 - `**/dist` directories (build output)
 - `**/dist-js` directories (build output)
 - `**/target` directories (Rust/Tauri build output)
@@ -107,6 +111,7 @@ The action only copies these specific directories:
 #### 3. pnpm Uses Workspace Root Files
 
 `pnpm install` runs from the workspace root, which contains the git checkout. It uses:
+
 - `package.json` from git checkout
 - `pnpm-lock.yaml` from git checkout
 - `.npmrc` from git checkout
@@ -116,6 +121,7 @@ These files are never overwritten by the artifact download.
 ### Conclusion
 
 Even if a malicious artifact contained poisoned `package.json` or `pnpm-lock.yaml`:
+
 1. The artifact extracts to a temp directory
 2. The copy logic only looks for build output directories
 3. Root-level config files are never touched
@@ -140,6 +146,7 @@ queries:
 ## CodeQL's Limitation
 
 CodeQL's `actions/artifact-poisoning` rule applies a blanket "defense in depth" analysis:
+
 - It sees: "artifacts are downloaded" + "code is executed from workspace"
 - It doesn't understand: the custom extraction logic that targets specific directories
 

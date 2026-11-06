@@ -5,6 +5,7 @@ Worker services inject a framework-specific API onto the browser object in the `
 ## Namespace
 
 Attach to `browser.<frameworkName>`:
+
 - `browser.electron` for Electron
 - `browser.tauri` for Tauri
 - `browser.dioxus` for Dioxus (future)

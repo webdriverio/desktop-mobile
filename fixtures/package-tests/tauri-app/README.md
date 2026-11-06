@@ -107,6 +107,7 @@ pnpm test
 ## Usage in CI/CD
 
 This app is designed to be used as a test fixture in CI/CD pipelines:
+
 1. **Build the app**: `pnpm build`
 2. **Set binary path**: `export TAURI_APP_BINARY_PATH=/path/to/built/app`
 3. **Run tests**: `pnpm test`

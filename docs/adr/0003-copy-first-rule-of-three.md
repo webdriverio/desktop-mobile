@@ -18,6 +18,7 @@ management).
 It was actually built — roughly 1,241 lines with 125 passing tests, all green in isolation.
 Then it was integrated back into its one real consumer, the Electron service, and the result
 was worse than before:
+
 - Electron's launcher + service went from ~572 to ~615 lines (**+43 lines, +7.5%**) — the base
   classes produced type-casting and wrapper boilerplate, not shared implementation.
 - The concrete utilities went **unused**, because Electron already had working, tested,
@@ -30,6 +31,7 @@ services instead of proven duplication.
 ## Decision
 
 Delete the heavyweight `@wdio/native-utils` base-class layer. Adopt a **copy-first** rule:
+
 - A new service **copies** proven patterns from the reference implementation (Electron for
   desktop) and adapts them, rather than inheriting a framework.
 - Shared code is **extracted into a package only after the pattern appears in ~3 places** (the

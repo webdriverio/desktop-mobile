@@ -20,6 +20,7 @@ spawn(driverPath, args, {
 ## Readiness Detection
 
 Approach depends on what the driver supports:
+
 - **TCP + HTTP polling** (preferred): poll port with `net.Socket`, then check HTTP endpoint
 - **stdout detection**: parse startup message from stdout (fallback)
 - Set a startup timeout (30s default)

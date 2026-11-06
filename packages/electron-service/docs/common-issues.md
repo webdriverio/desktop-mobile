@@ -9,6 +9,7 @@ The service works out which Chromedriver to use from your app's Electron version
 The usual cause is testing an app built elsewhere — a downloaded release artifact, or a build produced by a separate CI job — so the tests have no local Electron install even though `appBinaryPath` points at a perfectly good app.
 
 Any one of these resolves it:
+
 - Install `electron` as a `devDependency` in the project being tested.
 - Set the `browserVersion` capability to the Electron version under test — see [Chromedriver Configuration](./configuration.md#chromedriver-configuration).
 - Set `wdio:chromedriverOptions.binary` to a Chromedriver you provide.
@@ -18,11 +19,13 @@ Any one of these resolves it:
 The Electron version was found, but the service could not map it to a Chromium version, so it cannot select a matching Chromedriver. Installing Electron will not help — it is already installed.
 
 The mapping comes from `https://electronjs.org/headers/index.json`, falling back to the bundled `electron-to-chromium` data when that request fails. It comes up short when:
+
 - the build is a **fork** whose version is not a published Electron release;
 - the build is a **nightly** and the online lookup is unavailable — the bundled fallback contains no nightly versions;
 - the Electron release is **newer than the bundled data** and the online lookup is unavailable.
 
 Resolve it by pinning Chromedriver yourself:
+
 - Set `wdio:chromedriverOptions.binary` to a Chromedriver matching your app's Chromium version.
 - Or set the `browserVersion` capability to the **Chromium** version your Electron build uses. You can read that from the app itself:
 
@@ -40,6 +43,7 @@ This warning appears when your Electron app has the `EnableNodeCliInspectArgumen
 #### Impact
 
 When this fuse is disabled:
+
 - ❌ `browser.electron.execute()` - main process API access will not work
 - ❌ `browser.electron.mock()` - mocking main process APIs will not work
 - ❌ Main process log capture will not work (see [Debugging - Log Capture Requirements](./debugging.md#log-capture-requirements))
@@ -63,6 +67,7 @@ await flipFuses(require('electron'), {
 ```
 
 Then build with the environment variable, e.g.:
+
 ```bash
 BUILD_FOR_TESTS=true npm run build  # for testing
 npm run build                       # for production
@@ -75,6 +80,7 @@ See: [Electron Fuses Documentation](https://www.electronjs.org/docs/latest/tutor
 The `EnableNodeCliInspectArguments` fuse is enabled, but the service could not reach the app's Node inspector. The service logs the connection error when the session starts, and every `browser.electron` call that needs the bridge throws it, with a message starting `CDP bridge could not connect to the main process, API is disabled:`. Main process log capture is off for that session. Tests that don't use those APIs still run.
 
 Check that:
+
 - The app is still running after it starts. If it exits or crashes during startup, its inspector goes with it.
 - The inspector has time to start. On a slow machine, raise [`cdpBridgeTimeout`](./configuration.md#cdpbridgetimeout).
 

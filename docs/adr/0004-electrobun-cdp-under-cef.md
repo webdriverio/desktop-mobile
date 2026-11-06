@@ -16,6 +16,7 @@ no longer holds universally (Linux only; macOS WKWebView still has no automation
 An Electrobun app can render with either its **default WebKit renderer** or an opt-in **CEF**
 (Chromium Embedded Framework) renderer. How the app can be driven depends entirely on that
 choice:
+
 - The **WebKit renderer exposes no CDP** endpoint on any OS — there is no remote-debugging port
   to attach to, so it cannot be driven this way.
 - **CEF serves CDP.** A spike confirmed on macOS that Chromedriver attaches via
@@ -33,6 +34,7 @@ Drive Electrobun **over CDP**, attaching Chromedriver via `debuggerAddress`, mir
 Electron service so the attach model and the mock seam are shared.
 
 CDP requires a CDP-speaking renderer, so the service requires one:
+
 - **macOS** — the CEF renderer (`bundleCEF: true` + `renderer: 'cef'`); the default WebKit
   renderer is unsupported.
 - **Windows** — the native WebView2 renderer (CDP), no CEF needed.

@@ -58,6 +58,7 @@ These functions are exported directly from the package and can be used independe
 Creates an Electron capabilities object for use with `startWdioSession()` or in WDIO configuration. Builds the correct capability structure including `goog:chromeOptions` and `wdio:electronServiceOptions`.
 
 **Signature:**
+
 ```ts
 import { createElectronCapabilities } from '@wdio/electron-service';
 
@@ -109,6 +110,7 @@ const browser = await startWdioSession([caps]);
 ```
 
 **See Also:**
+
 - [Standalone Mode](./standalone-mode.md)
 - [Configuration](./configuration.md)
 
@@ -119,6 +121,7 @@ const browser = await startWdioSession([caps]);
 Resolves the path to the Electron binary for a given app directory. Uses the same detection logic as the service (reading `package.json`, checking Electron Forge/Builder configs) without starting a session.
 
 **Signature:**
+
 ```ts
 import { getElectronBinaryPath } from '@wdio/electron-service';
 
@@ -153,6 +156,7 @@ console.log(binaryPath);
 ```
 
 **See Also:**
+
 - [Configuration - Automatic detection of App binary](./configuration.md#automatic-detection-of-app-binary)
 
 ---
@@ -162,6 +166,7 @@ console.log(binaryPath);
 Starts a WebdriverIO session in standalone mode (without the WDIO test runner). Performs the same launcher setup the runner does — binary detection, capability mutation, log writer initialization — and returns a browser instance.
 
 **Signature:**
+
 ```ts
 import { startWdioSession } from '@wdio/electron-service';
 
@@ -204,6 +209,7 @@ try {
 ```
 
 **See Also:**
+
 - [Standalone Mode](./standalone-mode.md)
 - [`cleanupWdioSession()`](#cleanupwdiosession)
 
@@ -214,6 +220,7 @@ try {
 Tears down a standalone session started with [`startWdioSession()`](#startwdiosession). Calls `browser.deleteSession()` and runs the launcher's `onComplete` cleanup so the Electron process and any spawned drivers are released.
 
 **Signature:**
+
 ```ts
 import { cleanupWdioSession } from '@wdio/electron-service';
 
@@ -231,6 +238,7 @@ cleanupWdioSession(browser: WebdriverIO.Browser): Promise<void>
 `Promise<void>`
 
 **See Also:**
+
 - [Standalone Mode](./standalone-mode.md)
 - [`startWdioSession()`](#startwdiosession)
 
@@ -243,6 +251,7 @@ cleanupWdioSession(browser: WebdriverIO.Browser): Promise<void>
 Executes arbitrary JavaScript code in the Electron main process context.
 
 **Signature:**
+
 ```ts
 browser.electron.execute<T>(
   script: (electron, ...args) => T | Promise<T>,
@@ -287,6 +296,7 @@ const fileIcon = await browser.electron.execute(async (electron) => {
 **Browser Mode:** Not available. `browser.electron.execute()` requires a live main process and CDP bridge. In browser mode, use `browser.execute()` to run code in the renderer or `browser.electron.mock()` to intercept IPC channels.
 
 **See Also:**
+
 - [Electron APIs Guide](./electron-apis.md)
 
 ---
@@ -300,6 +310,7 @@ On Windows and Linux, this automatically appends the test instance's `userData` 
 **Multiremote:** Each instance uses its own `appBinaryPath` and user data directory. On the multiremote root, it triggers the deeplink for every instance in turn. See [Deeplink Testing](./deeplink-testing.md#multiremote).
 
 **Signature:**
+
 ```ts
 browser.electron.triggerDeeplink(url: string): Promise<void>
 ```
@@ -353,6 +364,7 @@ it('should handle deeplinks', async () => {
 ```
 
 **Platform-Specific Behavior:**
+
 - **Windows**: Cannot use `appEntryPoint` (must use packaged binary). Automatically appends `userData` parameter to URL.
 - **macOS**: Works with both packaged binaries and script-based apps. No URL modification.
 - **Linux**: Cannot use `appEntryPoint` (must use packaged binary). Automatically appends `userData` parameter to URL.
@@ -360,6 +372,7 @@ it('should handle deeplinks', async () => {
 **Browser Mode:** Not available. There is no Electron process to receive the deeplink in browser mode.
 
 **See Also:**
+
 - [Deeplink Testing Guide](./deeplink-testing.md)
 
 ---
@@ -373,6 +386,7 @@ Mocks an Electron API function when provided with an API name and function name.
 When called with only an API name (no function name), mocks an entire Electron class (e.g., `'Tray'`, `'BrowserWindow'`). Returns an [Electron class mock object](#electron-class-mock).
 
 **Signature:**
+
 ```ts
 // Mock a specific function
 browser.electron.mock(apiName: string, funcName: string): Promise<ElectronMock>
@@ -441,6 +455,7 @@ See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 **Multiremote:** Each instance has its own mocks. `browser.getInstance('app1').electron.mock('app', 'getName')` and `browser.getInstance('app2').electron.mock('app', 'getName')` return different mocks, each created in its own app. `mockAll()` and class mocks work the same way. `clearAllMocks()`, `resetAllMocks()` and `restoreAllMocks()` on an instance only touch that instance's mocks. On the multiremote root, they cover every instance.
 
 **See Also:**
+
 - [Electron APIs Guide](./electron-apis.md#mocking-electron-apis)
 - [Browser Mode Guide](./browser-mode.md)
 
@@ -451,6 +466,7 @@ See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 Mocks all functions on an Electron API module simultaneously. Returns an object containing all mocks.
 
 **Signature:**
+
 ```ts
 browser.electron.mockAll(apiName: string): Promise<Record<string, ElectronMock>>
 ```
@@ -476,6 +492,7 @@ await showMessageBox.mockReturnValue('I opened a message box!');
 **Browser Mode:** Not available. Use `browser.electron.mock(channel)` to mock individual IPC channels instead.
 
 **See Also:**
+
 - [Electron APIs Guide](./electron-apis.md#mocking-electron-apis)
 
 ---
@@ -485,6 +502,7 @@ await showMessageBox.mockReturnValue('I opened a message box!');
 Calls [`mockClear()`](#mockclear) on all active mocks, or on mocks of a specific API if `apiName` is provided. In multiremote, an instance clears only its own mocks, and the root clears every instance's.
 
 **Signature:**
+
 ```ts
 browser.electron.clearAllMocks(apiName?: string): Promise<void>
 ```
@@ -527,6 +545,7 @@ expect(mockWriteText.mock.calls).toStrictEqual([['text to be written']]);
 Calls [`mockReset()`](#mockreset) on all active mocks, or on mocks of a specific API if `apiName` is provided. In multiremote, an instance resets only its own mocks, and the root resets every instance's.
 
 **Signature:**
+
 ```ts
 browser.electron.resetAllMocks(apiName?: string): Promise<void>
 ```
@@ -564,6 +583,7 @@ expect(clipboardText).toBeUndefined();
 Calls [`mockRestore()`](#mockrestore) on all active mocks, or on mocks of a specific API if `apiName` is provided. In multiremote, an instance restores only its own mocks, and the root restores every instance's.
 
 **Signature:**
+
 ```ts
 browser.electron.restoreAllMocks(apiName?: string): Promise<void>
 ```
@@ -601,6 +621,7 @@ expect(clipboardText).toBe('some real clipboard text');
 Checks if a given parameter is an Electron mock function. If using TypeScript, narrows down the type.
 
 **Signature:**
+
 ```ts
 browser.electron.isMockFunction(fn: any): fn is ElectronMock
 ```
@@ -635,6 +656,7 @@ Each mock object returned by [`mock()`](#mock) or [`mockAll()`](#mockall) has th
 Accepts a function that will be used as the implementation of the mock.
 
 **Signature:**
+
 ```ts
 mockImplementation(fn: (...args: any[]) => any): Promise<ElectronFunctionMock>
 ```
@@ -673,6 +695,7 @@ expect(result).toBe('mocked value');
 Accepts a function that will be used as mock's implementation during the next call. If chained, every consecutive call will produce different results. When the queued implementations run out, the mock falls back to whatever was set via [`mockImplementation()`](#mockimplementation); if no default has been set, calls return `undefined` (or `null` when the original API returns `null`).
 
 **Signature:**
+
 ```ts
 mockImplementationOnce(fn: (...args: any[]) => any): Promise<ElectronFunctionMock>
 ```
@@ -709,6 +732,7 @@ expect(name).toBeNull();
 Accepts a value that will be returned whenever the mock function is called.
 
 **Signature:**
+
 ```ts
 mockReturnValue(value: any): Promise<ElectronFunctionMock>
 ```
@@ -740,6 +764,7 @@ expect(name).toBe('mocked name');
 Accepts a value that will be returned during the next function call. If chained, every consecutive call will return the specified value. When values run out, falls back to the previously defined implementation.
 
 **Signature:**
+
 ```ts
 mockReturnValueOnce(value: any): Promise<ElectronFunctionMock>
 ```
@@ -776,6 +801,7 @@ expect(name).toBeNull();
 Accepts a value that will be resolved (for async functions) whenever the mock is called.
 
 **Signature:**
+
 ```ts
 mockResolvedValue(value: any): Promise<ElectronFunctionMock>
 ```
@@ -808,6 +834,7 @@ expect(fileIcon).toBe('This is a mock');
 Accepts a value that will be resolved during the next function call. If chained, every consecutive call will resolve the specified value. When values run out, falls back to the previously defined implementation.
 
 **Signature:**
+
 ```ts
 mockResolvedValueOnce(value: any): Promise<ElectronFunctionMock>
 ```
@@ -846,6 +873,7 @@ expect(fileIcon).toBe('default mocked icon');
 Accepts a value that will be rejected (for async functions) whenever the mock is called.
 
 **Signature:**
+
 ```ts
 mockRejectedValue(value: any): Promise<ElectronFunctionMock>
 ```
@@ -884,6 +912,7 @@ expect(fileIconError).toBe('This is a mock error');
 Accepts a value that will be rejected during the next function call. If chained, every consecutive call will reject the specified value. When values run out, falls back to the previously defined implementation.
 
 **Signature:**
+
 ```ts
 mockRejectedValueOnce(value: any): Promise<ElectronFunctionMock>
 ```
@@ -931,6 +960,7 @@ expect(fileIcon).toBe('default mocked icon error');
 Clears the history of the mocked function. The mock implementation will not be reset.
 
 **Signature:**
+
 ```ts
 mockClear(): Promise<void>
 ```
@@ -958,6 +988,7 @@ expect(mockGetName).toHaveBeenCalledTimes(1);
 Resets the mocked function. The mock history will be cleared and the implementation will be reset to an empty function (returning undefined). Also resets all "once" implementations.
 
 **Signature:**
+
 ```ts
 mockReset(): Promise<void>
 ```
@@ -987,6 +1018,7 @@ expect(mockGetName).toHaveBeenCalledTimes(1);
 Restores the original implementation to the Electron API function.
 
 **Signature:**
+
 ```ts
 mockRestore(): Promise<void>
 ```
@@ -1015,6 +1047,7 @@ expect(name).toBe(appName);
 Overrides the original mock implementation temporarily while the callback is being executed. The electron object is passed into the callback in the same way as for [`execute()`](#execute). It rejects if the callback throws, or if the function is no longer mocked.
 
 **Signature:**
+
 ```ts
 withImplementation(
   implementation: (...args: any[]) => any,
@@ -1061,6 +1094,7 @@ expect(result).toBe('temporary mock icon');
 Returns the current mock implementation if there is one. **This call is synchronous** — unlike most mock methods, it doesn't cross the CDP/WebDriver boundary because the implementation function is cached on the outer mock object in the test process.
 
 **Signature:**
+
 ```ts
 getMockImplementation(): Function | undefined
 ```
@@ -1086,6 +1120,7 @@ expect(mockImpl()).toBe('mocked name');
 Returns the assigned name of the mock. Defaults to `electron.<apiName>.<funcName>`.
 
 **Signature:**
+
 ```ts
 getMockName(): string
 ```
@@ -1109,6 +1144,7 @@ expect(mockGetName.getMockName()).toBe('electron.app.getName');
 Assigns a name to the mock. The name can be retrieved via [`getMockName()`](#getmockname).
 
 **Signature:**
+
 ```ts
 mockName(name: string): ElectronFunctionMock
 ```
@@ -1140,6 +1176,7 @@ expect(mockGetName.getMockName()).toBe('test mock');
 Useful if you need to return the `this` context from the method without invoking the original implementation. Shorthand for `mockImplementation(function () { return this; })`. Useful for builder-style APIs that chain calls on the same object.
 
 **Signature:**
+
 ```ts
 mockReturnThis(): Promise<ElectronFunctionMock>
 ```
@@ -1174,6 +1211,7 @@ expect(mockSetMenuBarVisibility).toHaveBeenCalledWith(false);
 An array containing all arguments for each call. Each item of the array is the arguments of that call.
 
 **Type:**
+
 ```ts
 Array<Array<any>>;
 ```
@@ -1199,6 +1237,7 @@ expect(mockGetFileIcon.mock.calls).toStrictEqual([
 Contains the arguments of the last call. Returns `undefined` if the mock wasn't called.
 
 **Type:**
+
 ```ts
 Array<any> | undefined;
 ```
@@ -1223,11 +1262,13 @@ expect(mockSetName.mock.lastCall).toStrictEqual(['test 3']);
 An array containing all values that were returned from the mock. Each item is an object with `type` and `value` properties.
 
 **Type:**
+
 ```ts
 Array<{ type: 'return' | 'throw'; value: any }>;
 ```
 
 Available types:
+
 - `'return'` - the mock returned without throwing
 - `'throw'` - the mock threw a value
 
@@ -1265,6 +1306,7 @@ expect(mockGetName.mock.results).toStrictEqual([
 The order of mock invocation. Returns an array of numbers that are shared between all defined mocks. Returns an empty array if the mock was never invoked.
 
 **Type:**
+
 ```ts
 Array<number>;
 ```
@@ -1296,6 +1338,7 @@ Electron class mocks are returned when calling `browser.electron.mock()` with on
 An [ElectronFunctionMock](#mock-object-methods) object that tracks calls to the class constructor.
 
 **Type:**
+
 ```ts
 ElectronFunctionMock;
 ```
@@ -1320,6 +1363,7 @@ expect(mockTray.__constructor.mock.calls).toStrictEqual([['/path/to/icon.png'], 
 All instance methods of the class are available as [ElectronFunctionMock](#mock-object-methods) objects.
 
 **Type:**
+
 ```ts
 ElectronFunctionMock;
 ```
@@ -1351,6 +1395,7 @@ expect(mockTray.setToolTip).toHaveBeenCalledWith('Click for menu');
 Returns the assigned name of the class mock. Defaults to `electron.<className>`.
 
 **Signature:**
+
 ```ts
 getMockName(): string
 ```
@@ -1374,6 +1419,7 @@ expect(mockTray.getMockName()).toBe('electron.Tray');
 Restores the original Electron class, removing all mocks.
 
 **Signature:**
+
 ```ts
 mockRestore(): Promise<void>
 ```

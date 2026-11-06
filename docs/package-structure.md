@@ -101,6 +101,7 @@ packages/dioxus-driver/
 ### Service Packages
 
 All npm packages use the `@wdio/` scope:
+
 - `@wdio/electron-service` - Electron WDIO service
 - `@wdio/tauri-service` - Tauri WDIO service
 - `@wdio/dioxus-service` - Dioxus WDIO service
@@ -115,6 +116,7 @@ All npm packages use the `@wdio/` scope:
 ### Rust Crate Naming
 
 Rust crates use the `wdio-` prefix (kebab-case, matching Cargo conventions):
+
 - `wdio-dioxus` — app-side crate; installs the bridge and, for the embedded provider, the embedded driver
 - `wdio-dioxus-bridge` — bridge crate (not "plugin" — Dioxus has no plugin-trait system)
 - `wdio-dioxus-embedded-driver` — in-process WebDriver server
@@ -302,6 +304,7 @@ For common external dependencies, use the catalog reference:
 ## README Template
 
 Each package should have a comprehensive README with:
+
 1. **Description** - What the package does
 2. **Installation** - How to install
 3. **Usage** - Basic usage examples

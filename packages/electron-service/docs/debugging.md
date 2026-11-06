@@ -7,6 +7,7 @@ For configuration reference, see [Service Configuration](./configuration.md). Fo
 ## Debug Logging
 
 If you need extra insight into what the service is doing you can enable namespaced debug logging via the `DEBUG` environment variable.
+
 - `DEBUG=wdio-electron-service` is equivalent to `DEBUG=wdio-electron-service:*` (enable all service namespaces)
 - You can target specific areas, e.g. `DEBUG=wdio-electron-service:service,mock`
 
@@ -134,6 +135,7 @@ export const config = {
 ### Log Capture Requirements
 
 **Main Process Logs:**
+
 - Require the `EnableNodeCliInspectArguments` Electron fuse to be enabled
 - Require CDP bridge connection to main process
 - If the CDP bridge is unavailable:
@@ -143,6 +145,7 @@ export const config = {
   - See [EnableNodeCliInspectArguments fuse is disabled](./common-issues.md#cdp-bridge-cannot-be-initialized-enablenodecliinspectarguments-fuse-is-disabled) or [CDP bridge could not connect](./common-issues.md#cdp-bridge-could-not-connect-to-the-main-process) for troubleshooting
 
 **Renderer Process Logs:**
+
 - Use Puppeteer CDP sessions - work independently of main process CDP bridge
 - Do NOT require the `EnableNodeCliInspectArguments` fuse
 - Will continue to work even if main process CDP bridge is unavailable

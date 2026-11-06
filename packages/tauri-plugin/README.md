@@ -113,6 +113,7 @@ window.wdioTauri.cleanupAll();
 Execute JavaScript code in the frontend context. `browser.tauri.execute()` calls this.
 
 **Parameters:**
+
 - `script`: Source code as a string. A function's source is called with `{ core: { invoke } }` and then the arguments, and `core.invoke` goes through any mocks set up in that window with `browser.tauri.mock()`. Any other string runs as a function body, with the arguments in `arguments`. A single expression, with no `;` and no leading statement keyword, returns its value.
 - `options.windowLabel`: The window to run the script in. Defaults to the window that calls `execute`.
 - `argsJson`: The arguments, as a JSON array string
@@ -142,6 +143,7 @@ Mocking is handled via `@wdio/tauri-service`'s `browser.tauri.mock()` API, which
 ### Rust Commands
 
 The plugin provides these Tauri commands:
+
 - `plugin:wdio|execute` - Execute JavaScript in frontend context
 - `plugin:wdio|log-frontend` - Forward frontend logs to Rust logger
 - `plugin:wdio|debug-plugin` - Debug plugin state
@@ -176,6 +178,7 @@ The plugin requires explicit permissions in your Tauri app's capability file. Us
 ### Plugin Not Available
 
 If `window.wdioTauri` is undefined:
+
 1. Ensure the plugin is registered in `main.rs`
 2. Ensure permissions are configured in your capability file
 3. Ensure the frontend JavaScript is included in your app
@@ -192,6 +195,7 @@ If `window.wdioTauri` is undefined:
 ### Permission Errors
 
 If you get permission errors:
+
 1. Verify your capability file includes `"wdio:default"` or the specific permissions needed
 2. Ensure the capability file is referenced correctly in `tauri.conf.json`
 3. Clean and rebuild: `cargo clean && pnpm build`
@@ -199,6 +203,7 @@ If you get permission errors:
 ### Execute Timeout
 
 If execute commands timeout:
+
 1. Check that the script is valid JavaScript
 2. Ensure `window.__TAURI__` is available
 3. Verify the script doesn't have infinite loops
@@ -207,6 +212,7 @@ If execute commands timeout:
 ## Examples
 
 See the test fixtures in `fixtures/e2e-apps/tauri/` for complete examples of:
+
 - Plugin registration
 - Permission configuration
 - Frontend integration

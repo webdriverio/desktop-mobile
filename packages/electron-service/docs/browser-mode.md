@@ -21,6 +21,7 @@ In normal (`native`) mode the service launches your compiled Electron app, drive
 Browser mode is the right choice when your tests are renderer-focused: asserting UI state, verifying that components call the correct IPC channels with the right arguments, or checking that the renderer handles mock responses correctly.
 
 It is **not** suitable when your tests need to:
+
 - Call `browser.electron.execute()` to run code in the main process
 - Test window management, native menus, or system tray behaviour
 - Use `browser.electron.triggerDeeplink()`
@@ -109,6 +110,7 @@ devServer: async () => {
 ```
 
 Notes:
+
 - `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode. The service ignores a `devServer` set in a capability.
 - Every capability opens the managed server's URL, in place of its own `devServerUrl`. With the string or object form, set `devServerUrl` in the service options: it is the URL the service waits for.
 - In standalone mode, pass `devServer` in the global options, `startWdioSession()`'s second argument. A dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
@@ -121,6 +123,7 @@ Notes:
 ### How It Works
 
 When the session starts, the service injects a script into the page that:
+
 1. Creates `window.__wdio_mocks__` — a registry of per-channel mock functions.
 2. Patches `window.electron.ipcRenderer.invoke` to look up `window.__wdio_mocks__[channel]` and call it; throws if the channel has no registered mock.
 3. Patches `send` and `sendSync` to throw immediately for unmocked channels.
@@ -193,6 +196,7 @@ await mockGetUser.mockRestore();
 ### How It Works
 
 The injection script:
+
 1. Maintains `window.__wdio_electron_listeners__` — a per-channel registry of `{ id, fn, once }` entries.
 2. Replaces `ipcRenderer.on` / `addListener` / `once` with implementations that push into the registry and return `ipcRenderer` (chainable, matching Electron's API).
 3. Replaces `ipcRenderer.removeListener` / `off` / `removeAllListeners` with implementations that mutate the registry.
@@ -307,6 +311,7 @@ The injection script runs after `browser.url()` resolves (document `readyState` 
 ### `withImplementation` in browser mode
 
 `mock.withImplementation(implFn, callbackFn)` serialises **both** functions via `.toString()` and runs them inside the browser page. This means:
+
 - The `callbackFn` runs in the browser page, **not** in the Node.js test-runner process. It gets no `electron` argument, so call the mocked channel through `window.electron.ipcRenderer`.
 - It cannot close over test-runner variables, call WebdriverIO commands (`browser.$()`, `browser.click()`, etc.), or use Node.js APIs (`fs`, `path`, etc.) — those symbols do not exist in the page context.
 - Only use `withImplementation` when both functions are fully self-contained browser-side snippets.

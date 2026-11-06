@@ -15,6 +15,7 @@ Please be respectful and constructive in all interactions. We aim to create a we
 - Git
 
 For Tauri and Dioxus contributions, you also need:
+
 - Rust
 
 ### Setup
@@ -57,6 +58,7 @@ git checkout -b fix/my-bugfix
 ```
 
 Branch naming conventions:
+
 - `feature/` - New features
 - `fix/` - Bug fixes
 - `docs/` - Documentation changes
@@ -92,6 +94,7 @@ Commit message format:
 ```
 
 Types:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -124,6 +127,7 @@ git push origin feature/my-feature
 ```
 
 Then create a pull request on GitHub with:
+
 - Clear title describing the change
 - Description of what changed and why
 - Reference to any related issues
@@ -278,6 +282,7 @@ minimal and clearly explained to make review quick; pushing a new commit re-open
 (the `Fork Risk Scan` status arms this, with detail in the Security tab) — look for non-registry
 dependencies, unexpected `preinstall`/`postinstall` scripts or a `.pnpmfile.cjs`, `build.rs` /
 `[build-dependencies]` additions, `.github` edits, and env-read → network shapes. Then apply one label:
+
 - **`crabnebula:run`** (preferred) — mirrors the reviewed head onto an internal branch and runs macOS
   CrabNebula with only `CN_API_KEY` (no other secrets), posting the result back as `CrabNebula / macOS`.
 - **`crabnebula:verified`** — manual attestation, e.g. after running the E2E locally with the key. ⚠️ Do
@@ -291,6 +296,7 @@ A new push clears both labels, so re-verify after any change. If `CN_API_KEY` ev
 ### Electron Service
 
 When contributing to the Electron service:
+
 - Maintain backward compatibility
 - Test on Windows, macOS, and Linux
 - Test with both Electron Forge and Builder
@@ -299,6 +305,7 @@ When contributing to the Electron service:
 ### Tauri Service
 
 When contributing to the Tauri service:
+
 - Maintain backward compatibility with tauri-driver
 - Test on Windows, macOS, and Linux
 - Test with multiremote configurations
@@ -308,6 +315,7 @@ When contributing to the Tauri service:
 ### Dioxus Service
 
 When contributing to the Dioxus service or its Rust crates (`wdio-dioxus`, `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver`):
+
 - Maintain backward compatibility with `wdio_dioxus::install(config)`, the API apps call
 - Test on Windows, macOS, and Linux (for the `'embedded'` provider)
 - Always build the Dioxus fixture app in **debug mode** — the bridge is compiled behind `#[cfg(debug_assertions)]` and will not be present in release builds
@@ -336,6 +344,7 @@ When contributing to the Dioxus service or its Rust crates (`wdio-dioxus`, `wdio
 ### Shared Utilities
 
 When contributing to shared utilities:
+
 - Keep utilities framework-agnostic
 - Document extension points clearly
 - Consider impact on all services
@@ -361,17 +370,20 @@ Releases are automated via GitHub Actions using a **standing release PR** (Relea
 ### Immediate Release (bypass the standing PR)
 
 For changes that must publish on merge without waiting for the standing PR:
+
 1. Add `release:immediate` to your PR, plus a scope label (`scope:tauri`, `scope:electron`, …) and a bump label (`bump:patch`, `bump:minor`, `bump:major`)
 2. After CI passes on the merge, the gate dispatches a direct scoped release
 3. The standing PR is reconciled afterwards so it no longer contains the just-released changes
 
 **Examples:**
+
 - `release:immediate` + `scope:electron` + `bump:major` → Electron packages at major bump
 - Add `release:prerelease` to publish the immediate release as a prerelease (e.g., 11.0.0-next.0)
 
 ### Manual Release
 
 For scoped releases without labels or for dry runs:
+
 1. Go to Actions → Release in GitHub
 2. Click "Run workflow"
 3. Select scope, version type, and dry run option (leave `standing_pr_number` blank; enable `reconcile_after` to rebuild the standing PR afterwards)
@@ -380,6 +392,7 @@ For scoped releases without labels or for dry runs:
 ### First Release of a New Package
 
 A brand-new package has no tag yet, so ReleaseKit treats its `package.json` version as the floor and bumps **up** from it. Stage the manifest deliberately so the first publish lands where you intend:
+
 - **User-facing service on a `1.0.0-next` prerelease line** (a new `@wdio/*-service`): set `version` to `0.0.1`, then run a **Manual Release** with version type **prerelease** and bump **`major`** → publishes `1.0.0-next.0`. (Bump **`prerelease`** would give `1.0.0-next.1` — it only increments an existing counter.)
 - **Shared/internal package going straight to stable `1.0.0`** (a new `@wdio/native-*`): set `version` to `1.0.0-next.0`, then release with version type **stable** → ReleaseKit graduates it to `1.0.0`, ignoring the bump. (A bare `1.0.0` overshoots — a `major` bump publishes `2.0.0`.)
 
@@ -419,6 +432,7 @@ Tauri's plugins and Dioxus's `wdio-dioxus` get their own release notes because a
 ## Recognition
 
 Contributors will be:
+
 - Credited in CHANGELOG.md
 - Listed in package.json contributors
 - Recognized in release notes

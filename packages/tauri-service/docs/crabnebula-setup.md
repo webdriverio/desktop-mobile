@@ -23,6 +23,7 @@ This guide walks you through setting up CrabNebula's tauri-driver for cross-plat
 ## When to Use CrabNebula
 
 Choose CrabNebula when:
+
 - You want a single driver configuration across all platforms (Windows, Linux, macOS)
 - You already have a CrabNebula subscription
 - You need macOS testing but cannot use the embedded provider (`tauri-plugin-wdio-webdriver`)
@@ -139,6 +140,7 @@ export CN_API_KEY="your-api-key-here"
 For CI/CD, add this as a secret:
 
 **GitHub Actions:**
+
 ```yaml
 env:
   CN_API_KEY: ${{ secrets.CN_API_KEY }}
@@ -316,11 +318,13 @@ If you don't have a CN_API_KEY in certain environments (e.g., PRs from forks):
 ### "CN_API_KEY is not set" (macOS)
 
 **Solution**: Ensure the environment variable is set:
+
 ```bash
 echo $CN_API_KEY  # Should show your API key
 ```
 
 If empty, set it:
+
 ```bash
 export CN_API_KEY="your-api-key"
 ```
@@ -328,6 +332,7 @@ export CN_API_KEY="your-api-key"
 ### "@crabnebula/tauri-driver not found"
 
 **Solution**: Install the package:
+
 ```bash
 npm install -D @crabnebula/tauri-driver
 ```
@@ -335,6 +340,7 @@ npm install -D @crabnebula/tauri-driver
 ### "tauri-plugin-automation not found" (macOS)
 
 **Solution**: Add the plugin to your Tauri app:
+
 ```bash
 cd src-tauri && cargo add tauri-plugin-automation
 ```
@@ -344,6 +350,7 @@ Then ensure it's registered in your Rust code with the `#[cfg(debug_assertions)]
 ### "WebKitWebDriver not found" (Linux)
 
 **Solution**: Install WebKitWebDriver:
+
 ```bash
 # Ubuntu 26.04+, Debian 13+
 sudo apt-get install -y webkitgtk-webdriver
@@ -361,11 +368,13 @@ sudo pacman -S webkitgtk-6.0
 ### "test-runner-backend exited with code X" (macOS)
 
 **Possible causes**:
+
 - Invalid or expired CN_API_KEY
 - Port 3000 already in use
 - macOS security restrictions
 
 **Solutions**:
+
 1. Verify your API key is valid
 2. Change the backend port:
 
@@ -377,6 +386,7 @@ sudo pacman -S webkitgtk-6.0
 ### Tests work on Windows/Linux but not macOS
 
 **Checklist**:
+
 - [ ] CN_API_KEY is set and valid
 - [ ] tauri-plugin-automation is in Cargo.toml
 - [ ] Plugin is registered with `#[cfg(debug_assertions)]`
@@ -419,6 +429,7 @@ services: [
 ```
 
 Then in your test setup:
+
 ```bash
 # Terminal 1: Start backend
 npx test-runner-backend
@@ -447,6 +458,7 @@ services: [
 ## Migration from Official Driver
 
 If you're already using the official tauri-driver on Windows/Linux:
+
 1. Keep your existing configuration for Windows/Linux
 2. Add CrabNebula packages as dev dependencies
 3. **For macOS only**: Add the automation plugin to your Tauri app

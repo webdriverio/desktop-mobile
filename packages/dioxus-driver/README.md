@@ -42,6 +42,7 @@ wdio-dioxus-driver --port 4444 --native-port 4445
 ## Upstream-sync policy
 
 We track upstream `tauri-driver` minor versions. Sync calendar: quarterly. Sync procedure:
+
 1. `git fetch tauri-upstream && git diff tauri-upstream/dev:crates/tauri-driver our:packages/dioxus-driver`
 2. Apply non-rename changes verbatim where possible.
 3. Re-test on Windows.

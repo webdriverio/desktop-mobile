@@ -5,6 +5,7 @@ This guide will help you set up the WebdriverIO Desktop & Mobile monorepo for de
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
+
 - **Node.js**: Version 24 LTS (contributor toolchain — end-user Node range is defined per-package via `engines`)
 
   ```bash
@@ -35,6 +36,7 @@ pnpm install
 ```
 
 This will:
+
 - Install all root-level dependencies
 - Install dependencies for all packages
 - Link workspace packages together
@@ -119,6 +121,7 @@ pnpm --filter @wdio/electron-service dev
 See [package-structure.md](./package-structure.md) for detailed guidelines.
 
 Quick steps:
+
 1. Create package directory: `packages/my-package/`
 2. Copy structure from `packages/electron-service/`
 3. Update `package.json` with your package details
@@ -304,6 +307,7 @@ pnpm prepare
 ### VS Code
 
 Recommended extensions:
+
 - **ESLint**: Microsoft ESLint extension
 - **Biome**: Biome formatter
 - **TypeScript and JavaScript Language Features**: Built-in
@@ -326,6 +330,7 @@ Workspace settings (`.vscode/settings.json`):
 ### Tauri Development
 
 For working with Tauri packages and plugins:
+
 1. **Install Rust** (if not already installed):
 
    ```bash
@@ -359,6 +364,7 @@ See the [Tauri Plugin README](../packages/tauri-plugin/README.md) for detailed s
 ### Dioxus Development
 
 For working with Dioxus packages:
+
 1. **Install Rust** (if not already installed):
 
    ```bash

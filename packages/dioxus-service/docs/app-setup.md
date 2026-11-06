@@ -3,6 +3,7 @@
 ## Overview
 
 Your Dioxus app needs one crate, `wdio-dioxus`, and one call to `wdio_dioxus::install(config)`. When `@wdio/dioxus-service` launches the app, that call:
+
 - starts the WebDriver server that the service connects to, inside your app's process
 - installs the bridge, which provides the Execute API, mocking, log forwarding and window management
 
@@ -72,6 +73,7 @@ fn App() -> Element {
 ```
 
 The `#[cfg(debug_assertions)]` guard means:
+
 - **Debug builds** (`dx build --desktop`): `wdio-dioxus` is compiled in, and WDIO can connect when the service launches the app
 - **Release builds** (`dx build --desktop --release`): `wdio-dioxus` is not compiled, so no test plumbing ships to users
 
@@ -153,6 +155,7 @@ Without it, the service never sees the app's windows, and startup fails with "th
 ## What Happens Internally
 
 When `@wdio/dioxus-service` launches the app, it sets `DIOXUS_WEBVIEW_AUTOMATION=true`, and `wdio_dioxus::install(config)`:
+
 1. **Sets a per-port webview data directory** in the system temp folder, so parallel app instances (multiremote) don't share WebView2/WebKit state.
 2. **Installs the bridge**, which:
    - registers a `wdio://` custom protocol on the webview (`http://wdio.invoke/` on Windows). This protocol is the IPC channel between the WDIO service process and the app's webview.
