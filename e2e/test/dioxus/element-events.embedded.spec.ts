@@ -23,7 +23,6 @@ async function focusedId() {
 }
 
 // A field that logs input, change and blur with its value, next to a button to move focus to.
-// With `inShadowHost`, the field is in the open shadow root of `#fresh-field-host`.
 async function fillChangeScratch(initialValue = '', { inShadowHost = false } = {}) {
   const field = `<input id="fresh-field" value="${initialValue}">`;
   await browser.execute(
