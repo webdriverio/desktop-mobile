@@ -127,13 +127,14 @@ function hideOnDocument(name: string, usual: unknown) {
 
 const hiddenOnDocument: string[] = [];
 
-// Whether the code reading a property is one of the helpers, looking past jsdom's named-property proxy
+// Whether the code reading a property is one of the helpers, looking past jsdom's named-property proxy.
+// V8 names a helper called as a method `Object.wdioX`, and one jsdom calls as a listener `Proxy.wdioX`.
 function readByHelper() {
   const caller = new Error().stack
     ?.split('\n')
     .slice(3)
     .find((frame) => !/Reflect\.get|ProxyHandler\.get/.test(frame));
-  return caller?.trim().startsWith('at wdio') ?? false;
+  return /^at (?:[\w$]+\.)?wdio/.test(caller?.trim() ?? '');
 }
 
 afterEach(() => {
@@ -263,6 +264,30 @@ describe('pending change', () => {
         window.addEventListener(type, events.wdioFocusLoss, true);
       }
     }
+  });
+
+  it.each([
+    ['host', undefined],
+    ['assignedSlot', undefined],
+    ['parentNode', null],
+  ])("should check a component's own focus() kept focus without reading %s off the document", (name, usual) => {
+    render('<input id="a"><div id="comp" tabindex="0"></div>');
+    // A focus() that keeps focus where it was, so the click asks whether focus is inside the component
+    $('#comp').focus = () => undefined;
+    $('#a').focus();
+    const reads = hideOnDocument(name, usual);
+    events.wdioFocusForClick($('#comp'));
+    expect(reads.count).toBe(0);
+  });
+
+  it.each([
+    ['host', undefined],
+    ['assignedSlot', undefined],
+    ['parentNode', null],
+  ])('should look for a focusable ancestor of the root element without reading %s off the document', (name, usual) => {
+    const reads = hideOnDocument(name, usual);
+    events.wdioFocusForClick(document.documentElement);
+    expect(reads.count).toBe(0);
   });
 
   it('should fire it rather than drop it when another field records a change', () => {

@@ -66,7 +66,6 @@ function wdioParentOrHost(node) {
   return wdioParentNode(node) || wdioShadowHost(node);
 }
 
-// The node `node` renders inside: the slot that shows it, else its parent, else a shadow root's host.
 function wdioRenderedParent(node) {
   return (wdioNodeType(node) === 1 && wdioAssignedSlot(node)) || wdioParentOrHost(node);
 }
@@ -82,14 +81,16 @@ function wdioRecordPendingChange(el, value) {
   for (const type of WDIO_FOCUS_LOSS_EVENTS) {
     root.addEventListener(type, wdioFocusLoss, true);
   }
-  window.__wdio_pending_change = { el, value, root };
+  // The record keeps the listener it added, as a second install of this file has its own copy of it.
+  window.__wdio_pending_change = { el, value, root, onFocusLoss: wdioFocusLoss };
 }
 
 // Fires the owed `change` before any page listener sees the field lose focus, as a browser does. It
-// listens in the capture phase on the window, where it comes before the page's listeners, as the
-// drivers install this file as the page loads (unless Tauri installed it late, on the first command
-// that needed it). It also listens on the field's root while a change is owed: a focus move inside a
-// shadow root never reaches the window, and `document.open()` drops the window's listeners. At the
+// listens in the capture phase on the window, where it comes before the page's listeners as the drivers
+// install this file as the page loads. It doesn't when Tauri installs it late, on the first command
+// that needs it, or when a Dioxus app's custom index runs `<head>` scripts before it. It also listens
+// on the field's root while a change is owed: a focus move inside a shadow root never reaches the
+// window, and `document.open()` drops the window's listeners. At the
 // window, a field in a shadow root shows up as its host, and only for a composed event, as a real blur
 // is: a page dispatching its own `blur` on the host doesn't mean the field lost focus.
 function wdioFocusLoss(event) {
@@ -102,10 +103,6 @@ function wdioFocusLoss(event) {
       return;
     }
   }
-}
-
-for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-  window.addEventListener(type, wdioFocusLoss, true);
 }
 
 // The built-in focus() for `el`, such as HTMLElement's or SVGElement's. A native Tab never calls a
@@ -133,7 +130,7 @@ function wdioTakePendingChange(el) {
     return undefined;
   }
   for (const type of WDIO_FOCUS_LOSS_EVENTS) {
-    record.root.removeEventListener(type, wdioFocusLoss, true);
+    record.root.removeEventListener(type, record.onFocusLoss, true);
   }
   window.__wdio_pending_change = undefined;
   return record;
@@ -631,4 +628,9 @@ function wdioSetValueControl(el, typed) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
   return 'set';
+}
+
+// Last, so an install that throws before here leaves no listener behind.
+for (const type of WDIO_FOCUS_LOSS_EVENTS) {
+  window.addEventListener(type, wdioFocusLoss, true);
 }
