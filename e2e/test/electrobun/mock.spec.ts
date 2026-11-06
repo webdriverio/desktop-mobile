@@ -54,6 +54,19 @@ describe('Electrobun Mocking', () => {
       expect(mockWriteValue).toHaveBeenCalledTimes(1);
       expect(mockWriteValue).toHaveBeenCalledWith('test content');
     });
+
+    it('should keep undefined arguments', async () => {
+      await defineTarget('writeValue');
+      const mockWriteValue = await browser.electrobun.mock('writeValue');
+
+      // Call the target in the page, as callTarget's WebDriver arguments would turn undefined into null.
+      await browser.electrobun.execute(() =>
+        (globalThis as unknown as Record<string, (...a: unknown[]) => unknown>).writeValue({ a: undefined }, undefined),
+      );
+      await mockWriteValue.update();
+
+      expect(mockWriteValue.mock.calls).toStrictEqual([[{ a: undefined }, undefined]]);
+    });
   });
 
   describe('mock behaviour setters', () => {

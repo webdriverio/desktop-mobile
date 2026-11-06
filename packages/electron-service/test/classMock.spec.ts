@@ -213,4 +213,36 @@ describe('createClassMock()', () => {
     expect(setImageMock).toHaveBeenCalledTimes(1);
     expect(setImageMock).toHaveBeenCalledWith('/path/to/icon.png');
   });
+
+  it('should keep undefined arguments in synced prototype and constructor calls', async () => {
+    class MockTray {
+      setImage() {}
+    }
+    mockExecute.mockImplementation(makeClassExecute({ Tray: MockTray }));
+
+    const mockTray = await createClassMock('Tray');
+
+    const calls = [['/path/to/icon.png', undefined], [{ size: undefined }]];
+    const electron = {
+      Tray: {
+        mock: { calls },
+        prototype: { setImage: { mock: { calls, results: [{ type: 'return', value: [undefined] }] } } },
+      },
+    };
+    // CDP returns the result as JSON.
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
+      JSON.parse(JSON.stringify(fn(electron, ...args))),
+    );
+
+    await mockTray.setImage.update();
+    await mockTray.__constructor.update();
+
+    const expected = [['/path/to/icon.png', undefined], [{ size: undefined }]];
+    expect((mockTray.setImage as unknown as Mock).mock.calls).toStrictEqual(expected);
+    expect((mockTray.setImage as unknown as Mock).mock.results[0]).toStrictEqual({
+      type: 'return',
+      value: [undefined],
+    });
+    expect((mockTray.__constructor as unknown as Mock).mock.calls).toStrictEqual(expected);
+  });
 });

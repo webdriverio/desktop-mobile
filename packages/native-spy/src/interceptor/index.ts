@@ -12,6 +12,7 @@ export type { Framework, InnerMockMethod, InnerMockSetterMethod } from './framew
 export type { IpcContext } from './ipcContext.js';
 export type { SerializedHandler } from './serialize.js';
 export type { MockCallData } from './syncProtocol.js';
+export { parseCallData };
 
 export interface InterceptorOptions {
   context?: IpcContext;

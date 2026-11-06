@@ -20,7 +20,8 @@
 
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import { fn as vitestFn } from '@wdio/native-spy';
-import type { AbstractFn, ElectrobunMock, MockResult } from '@wdio/native-types';
+import { parseCallData } from '@wdio/native-spy/interceptor';
+import type { AbstractFn, ElectrobunMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 import { evaluateInActiveTarget, jsonLiteral } from './commands/execute.js';
@@ -39,61 +40,6 @@ import type { ElectrobunMockStore } from './mockStore.js';
 import type { InnerMockSetterMethod } from './mockTypes.js';
 
 const log = createLogger(SERVICE_NAME, 'mock');
-
-interface CallData {
-  calls: unknown[][];
-  results: MockResult[];
-  invocationCallOrder: number[];
-}
-
-/**
- * Revive `{ __wdioError: true, message }` markers produced by the in-page
- * errorReplacer (innerRecorder.ts#buildReadCallDataScript) back into real Error
- * objects. Mirrors the shared sync protocol in @wdio/native-spy/interceptor;
- * inlined here because that package only exports it as a type, not at runtime.
- */
-function reconstructErrors(value: unknown): unknown {
-  if (value === null || typeof value !== 'object') {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value.map(reconstructErrors);
-  }
-  const obj = value as Record<string, unknown>;
-  if (obj.__wdioError === true) {
-    const err = new Error(typeof obj.message === 'string' ? obj.message : '');
-    if (typeof obj.name === 'string') {
-      err.name = obj.name;
-    }
-    if (typeof obj.stack === 'string') {
-      err.stack = obj.stack;
-    }
-    return err;
-  }
-  const out: Record<string, unknown> = {};
-  for (const key of Object.keys(obj)) {
-    out[key] = reconstructErrors(obj[key]);
-  }
-  return out;
-}
-
-function parseCallData(raw: unknown): CallData {
-  if (!raw || typeof raw !== 'object') {
-    return { calls: [], results: [], invocationCallOrder: [] };
-  }
-  const r = raw as Record<string, unknown>;
-  const calls = Array.isArray(r.calls)
-    ? (r.calls as unknown[][]).map((args) => (Array.isArray(args) ? args.map(reconstructErrors) : args) as unknown[])
-    : [];
-  const results = Array.isArray(r.results)
-    ? (r.results as MockResult[]).map((res) => ({ type: res.type, value: reconstructErrors(res.value) }))
-    : [];
-  return {
-    calls,
-    results,
-    invocationCallOrder: Array.isArray(r.invocationCallOrder) ? (r.invocationCallOrder as number[]) : [],
-  };
-}
 
 /**
  * Source text of a user implementation function, for evaluation in the page.

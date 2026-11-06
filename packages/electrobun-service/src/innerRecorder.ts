@@ -193,13 +193,12 @@ export function buildReadCallDataScript(target: string): string {
     var entry = reg && reg[${key}];
     if (!entry || !entry.spy || !entry.spy.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
     var m = entry.spy.mock;
-    // Fresh replacer per stringify: serialise Errors to a marker, and guard
-    // against circular/function values (e.g. mockReturnThis storing a live
-    // \`this\` that back-references its parent) so update() never throws a
-    // "Converting circular structure to JSON" out of the page.
+    // A fresh replacer per call and per result: an object already seen in that call reads as '[Circular]',
+    // so a mockReturnThis \`this\` can't throw and cross-linked graphs such as React fibers stay linear.
     var makeSafe = function() {
       var seen = [];
       return function(_k, v) {
+        if (v === undefined) { return { __wdioUndefined: true }; }
         if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
         if (typeof v === 'function') { return '[Function]'; }
         if (v && typeof v === 'object') {
@@ -209,9 +208,12 @@ export function buildReadCallDataScript(target: string): string {
         return v;
       };
     };
+    var readEach = function(list) {
+      return (list || []).map(function(item) { return JSON.parse(JSON.stringify(item, makeSafe())); });
+    };
     return {
-      calls: JSON.parse(JSON.stringify(m.calls || [], makeSafe())),
-      results: JSON.parse(JSON.stringify(m.results || [], makeSafe())),
+      calls: readEach(m.calls),
+      results: readEach(m.results),
       invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
     };
   })()`;

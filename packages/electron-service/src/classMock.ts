@@ -1,4 +1,5 @@
 import { type Mock, fn as vitestFn } from '@wdio/native-spy';
+import { parseCallData } from '@wdio/native-spy/interceptor';
 import type { AbstractFn, ElectronClassMock, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
 import { createLogger, runBulkMockOp } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
@@ -84,8 +85,10 @@ async function createPrototypeMock(
         const mockObj = cls?.prototype?.[methodName] as
           | { mock?: { calls?: unknown[][]; results?: { type: string; value: unknown }[] } }
           | undefined;
-        const calls = mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock.calls)) : [];
-        const results = mockObj?.mock?.results ? JSON.parse(JSON.stringify(mockObj.mock.results)) : [];
+        // JSON has no undefined, so mark it for parseCallData to restore.
+        const replacer = (_k: string, v: unknown) => (v === undefined ? { __wdioUndefined: true } : v);
+        const calls = mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock.calls, replacer)) : [];
+        const results = mockObj?.mock?.results ? JSON.parse(JSON.stringify(mockObj.mock.results, replacer)) : [];
         return { calls, results };
       },
       className,
@@ -93,7 +96,7 @@ async function createPrototypeMock(
       { internal: true },
     )) ?? { calls: [], results: [] };
 
-    applyCalls(syncData);
+    applyCalls(parseCallData(syncData));
     return mock;
   };
 
@@ -237,13 +240,15 @@ export async function createClassMock(
           const mockObj = electron[className as keyof typeof electron] as unknown as {
             mock?: { calls?: unknown[][] };
           };
-          return mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock.calls)) : [];
+          // JSON has no undefined, so mark it for parseCallData to restore.
+          const replacer = (_k: string, v: unknown) => (v === undefined ? { __wdioUndefined: true } : v);
+          return mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock.calls, replacer)) : [];
         },
         className,
         { internal: true },
       )) ?? [];
 
-    applyConstructorCalls({ calls });
+    applyConstructorCalls({ calls: parseCallData({ calls }).calls });
     return constructorMock;
   };
 

@@ -238,3 +238,73 @@ describe('ElectronAdapter integration (synthetic window)', () => {
     expect(called).toBe(false);
   });
 });
+
+// Native mode records with native-spy's `fn`; browser mode with the injection script's `createMockFn`.
+const callDataCases = (['tauri', 'electron', 'dioxus'] as const).flatMap((framework) =>
+  (['native-spy', 'browser-mode'] as const).map((spy) => [framework, spy] as const),
+);
+
+describe.each(callDataCases)('%s call data read with the %s spy (synthetic window)', (framework, spy) => {
+  const interceptor = createIpcInterceptor(framework);
+
+  function makeWindow(): SyntheticWindow {
+    if (spy === 'native-spy') {
+      return makeSyntheticWindow();
+    }
+    const win = {} as SyntheticWindow;
+    new Function('window', interceptor.buildBrowserIpcInjectionScript())(win);
+    return win;
+  }
+
+  function setup() {
+    const win = makeWindow();
+    evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
+    return { win, mock: win.__wdio_mocks__.my_cmd };
+  }
+
+  // WebDriver and CDP return the result as JSON, so clone it the same way.
+  function read(win: SyntheticWindow) {
+    const raw = JSON.parse(JSON.stringify(evalScript(interceptor.buildCallDataReadScript('my_cmd'), win)));
+    return interceptor.parseCallData(raw);
+  }
+
+  it('should keep undefined arguments and the call length', () => {
+    const { win, mock } = setup();
+    mock({ a: 1 }, undefined);
+    mock(undefined);
+    mock();
+
+    expect(read(win).calls).toStrictEqual([[{ a: 1 }, undefined], [undefined], []]);
+  });
+
+  it('should keep undefined inside nested arrays and objects', () => {
+    const { win, mock } = setup();
+    mock([1, undefined, 2], { a: undefined, b: { c: undefined } });
+
+    expect(read(win).calls).toStrictEqual([[[1, undefined, 2], { a: undefined, b: { c: undefined } }]]);
+  });
+
+  it('should keep null distinct from undefined', () => {
+    const { win, mock } = setup();
+    mock(null, undefined);
+    mock.mockReturnValueOnce(null);
+    mock();
+    mock();
+
+    const data = read(win);
+    expect(data.calls[0]).toStrictEqual([null, undefined]);
+    expect(data.results.map((r) => r.value)).toStrictEqual([undefined, null, undefined]);
+  });
+
+  it('should satisfy toHaveBeenCalledWith on an outer mock replaying the calls', () => {
+    const { win, mock } = setup();
+    mock({ a: 1 }, undefined);
+
+    const outer = fn();
+    for (const args of read(win).calls) {
+      outer(...args);
+    }
+    expect(outer).toHaveBeenCalledWith({ a: 1 }, undefined);
+    expect(outer).not.toHaveBeenCalledWith({ a: 1 }, null);
+  });
+});

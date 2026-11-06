@@ -1,5 +1,5 @@
 import type { FrameworkAdapter, InnerMockMethod, InnerMockSetterMethod } from './framework.js';
-import { errorReconstructExpr, mockLookupExpr, WDIO_MOCK_SETUP_SCRIPT } from './injection.js';
+import { CALL_DATA_REPLACER, errorReconstructExpr, mockLookupExpr, WDIO_MOCK_SETUP_SCRIPT } from './injection.js';
 import type { IpcContext } from './ipcContext.js';
 import { buildContextSeedScript } from './ipcContext.js';
 import type { SerializedHandler } from './serialize.js';
@@ -35,15 +35,10 @@ export class DioxusAdapter implements FrameworkAdapter {
   const mockObj = ${lookup};
   if (!mockObj?.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
   const m = mockObj.mock;
-  const errorReplacer = function(_k, v) {
-    if (v instanceof Error) {
-      return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
-    }
-    return v;
-  };
+  const replacer = ${CALL_DATA_REPLACER};
   return {
-    calls: JSON.parse(JSON.stringify(m.calls || [], errorReplacer)),
-    results: JSON.parse(JSON.stringify(m.results || [], errorReplacer)),
+    calls: JSON.parse(JSON.stringify(m.calls || [], replacer)),
+    results: JSON.parse(JSON.stringify(m.results || [], replacer)),
     invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
   };
 }`;

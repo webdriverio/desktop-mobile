@@ -1,3 +1,5 @@
+import { createContext, runInContext } from 'node:vm';
+
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -196,6 +198,66 @@ describe('createMock', () => {
     const second = fakeBridge();
     const remock = await createMock('greet', second.bridge, store);
     expect((remock as unknown as { _vitestFn: unknown })._vitestFn).toBe(vitestFn);
+  });
+});
+
+// Two chains whose nodes link to each other and back, like React fibers and their alternates.
+function crossLinked(depth: number) {
+  type Node = { child?: Node; alternate?: Node };
+  const a: Node[] = Array.from({ length: depth }, () => ({}));
+  const b: Node[] = Array.from({ length: depth }, () => ({}));
+  for (let i = 0; i < depth; i++) {
+    a[i].alternate = b[i];
+    b[i].alternate = a[i];
+    a[i].child = a[i + 1];
+    b[i].child = b[i + 1];
+  }
+  return a[0];
+}
+
+describe('createMock call data', () => {
+  // Runs the real inner-recorder scripts in a vm realm and clones the result as CDP's returnByValue does.
+  function realmBridge(initial: Record<string, unknown>) {
+    const ctx = createContext({ ...initial });
+    const send = vi.fn(async (_method: string, params: { expression: string }) => {
+      const value = await Promise.resolve(runInContext(params.expression, ctx));
+      return { result: { value: value === undefined ? undefined : JSON.parse(JSON.stringify(value)) } };
+    });
+    return { bridge: { send } as unknown as CdpBridge, ctx };
+  }
+
+  it('should keep undefined arguments, nested or not, instead of turning them into null', async () => {
+    const { bridge, ctx } = realmBridge({ greet: () => 'orig' });
+    const mock = await createMock('greet', bridge, new ReactNativeMockStore());
+    const greet = ctx.greet as (...a: unknown[]) => unknown;
+
+    greet({ a: 1 }, undefined);
+    greet([1, undefined], { b: undefined }, null);
+
+    await mock.update();
+
+    expect(mock.mock.calls).toStrictEqual([
+      [{ a: 1 }, undefined],
+      [[1, undefined], { b: undefined }, null],
+    ]);
+    expect(mock).toHaveBeenCalledWith({ a: 1 }, undefined);
+  });
+
+  it('should read an object in each call that passes it, and each object once per call', async () => {
+    const { bridge, ctx } = realmBridge({ greet: () => 'orig' });
+    const mock = await createMock('greet', bridge, new ReactNativeMockStore());
+    const greet = ctx.greet as (...a: unknown[]) => unknown;
+    const cfg = { a: 1 };
+
+    greet(cfg);
+    greet(cfg);
+    greet(crossLinked(20));
+
+    await mock.update();
+
+    expect(mock.mock.calls.slice(0, 2)).toStrictEqual([[{ a: 1 }], [{ a: 1 }]]);
+    // Reading every path rather than every object would double the size per level
+    expect(JSON.stringify(mock.mock.calls[2]).length).toBeLessThan(5_000);
   });
 });
 

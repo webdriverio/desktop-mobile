@@ -561,6 +561,19 @@ describe('Tauri Mocking', () => {
 
         expect(mockReadClipboard.mock.calls).toStrictEqual([]);
       });
+
+      it('should keep undefined arguments', async () => {
+        const mockWriteClipboard = await browser.tauri.mock('write_clipboard');
+
+        // Call the inner mock in the page, as WebDriver arguments would turn undefined into null.
+        await browser.execute(() => {
+          // @ts-expect-error - window is available in browser context
+          window.__wdio_mocks__?.write_clipboard?.({ content: 'x', format: undefined }, undefined);
+        });
+        await mockWriteClipboard.update();
+
+        expect(mockWriteClipboard.mock.calls).toStrictEqual([[{ content: 'x', format: undefined }, undefined]]);
+      });
     });
 
     describe('mock.lastCall', () => {

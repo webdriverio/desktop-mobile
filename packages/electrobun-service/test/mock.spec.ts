@@ -51,6 +51,20 @@ function makeBridge(initialWindow: FakeWindow = {}): {
   return { bridge, send, window };
 }
 
+// Two chains whose nodes link to each other and back, like React fibers and their alternates.
+function crossLinked(depth: number) {
+  type Node = { child?: Node; alternate?: Node };
+  const a: Node[] = Array.from({ length: depth }, () => ({}));
+  const b: Node[] = Array.from({ length: depth }, () => ({}));
+  for (let i = 0; i < depth; i++) {
+    a[i].alternate = b[i];
+    b[i].alternate = a[i];
+    a[i].child = a[i + 1];
+    b[i].child = b[i + 1];
+  }
+  return a[0];
+}
+
 describe('createMock (Electrobun mocking)', () => {
   let store: ElectrobunMockStore;
 
@@ -130,6 +144,40 @@ describe('createMock (Electrobun mocking)', () => {
       ]);
       expect(mock.mock.results).toHaveLength(2);
       expect(mock.mock.invocationCallOrder).toHaveLength(2);
+    });
+
+    it('should keep undefined arguments, nested or not, instead of turning them into null', async () => {
+      const { bridge, window } = makeBridge({ api: { fetchData: () => 'real' } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      const spy = (window.api as { fetchData: (...a: unknown[]) => unknown }).fetchData;
+
+      spy({ a: 1 }, undefined);
+      spy([1, undefined], { b: undefined }, null);
+
+      await mock.update();
+
+      expect(mock.mock.calls).toStrictEqual([
+        [{ a: 1 }, undefined],
+        [[1, undefined], { b: undefined }, null],
+      ]);
+      expect(mock).toHaveBeenCalledWith({ a: 1 }, undefined);
+    });
+
+    it('should read an object in each call that passes it, and each object once per call', async () => {
+      const { bridge, window } = makeBridge({ api: { fetchData: () => 'real' } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      const spy = (window.api as { fetchData: (...a: unknown[]) => unknown }).fetchData;
+      const cfg = { a: 1 };
+
+      spy(cfg);
+      spy(cfg);
+      spy(crossLinked(20));
+
+      await mock.update();
+
+      expect(mock.mock.calls.slice(0, 2)).toStrictEqual([[{ a: 1 }], [{ a: 1 }]]);
+      // Reading every path rather than every object would double the size per level
+      expect(JSON.stringify(mock.mock.calls[2]).length).toBeLessThan(5_000);
     });
 
     it('should replace outer state wholesale when the inner history shrinks', async () => {

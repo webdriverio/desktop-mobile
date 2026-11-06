@@ -4,14 +4,17 @@ export interface MockCallData {
   invocationCallOrder: number[];
 }
 
-function reconstructErrors(value: unknown): unknown {
+function reviveMarkers(value: unknown): unknown {
   if (value === null || typeof value !== 'object') {
     return value;
   }
   if (Array.isArray(value)) {
-    return value.map(reconstructErrors);
+    return value.map(reviveMarkers);
   }
   const obj = value as Record<string, unknown>;
+  if (obj.__wdioUndefined === true) {
+    return undefined;
+  }
   if (obj.__wdioError === true) {
     const err = new Error(typeof obj.message === 'string' ? obj.message : '');
     if (typeof obj.name === 'string') {
@@ -22,25 +25,23 @@ function reconstructErrors(value: unknown): unknown {
     }
     return err;
   }
-  const out: Record<string, unknown> = {};
-  for (const k of Object.keys(obj)) {
-    out[k] = reconstructErrors(obj[k]);
-  }
-  return out;
+  // fromEntries defines each key, so an own `__proto__` key stays data instead of setting the prototype
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, reviveMarkers(v)]));
 }
 
+/** Restore the `undefined` and `Error` markers that a call-data read writes. */
 export function parseCallData(raw: unknown): MockCallData {
   if (!raw || typeof raw !== 'object') {
     return { calls: [], results: [], invocationCallOrder: [] };
   }
   const r = raw as Record<string, unknown>;
   const calls = Array.isArray(r.calls)
-    ? (r.calls as unknown[][]).map((args) => (Array.isArray(args) ? args.map(reconstructErrors) : args) as unknown[])
+    ? (r.calls as unknown[][]).map((args) => (Array.isArray(args) ? args.map(reviveMarkers) : args) as unknown[])
     : [];
   const results = Array.isArray(r.results)
     ? (r.results as MockCallData['results']).map((res) => ({
         type: res.type,
-        value: reconstructErrors(res.value),
+        value: reviveMarkers(res.value),
       }))
     : [];
   return {
