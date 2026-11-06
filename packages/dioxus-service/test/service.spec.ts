@@ -74,6 +74,16 @@ describe('DioxusWorkerService', () => {
     expect(typeof dioxus.triggerDeeplink).toBe('function');
   });
 
+  it('should open a deeplink in native mode', async () => {
+    const browser = makeBrowser();
+    const service = new DioxusWorkerService({}, {});
+    await service.before({}, [], browser);
+
+    await (browser as unknown as Installed).dioxus.triggerDeeplink('myapp://x');
+
+    expect(triggerDeeplink).toHaveBeenCalledWith('myapp://x', { instancesShareApp: false });
+  });
+
   it('should route browser.dioxus.execute through the underlying browser.execute', async () => {
     const browser = makeBrowser();
     // The first two calls are the injection script and the stale-mock reset.
@@ -521,6 +531,21 @@ describe('DioxusWorkerService', () => {
       await service.before({}, [], browser);
 
       expect(urlSpy).toHaveBeenCalledWith('http://localhost:3000');
+    });
+
+    it('should refuse a deeplink, as there is no Dioxus app to receive it', async () => {
+      const browser = makeBrowserModeBrowser();
+      const service = new DioxusWorkerService(
+        { mode: 'browser', devServerUrl: 'http://localhost:3000' } as unknown,
+        {},
+      );
+      await service.before({}, [], browser);
+      vi.mocked(triggerDeeplink).mockClear();
+
+      await expect((browser as unknown as Installed).dioxus.triggerDeeplink('myapp://x')).rejects.toMatchObject({
+        message: 'browser.dioxus.triggerDeeplink() is not supported in browser mode.',
+      });
+      expect(triggerDeeplink).not.toHaveBeenCalled();
     });
 
     it('should still install browser.dioxus in browser mode', async () => {

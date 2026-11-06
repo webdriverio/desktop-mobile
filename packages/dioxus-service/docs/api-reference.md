@@ -227,6 +227,8 @@ See [Deeplink Testing](./deeplink-testing.md) for the full usage guide.
 
 **Multiremote:** Throws, on every instance and on the root, in a session where two instances run the same app. See [Multiremote](./deeplink-testing.md#multiremote).
 
+**Browser Mode:** Throws. There's no Dioxus app to receive the URL.
+
 ---
 
 > **Note:** `emitEvent` is deferred to v1.1.
