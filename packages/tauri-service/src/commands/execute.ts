@@ -1,8 +1,9 @@
 import type { TauriAPIs, TauriExecuteOptions } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 import { DirectEvalClient } from '../directEvalClient.js';
+import { hasReference, toElementReferences } from '../elementReferences.js';
 import { isPluginAvailabilityCached, setPluginAvailabilityCached } from '../pluginCache.js';
-import { getCurrentWindowLabel, getDefaultWindowLabel, getSessionProvider } from '../window.js';
+import { getCurrentWindowLabel, getDefaultWindowLabel, getSessionProvider } from '../windowState.js';
 import { wrapScriptForDirectEval } from '../wrapForDirectEval.js';
 
 const log = createLogger('tauri-service', 'service');
@@ -42,10 +43,34 @@ function getOrCreateDirectEvalClient(browser: WebdriverIO.Browser, port: number)
   return client;
 }
 
+type Script<ReturnValue, InnerArguments extends unknown[]> =
+  | string
+  | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue);
+
+// For the service's own scripts, which never need element references
 export async function execute<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   browser: WebdriverIO.Browser,
-  script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
+  script: Script<ReturnValue, InnerArguments>,
   ...args: InnerArguments
+): Promise<Awaited<ReturnValue>> {
+  return runScript(browser, script, args, false);
+}
+
+// For browser.tauri.execute(): on the embedded provider, the plugin turns nodes in the result into references in
+// the session, and references in the arguments into nodes
+export async function executeWithElementRefs<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
+  browser: WebdriverIO.Browser,
+  script: Script<ReturnValue, InnerArguments>,
+  ...args: InnerArguments
+): Promise<Awaited<ReturnValue>> {
+  return runScript(browser, script, args, true);
+}
+
+async function runScript<ReturnValue, InnerArguments extends unknown[]>(
+  browser: WebdriverIO.Browser,
+  script: Script<ReturnValue, InnerArguments>,
+  args: InnerArguments,
+  elementRefs: boolean,
 ): Promise<Awaited<ReturnValue>> {
   if (!browser) {
     throw new Error('WDIO browser is not yet initialised');
@@ -57,9 +82,9 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   let userArgs: unknown[];
   if (isExecuteOptions(firstArg)) {
     options.windowLabel = firstArg.windowLabel;
-    userArgs = args.slice(1);
+    userArgs = toElementReferences(args.slice(1));
   } else {
-    userArgs = args;
+    userArgs = toElementReferences(args);
   }
 
   const sessionWindowLabel = getCurrentWindowLabel(browser);
@@ -86,7 +111,13 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     const scriptString = typeof script === 'function' ? script.toString() : script;
     const port = getDirectEvalPort(browser);
     const client = getOrCreateDirectEvalClient(browser, port);
-    const wrapped = wrapScriptForDirectEval(scriptString, JSON.stringify(userArgs));
+    const argsJson = JSON.stringify(userArgs);
+    const wrapped = wrapScriptForDirectEval(scriptString, argsJson);
+    // Send a second copy of the arguments only when the plugin has a reference to resolve: the copy could
+    // push big arguments over its request size limit
+    const refs = elementRefs
+      ? { sessionId: browser.sessionId, args: hasReference(argsJson) ? userArgs : undefined }
+      : {};
 
     // On macOS the first direct eval against a freshly-spawned WKWebView can return the
     // opaque WKErrorJavaScriptExceptionOccurred ("A JavaScript exception occurred") before
@@ -101,8 +132,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
       try {
         return (await client.eval(wrapped, {
           windowLabel: executeOptions.windowLabel,
-          // The multiremote root's session ID is empty
-          sessionId: browser.sessionId || undefined,
+          ...refs,
         })) as Awaited<ReturnValue>;
       } catch (error) {
         lastError = error;

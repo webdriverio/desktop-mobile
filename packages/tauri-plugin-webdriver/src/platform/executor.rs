@@ -14,8 +14,8 @@ use crate::platform::key_input::{
   element_events_script, install_element_events_js, ELEMENT_EVENTS_MISSING,
 };
 use crate::platform::pointer_input::{pointer_event_script, PointerInputState};
-use crate::server::response::WebDriverErrorResponse;
-use crate::webdriver::element::ELEMENT_VAR_PREFIX;
+use crate::server::response::{WebDriverErrorResponse, NON_STRING_REFERENCE_ID};
+use crate::webdriver::element::{ELEMENT_KEY, ELEMENT_VAR_PREFIX, SHADOW_KEY};
 
 /// Element bounding rectangle
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1088,6 +1088,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     let args_json = serde_json::to_string(args)
       .map_err(|e| WebDriverErrorResponse::invalid_argument(&e.to_string()))?;
     let refs_js = script_result_refs_js(ref_prefix);
+    let deserialize_arg_js = deserialize_arg_js();
 
     // Generate unique result variable name
     let result_var = format!("__wdio_exec_{}", uuid::Uuid::new_v4());
@@ -1137,23 +1138,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                     return null;
                 }}
 
-                function deserializeArg(arg) {{
-                    if (arg === null || arg === undefined) return arg;
-                    if (Array.isArray(arg)) return arg.map(deserializeArg);
-                    if (typeof arg === 'object') {{
-                        if (arg[ELEMENT_KEY]) {{
-                            var el = window['{ELEMENT_VAR_PREFIX}' + arg[ELEMENT_KEY].replace(/-/g, '')];
-                            if (!el) throw new Error('stale element reference');
-                            return el;
-                        }}
-                        var result = {{}};
-                        for (var key in arg) {{
-                            if (arg.hasOwnProperty(key)) result[key] = deserializeArg(arg[key]);
-                        }}
-                        return result;
-                    }}
-                    return arg;
-                }}
+                {deserialize_arg_js}
 
                 // Start async execution (fire and forget)
                 (async function() {{
@@ -1219,12 +1204,17 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     ref_prefix: &str,
   ) -> Result<Value, WebDriverErrorResponse>;
 
-  /// Execute a pre-wrapped async DirectEval script (the `/wdio/eval` channel).
+  /// Execute a pre-wrapped async DirectEval script (the `/wdio/eval` channel) in the top document.
   ///
-  /// The script uses the W3C async-callback contract (`arguments[last]` is the done callback).
-  /// Unlike `execute_async_script`, it leaves DOM nodes in the result as they are: the channel has
-  /// no session to register references in.
-  async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse>;
+  /// As in `execute_async_script`, the script gets `args` and then the done callback, and a
+  /// reference in `args` comes in as its node. With a `ref_prefix`, a DOM node in the result comes
+  /// back as a reference whose ID starts with it; without one, nodes are left as they are.
+  async fn execute_direct_eval(
+    &self,
+    script: &str,
+    args: &[Value],
+    ref_prefix: Option<&str>,
+  ) -> Result<Value, WebDriverErrorResponse>;
 
   // =========================================================================
   // Screenshots
@@ -1663,9 +1653,71 @@ pub fn script_result_refs_js(ref_prefix: &str) -> String {
   format!("{SCRIPT_RESULT_REFS_JS}\nvar __wdio_refs = __wdioScriptResultRefs('{ref_prefix}', '{ELEMENT_VAR_PREFIX}');")
 }
 
+/// Defines `deserializeArg`, which turns an element or shadow root reference in a script argument
+/// into its node. A node that has left the document fails as stale, or detached for a shadow root.
+pub fn deserialize_arg_js() -> String {
+  format!(
+    r"function deserializeArg(arg) {{
+                    if (arg === null || arg === undefined) return arg;
+                    if (Array.isArray(arg)) return arg.map(deserializeArg);
+                    if (typeof arg === 'object') {{
+                        var id = arg['{ELEMENT_KEY}'] || arg['{SHADOW_KEY}'];
+                        if (id) {{
+                            if (typeof id !== 'string') throw new Error('{NON_STRING_REFERENCE_ID}');
+                            var node = window['{ELEMENT_VAR_PREFIX}' + id.replace(/-/g, '')];
+                            if (arg['{ELEMENT_KEY}']) {{
+                                if (!node || !node.isConnected) throw new Error('stale element reference');
+                            }} else if (!node || !node.host || !node.host.isConnected) {{
+                                throw new Error('detached shadow root');
+                            }}
+                            return node;
+                        }}
+                        var result = {{}};
+                        for (var key in arg) {{
+                            if (Object.prototype.hasOwnProperty.call(arg, key)) result[key] = deserializeArg(arg[key]);
+                        }}
+                        return result;
+                    }}
+                    return arg;
+                }}"
+  )
+}
+
 #[cfg(test)]
 mod script_result_refs_tests {
   use super::*;
+
+  #[test]
+  fn deserialize_arg_resolves_element_and_shadow_root_references_from_where_find_element_keeps_them(
+  ) {
+    let js = deserialize_arg_js();
+
+    assert!(js.contains(&format!("var id = arg['{ELEMENT_KEY}'] || arg['{SHADOW_KEY}'];")));
+    assert!(js.contains(&format!("window['{ELEMENT_VAR_PREFIX}' + id.replace(/-/g, '')]")));
+  }
+
+  #[test]
+  fn deserialize_arg_rejects_a_reference_id_that_is_not_a_string() {
+    assert!(deserialize_arg_js().contains(&format!(
+      "if (typeof id !== 'string') throw new Error('{NON_STRING_REFERENCE_ID}');"
+    )));
+  }
+
+  #[test]
+  fn deserialize_arg_rejects_a_node_that_has_left_the_document() {
+    let js = deserialize_arg_js();
+
+    assert!(
+      js.contains("if (!node || !node.isConnected) throw new Error('stale element reference');")
+    );
+    assert!(js.contains("} else if (!node || !node.host || !node.host.isConnected) {"));
+    assert!(js.contains("throw new Error('detached shadow root');"));
+  }
+
+  #[test]
+  fn deserialize_arg_copies_an_object_whose_own_has_own_property_is_shadowed() {
+    assert!(deserialize_arg_js().contains("Object.prototype.hasOwnProperty.call(arg, key)"));
+  }
 
   #[test]
   fn script_result_refs_keep_nodes_under_find_elements_variable_prefix() {

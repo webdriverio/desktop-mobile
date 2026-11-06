@@ -28,10 +28,10 @@ use windows_core::BOOL;
 
 use crate::platform::alert_state::{AlertState, AlertStateManager, AlertType, PendingAlert};
 use crate::platform::{
-  script_result_refs_js, wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions,
+  deserialize_arg_js, script_result_refs_js, wrap_script_for_frame_context, FrameId,
+  PlatformExecutor, PrintOptions,
 };
 use crate::server::response::WebDriverErrorResponse;
-use crate::webdriver::element::ELEMENT_VAR_PREFIX;
 use crate::webdriver::Timeouts;
 
 // =============================================================================
@@ -579,8 +579,13 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     self.run_async_script(script, args, Some(ref_prefix)).await
   }
 
-  async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
-    self.run_async_script(script, &[], None).await
+  async fn execute_direct_eval(
+    &self,
+    script: &str,
+    args: &[Value],
+    ref_prefix: Option<&str>,
+  ) -> Result<Value, WebDriverErrorResponse> {
+    self.run_async_script(script, args, ref_prefix).await
   }
 }
 
@@ -598,6 +603,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
       None => (String::new(), "r"),
     };
 
+    let deserialize_arg_js = deserialize_arg_js();
     let async_id = uuid::Uuid::new_v4().to_string();
 
     // Get async state and register this operation
@@ -627,25 +633,8 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
     // Build wrapper script using postMessage
     let wrapper = format!(
       r"(function() {{
-                var ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
                 {refs_js}
-                function deserializeArg(arg) {{
-                    if (arg === null || arg === undefined) return arg;
-                    if (Array.isArray(arg)) return arg.map(deserializeArg);
-                    if (typeof arg === 'object') {{
-                        if (arg[ELEMENT_KEY]) {{
-                            var el = window['{ELEMENT_VAR_PREFIX}' + arg[ELEMENT_KEY].replace(/-/g, '')];
-                            if (!el) throw new Error('stale element reference');
-                            return el;
-                        }}
-                        var result = {{}};
-                        for (var key in arg) {{
-                            if (arg.hasOwnProperty(key)) result[key] = deserializeArg(arg[key]);
-                        }}
-                        return result;
-                    }}
-                    return arg;
-                }}
+                {deserialize_arg_js}
                 var __done = function(r) {{
                     window.chrome.webview.postMessage(JSON.stringify({{
                         handler: '{HANDLER_NAME}',
@@ -654,9 +643,9 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
                         error: null
                     }}));
                 }};
-                var __args = {args_json}.map(deserializeArg);
-                __args.push(__done);
                 try {{
+                    var __args = {args_json}.map(deserializeArg);
+                    __args.push(__done);
                     (function() {{ {script} }}).apply(null, __args);
                 }} catch (e) {{
                     window.chrome.webview.postMessage(JSON.stringify({{

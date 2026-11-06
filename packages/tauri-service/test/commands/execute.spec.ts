@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { execute } from '../../src/commands/execute.js';
-import { clearWindowState, setSessionProvider } from '../../src/window.js';
+import { execute, executeWithElementRefs } from '../../src/commands/execute.js';
+import { clearWindowState } from '../../src/window.js';
+import { setSessionProvider } from '../../src/windowState.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@wdio/native-utils')>();
@@ -236,27 +237,73 @@ describe('execute — embedded provider (direct eval)', () => {
     });
   });
 
-  describe('session', () => {
-    it("should send the session's ID, so the plugin can register element references in the result", async () => {
+  describe('element references', () => {
+    const ref = { 'element-6066-11e4-a52e-4f735466cecf': 'p-0' };
+
+    function sentBody(mockFn: ReturnType<typeof vi.fn>) {
+      return JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
+    }
+
+    it("should send the session's ID and the arguments, for the plugin to turn nodes into references and back", async () => {
       const mockFn = mockFetch({ value: 1 });
       vi.stubGlobal('fetch', mockFn);
       const sessionBrowser = Object.assign(createMockBrowser(), { sessionId: 'session-1' });
 
-      await execute(sessionBrowser, '() => 1');
+      await executeWithElementRefs(sessionBrowser, (_tauri, el: unknown) => el, ref);
 
-      const body = JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
-      expect(body.session_id).toBe('session-1');
+      expect(sentBody(mockFn)).toMatchObject({ session_id: 'session-1', args: [ref] });
     });
 
-    it('should send no session ID for the multiremote root, whose ID is empty', async () => {
+    it('should send the arguments without the execute options', async () => {
       const mockFn = mockFetch({ value: 1 });
       vi.stubGlobal('fetch', mockFn);
-      const rootBrowser = Object.assign(createMockBrowser(), { sessionId: '' });
+      const sessionBrowser = Object.assign(createMockBrowser(), { sessionId: 'session-1' });
 
-      await execute(rootBrowser, '() => 1');
+      await executeWithElementRefs(
+        sessionBrowser,
+        'return arguments[0]',
+        { __wdioOptions__: true, windowLabel: 'second' },
+        ref,
+      );
 
-      const body = JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
-      expect(body).not.toHaveProperty('session_id');
+      expect(sentBody(mockFn)).toMatchObject({ window_label: 'second', args: [ref] });
+    });
+
+    it('should send a WebdriverIO element in the arguments as its reference', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      const sessionBrowser = Object.assign(createMockBrowser(), { sessionId: 'session-1' });
+      const element = { selector: '#counter', elementId: 'p-0', parent: sessionBrowser };
+
+      await executeWithElementRefs(sessionBrowser, (_tauri, el: unknown) => el, element);
+
+      const body = sentBody(mockFn);
+      expect(body.args).toEqual([ref]);
+      expect(body.script).toContain(JSON.stringify([ref]));
+    });
+
+    it('should leave arguments without a reference inlined in the script alone', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      const sessionBrowser = Object.assign(createMockBrowser(), { sessionId: 'session-1' });
+
+      await executeWithElementRefs(sessionBrowser, (_tauri, data: string) => data, 'x'.repeat(1000));
+
+      const body = sentBody(mockFn);
+      expect(body).toMatchObject({ session_id: 'session-1' });
+      expect(body).not.toHaveProperty('args');
+      expect(body.script).toContain('x'.repeat(1000));
+    });
+
+    it("should send no session or arguments for the service's own scripts", async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      const sessionBrowser = Object.assign(createMockBrowser(), { sessionId: 'session-1' });
+
+      await execute(sessionBrowser, (_tauri, n: number) => n, 1);
+
+      expect(sentBody(mockFn)).not.toHaveProperty('session_id');
+      expect(sentBody(mockFn)).not.toHaveProperty('args');
     });
   });
 

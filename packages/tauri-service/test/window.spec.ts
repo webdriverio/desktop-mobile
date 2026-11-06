@@ -1,22 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { execute } from '../src/commands/execute.js';
 import * as pluginCacheModule from '../src/pluginCache.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
   getActiveWindowLabel,
   getCurrentDevtoolsPort,
-  getCurrentWindowLabel,
-  getDefaultWindowLabel,
   getLastCommand,
   isInternalWindowSwitch,
   listWindowLabels,
-  setCurrentWindowLabel,
-  setSessionProvider,
   suppressActiveWindowFocus,
   switchWindowByLabel,
   updateLastCommand,
   withInternalWindowSwitch,
 } from '../src/window.js';
+import {
+  getCurrentWindowLabel,
+  getDefaultWindowLabel,
+  setCurrentWindowLabel,
+  setSessionProvider,
+} from '../src/windowState.js';
+
+// The window queries run through the service's own execute; each fake browser answers them with its tauri.execute stub
+vi.mock('../src/commands/execute.js', () => ({
+  execute: vi.fn((browser: WebdriverIO.Browser, script: () => unknown) => browser.tauri.execute(script)),
+}));
 
 describe('window management', () => {
   beforeEach(() => {
@@ -38,6 +46,14 @@ describe('window management', () => {
       const result = await getActiveWindowLabel(mockBrowser);
       expect(result).toBe('main');
       expect(mockBrowser.tauri.execute).toHaveBeenCalledWith(expect.any(Function));
+    });
+
+    it("should query through the service's own execute, which sends no session", async () => {
+      const mockBrowser = { tauri: { execute: vi.fn().mockResolvedValue('main') } } as unknown as WebdriverIO.Browser;
+
+      await getActiveWindowLabel(mockBrowser);
+
+      expect(execute).toHaveBeenCalledWith(mockBrowser, expect.any(Function));
     });
 
     it('should return "main" as fallback on error', async () => {

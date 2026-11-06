@@ -1,6 +1,7 @@
 import { requireInstance } from '@wdio/native-core';
 import type { TauriMock } from '@wdio/native-types';
-import { createLogger, errorMessage, isMultiremote, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
+import { createLogger, isMultiremote, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
+import { instanceFailuresError, settleOnEach } from '../instanceFailures.js';
 import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
 
@@ -122,10 +123,7 @@ export async function runOnMockTargets(
     log.debug(`${commandName}: ${op} ran on ${count} of ${mocks.length} mocks${prefix ? ` (prefix: ${prefix})` : ''}`);
   };
 
-  const results = await Promise.allSettled(targets.map(runOn));
-  const failures = results.flatMap((result, i) =>
-    result.status === 'rejected' ? [{ name: targets[i].name, error: result.reason as unknown }] : [],
-  );
+  const { failures } = await settleOnEach(targets, runOn);
   if (failures.length === 0) {
     return;
   }
@@ -133,15 +131,7 @@ export async function runOnMockTargets(
   if (failures.length === 1 && failures[0].name === undefined) {
     throw failures[0].error;
   }
-  const message = `${commandName} failed on ${failures
-    .map(({ name, error }) => `${name}: ${errorMessage(error)}`)
-    .join('; ')}`;
-  throw failures.length === 1
-    ? new Error(message, { cause: failures[0].error })
-    : new AggregateError(
-        failures.map(({ error }) => error),
-        message,
-      );
+  throw instanceFailuresError(commandName, failures);
 }
 
 async function runOnMocks(

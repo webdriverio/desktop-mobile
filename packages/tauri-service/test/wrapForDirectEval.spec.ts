@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { wrapScriptForDirectEval } from '../src/wrapForDirectEval.js';
 
 describe('wrapScriptForDirectEval', () => {
@@ -6,7 +6,7 @@ describe('wrapScriptForDirectEval', () => {
     it('should wrap an arrow function', () => {
       const result = wrapScriptForDirectEval('(tauri, x) => x * 2', '[21]');
       expect(result).toContain('var __cb = arguments[arguments.length - 1]');
-      expect(result).toContain('__wdio_args = [21]');
+      expect(result).toContain(': [21];');
       expect(result).toContain('__wdio_tauri = { core: { invoke: __wdio_invoke } }');
       expect(result).toContain('await ((tauri, x) => x * 2)(__wdio_tauri, ...__wdio_args)');
       expect(result).toContain('__cb({ ok: true,');
@@ -54,7 +54,7 @@ describe('wrapScriptForDirectEval', () => {
 
     it('should embed args JSON correctly', () => {
       const result = wrapScriptForDirectEval('(tauri, a, b) => a + b', '[1,"hello"]');
-      expect(result).toContain('__wdio_args = [1,"hello"]');
+      expect(result).toContain(': [1,"hello"];');
     });
 
     it('should pass undef=true for undefined results', () => {
@@ -79,7 +79,7 @@ describe('wrapScriptForDirectEval', () => {
 
     it('should embed args JSON', () => {
       const result = wrapScriptForDirectEval('arguments[0] * 2', '[21]');
-      expect(result).toContain('__wdio_args = [21]');
+      expect(result).toContain(': [21];');
     });
   });
 
@@ -113,6 +113,49 @@ describe('wrapScriptForDirectEval', () => {
       const result = wrapScriptForDirectEval('return 42', '[]');
       expect(result).not.toContain('return return 42');
       expect(result).toContain('(async function() { return 42 }).apply(null');
+    });
+  });
+
+  describe('arguments', () => {
+    // Runs a wrapped script as the plugin does: its arguments, then the done callback
+    function run(wrapped: string, ...args: unknown[]): Promise<unknown> {
+      return new Promise((resolve) => {
+        new Function(wrapped).apply(null, [...args, resolve]);
+      });
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('should use the arguments the plugin passes, such as an element it resolved from a reference', async () => {
+      vi.stubGlobal('window', { __wdio_original_core__: { invoke: vi.fn() } });
+      const element = { tagName: 'BUTTON' };
+
+      const result = await run(
+        wrapScriptForDirectEval('(tauri, el) => el', '[{"element-6066-11e4-a52e-4f735466cecf":"p-0"}]'),
+        element,
+      );
+
+      expect(result).toEqual({ ok: true, value: element, undef: false });
+      expect((result as { value: unknown }).value).toBe(element);
+    });
+
+    it('should use the inlined arguments when the plugin passes only the callback', async () => {
+      vi.stubGlobal('window', { __wdio_original_core__: { invoke: vi.fn() } });
+
+      await expect(run(wrapScriptForDirectEval('(tauri, a, b) => a + b', '[1,2]'))).resolves.toEqual({
+        ok: true,
+        value: 3,
+        undef: false,
+      });
+    });
+
+    it('should do the same for string scripts', async () => {
+      const wrapped = wrapScriptForDirectEval('arguments[0] * 2', '[21]');
+
+      await expect(run(wrapped)).resolves.toMatchObject({ value: 42 });
+      await expect(run(wrapped, 5)).resolves.toMatchObject({ value: 10 });
     });
   });
 

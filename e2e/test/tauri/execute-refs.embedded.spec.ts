@@ -98,7 +98,7 @@ describe('Tauri Execute - element results (embedded)', () => {
   });
 });
 
-// The external providers run browser.tauri.execute() through the plugin's IPC, which still sends its result as JSON.
+// Embedded only: the external providers run browser.tauri.execute() through the plugin's IPC, which returns plain JSON.
 describe('Tauri Execute - element results from browser.tauri.execute (embedded)', () => {
   it('should return an element as a reference that element commands accept', async () => {
     const result = await browser.tauri.execute(() => document.querySelector('#counter'));
@@ -149,6 +149,12 @@ describe('Tauri Execute - element results from browser.tauri.execute (embedded)'
       expect(result).toEqual({ [SHADOW_KEY]: expect.any(String) });
       const inShadow = await browser.findElementFromShadowRoot(result[SHADOW_KEY], 'css selector', '#in-shadow');
       expect(await idOf(inShadow)).toBe('in-shadow');
+      expect(
+        await browser.tauri.execute(
+          (_tauri, root: unknown) => (root instanceof ShadowRoot ? root.querySelector('span')?.id : typeof root),
+          result,
+        ),
+      ).toBe('in-shadow');
     } finally {
       await browser.execute(() => document.querySelector('#tauri-execute-shadow-host')?.remove());
     }
@@ -159,5 +165,25 @@ describe('Tauri Execute - element results from browser.tauri.execute (embedded)'
 
     expect(result).toEqual(anElementReference());
     expect(await idOf(result)).toBe('counter');
+  });
+
+  it('should pass a reference in an argument to the script as its element', async () => {
+    const ref = await browser.tauri.execute(() => document.querySelector('#counter'));
+
+    const result = await browser.tauri.execute(
+      (_tauri, args: { el: unknown }) => (args.el instanceof HTMLElement ? args.el.id : typeof args.el),
+      { el: ref },
+    );
+
+    expect(result).toBe('counter');
+  });
+
+  it('should pass an element from browser.$() to the script as its element', async () => {
+    const result = await browser.tauri.execute(
+      (_tauri, el: unknown) => (el instanceof HTMLElement ? el.id : typeof el),
+      await browser.$('#counter'),
+    );
+
+    expect(result).toBe('counter');
   });
 });

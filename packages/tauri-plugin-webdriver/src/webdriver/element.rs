@@ -7,7 +7,8 @@ use uuid::Uuid;
 pub(crate) const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
 /// Each element's node is kept on `window` under this prefix and its ID without hyphens.
 pub(crate) const ELEMENT_VAR_PREFIX: &str = "__wd_el_";
-const SHADOW_KEY: &str = "shadow-6066-11e4-a52e-4f735466cecf";
+/// W3C JSON key identifying a shadow root reference.
+pub(crate) const SHADOW_KEY: &str = "shadow-6066-11e4-a52e-4f735466cecf";
 
 /// Represents a `WebDriver` element reference
 #[derive(Debug, Clone)]
@@ -34,27 +35,10 @@ impl ElementStore {
     self.insert(Uuid::new_v4().to_string())
   }
 
-  /// Registers the references in a script result whose IDs the serialiser made from `ref_prefix`.
-  pub fn register_script_refs(&mut self, result: &Value, ref_prefix: &str) {
-    match result {
-      Value::Array(items) => {
-        for item in items {
-          self.register_script_refs(item, ref_prefix);
-        }
-      }
-      Value::Object(entries) => {
-        for key in [ELEMENT_KEY, SHADOW_KEY] {
-          if let Some(id) = entries.get(key).and_then(Value::as_str) {
-            if is_script_ref_id(id, ref_prefix) {
-              self.insert(id.to_string());
-            }
-          }
-        }
-        for value in entries.values() {
-          self.register_script_refs(value, ref_prefix);
-        }
-      }
-      _ => {}
+  /// Registers the IDs [`script_ref_ids`] found in a script result.
+  pub fn register_script_refs(&mut self, ids: &[&str]) {
+    for id in ids {
+      self.insert((*id).to_string());
     }
   }
 
@@ -72,11 +56,67 @@ impl ElementStore {
   }
 }
 
-/// The serialiser numbers the nodes in a result: `<ref_prefix>-0`, `<ref_prefix>-1`, and so on.
+/// The IDs, at any depth, of the references in a script result that the serialiser made from
+/// `ref_prefix`.
+pub fn script_ref_ids<'a>(result: &'a Value, ref_prefix: &str) -> Vec<&'a str> {
+  let mut ids = Vec::new();
+  collect_script_ref_ids(result, ref_prefix, &mut ids);
+  ids
+}
+
+fn collect_script_ref_ids<'a>(result: &'a Value, ref_prefix: &str, ids: &mut Vec<&'a str>) {
+  match result {
+    Value::Array(items) => {
+      for item in items {
+        collect_script_ref_ids(item, ref_prefix, ids);
+      }
+    }
+    Value::Object(entries) => {
+      for key in [ELEMENT_KEY, SHADOW_KEY] {
+        if let Some(id) = entries.get(key).and_then(Value::as_str) {
+          if is_script_ref_id(id, ref_prefix) {
+            ids.push(id);
+          }
+        }
+      }
+      for value in entries.values() {
+        collect_script_ref_ids(value, ref_prefix, ids);
+      }
+    }
+    _ => {}
+  }
+}
+
+/// The ID prefix for one attempt at a script. A retry gets its own, so a late report from an
+/// earlier attempt can't point at the retry's nodes.
+#[cfg(any(target_os = "macos", test))]
+pub fn attempt_ref_prefix(ref_prefix: &str, attempt: usize) -> String {
+  debug_assert!(attempt < 10, "dropping hyphens would give attempts 1 and 11 shared variables");
+  if attempt == 0 {
+    ref_prefix.to_string()
+  } else {
+    format!("{ref_prefix}_{attempt}")
+  }
+}
+
+/// The serialiser numbers the nodes in a result `<prefix>-0`, `<prefix>-1` and so on, where
+/// `<prefix>` is `ref_prefix`, or `<ref_prefix>_<attempt>` for a retry.
 fn is_script_ref_id(id: &str, ref_prefix: &str) -> bool {
-  id.strip_prefix(ref_prefix)
-    .and_then(|rest| rest.strip_prefix('-'))
-    .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+  let Some(rest) = id.strip_prefix(ref_prefix) else {
+    return false;
+  };
+  let number = match rest.strip_prefix('_') {
+    Some(attempt_and_number) => attempt_and_number
+      .split_once('-')
+      .filter(|(attempt, _)| is_number(attempt))
+      .map(|(_, number)| number),
+    None => rest.strip_prefix('-'),
+  };
+  number.is_some_and(is_number)
+}
+
+fn is_number(s: &str) -> bool {
+  !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
 
 #[cfg(test)]
@@ -125,7 +165,7 @@ mod tests {
       { "nested": { "list": [{ SHADOW_KEY: "p-1" }] } },
     ]);
 
-    store.register_script_refs(&result, "p");
+    store.register_script_refs(&script_ref_ids(&result, "p"));
 
     assert_eq!(store.get("p-0").map(|el| el.js_ref.as_str()), Some("__wd_el_p0"));
     assert_eq!(store.get("p-1").map(|el| el.js_ref.as_str()), Some("__wd_el_p1"));
@@ -143,10 +183,50 @@ mod tests {
       { "id": "p-2" },
     ]);
 
-    store.register_script_refs(&result, "p");
+    store.register_script_refs(&script_ref_ids(&result, "p"));
 
     for id in ["other-0", "p-x", "p-", "p0", "p-2"] {
       assert!(store.get(id).is_none(), "{id} should not be registered");
     }
+  }
+
+  #[test]
+  fn registers_the_refs_of_a_script_run_again_under_their_own_variables() {
+    let mut store = ElementStore::new();
+    let first = attempt_ref_prefix("p", 0);
+    let retry = attempt_ref_prefix("p", 1);
+    let result =
+      json!([{ ELEMENT_KEY: format!("{first}-0") }, { ELEMENT_KEY: format!("{retry}-0") }]);
+
+    store.register_script_refs(&script_ref_ids(&result, "p"));
+
+    assert_eq!(store.get("p-0").map(|el| el.js_ref.as_str()), Some("__wd_el_p0"));
+    assert_eq!(store.get("p_1-0").map(|el| el.js_ref.as_str()), Some("__wd_el_p_10"));
+  }
+
+  #[test]
+  fn skips_malformed_attempt_ids() {
+    let mut store = ElementStore::new();
+    let result = json!([
+      { ELEMENT_KEY: "p_-0" },
+      { ELEMENT_KEY: "p_x-0" },
+      { ELEMENT_KEY: "p_1-" },
+      { ELEMENT_KEY: "p_1" },
+      { ELEMENT_KEY: "p_1-0-0" },
+    ]);
+
+    store.register_script_refs(&script_ref_ids(&result, "p"));
+
+    for id in ["p_-0", "p_x-0", "p_1-", "p_1", "p_1-0-0"] {
+      assert!(store.get(id).is_none(), "{id} should not be registered");
+    }
+  }
+
+  #[test]
+  fn lists_the_ref_ids_a_script_result_carries() {
+    let result = json!({ "a": { ELEMENT_KEY: "p-0" }, "b": [{ ELEMENT_KEY: "other-0" }], "c": 1 });
+
+    assert_eq!(script_ref_ids(&result, "p"), vec!["p-0"]);
+    assert!(script_ref_ids(&json!({ "value": 1 }), "p").is_empty());
   }
 }
