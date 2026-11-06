@@ -443,14 +443,15 @@ describe('Electron Worker Service', () => {
           JSON.stringify((script as (...a: unknown[]) => unknown)(electron, ...args)),
         )) as unknown as typeof executeMock);
 
-      const storeModule = (await import('../src/mockStore.js')) as any;
       const mockObj = {
         __accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
         __applyCalls: vi.fn(),
       };
-      storeModule.default.getMocks.mockReturnValueOnce([['electron.app.getName', mockObj]]);
+      vi.mocked(mockStore.getMocks).mockReturnValueOnce([
+        ['electron.app.getName', mockObj as unknown as ElectronFunctionMock],
+      ]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
+      const oc = browser.overwriteCommand as unknown as Mock;
       const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
         this: WebdriverIO.Element,
         original: (...args: unknown[]) => Promise<unknown>,

@@ -51,6 +51,20 @@ function makeBridge(initialWindow: FakeWindow = {}): {
   return { bridge, send, window };
 }
 
+// Two chains whose nodes link to each other and back, like React fibers and their alternates.
+function crossLinked(depth: number) {
+  type Node = { child?: Node; alternate?: Node };
+  const a: Node[] = Array.from({ length: depth }, () => ({}));
+  const b: Node[] = Array.from({ length: depth }, () => ({}));
+  for (let i = 0; i < depth; i++) {
+    a[i].alternate = b[i];
+    b[i].alternate = a[i];
+    a[i].child = a[i + 1];
+    b[i].child = b[i + 1];
+  }
+  return a[0];
+}
+
 describe('createMock (Electrobun mocking)', () => {
   let store: ElectrobunMockStore;
 
@@ -149,21 +163,21 @@ describe('createMock (Electrobun mocking)', () => {
       expect(mock).toHaveBeenCalledWith({ a: 1 }, undefined);
     });
 
-    it('should serialise a repeated object each time and mark only true cycles', async () => {
+    it('should read an object in each call that passes it, and each object once per call', async () => {
       const { bridge, window } = makeBridge({ api: { fetchData: () => 'real' } });
       const mock = await createMock('api.fetchData', bridge, store);
       const spy = (window.api as { fetchData: (...a: unknown[]) => unknown }).fetchData;
       const cfg = { a: 1 };
-      const self: Record<string, unknown> = { a: 1 };
-      self.self = self;
 
       spy(cfg);
-      spy(cfg, [cfg]);
-      spy(self);
+      spy(cfg);
+      spy(crossLinked(20));
 
       await mock.update();
 
-      expect(mock.mock.calls).toStrictEqual([[{ a: 1 }], [{ a: 1 }, [{ a: 1 }]], [{ a: 1, self: '[Circular]' }]]);
+      expect(mock.mock.calls.slice(0, 2)).toStrictEqual([[{ a: 1 }], [{ a: 1 }]]);
+      // Following every path through the graph instead would double the output per level
+      expect(JSON.stringify(mock.mock.calls[2]).length).toBeLessThan(5_000);
     });
 
     it('should replace outer state wholesale when the inner history shrinks', async () => {

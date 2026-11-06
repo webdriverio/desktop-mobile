@@ -229,24 +229,26 @@ export function buildReadCallDataScript(target: string): string {
     var entry = reg && reg[${key}];
     if (!entry || !entry.spy || !entry.spy.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
     var m = entry.spy.mock;
+    // Each object is read once per call or result, which keeps cross-linked graphs such as React fibers linear
     var makeSafe = function() {
-      var ancestors = [];
+      var seen = [];
       return function(_k, v) {
         if (v === undefined) { return { __wdioUndefined: true }; }
         if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
         if (typeof v === 'function') { return '[Function]'; }
         if (v && typeof v === 'object') {
-          // Only the path from the root counts, so an object passed twice is serialised twice
-          while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) { ancestors.pop(); }
-          if (ancestors.indexOf(v) !== -1) { return '[Circular]'; }
-          ancestors.push(v);
+          if (seen.indexOf(v) !== -1) { return '[Circular]'; }
+          seen.push(v);
         }
         return v;
       };
     };
+    var readEach = function(list) {
+      return (list || []).map(function(item) { return JSON.parse(JSON.stringify(item, makeSafe())); });
+    };
     return {
-      calls: JSON.parse(JSON.stringify(m.calls || [], makeSafe())),
-      results: JSON.parse(JSON.stringify(m.results || [], makeSafe())),
+      calls: readEach(m.calls),
+      results: readEach(m.results),
       invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
     };
   })()`;

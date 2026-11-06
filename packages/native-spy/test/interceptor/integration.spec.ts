@@ -307,23 +307,4 @@ describe.each(callDataCases)('%s call data read with the %s spy (synthetic windo
     expect(outer).toHaveBeenCalledWith({ a: 1 }, undefined);
     expect(outer).not.toHaveBeenCalledWith({ a: 1 }, null);
   });
-
-  it('should serialise an object each time it is passed', () => {
-    const { win, mock } = setup();
-    const cfg = { a: 1 };
-    mock(cfg);
-    mock(cfg, [cfg]);
-
-    expect(read(win).calls).toStrictEqual([[{ a: 1 }], [{ a: 1 }, [{ a: 1 }]]]);
-  });
-
-  it('should read a result that contains itself', () => {
-    const { win, mock } = setup();
-    const self: Record<string, unknown> = { a: 1 };
-    self.self = self;
-    mock.mockReturnThis();
-    mock.call(self);
-
-    expect(read(win).results).toStrictEqual([{ type: 'return', value: { a: 1, self: '[Circular]' } }]);
-  });
 });
