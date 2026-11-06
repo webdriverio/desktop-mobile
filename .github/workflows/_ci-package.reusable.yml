@@ -63,8 +63,7 @@ jobs:
     # GitHub's 6-hour default.
     timeout-minutes: 45
     steps:
-      # Otherwise the deploy key file checkout writes to RUNNER_TEMP keeps permissions checkout can't strip,
-      # so OpenSSH rejects it. Workaround for actions/runner-images#15256; drop once a fix lands.
+      # Workaround for actions/runner-images#15256; drop once a fix lands.
       - name: 🔑 Reset Temp Folder Permissions (Windows ARM64)
         if: runner.os == 'Windows' && runner.arch == 'ARM64'
         shell: pwsh
