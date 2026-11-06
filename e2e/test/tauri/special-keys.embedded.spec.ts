@@ -704,6 +704,53 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['keydown Enter', 'keyup Enter']);
   });
 
+  describe('with a form no handler cancels', () => {
+    let startUrl: string;
+
+    before(async () => {
+      startUrl = await browser.getUrl();
+    });
+
+    // The submit reloads the app, which later specs share, so put back the page the spec started on.
+    afterEach(async () => {
+      if ((await browser.getUrl()) === startUrl) {
+        return;
+      }
+      await browser.url(startUrl);
+      await browser.waitUntil(async () => (await browser.getUrl()) === startUrl);
+      await browser.waitUntil(() => browser.execute('return document.readyState === "complete"'));
+    });
+
+    async function fillSubmittingForm() {
+      await fillScratch(
+        `scratch.innerHTML = '<form method="get"><input id="fresh-field" name="q"><button>go</button></form>';
+        window.__beforeSubmit = true;`,
+      );
+    }
+
+    // Waits with getUrl, which reads the page in one script: execute polls for its result in a second script,
+    // which a navigation can drop.
+    async function waitForSubmitNavigation(search: string) {
+      await browser.waitUntil(async () => new URL(await browser.getUrl()).search === search, {
+        timeoutMsg: `The submit didn't navigate to ${search}`,
+      });
+      expect(await browser.execute('return "__beforeSubmit" in window')).toBe(false);
+    }
+
+    it('should navigate on Enter in addValue, as Chrome does', async () => {
+      await fillSubmittingForm();
+      await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+      await waitForSubmitNavigation('?q=x');
+    });
+
+    it('should navigate on Enter in key actions, as Chrome does', async () => {
+      await fillSubmittingForm();
+      await browser.$('#fresh-field').addValue('y');
+      await browser.keys(Key.Enter);
+      await waitForSubmitNavigation('?q=y');
+    });
+  });
+
   it('should click a button on Enter before the keyup, and on Space after it, as Chrome does', async () => {
     await fillFormScratch('<input id="fresh-field"><button id="fresh-submit">go</button>');
     await browser.$('#fresh-submit').addValue(Key.Enter);
