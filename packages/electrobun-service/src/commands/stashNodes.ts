@@ -41,8 +41,10 @@ export const STASH_NODES_JS = `function __wdioStashNodes(value, stash, mark) {
     return value;
   }
   if (!replaced) return value;
-  if (nodes.length > 0) window[stash] = nodes;
-  var envelope = { value: JSON.parse(json) };
+  var converted = JSON.parse(json);
+  if (nodes.length === 0) return converted;
+  window[stash] = nodes;
+  var envelope = { value: converted };
   envelope[mark] = nodes.length;
   return envelope;
 }`;

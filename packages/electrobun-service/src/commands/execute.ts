@@ -174,7 +174,8 @@ function replacePlaceholders(value: unknown, mark: string, refs: unknown[]): unk
 }
 
 // `label` is the target the script ran in, which switchWindow() may have moved the bridge away from. A script
-// that may still be running gets a null stash instead, which tells it not to stash its nodes.
+// that may still be running gets a null stash instead, which tells it not to stash its nodes. Callers don't wait
+// for this: the connection that just failed, or a busy renderer, could stall it.
 async function discardStashedNodes(
   bridge: CdpBridge,
   label: string | undefined,
@@ -204,13 +205,9 @@ async function withElementReferences(
   if (!isStashEnvelope(result, mark)) {
     return result;
   }
-  const count = result[mark] as number;
-  if (count === 0) {
-    return result.value;
-  }
-  const refs = await resolveNodes(stash, count);
+  const refs = await resolveNodes(stash, result[mark] as number);
   if (!refs.ok) {
-    await discardStashedNodes(bridge, label, stash);
+    void discardStashedNodes(bridge, label, stash);
     throw refs.error;
   }
   return replacePlaceholders(result.value, mark, refs.value);
@@ -255,9 +252,8 @@ ${STASH_NODES_JS}
     response = await sendEvaluate(bridge, expression);
   } catch (error) {
     // Unlike a script error, a failed call can leave a stash: the script may have stashed before the response
-    // failed, or may still be running after a timeout. Don't wait on the cleanup; the failed connection could
-    // stall it. Linux reports a WebKit script timeout as a script error, so a stash made after one stays until
-    // the page navigates.
+    // failed, or may still be running after a timeout. Linux reports a WebKit script timeout as a script error,
+    // so a stash made after one stays until the page navigates.
     void discardStashedNodes(bridge, label, stash, true);
     throw error;
   }

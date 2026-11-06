@@ -190,7 +190,7 @@ describe('the page-side node stash', () => {
   it('should turn an empty list into an empty array without stashing anything', () => {
     const win: FakeWindow = {};
 
-    expect(stashNodes(win)(list(), 'stash', 'mark')).toEqual({ mark: 0, value: [] });
+    expect(stashNodes(win)(list(), 'stash', 'mark')).toEqual([]);
     expect(win).not.toHaveProperty('stash');
   });
 
@@ -329,8 +329,8 @@ describe('execute — DOM nodes in the result', () => {
     await expect(execute(bridge, vi.fn().mockResolvedValue({ ok: false, error }), 'return window.el')).rejects.toBe(
       error,
     );
+    await vi.waitFor(() => expect(Object.keys(win)).toEqual(['el']));
     expect(send).toHaveBeenCalledTimes(2);
-    expect(Object.keys(win)).toEqual(['el']);
   });
 
   it('should return an element that appears twice as the same reference, reading it once', async () => {
@@ -346,6 +346,23 @@ describe('execute — DOM nodes in the result', () => {
 
     expect(result).toEqual([{ [ELEMENT_KEY]: 'counter' }, { again: { [ELEMENT_KEY]: 'counter' } }]);
     expect(stashed).toEqual([element('counter')]);
+  });
+
+  it("should throw the resolver's error without waiting for a cleanup that stalls", async () => {
+    const win: FakeWindow = { el: element('counter') };
+    const { send: runInPage } = pageBridge(win);
+    const send = vi.fn((method: string, params: { expression: string }) =>
+      send.mock.calls.length === 1 ? runInPage(method, params) : new Promise(() => {}),
+    );
+    const error = new Error('script timeout');
+    const waited = new Promise((_, reject) => setTimeout(() => reject(new Error('waited for the cleanup')), 200));
+
+    await expect(
+      Promise.race([
+        execute({ send } as unknown as CdpBridge, vi.fn().mockResolvedValue({ ok: false, error }), 'return window.el'),
+        waited,
+      ]),
+    ).rejects.toBe(error);
   });
 
   it('should discard the nodes in the target the script ran in, after a switch', async () => {
@@ -364,10 +381,10 @@ describe('execute — DOM nodes in the result', () => {
     });
 
     await expect(execute(bridge, resolve, 'return window.el')).rejects.toThrow();
+    await vi.waitFor(() => expect(Object.keys(win)).toEqual(['el']));
     expect(sendTo).toHaveBeenCalledWith('main', 'Runtime.evaluate', {
       expression: expect.stringMatching(/^delete window\["__wdio_electrobun_nodes_[0-9a-f]{32}"\]$/),
     });
-    expect(Object.keys(win)).toEqual(['el']);
   });
 
   it('should discard the nodes when the call fails after the page stashed them, and rethrow', async () => {

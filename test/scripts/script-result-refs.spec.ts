@@ -264,12 +264,13 @@ describe("Electrobun's page-side stash", () => {
   }
 
   function fromElectrobun(value: unknown) {
-    const result = stashNodes(value, STASH, MARK) as Record<string, unknown>;
-    return result === value
-      ? value
-      : withNodes(result.value, (ref) =>
-          typeof ref[MARK] === 'number' ? (page[STASH] as unknown[])[ref[MARK] as number] : undefined,
-        );
+    const result = stashNodes(value, STASH, MARK) as Record<string, unknown> | undefined;
+    if (result === value || typeof result?.[MARK] !== 'number') {
+      return result;
+    }
+    return withNodes(result.value, (ref) =>
+      typeof ref[MARK] === 'number' ? (page[STASH] as unknown[])[ref[MARK] as number] : undefined,
+    );
   }
 
   it.each([
