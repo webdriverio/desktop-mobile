@@ -78,6 +78,11 @@ type DioxusCapability = {
     captureFrontendLogs?: boolean;
     backendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
     frontendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+    clearMocks?: boolean;
+    resetMocks?: boolean;
+    resetMocksPrefix?: string;
+    restoreMocks?: boolean;
+    restoreMocksPrefix?: string;
   };
 };
 
@@ -160,6 +165,13 @@ if (testType === 'multiremote') {
         captureFrontendLogs: true,
         backendLogLevel: 'info',
         frontendLogLevel: 'info',
+        // Checked by mock-options.spec.ts. The prefixes keep reset and restore to the mocks it makes for
+        // them, so a restore can't hide whether clear and reset ran.
+        clearMocks: true,
+        resetMocks: true,
+        resetMocksPrefix: 'mock_options_reset',
+        restoreMocks: true,
+        restoreMocksPrefix: 'get_platform_info',
       },
     },
   ];
