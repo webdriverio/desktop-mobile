@@ -245,7 +245,7 @@ describe('special keys (embedded)', () => {
     expect(await browser.$('#fresh-checkbox').getValue()).toBe('on');
     await browser.execute('document.querySelector("#fresh-file").focus();');
     expect(await errorOf(browser.keys(Key.Space))).toBeUndefined();
-    expect((await errorOf(browser.$('#fresh-file').addValue('/tmp/upload.txt')))?.message).toMatch(/file/);
+    expect((await errorOf(browser.$('#fresh-file').addValue('/tmp/upload.txt')))?.message).toMatch(/file input/);
   });
 
   it('should refuse special keys when the element cannot take focus', async () => {
@@ -394,9 +394,15 @@ describe('special keys (embedded)', () => {
       { key: 'Backspace', code: 'Backspace', keyCode: 8 },
       { key: 'Tab', code: 'Tab', keyCode: 9 },
     ]);
+    // A text input drops line breaks from its value, so only the change shows that the newline was Enter.
     const input = browser.$('#keys-input');
     await input.setValue('ab\b\r\nc');
     expect(await input.getValue()).toBe('ac');
+    expect(await keysInputEvents()).toContainEqual({ type: 'change', value: 'a' });
+    // A textarea turns a typed carriage return into a newline.
+    const textarea = browser.$('#keys-textarea');
+    await textarea.setValue('a\rb');
+    expect(await textarea.getValue()).toBe('ab');
   });
 
   it('should fire input and change only when the value changes', async () => {
@@ -946,7 +952,7 @@ describe('special keys (embedded)', () => {
     await input.click();
     await browser.keys(['x', Key.Space, Key.Backspace]);
     expect(await input.getValue()).toBe('old');
-    expect(await errorOf(input.clearValue())).toBeDefined();
+    expect((await errorOf(input.clearValue()))?.message).toMatch(/cannot be cleared/);
     expect(await input.getValue()).toBe('old');
 
     const disabled = await browser.$('#fresh-disabled-input');

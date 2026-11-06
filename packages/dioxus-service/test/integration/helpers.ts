@@ -25,7 +25,11 @@ export function createFakeBrowser(): FakeBrowser {
   const browser = {
     url: vi.fn().mockResolvedValue(undefined),
     execute: vi.fn().mockResolvedValue(undefined),
-    overwriteCommand: vi.fn((name: string, fn: OverrideFn, _isElement?: boolean) => {
+    overwriteCommand: vi.fn((name: string, fn: OverrideFn, options?: unknown) => {
+      // WebdriverIO v10 throws on v9's boolean third argument.
+      if (typeof options === 'boolean') {
+        throw new Error('overwriteCommand no longer takes a boolean in WebdriverIO v10.');
+      }
       overrides.set(name, fn);
       // Mirror webdriverio: overwriting a browser command (e.g. url — read-only in wdio >=9.27,
       // hence overwriteCommand) replaces it, calling through to the original.

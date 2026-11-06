@@ -80,5 +80,32 @@ describe('Electron APIs using Multiremote', () => {
 
     expect(await browserA.electron.execute((electron) => electron.app.getName())).toBe(getExpectedAppName());
     expect(await browserB.electron.execute((electron) => electron.app.getName())).toBe('mocked in B');
+    // browserB's options don't restore mocks between tests.
+    await browserB.electron.restoreAllMocks();
+  });
+
+  // browserA's options set restoreMocks and browserB's don't, so only A's mock is restored before the second test.
+  describe("each instance's restoreMocks", () => {
+    it('should mock an API in both instances', async () => {
+      const multi = multiRemoteBrowser as WebdriverIO.MultiRemoteBrowser;
+      const browserA = multi.getInstance('browserA');
+      const browserB = multi.getInstance('browserB');
+
+      await (await browserA.electron.mock('app', 'getName')).mockReturnValue('mocked in A');
+      await (await browserB.electron.mock('app', 'getName')).mockReturnValue('mocked in B');
+
+      expect(await browserA.electron.execute((electron) => electron.app.getName())).toBe('mocked in A');
+      expect(await browserB.electron.execute((electron) => electron.app.getName())).toBe('mocked in B');
+    });
+
+    it('should restore only the mocks of the instance that sets restoreMocks', async () => {
+      const multi = multiRemoteBrowser as WebdriverIO.MultiRemoteBrowser;
+      const browserA = multi.getInstance('browserA');
+      const browserB = multi.getInstance('browserB');
+
+      expect(await browserA.electron.execute((electron) => electron.app.getName())).toBe(getExpectedAppName());
+      expect(await browserB.electron.execute((electron) => electron.app.getName())).toBe('mocked in B');
+      await browserB.electron.restoreAllMocks();
+    });
   });
 });

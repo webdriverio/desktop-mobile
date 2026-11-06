@@ -86,7 +86,7 @@ describe('Electrobun Deeplink Testing (browser.electrobun.triggerDeeplink)', () 
     });
 
     it('should reject an invalid URL format', async () => {
-      await expect(browser.electrobun.triggerDeeplink('not a valid url')).rejects.toThrow();
+      await expect(browser.electrobun.triggerDeeplink('not a valid url')).rejects.toThrow(/Invalid deeplink URL/);
     });
 
     it('should reject the http protocol', async () => {

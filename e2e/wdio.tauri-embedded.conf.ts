@@ -165,7 +165,8 @@ if (envContext.isMultiremote) {
     baseEnv.ENABLE_SPLASH_WINDOW = 'true';
   }
 
-  // Each instance gets a unique embedded port (base 4445)
+  // A takes its args from appArgs and B from tauri:options.args. Both prefer port 4445, so B gets another
+  // free port, and the launcher points each instance at its own.
   capabilities = {
     browserA: {
       capabilities: {
@@ -173,7 +174,6 @@ if (envContext.isMultiremote) {
         'wdio:enforceWebDriverClassic': true,
         'tauri:options': {
           application: appBinaryPath,
-          args: ['--browser=A'],
         },
         'wdio:tauriServiceOptions': {
           appBinaryPath: appBinaryPath,
@@ -188,8 +188,6 @@ if (envContext.isMultiremote) {
           frontendLogLevel: 'info',
         },
       },
-      hostname: '127.0.0.1',
-      port: 4445, // Embedded WebDriver port
     },
     browserB: {
       capabilities: {
@@ -201,9 +199,10 @@ if (envContext.isMultiremote) {
         },
         'wdio:tauriServiceOptions': {
           appBinaryPath: appBinaryPath,
-          appArgs: ['--browser=B'],
+          // Never reaches the app: tauri:options.args replaces appArgs.
+          appArgs: ['--browser=decoy'],
           driverProvider: 'embedded',
-          embeddedPort: 4446,
+          embeddedPort: 4445,
           env: baseEnv,
           // Enable log capture for logging tests
           captureBackendLogs: true,
@@ -212,8 +211,6 @@ if (envContext.isMultiremote) {
           frontendLogLevel: 'info',
         },
       },
-      hostname: '127.0.0.1',
-      port: 4446, // Embedded WebDriver port
     },
   };
 } else {
@@ -231,7 +228,6 @@ if (envContext.isMultiremote) {
       'wdio:enforceWebDriverClassic': true,
       'tauri:options': {
         application: appBinaryPath,
-        args: ['foo', 'bar=baz'],
       },
       'wdio:tauriServiceOptions': {
         appBinaryPath: appBinaryPath,

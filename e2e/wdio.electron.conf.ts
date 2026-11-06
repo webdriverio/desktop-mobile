@@ -185,7 +185,8 @@ type StandardCapabilities = ElectronCapability[];
 let capabilities: MultiremoteCapabilities | StandardCapabilities;
 
 if (envContext.isMultiremote) {
-  // Multiremote configuration
+  // Multiremote configuration. Log capture is set at service level (see `services`), so the logging
+  // spec checks that it reaches every instance and merges with each instance's own log level.
   capabilities = {
     browserA: {
       capabilities: {
@@ -195,10 +196,7 @@ if (envContext.isMultiremote) {
           appArgs: ['--foo', '--bar=baz', '--browser=A'],
           apparmorAutoInstall: 'sudo',
           restoreMocks: true,
-          captureMainProcessLogs: true,
-          captureRendererLogs: true,
           mainProcessLogLevel: 'info',
-          rendererLogLevel: 'info',
         },
       },
     },
@@ -209,11 +207,9 @@ if (envContext.isMultiremote) {
           ...(envContext.isScript ? { appEntryPoint } : { appBinaryPath }),
           appArgs: ['--foo', '--bar=baz', '--browser=B'],
           apparmorAutoInstall: 'sudo',
-          restoreMocks: true,
-          captureMainProcessLogs: true,
-          captureRendererLogs: true,
+          // Unlike browserA, so multiremote/api.spec.ts can check each instance applies its own option.
+          restoreMocks: false,
           mainProcessLogLevel: 'info',
-          rendererLogLevel: 'info',
         },
       },
     },
@@ -253,7 +249,9 @@ export const config: WdioElectronConfig = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  services: ['electron'],
+  services: envContext.isMultiremote
+    ? [['electron', { captureMainProcessLogs: true, captureRendererLogs: true, rendererLogLevel: 'info' }]]
+    : ['electron'],
   framework: 'mocha',
   reporters: ['spec'],
   // Regression harness for user command-override composition: register a user

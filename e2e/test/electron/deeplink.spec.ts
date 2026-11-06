@@ -123,7 +123,7 @@ describe('Deeplink Testing (browser.electron.triggerDeeplink)', () => {
 
   describe('Error Handling', () => {
     it('should reject invalid URL format', async () => {
-      await expect(browser.electron.triggerDeeplink('not a valid url')).rejects.toThrow();
+      await expect(browser.electron.triggerDeeplink('not a valid url')).rejects.toThrow(/Invalid deeplink URL/);
     });
 
     it('should reject http protocol', async () => {

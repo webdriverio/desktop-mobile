@@ -22,13 +22,21 @@ function fakeMock(name: string) {
 }
 
 // Mock browser whose overwriteCommand mirrors webdriverio: it wires the override onto the
-// named command so a later browser.url(...) runs through it, with `this` bound to the browser.
+// named command so a later browser.url(...) runs through it, with `this` bound to the browser,
+// and rejects v9's boolean third argument as v10 does.
 // (browser.url is a read-only command property in real wdio, hence overwriteCommand.)
 function makeBrowserModeBrowser(): WebdriverIO.Browser & { url: ReturnType<typeof vi.fn> } {
   const browser: Record<string, unknown> = {
     execute: vi.fn().mockResolvedValue(undefined),
     url: vi.fn().mockResolvedValue(undefined),
-    overwriteCommand(name: string, fn: (original: (...a: unknown[]) => unknown, ...a: unknown[]) => unknown) {
+    overwriteCommand(
+      name: string,
+      fn: (original: (...a: unknown[]) => unknown, ...a: unknown[]) => unknown,
+      options?: unknown,
+    ) {
+      if (typeof options === 'boolean') {
+        throw new Error('overwriteCommand no longer takes a boolean in WebdriverIO v10.');
+      }
       const original = browser[name] as (...a: unknown[]) => unknown;
       browser[name] = (...args: unknown[]) => fn.call(browser, original.bind(browser), ...args);
     },
