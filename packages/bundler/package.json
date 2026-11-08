@@ -40,10 +40,10 @@
   "dependencies": {
     "@rollup/plugin-node-resolve": "^16.0.2",
     "@rollup/plugin-typescript": "^12.3.1",
-    "commander": "^15.0.0",
+    "commander": "^15.1.0",
     "debug": "^4.4.3",
     "find-up-simple": "^1.0.1",
-    "rollup": "^4.67.5",
+    "rollup": "^4.68.0",
     "rollup-plugin-node-externals": "^9.0.1",
     "typescript": "^6.0.3"
   },
