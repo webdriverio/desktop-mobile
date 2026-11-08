@@ -185,6 +185,15 @@ pnpm update:dependencies
 # Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
 pnpm update:tauri
 
+# Move third-party uses: pins to the newest tag
+pnpm update:actions
+
+# update:dependencies, then update:actions. update:tauri already runs inside the dependency sweep.
+pnpm update:all
+
+# Bump @releasekit/release and its workflow pins together. Not part of update:all.
+pnpm update:releasekit
+
 # Preview catalog changes without applying them
 pnpm catalog:update:dry
 
@@ -194,7 +203,7 @@ pnpm catalog:update --next
 pnpm catalog:update --minimum
 ```
 
-The update process shows available updates, lets you select which to apply, updates `pnpm-workspace.yaml`, then runs `pnpm install`. In the `next` catalog, it pins each package that has a fixed version to its upcoming release, the newer of its `next` and `latest` tags, or to the newest version before that one if the release is too new for pnpm's `minimumReleaseAge`. WebdriverIO's packages follow `webdriverio`, and wait if one of them hasn't published its version yet. Every update is ticked.
+The update process shows available updates, lets you select which to apply, updates `pnpm-workspace.yaml`, then runs `pnpm install`. In the `next` catalog, it pins each package that has a fixed version to its upcoming release, the newer of its `next` and `latest` tags, or to the newest version before that one if the release is too new for pnpm's `minimumReleaseAge`. WebdriverIO's packages follow `webdriverio`, and wait if one of them hasn't published its version yet. Every update is ticked. `update:all` runs that sweep and then `update:actions`. It does not run `update:tauri` again, and it does not run `update:releasekit`. That script moves `@releasekit/release` and the `goosewobbler/releasekit` workflow pins to the same version, which a sweep must not split.
 
 ### WebdriverIO Majors
 
@@ -263,6 +272,15 @@ pnpm update:dependencies
 
 # Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
 pnpm update:tauri
+
+# Move third-party uses: pins to the newest tag
+pnpm update:actions
+
+# update:dependencies, then update:actions. update:tauri already runs inside the dependency sweep.
+pnpm update:all
+
+# Bump @releasekit/release and its workflow pins together. Not part of update:all.
+pnpm update:releasekit
 ```
 
 ## Troubleshooting
