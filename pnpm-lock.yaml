@@ -224,8 +224,8 @@ importers:
         specifier: ^22.0.1
         version: 22.0.1
       '@releasekit/release':
-        specifier: ^0.42.1
-        version: 0.42.1(conventional-commits-parser@7.1.4)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+        specifier: ^0.43.0
+        version: 0.43.0(conventional-commits-parser@7.1.4)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -3033,23 +3033,23 @@ packages:
       yauzl:
         optional: true
 
-  '@releasekit/notes@0.42.1':
-    resolution: {integrity: sha512-PEjnELQ54zwTl4HteCz1a1tOc4D+53KtivUWZXp6mW+3l+f635Y+xwgMcY68y54FZCkWQKKT/6mKv1/3Pu00LA==}
+  '@releasekit/notes@0.43.0':
+    resolution: {integrity: sha512-f6PWE8efIyFzb4gcybfwqIjAZJ/qtL/1j8+6THEWLr5VkAaXnD7FIjNVOAsTA7dymEQGHMrRr7mJTXiuMIb64g==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/publish@0.42.1':
-    resolution: {integrity: sha512-a/mlknh/vvMQzXYbxGUOiQnfyraEnPlsqPe5NqgXg08sXHPqE1UJBM3ikTZnWuQd31LISvZz03Hxwf0V2GcOsw==}
+  '@releasekit/publish@0.43.0':
+    resolution: {integrity: sha512-KSQnr3cpTST2zo3ejffaexw4+9sR6KxMRupp9fvS9NzYjoxs80OilaGTqSLlzSxA0028cyayQT8l3FHBlQbONQ==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/release@0.42.1':
-    resolution: {integrity: sha512-JY2EOI2Kw0Lgbz1TUArpmENr+H1+RHXSp9bgbAcZ84JM/ci730O/rW1YhbPiTUzKw4RQKyb8veg7cC0qzkhsjg==}
+  '@releasekit/release@0.43.0':
+    resolution: {integrity: sha512-a18V40tXfd7GtwvSY5OvRQHozL9aWSYkvyJmGeyZ+NjuB7krb0d9ZCPewlbMzFj1FnusFMZtUoCuiQwbDl/vKw==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/version@0.42.1':
-    resolution: {integrity: sha512-o++6mPK2Erg/KP+drtBLlnz0sBGhlLpcnmmIxhFKwYxXKI9Qs8NuOA+gK3FNY5YKsJyUk/fLg62yoxDJWEzqFw==}
+  '@releasekit/version@0.43.0':
+    resolution: {integrity: sha512-9j9SX8PlMULOr2o9Ysst53QKjIOiX74Kt06GwmxkFAV8kEVAz3yCVoMBrdg8QO7UY5qcK7UYGlxSaMT2S4pxtQ==}
     engines: {node: '>=22.12'}
     hasBin: true
 
@@ -8953,7 +8953,7 @@ snapshots:
     optionalDependencies:
       yauzl: 3.4.0
 
-  '@releasekit/notes@0.42.1(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/notes@0.43.0(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@anthropic-ai/sdk': 1.5.0(zod@4.6.7)
       '@octokit/rest': 22.0.1
@@ -8976,7 +8976,7 @@ snapshots:
       - undici
       - ws
 
-  '@releasekit/publish@0.42.1':
+  '@releasekit/publish@0.43.0':
     dependencies:
       chalk: 6.0.1
       commander: 15.0.0
@@ -8987,13 +8987,13 @@ snapshots:
       yaml: 2.9.1
       zod: 4.6.7
 
-  '@releasekit/release@0.42.1(conventional-commits-parser@7.1.4)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/release@0.43.0(conventional-commits-parser@7.1.4)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@octokit/rest': 22.0.1
-      '@releasekit/notes': 0.42.1(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
-      '@releasekit/publish': 0.42.1
-      '@releasekit/version': 0.42.1(conventional-commits-parser@7.1.4)
+      '@releasekit/notes': 0.43.0(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      '@releasekit/publish': 0.43.0
+      '@releasekit/version': 0.43.0(conventional-commits-parser@7.1.4)
       chalk: 6.0.1
       commander: 15.0.0
       conventional-changelog-angular: 9.4.0
@@ -9013,7 +9013,7 @@ snapshots:
       - undici
       - ws
 
-  '@releasekit/version@0.42.1(conventional-commits-parser@7.1.4)':
+  '@releasekit/version@0.43.0(conventional-commits-parser@7.1.4)':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@types/minimatch': 6.0.0

@@ -116,3 +116,7 @@ minimumReleaseAgeExclude:
   - create-wdio@10.2.0
   - webdriver@10.2.0
   - webdriverio@10.2.0
+  - "@releasekit/notes@0.43.0"
+  - "@releasekit/publish@0.43.0"
+  - "@releasekit/release@0.43.0"
+  - "@releasekit/version@0.43.0"
