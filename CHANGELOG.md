@@ -5,6 +5,490 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [@wdio/dioxus-bridge@2.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-bridge@v1.1.0...wdio-dioxus-bridge@v2.0.0-next.0)
+
+### Changed
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **tauri,dioxus**: install the element helpers once per page, not in every script (PR [#977](https://github.com/webdriverio/desktop-mobile/pull/977) · closes [#972](https://github.com/webdriverio/desktop-mobile/issues/972))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **dioxus-bridge**: rebuild the committed guest-js bundle (PR [#861](https://github.com/webdriverio/desktop-mobile/pull/861))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- update deps (PR [#803](https://github.com/webdriverio/desktop-mobile/pull/803))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+- **BREAKING** **dioxus**: remove the bridge's with-bridge feature (PR [#719](https://github.com/webdriverio/desktop-mobile/pull/719))
+- check Rust formatting with rustfmt (PR [#727](https://github.com/webdriverio/desktop-mobile/pull/727))
+
+### Fixed
+- **BREAKING** **tauri,dioxus**: emulate page focus in WebView2, so focus moves fire focus and blur in a background window (PR [#965](https://github.com/webdriverio/desktop-mobile/pull/965))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+
+## [@wdio/dioxus-service@2.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-service@v1.1.0...wdio-dioxus-service@v2.0.0-next.0)
+
+### Added
+- **BREAKING** **dioxus**: add mock.withImplementation (PR [#901](https://github.com/webdriverio/desktop-mobile/pull/901))
+- **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
+
+### Changed
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- share runThenSync between the Tauri, Dioxus and Electron mocks (PR [#917](https://github.com/webdriverio/desktop-mobile/pull/917))
+- **dioxus**: correct appBinaryPath's precedence and tighten the appArgs note (PR [#959](https://github.com/webdriverio/desktop-mobile/pull/959))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- share the multiremote wiring helpers (normaliseInstanceCaps, forEachInstance) (PR [#900](https://github.com/webdriverio/desktop-mobile/pull/900))
+- test Dioxus on Weston as well as Xvfb (PR [#840](https://github.com/webdriverio/desktop-mobile/pull/840))
+- **native-utils**: move the error helpers out of the teardown module (PR [#856](https://github.com/webdriverio/desktop-mobile/pull/856))
+- **dioxus**: fold platform support into the quick start (PR [#834](https://github.com/webdriverio/desktop-mobile/pull/834))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- use WebdriverIO v10's display server (PR [#809](https://github.com/webdriverio/desktop-mobile/pull/809))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **tauri,dioxus**: fire the owed change before the page's capture blur listeners, and send click as non-primary (PR [#1041](https://github.com/webdriverio/desktop-mobile/pull/1041) · closes [#1014](https://github.com/webdriverio/desktop-mobile/issues/1014))
+- **BREAKING** **dioxus**: throw from triggerDeeplink() in browser mode (PR [#1058](https://github.com/webdriverio/desktop-mobile/pull/1058) · closes [#1057](https://github.com/webdriverio/desktop-mobile/issues/1057))
+- **BREAKING** **dioxus,electron**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1043](https://github.com/webdriverio/desktop-mobile/pull/1043) · closes [#1013](https://github.com/webdriverio/desktop-mobile/issues/1013))
+- **BREAKING** **tauri,dioxus**: emulate page focus in WebView2, so focus moves fire focus and blur in a background window (PR [#965](https://github.com/webdriverio/desktop-mobile/pull/965))
+- **BREAKING** **dioxus,tauri,electrobun,electron,native-core,native-types**: resolve browser mode per capability (PR [#953](https://github.com/webdriverio/desktop-mobile/pull/953) · closes [#944](https://github.com/webdriverio/desktop-mobile/issues/944))
+- **dioxus**: return each instance's result from execute on the multiremote root (PR [#955](https://github.com/webdriverio/desktop-mobile/pull/955))
+- **BREAKING** **dioxus**: resolve driverProvider for each capability (PR [#949](https://github.com/webdriverio/desktop-mobile/pull/949))
+- **BREAKING** **dioxus,native-types**: pass 'dioxus:options'.args to the app and drop webviewOptions (PR [#946](https://github.com/webdriverio/desktop-mobile/pull/946) · closes [#938](https://github.com/webdriverio/desktop-mobile/issues/938))
+- **BREAKING** **dioxus**: give each multiremote instance its own mocks (PR [#921](https://github.com/webdriverio/desktop-mobile/pull/921) · closes [#905](https://github.com/webdriverio/desktop-mobile/issues/905))
+- typecheck the services against WebdriverIO v9's getInstance() types (PR [#918](https://github.com/webdriverio/desktop-mobile/pull/918) · closes [#903](https://github.com/webdriverio/desktop-mobile/issues/903))
+- **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
+- **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
+- **native-core**: reject concurrent use of an active managed dev server (PR [#864](https://github.com/webdriverio/desktop-mobile/pull/864))
+- **tauri,dioxus**: honour global startTimeout and log options in standalone init() (PR [#816](https://github.com/webdriverio/desktop-mobile/pull/816))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+- **BREAKING** **tauri,dioxus**: allocate embedded instance ports with get-port (PR [#807](https://github.com/webdriverio/desktop-mobile/pull/807))
+- support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
+- take \@wdio/logger as a peer so services share the WebdriverIO log file (PR [#724](https://github.com/webdriverio/desktop-mobile/pull/724))
+- finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
+
+## [wdio-dioxus-driver@1.1.1-next.0] - 2026-11-08
+
+### Changed
+- update dependencies across multiple packages (\#982)
+- check Rust formatting with rustfmt (\#727)
+
+### Fixed
+- CI follow-ups for the dependency update (\#829)
+
+## [wdio-dioxus-embedded-driver@2.0.0-next.0] - 2026-11-08
+
+### Added
+- **BREAKING** **tauri,dioxus**: move focus on Tab in the embedded drivers, and press Tab for a tab character (\#924)
+
+### Changed
+- **dioxus,tauri**: check focus events in windows without OS focus (\#1004)
+- update dependencies across multiple packages (\#982)
+- **tauri,dioxus**: install the element helpers once per page, not in every script (\#977, \#972)
+- **dioxus**: drop the claim that the external provider supports screenshots (\#960)
+- check Rust formatting with rustfmt (\#727)
+
+### Fixed
+- **BREAKING** **tauri,dioxus**: fire the owed change before the page's capture blur listeners, and send click as non-primary (\#1041, \#1014)
+- **BREAKING** **tauri,dioxus**: release held keys and pointer buttons in reverse press order (\#978)
+- **BREAKING** **tauri,dioxus**: return a DOM element in a script result as an element reference (\#1016)
+- **BREAKING** **tauri,dioxus**: emulate page focus in WebView2, so focus moves fire focus and blur in a background window (\#965)
+- **BREAKING** **tauri,dioxus**: fire change once focus leaves a field key actions edited (\#964)
+- **BREAKING** **tauri,dioxus**: send and type the shifted character with Shift held in the embedded drivers (\#919, \#894)
+- **BREAKING** **dioxus**: press special keys in Element Send Keys instead of writing them into the element (\#922, \#912)
+- **BREAKING** **dioxus**: type, delete and break lines from key actions in the embedded driver (\#920, \#906)
+- **BREAKING** **tauri,dioxus**: click a focused button on Enter and Space in the embedded drivers (\#910)
+- **BREAKING** **tauri,dioxus**: submit an input's form on Enter in the embedded drivers (\#898)
+- **BREAKING** **dioxus**: send browser key codes, Shift, and newline and backspace as keys (\#897, \#888)
+- **BREAKING** **dioxus**: fail screenshots as unsupported instead of returning a blank image (\#891, \#739)
+- **BREAKING** **dioxus**: fire change when focus leaves, not during Clear and Send Keys (\#871)
+- CI follow-ups for the dependency update (\#829)
+
+## [wdio-dioxus@2.0.0-next.0] - 2026-11-08
+
+### Changed
+- **deps**: bump the cargo-dependencies group across 2 directories with 3 updates (\#818)
+- check Rust formatting with rustfmt (\#727)
+
+### Fixed
+- **BREAKING** **tauri,dioxus**: emulate page focus in WebView2, so focus moves fire focus and blur in a background window (\#965)
+
+## [@wdio/tauri-plugin@2.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v1.5.1...wdio-tauri-plugin@v2.0.0-next.0)
+
+### Changed
+- update \@releasekit/release and other dependencies (PR [#1066](https://github.com/webdriverio/desktop-mobile/pull/1066))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **deps**: bump the cargo-dependencies group across 2 directories with 3 updates (PR [#818](https://github.com/webdriverio/desktop-mobile/pull/818))
+- update deps (PR [#803](https://github.com/webdriverio/desktop-mobile/pull/803))
+- **BREAKING** **tauri**: one tested tauri floor, ^2.10 (PR [#799](https://github.com/webdriverio/desktop-mobile/pull/799))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+- check Rust formatting with rustfmt (PR [#727](https://github.com/webdriverio/desktop-mobile/pull/727))
+
+### Fixed
+- **BREAKING** **tauri**: let mocks see the commands the app invokes in native mode (PR [#1017](https://github.com/webdriverio/desktop-mobile/pull/1017) · closes [#887](https://github.com/webdriverio/desktop-mobile/issues/887))
+- **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
+- **BREAKING** **native-types**: narrow TauriAPIs to the core.invoke that execute passes (PR [#860](https://github.com/webdriverio/desktop-mobile/pull/860) · closes [#859](https://github.com/webdriverio/desktop-mobile/issues/859))
+- **BREAKING** **tauri**: emit triggerDeeplink's event on the app's main thread (PR [#857](https://github.com/webdriverio/desktop-mobile/pull/857))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+
+## [@wdio/tauri-service@2.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-service@v1.5.1...wdio-tauri-service@v2.0.0-next.0)
+
+### Added
+- **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
+
+### Changed
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **tauri**: drop review guards and tests for unlikely cases (PR [#1037](https://github.com/webdriverio/desktop-mobile/pull/1037))
+- **tauri**: send async scripts through the embedded driver's execute_async_script (PR [#1008](https://github.com/webdriverio/desktop-mobile/pull/1008))
+- **tauri,dioxus**: install the element helpers once per page, not in every script (PR [#977](https://github.com/webdriverio/desktop-mobile/pull/977) · closes [#972](https://github.com/webdriverio/desktop-mobile/issues/972))
+- share runThenSync between the Tauri, Dioxus and Electron mocks (PR [#917](https://github.com/webdriverio/desktop-mobile/pull/917))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- share the multiremote wiring helpers (normaliseInstanceCaps, forEachInstance) (PR [#900](https://github.com/webdriverio/desktop-mobile/pull/900))
+- **tauri**: stub describeDisplay in the launcher integration tests (PR [#895](https://github.com/webdriverio/desktop-mobile/pull/895))
+- **tauri**: test Tauri on Weston as well as Xvfb (PR [#879](https://github.com/webdriverio/desktop-mobile/pull/879))
+- **native-utils**: move the error helpers out of the teardown module (PR [#856](https://github.com/webdriverio/desktop-mobile/pull/856))
+- **tauri**: fold platform support into the quick start (PR [#837](https://github.com/webdriverio/desktop-mobile/pull/837))
+- format the CI flake log and Tauri configuration page (PR [#854](https://github.com/webdriverio/desktop-mobile/pull/854))
+- **tauri**: clarify startTimeout and logLevel (PR [#839](https://github.com/webdriverio/desktop-mobile/pull/839))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- use WebdriverIO v10's display server (PR [#809](https://github.com/webdriverio/desktop-mobile/pull/809))
+- **BREAKING** **native-types,tauri**: remove the unused commandTimeout option (PR [#832](https://github.com/webdriverio/desktop-mobile/pull/832))
+- update deps (PR [#803](https://github.com/webdriverio/desktop-mobile/pull/803))
+- **tauri**: drop the redundant triggerDeeplink provider fallback (PR [#811](https://github.com/webdriverio/desktop-mobile/pull/811))
+- **BREAKING** **tauri**: one tested tauri floor, ^2.10 (PR [#799](https://github.com/webdriverio/desktop-mobile/pull/799))
+- **BREAKING** **tauri**: pick the triggerDeeplink path from the worker's provider (PR [#804](https://github.com/webdriverio/desktop-mobile/pull/804) · closes [#701](https://github.com/webdriverio/desktop-mobile/issues/701))
+- **BREAKING** **tauri,native-types**: remove driverProvider 'official' and the unused command helpers (PR [#802](https://github.com/webdriverio/desktop-mobile/pull/802))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **tauri**: return a DOM element in an external-provider browser.tauri.execute() result as an element reference (PR [#1049](https://github.com/webdriverio/desktop-mobile/pull/1049))
+- **BREAKING** **tauri,dioxus**: fire the owed change before the page's capture blur listeners, and send click as non-primary (PR [#1041](https://github.com/webdriverio/desktop-mobile/pull/1041) · closes [#1014](https://github.com/webdriverio/desktop-mobile/issues/1014))
+- **BREAKING** **tauri**: return a DOM element in a browser.tauri.execute() result as an element reference (PR [#1042](https://github.com/webdriverio/desktop-mobile/pull/1042) · closes [#1028](https://github.com/webdriverio/desktop-mobile/issues/1028), [#1028](https://github.com/webdriverio/desktop-mobile/issues/1028))
+- **BREAKING** **tauri**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1010](https://github.com/webdriverio/desktop-mobile/pull/1010))
+- **BREAKING** **tauri**: record a browser-mode mock's args alone, without a trailing null (PR [#1022](https://github.com/webdriverio/desktop-mobile/pull/1022))
+- **tauri**: target the window a mock was registered in (PR [#869](https://github.com/webdriverio/desktop-mobile/pull/869))
+- **BREAKING** **tauri**: let mocks see the commands the app invokes in native mode (PR [#1017](https://github.com/webdriverio/desktop-mobile/pull/1017) · closes [#887](https://github.com/webdriverio/desktop-mobile/issues/887))
+- **BREAKING** **tauri,native-types**: pass appArgs and env to the app with every driver provider (PR [#951](https://github.com/webdriverio/desktop-mobile/pull/951) · closes [#936](https://github.com/webdriverio/desktop-mobile/issues/936))
+- **BREAKING** **dioxus,tauri,electrobun,electron,native-core,native-types**: resolve browser mode per capability (PR [#953](https://github.com/webdriverio/desktop-mobile/pull/953) · closes [#944](https://github.com/webdriverio/desktop-mobile/issues/944))
+- **BREAKING** **tauri,native-types**: type tauri:options.webviewOptions as msedgedriver's WebView2 options (PR [#958](https://github.com/webdriverio/desktop-mobile/pull/958))
+- **BREAKING** **native-types,tauri**: accept rootDir only on the Electron service (PR [#947](https://github.com/webdriverio/desktop-mobile/pull/947) · closes [#945](https://github.com/webdriverio/desktop-mobile/issues/945))
+- **BREAKING** **tauri**: give each multiremote instance its own windowLabel and reject mixed driver providers (PR [#950](https://github.com/webdriverio/desktop-mobile/pull/950))
+- **BREAKING** **tauri**: apply each multiremote instance's own mock options to its mocks (PR [#930](https://github.com/webdriverio/desktop-mobile/pull/930))
+- typecheck the services against WebdriverIO v9's getInstance() types (PR [#918](https://github.com/webdriverio/desktop-mobile/pull/918) · closes [#903](https://github.com/webdriverio/desktop-mobile/issues/903))
+- **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
+- **BREAKING** **tauri**: give each multiremote instance its own mocks (PR [#899](https://github.com/webdriverio/desktop-mobile/pull/899) · closes [#849](https://github.com/webdriverio/desktop-mobile/issues/849))
+- **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
+- **BREAKING** **native-types**: narrow TauriAPIs to the core.invoke that execute passes (PR [#860](https://github.com/webdriverio/desktop-mobile/pull/860) · closes [#859](https://github.com/webdriverio/desktop-mobile/issues/859))
+- **tauri**: make native-mode emitEvent reach the app's listeners (PR [#858](https://github.com/webdriverio/desktop-mobile/pull/858))
+- **tauri,native-utils**: report a Wayland display in the launcher logs and say which variable is set (PR [#890](https://github.com/webdriverio/desktop-mobile/pull/890))
+- **native-core**: reject concurrent use of an active managed dev server (PR [#864](https://github.com/webdriverio/desktop-mobile/pull/864))
+- **BREAKING** **tauri**: emit triggerDeeplink's event on the app's main thread (PR [#857](https://github.com/webdriverio/desktop-mobile/pull/857))
+- **BREAKING** **tauri**: deliver triggerDeeplink to the app's deep-link handler (PR [#826](https://github.com/webdriverio/desktop-mobile/pull/826) · closes [#805](https://github.com/webdriverio/desktop-mobile/issues/805))
+- **tauri,dioxus**: honour global startTimeout and log options in standalone init() (PR [#816](https://github.com/webdriverio/desktop-mobile/pull/816))
+- **tauri**: honour logLevel for tauri-driver output (PR [#825](https://github.com/webdriverio/desktop-mobile/pull/825))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+- **BREAKING** **tauri,dioxus**: allocate embedded instance ports with get-port (PR [#807](https://github.com/webdriverio/desktop-mobile/pull/807))
+- **tauri**: treat an unset driverProvider as embedded in the worker (PR [#806](https://github.com/webdriverio/desktop-mobile/pull/806))
+- **tauri,electron**: stop calling executeAsync, which WebdriverIO v10 removed (PR [#794](https://github.com/webdriverio/desktop-mobile/pull/794))
+- support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
+- take \@wdio/logger as a peer so services share the WebdriverIO log file (PR [#724](https://github.com/webdriverio/desktop-mobile/pull/724))
+- finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
+
+## [tauri-plugin-wdio-webdriver@2.0.0-next.0] - 2026-11-08
+
+### Added
+- **BREAKING** **tauri,dioxus**: move focus on Tab in the embedded drivers, and press Tab for a tab character (\#924)
+
+### Changed
+- **dioxus,tauri**: check focus events in windows without OS focus (\#1004)
+- update dependencies across multiple packages (\#982)
+- **tauri,dioxus**: install the element helpers once per page, not in every script (\#977, \#972)
+- **tauri**: disable unused objc2 default features (\#865)
+- **tauri**: fold platform support into the quick start (\#837)
+- **deps**: bump the cargo-dependencies group across 2 directories with 3 updates (\#818)
+- **BREAKING** **tauri,native-types**: remove driverProvider 'official' and the unused command helpers (\#802)
+- check Rust formatting with rustfmt (\#727)
+
+### Fixed
+- **BREAKING** **tauri,dioxus**: fire the owed change before the page's capture blur listeners, and send click as non-primary (\#1041, \#1014)
+- **BREAKING** **tauri**: return a DOM element in a browser.tauri.execute() result as an element reference (\#1042, \#1028, \#1028)
+- **BREAKING** **tauri,dioxus**: release held keys and pointer buttons in reverse press order (\#978)
+- **BREAKING** **tauri,dioxus**: return a DOM element in a script result as an element reference (\#1016)
+- **BREAKING** **tauri,dioxus**: emulate page focus in WebView2, so focus moves fire focus and blur in a background window (\#965)
+- **BREAKING** **tauri,dioxus**: fire change once focus leaves a field key actions edited (\#964)
+- **BREAKING** **tauri,dioxus**: send and type the shifted character with Shift held in the embedded drivers (\#919, \#894)
+- **BREAKING** **tauri,dioxus**: click a focused button on Enter and Space in the embedded drivers (\#910)
+- **BREAKING** **tauri,dioxus**: submit an input's form on Enter in the embedded drivers (\#898)
+- **BREAKING** **tauri**: send browser key codes for printable keys (\#828, \#756)
+- **BREAKING** **dioxus**: fire change when focus leaves, not during Clear and Send Keys (\#871)
+- **BREAKING** **tauri**: fire change when focus leaves a field or Enter commits it, not during Send Keys (\#827, \#738)
+- CI follow-ups for the dependency update (\#829)
+- **tauri**: run macOS async scripts through the polling sync path (\#796)
+
+## [@wdio/flutter-service@1.0.0-next.5] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-flutter-service@v1.0.0-next.4...wdio-flutter-service@v1.0.0-next.5)
+
+### Changed
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+- support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
+- finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
+
+## [@wdio/electrobun-service@0.4.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electrobun-service@v0.3.1...wdio-electrobun-service@v0.4.0-next.0)
+
+### Added
+- **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
+
+### Changed
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- **electrobun**: drop execute's cleanup guards for rare cases and the per-reference check (PR [#1061](https://github.com/webdriverio/desktop-mobile/pull/1061))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- share the multiremote wiring helpers (normaliseInstanceCaps, forEachInstance) (PR [#900](https://github.com/webdriverio/desktop-mobile/pull/900))
+- **native-utils**: move the error helpers out of the teardown module (PR [#856](https://github.com/webdriverio/desktop-mobile/pull/856))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **native-spy,electron,electrobun,react-native**: keep undefined arguments in mock call data (PR [#1044](https://github.com/webdriverio/desktop-mobile/pull/1044) · closes [#1027](https://github.com/webdriverio/desktop-mobile/issues/1027))
+- **BREAKING** **electrobun**: return a DOM element in a browser.electrobun.execute() result as an element reference (PR [#1048](https://github.com/webdriverio/desktop-mobile/pull/1048))
+- **BREAKING** **dioxus,tauri,electrobun,electron,native-core,native-types**: resolve browser mode per capability (PR [#953](https://github.com/webdriverio/desktop-mobile/pull/953) · closes [#944](https://github.com/webdriverio/desktop-mobile/issues/944))
+- **BREAKING** **electrobun**: resolve the CDP connection options and mode per multiremote instance (PR [#948](https://github.com/webdriverio/desktop-mobile/pull/948))
+- **BREAKING** **electrobun**: apply the clearMocks, resetMocks and restoreMocks options before each test (PR [#933](https://github.com/webdriverio/desktop-mobile/pull/933))
+- **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
+- **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
+- **native-core**: reject concurrent use of an active managed dev server (PR [#864](https://github.com/webdriverio/desktop-mobile/pull/864))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+- **electrobun**: keep Linux apps on X11, starting Xvfb only without an X display (PR [#795](https://github.com/webdriverio/desktop-mobile/pull/795))
+- support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
+- take \@wdio/logger as a peer so services share the WebdriverIO log file (PR [#724](https://github.com/webdriverio/desktop-mobile/pull/724))
+- finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
+
+## [@wdio/electron-service@11.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v10.4.1...wdio-electron-service@v11.0.0-next.0)
+
+### Added
+- **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
+
+### Changed
+- update \@releasekit/release and other dependencies (PR [#1066](https://github.com/webdriverio/desktop-mobile/pull/1066))
+- update WebdriverIO and related dependencies to version 10.2.0 (PR [#1059](https://github.com/webdriverio/desktop-mobile/pull/1059))
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- **electron**: run the unit tests in Node, which none of them needs jsdom for (PR [#1062](https://github.com/webdriverio/desktop-mobile/pull/1062))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- pin the next catalog's WebdriverIO packages to their upcoming release (PR [#1031](https://github.com/webdriverio/desktop-mobile/pull/1031))
+- share runThenSync between the Tauri, Dioxus and Electron mocks (PR [#917](https://github.com/webdriverio/desktop-mobile/pull/917))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **electron**: test Electron on Weston as well as Xvfb (PR [#876](https://github.com/webdriverio/desktop-mobile/pull/876))
+- **native-utils**: move the error helpers out of the teardown module (PR [#856](https://github.com/webdriverio/desktop-mobile/pull/856))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- use WebdriverIO v10's display server (PR [#809](https://github.com/webdriverio/desktop-mobile/pull/809))
+- update deps (PR [#803](https://github.com/webdriverio/desktop-mobile/pull/803))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **native-spy,electron,electrobun,react-native**: keep undefined arguments in mock call data (PR [#1044](https://github.com/webdriverio/desktop-mobile/pull/1044) · closes [#1027](https://github.com/webdriverio/desktop-mobile/issues/1027))
+- **BREAKING** **dioxus,electron**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1043](https://github.com/webdriverio/desktop-mobile/pull/1043) · closes [#1013](https://github.com/webdriverio/desktop-mobile/issues/1013))
+- **BREAKING** **electron,native-types**: find electron-builder apps built for Windows ARM64 or ia32, and prefer the host arch (PR [#1039](https://github.com/webdriverio/desktop-mobile/pull/1039))
+- **BREAKING** **electron**: reset an existing mock when browser-mode mock(channel) is called again (PR [#1024](https://github.com/webdriverio/desktop-mobile/pull/1024) · closes [#1023](https://github.com/webdriverio/desktop-mobile/issues/1023))
+- **BREAKING** **dioxus,tauri,electrobun,electron,native-core,native-types**: resolve browser mode per capability (PR [#953](https://github.com/webdriverio/desktop-mobile/pull/953) · closes [#944](https://github.com/webdriverio/desktop-mobile/issues/944))
+- **BREAKING** **native-types,tauri**: accept rootDir only on the Electron service (PR [#947](https://github.com/webdriverio/desktop-mobile/pull/947) · closes [#945](https://github.com/webdriverio/desktop-mobile/issues/945))
+- **BREAKING** **electron**: apply each multiremote instance's own mode, log capture and deeplink options (PR [#952](https://github.com/webdriverio/desktop-mobile/pull/952))
+- **BREAKING** **electron**: give each multiremote instance its own mocks (PR [#923](https://github.com/webdriverio/desktop-mobile/pull/923))
+- typecheck the services against WebdriverIO v9's getInstance() types (PR [#918](https://github.com/webdriverio/desktop-mobile/pull/918) · closes [#903](https://github.com/webdriverio/desktop-mobile/issues/903))
+- **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
+- **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
+- **native-core**: reject concurrent use of an active managed dev server (PR [#864](https://github.com/webdriverio/desktop-mobile/pull/864))
+- **native-cdp-bridge**: reject when debugger port wait times out (PR [#870](https://github.com/webdriverio/desktop-mobile/pull/870))
+- **electron,native-cdp-bridge**: report the CDP bridge connection error (PR [#814](https://github.com/webdriverio/desktop-mobile/pull/814))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+- **tauri,electron**: stop calling executeAsync, which WebdriverIO v10 removed (PR [#794](https://github.com/webdriverio/desktop-mobile/pull/794))
+- support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
+- take \@wdio/logger as a peer so services share the WebdriverIO log file (PR [#724](https://github.com/webdriverio/desktop-mobile/pull/724))
+- finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
+
+## [@wdio/native-cdp-bridge@2.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-cdp-bridge@v1.3.1...wdio-native-cdp-bridge@v2.0.0-next.0)
+
+### Changed
+- update \@releasekit/release and other dependencies (PR [#1066](https://github.com/webdriverio/desktop-mobile/pull/1066))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- update deps (PR [#803](https://github.com/webdriverio/desktop-mobile/pull/803))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **native-cdp-bridge**: preserve wait-port rejection messages instead of reporting a port timeout (PR [#881](https://github.com/webdriverio/desktop-mobile/pull/881))
+- **native-cdp-bridge**: reject when debugger port wait times out (PR [#870](https://github.com/webdriverio/desktop-mobile/pull/870))
+- **electron,native-cdp-bridge**: report the CDP bridge connection error (PR [#814](https://github.com/webdriverio/desktop-mobile/pull/814))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+
+## [@wdio/native-core@2.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-core@v1.3.1...wdio-native-core@v2.0.0-next.0)
+
+### Changed
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **native-core**: describe how DriverProcess starts and stops drivers on Windows (PR [#968](https://github.com/webdriverio/desktop-mobile/pull/968))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- share the multiremote wiring helpers (normaliseInstanceCaps, forEachInstance) (PR [#900](https://github.com/webdriverio/desktop-mobile/pull/900))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **tauri,native-types**: pass appArgs and env to the app with every driver provider (PR [#951](https://github.com/webdriverio/desktop-mobile/pull/951) · closes [#936](https://github.com/webdriverio/desktop-mobile/issues/936))
+- **BREAKING** **dioxus,tauri,electrobun,electron,native-core,native-types**: resolve browser mode per capability (PR [#953](https://github.com/webdriverio/desktop-mobile/pull/953) · closes [#944](https://github.com/webdriverio/desktop-mobile/issues/944))
+- typecheck the services against WebdriverIO v9's getInstance() types (PR [#918](https://github.com/webdriverio/desktop-mobile/pull/918) · closes [#903](https://github.com/webdriverio/desktop-mobile/issues/903))
+- **native-core**: reject concurrent use of an active managed dev server (PR [#864](https://github.com/webdriverio/desktop-mobile/pull/864))
+- take \@wdio/logger as a peer so services share the WebdriverIO log file (PR [#724](https://github.com/webdriverio/desktop-mobile/pull/724))
+- finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
+
+## [@wdio/native-mobile-core@2.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-mobile-core@v1.2.1...wdio-native-mobile-core@v2.0.0-next.0)
+
+### Changed
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
+
+## [@wdio/native-spy@2.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-spy@v1.4.1...wdio-native-spy@v2.0.0-next.0)
+
+### Added
+- **BREAKING** **dioxus**: add mock.withImplementation (PR [#901](https://github.com/webdriverio/desktop-mobile/pull/901))
+
+### Changed
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **native-spy,electron,electrobun,react-native**: keep undefined arguments in mock call data (PR [#1044](https://github.com/webdriverio/desktop-mobile/pull/1044) · closes [#1027](https://github.com/webdriverio/desktop-mobile/issues/1027))
+- **BREAKING** **tauri**: record a browser-mode mock's args alone, without a trailing null (PR [#1022](https://github.com/webdriverio/desktop-mobile/pull/1022))
+- **tauri**: target the window a mock was registered in (PR [#869](https://github.com/webdriverio/desktop-mobile/pull/869))
+- **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
+- **tauri**: make native-mode emitEvent reach the app's listeners (PR [#858](https://github.com/webdriverio/desktop-mobile/pull/858))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+
+## [@wdio/native-types@3.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-types@v2.6.1...wdio-native-types@v3.0.0-next.0)
+
+### Added
+- **BREAKING** **dioxus**: add mock.withImplementation (PR [#901](https://github.com/webdriverio/desktop-mobile/pull/901))
+
+### Changed
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **native-types**: document Tauri's mock.withImplementation (PR [#914](https://github.com/webdriverio/desktop-mobile/pull/914))
+- **BREAKING** **native-types,tauri**: remove the unused commandTimeout option (PR [#832](https://github.com/webdriverio/desktop-mobile/pull/832))
+- update deps (PR [#803](https://github.com/webdriverio/desktop-mobile/pull/803))
+- **BREAKING** **tauri,native-types**: remove driverProvider 'official' and the unused command helpers (PR [#802](https://github.com/webdriverio/desktop-mobile/pull/802))
+- **BREAKING** **native-types,electron**: remove the deprecated mock overloads (PR [#801](https://github.com/webdriverio/desktop-mobile/pull/801))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **dioxus,electron**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1043](https://github.com/webdriverio/desktop-mobile/pull/1043) · closes [#1013](https://github.com/webdriverio/desktop-mobile/issues/1013))
+- **BREAKING** **electron,native-types**: find electron-builder apps built for Windows ARM64 or ia32, and prefer the host arch (PR [#1039](https://github.com/webdriverio/desktop-mobile/pull/1039))
+- **BREAKING** **tauri**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1010](https://github.com/webdriverio/desktop-mobile/pull/1010))
+- **tauri**: target the window a mock was registered in (PR [#869](https://github.com/webdriverio/desktop-mobile/pull/869))
+- **BREAKING** **tauri,native-types**: pass appArgs and env to the app with every driver provider (PR [#951](https://github.com/webdriverio/desktop-mobile/pull/951) · closes [#936](https://github.com/webdriverio/desktop-mobile/issues/936))
+- **BREAKING** **dioxus,tauri,electrobun,electron,native-core,native-types**: resolve browser mode per capability (PR [#953](https://github.com/webdriverio/desktop-mobile/pull/953) · closes [#944](https://github.com/webdriverio/desktop-mobile/issues/944))
+- **BREAKING** **tauri,native-types**: type tauri:options.webviewOptions as msedgedriver's WebView2 options (PR [#958](https://github.com/webdriverio/desktop-mobile/pull/958))
+- **BREAKING** **native-types,tauri**: accept rootDir only on the Electron service (PR [#947](https://github.com/webdriverio/desktop-mobile/pull/947) · closes [#945](https://github.com/webdriverio/desktop-mobile/issues/945))
+- **BREAKING** **dioxus,native-types**: pass 'dioxus:options'.args to the app and drop webviewOptions (PR [#946](https://github.com/webdriverio/desktop-mobile/pull/946) · closes [#938](https://github.com/webdriverio/desktop-mobile/issues/938))
+- **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
+- **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
+- **BREAKING** **native-types**: narrow TauriAPIs to the core.invoke that execute passes (PR [#860](https://github.com/webdriverio/desktop-mobile/pull/860) · closes [#859](https://github.com/webdriverio/desktop-mobile/issues/859))
+- **tauri**: make native-mode emitEvent reach the app's listeners (PR [#858](https://github.com/webdriverio/desktop-mobile/pull/858))
+- **native-cdp-bridge**: reject when debugger port wait times out (PR [#870](https://github.com/webdriverio/desktop-mobile/pull/870))
+- **tauri,dioxus**: honour global startTimeout and log options in standalone init() (PR [#816](https://github.com/webdriverio/desktop-mobile/pull/816))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+- **tauri,electron**: stop calling executeAsync, which WebdriverIO v10 removed (PR [#794](https://github.com/webdriverio/desktop-mobile/pull/794))
+- support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
+
+## [@wdio/native-utils@3.0.0-next.0] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-utils@v2.8.1...wdio-native-utils@v3.0.0-next.0)
+
+### Added
+- **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
+
+### Changed
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- share runThenSync between the Tauri, Dioxus and Electron mocks (PR [#917](https://github.com/webdriverio/desktop-mobile/pull/917))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **native-utils**: move the error helpers out of the teardown module (PR [#856](https://github.com/webdriverio/desktop-mobile/pull/856))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **tauri,native-types**: pass appArgs and env to the app with every driver provider (PR [#951](https://github.com/webdriverio/desktop-mobile/pull/951) · closes [#936](https://github.com/webdriverio/desktop-mobile/issues/936))
+- **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
+- **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
+- **tauri,native-utils**: report a Wayland display in the launcher logs and say which variable is set (PR [#890](https://github.com/webdriverio/desktop-mobile/pull/890))
+- **native-utils**: count a Wayland display in the display diagnostic (PR [#878](https://github.com/webdriverio/desktop-mobile/pull/878))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+- support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
+- take \@wdio/logger as a peer so services share the WebdriverIO log file (PR [#724](https://github.com/webdriverio/desktop-mobile/pull/724))
+- finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
+
+## [@wdio/react-native-service@1.0.0-next.4] - 2026-11-08
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-react-native-service@v1.0.0-next.3...wdio-react-native-service@v1.0.0-next.4)
+
+### Added
+- **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
+
+### Changed
+- **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
+- update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
+- **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
+- **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
+- **BREAKING** take webdriverio and \@wdio/* as optional peers (PR [#798](https://github.com/webdriverio/desktop-mobile/pull/798))
+- **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
+
+### Fixed
+- **BREAKING** **native-spy,electron,electrobun,react-native**: keep undefined arguments in mock call data (PR [#1044](https://github.com/webdriverio/desktop-mobile/pull/1044) · closes [#1027](https://github.com/webdriverio/desktop-mobile/issues/1027))
+- CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
+- support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
+- finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
+
 ## [@wdio/dioxus-bridge@1.1.0] - 2026-10-24
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-bridge@v1.0.0...wdio-dioxus-bridge@v1.1.0)
