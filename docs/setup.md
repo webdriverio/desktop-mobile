@@ -179,7 +179,7 @@ pnpm catalog:minimum   # Switch all packages to lowest supported versions
 ### Updating Catalog Versions
 
 ```bash
-# Update catalogs and npm dependencies, then update:tauri and update:cargo
+# Update catalogs and npm dependencies interactively, then run update:tauri and update:cargo
 pnpm update:dependencies
 
 # Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
@@ -258,13 +258,13 @@ pnpm build
 ### Update Dependencies
 
 ```bash
-# Update catalogs and npm dependencies, then update:tauri and update:cargo
+# Update catalogs and npm dependencies interactively, then run update:tauri and update:cargo
 pnpm update:dependencies
 
 # Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
 pnpm update:tauri
 
-# cargo update in every directory from Dependabot's cargo config
+# cargo update next to every committed Cargo.lock
 pnpm update:cargo
 
 # Move GitHub Actions uses: pins to their newest tags

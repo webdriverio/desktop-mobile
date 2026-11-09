@@ -1,38 +1,19 @@
 #!/usr/bin/env node
 
-// Dependabot closes a cargo PR once main's lockfiles contain the bump, so refresh every lock it watches.
+// Dependabot closes a cargo PR once main's lockfiles contain the bump, so refresh every committed lock.
 
-import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parse } from 'yaml';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-interface DependabotUpdate {
-  'package-ecosystem'?: string;
-  directories?: string[];
-}
+const locks = execFileSync('git', ['ls-files', '*Cargo.lock'], { cwd: root, encoding: 'utf8' })
+  .split('\n')
+  .filter(Boolean);
 
-export function cargoDirectories(dependabotYaml: string): string[] {
-  const doc = parse(dependabotYaml) as { updates?: DependabotUpdate[] };
-  const directories = (doc.updates ?? [])
-    .filter((update) => update['package-ecosystem'] === 'cargo')
-    .flatMap((update) => update.directories ?? []);
-  if (directories.length === 0) {
-    throw new Error('dependabot.yml has no cargo directories');
-  }
-  return directories.map((directory) => directory.replace(/^\//, ''));
-}
-
-function main() {
-  for (const dir of cargoDirectories(readFileSync(join(root, '.github/dependabot.yml'), 'utf8'))) {
-    console.log(`📝 cargo update in ${dir}`);
-    execSync('cargo update', { cwd: join(root, dir), stdio: 'inherit' });
-  }
-}
-
-if (import.meta.main) {
-  main();
+for (const lock of locks) {
+  const dir = dirname(lock);
+  console.log(`📝 cargo update in ${dir}`);
+  execFileSync('cargo', ['update'], { cwd: join(root, dir), stdio: 'inherit' });
 }
