@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 ## [@wdio/dioxus-bridge@2.0.0-next.0] - 2026-11-08
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-bridge@v1.1.0...wdio-dioxus-bridge@v2.0.0-next.0)
 
 ### Changed
+
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **tauri,dioxus**: install the element helpers once per page, not in every script (PR [#977](https://github.com/webdriverio/desktop-mobile/pull/977) · closes [#972](https://github.com/webdriverio/desktop-mobile/issues/972))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - check Rust formatting with rustfmt (PR [#727](https://github.com/webdriverio/desktop-mobile/pull/727))
 
 ### Fixed
+
 - **BREAKING** **tauri,dioxus**: emulate page focus in WebView2, so focus moves fire focus and blur in a background window (PR [#965](https://github.com/webdriverio/desktop-mobile/pull/965))
 - CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
 
@@ -30,10 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-service@v1.1.0...wdio-dioxus-service@v2.0.0-next.0)
 
 ### Added
+
 - **BREAKING** **dioxus**: add mock.withImplementation (PR [#901](https://github.com/webdriverio/desktop-mobile/pull/901))
 - **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
 
 ### Changed
+
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - share runThenSync between the Tauri, Dioxus and Electron mocks (PR [#917](https://github.com/webdriverio/desktop-mobile/pull/917))
@@ -49,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **tauri,dioxus**: fire the owed change before the page's capture blur listeners, and send click as non-primary (PR [#1041](https://github.com/webdriverio/desktop-mobile/pull/1041) · closes [#1014](https://github.com/webdriverio/desktop-mobile/issues/1014))
 - **BREAKING** **dioxus**: throw from triggerDeeplink() in browser mode (PR [#1058](https://github.com/webdriverio/desktop-mobile/pull/1058) · closes [#1057](https://github.com/webdriverio/desktop-mobile/issues/1057))
 - **BREAKING** **dioxus,electron**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1043](https://github.com/webdriverio/desktop-mobile/pull/1043) · closes [#1013](https://github.com/webdriverio/desktop-mobile/issues/1013))
@@ -72,18 +76,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [wdio-dioxus-driver@1.1.1-next.0] - 2026-11-08
 
 ### Changed
+
 - update dependencies across multiple packages (\#982)
 - check Rust formatting with rustfmt (\#727)
 
 ### Fixed
+
 - CI follow-ups for the dependency update (\#829)
 
 ## [wdio-dioxus-embedded-driver@2.0.0-next.0] - 2026-11-08
 
 ### Added
+
 - **BREAKING** **tauri,dioxus**: move focus on Tab in the embedded drivers, and press Tab for a tab character (\#924)
 
 ### Changed
+
 - **dioxus,tauri**: check focus events in windows without OS focus (\#1004)
 - update dependencies across multiple packages (\#982)
 - **tauri,dioxus**: install the element helpers once per page, not in every script (\#977, \#972)
@@ -91,6 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - check Rust formatting with rustfmt (\#727)
 
 ### Fixed
+
 - **BREAKING** **tauri,dioxus**: fire the owed change before the page's capture blur listeners, and send click as non-primary (\#1041, \#1014)
 - **BREAKING** **tauri,dioxus**: release held keys and pointer buttons in reverse press order (\#978)
 - **BREAKING** **tauri,dioxus**: return a DOM element in a script result as an element reference (\#1016)
@@ -109,10 +118,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [wdio-dioxus@2.0.0-next.0] - 2026-11-08
 
 ### Changed
+
 - **deps**: bump the cargo-dependencies group across 2 directories with 3 updates (\#818)
 - check Rust formatting with rustfmt (\#727)
 
 ### Fixed
+
 - **BREAKING** **tauri,dioxus**: emulate page focus in WebView2, so focus moves fire focus and blur in a background window (\#965)
 
 ## [@wdio/tauri-plugin@2.0.0-next.0] - 2026-11-08
@@ -120,6 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v1.5.1...wdio-tauri-plugin@v2.0.0-next.0)
 
 ### Changed
+
 - update \@releasekit/release and other dependencies (PR [#1066](https://github.com/webdriverio/desktop-mobile/pull/1066))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
@@ -130,6 +142,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - check Rust formatting with rustfmt (PR [#727](https://github.com/webdriverio/desktop-mobile/pull/727))
 
 ### Fixed
+
 - **BREAKING** **tauri**: let mocks see the commands the app invokes in native mode (PR [#1017](https://github.com/webdriverio/desktop-mobile/pull/1017) · closes [#887](https://github.com/webdriverio/desktop-mobile/issues/887))
 - **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
 - **BREAKING** **native-types**: narrow TauriAPIs to the core.invoke that execute passes (PR [#860](https://github.com/webdriverio/desktop-mobile/pull/860) · closes [#859](https://github.com/webdriverio/desktop-mobile/issues/859))
@@ -141,9 +154,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-service@v1.5.1...wdio-tauri-service@v2.0.0-next.0)
 
 ### Added
+
 - **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
 
 ### Changed
+
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **tauri**: drop review guards and tests for unlikely cases (PR [#1037](https://github.com/webdriverio/desktop-mobile/pull/1037))
@@ -170,6 +185,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **tauri**: return a DOM element in an external-provider browser.tauri.execute() result as an element reference (PR [#1049](https://github.com/webdriverio/desktop-mobile/pull/1049))
 - **BREAKING** **tauri,dioxus**: fire the owed change before the page's capture blur listeners, and send click as non-primary (PR [#1041](https://github.com/webdriverio/desktop-mobile/pull/1041) · closes [#1014](https://github.com/webdriverio/desktop-mobile/issues/1014))
 - **BREAKING** **tauri**: return a DOM element in a browser.tauri.execute() result as an element reference (PR [#1042](https://github.com/webdriverio/desktop-mobile/pull/1042) · closes [#1028](https://github.com/webdriverio/desktop-mobile/issues/1028), [#1028](https://github.com/webdriverio/desktop-mobile/issues/1028))
@@ -206,9 +222,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [tauri-plugin-wdio-webdriver@2.0.0-next.0] - 2026-11-08
 
 ### Added
+
 - **BREAKING** **tauri,dioxus**: move focus on Tab in the embedded drivers, and press Tab for a tab character (\#924)
 
 ### Changed
+
 - **dioxus,tauri**: check focus events in windows without OS focus (\#1004)
 - update dependencies across multiple packages (\#982)
 - **tauri,dioxus**: install the element helpers once per page, not in every script (\#977, \#972)
@@ -219,6 +237,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - check Rust formatting with rustfmt (\#727)
 
 ### Fixed
+
 - **BREAKING** **tauri,dioxus**: fire the owed change before the page's capture blur listeners, and send click as non-primary (\#1041, \#1014)
 - **BREAKING** **tauri**: return a DOM element in a browser.tauri.execute() result as an element reference (\#1042, \#1028, \#1028)
 - **BREAKING** **tauri,dioxus**: release held keys and pointer buttons in reverse press order (\#978)
@@ -239,6 +258,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-flutter-service@v1.0.0-next.4...wdio-flutter-service@v1.0.0-next.5)
 
 ### Changed
+
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
@@ -247,6 +267,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
 - support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
 - finish mock and driver teardown after a failure, then report it (PR [#744](https://github.com/webdriverio/desktop-mobile/pull/744) · closes [#683](https://github.com/webdriverio/desktop-mobile/issues/683))
@@ -256,9 +277,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electrobun-service@v0.3.1...wdio-electrobun-service@v0.4.0-next.0)
 
 ### Added
+
 - **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
 
 ### Changed
+
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
 - **electrobun**: drop execute's cleanup guards for rare cases and the per-reference check (PR [#1061](https://github.com/webdriverio/desktop-mobile/pull/1061))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
@@ -270,6 +293,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **native-spy,electron,electrobun,react-native**: keep undefined arguments in mock call data (PR [#1044](https://github.com/webdriverio/desktop-mobile/pull/1044) · closes [#1027](https://github.com/webdriverio/desktop-mobile/issues/1027))
 - **BREAKING** **electrobun**: return a DOM element in a browser.electrobun.execute() result as an element reference (PR [#1048](https://github.com/webdriverio/desktop-mobile/pull/1048))
 - **BREAKING** **dioxus,tauri,electrobun,electron,native-core,native-types**: resolve browser mode per capability (PR [#953](https://github.com/webdriverio/desktop-mobile/pull/953) · closes [#944](https://github.com/webdriverio/desktop-mobile/issues/944))
@@ -289,9 +313,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v10.4.1...wdio-electron-service@v11.0.0-next.0)
 
 ### Added
+
 - **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
 
 ### Changed
+
 - update \@releasekit/release and other dependencies (PR [#1066](https://github.com/webdriverio/desktop-mobile/pull/1066))
 - update WebdriverIO and related dependencies to version 10.2.0 (PR [#1059](https://github.com/webdriverio/desktop-mobile/pull/1059))
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
@@ -309,6 +335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **native-spy,electron,electrobun,react-native**: keep undefined arguments in mock call data (PR [#1044](https://github.com/webdriverio/desktop-mobile/pull/1044) · closes [#1027](https://github.com/webdriverio/desktop-mobile/issues/1027))
 - **BREAKING** **dioxus,electron**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1043](https://github.com/webdriverio/desktop-mobile/pull/1043) · closes [#1013](https://github.com/webdriverio/desktop-mobile/issues/1013))
 - **BREAKING** **electron,native-types**: find electron-builder apps built for Windows ARM64 or ia32, and prefer the host arch (PR [#1039](https://github.com/webdriverio/desktop-mobile/pull/1039))
@@ -334,6 +361,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-cdp-bridge@v1.3.1...wdio-native-cdp-bridge@v2.0.0-next.0)
 
 ### Changed
+
 - update \@releasekit/release and other dependencies (PR [#1066](https://github.com/webdriverio/desktop-mobile/pull/1066))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
@@ -341,6 +369,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **native-cdp-bridge**: preserve wait-port rejection messages instead of reporting a port timeout (PR [#881](https://github.com/webdriverio/desktop-mobile/pull/881))
 - **native-cdp-bridge**: reject when debugger port wait times out (PR [#870](https://github.com/webdriverio/desktop-mobile/pull/870))
 - **electron,native-cdp-bridge**: report the CDP bridge connection error (PR [#814](https://github.com/webdriverio/desktop-mobile/pull/814))
@@ -351,6 +380,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-core@v1.3.1...wdio-native-core@v2.0.0-next.0)
 
 ### Changed
+
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **native-core**: describe how DriverProcess starts and stops drivers on Windows (PR [#968](https://github.com/webdriverio/desktop-mobile/pull/968))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
@@ -359,6 +389,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **tauri,native-types**: pass appArgs and env to the app with every driver provider (PR [#951](https://github.com/webdriverio/desktop-mobile/pull/951) · closes [#936](https://github.com/webdriverio/desktop-mobile/issues/936))
 - **BREAKING** **dioxus,tauri,electrobun,electron,native-core,native-types**: resolve browser mode per capability (PR [#953](https://github.com/webdriverio/desktop-mobile/pull/953) · closes [#944](https://github.com/webdriverio/desktop-mobile/issues/944))
 - typecheck the services against WebdriverIO v9's getInstance() types (PR [#918](https://github.com/webdriverio/desktop-mobile/pull/918) · closes [#903](https://github.com/webdriverio/desktop-mobile/issues/903))
@@ -371,6 +402,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-mobile-core@v1.2.1...wdio-native-mobile-core@v2.0.0-next.0)
 
 ### Changed
+
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
@@ -378,6 +410,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
 
 ## [@wdio/native-spy@2.0.0-next.0] - 2026-11-08
@@ -385,15 +418,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-spy@v1.4.1...wdio-native-spy@v2.0.0-next.0)
 
 ### Added
+
 - **BREAKING** **dioxus**: add mock.withImplementation (PR [#901](https://github.com/webdriverio/desktop-mobile/pull/901))
 
 ### Changed
+
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
 - **biome**: require braces around if, else and loop bodies (PR [#851](https://github.com/webdriverio/desktop-mobile/pull/851))
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **native-spy,electron,electrobun,react-native**: keep undefined arguments in mock call data (PR [#1044](https://github.com/webdriverio/desktop-mobile/pull/1044) · closes [#1027](https://github.com/webdriverio/desktop-mobile/issues/1027))
 - **BREAKING** **tauri**: record a browser-mode mock's args alone, without a trailing null (PR [#1022](https://github.com/webdriverio/desktop-mobile/pull/1022))
 - **tauri**: target the window a mock was registered in (PR [#869](https://github.com/webdriverio/desktop-mobile/pull/869))
@@ -406,9 +442,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-types@v2.6.1...wdio-native-types@v3.0.0-next.0)
 
 ### Added
+
 - **BREAKING** **dioxus**: add mock.withImplementation (PR [#901](https://github.com/webdriverio/desktop-mobile/pull/901))
 
 ### Changed
+
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
@@ -421,6 +459,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **dioxus,electron**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1043](https://github.com/webdriverio/desktop-mobile/pull/1043) · closes [#1013](https://github.com/webdriverio/desktop-mobile/issues/1013))
 - **BREAKING** **electron,native-types**: find electron-builder apps built for Windows ARM64 or ia32, and prefer the host arch (PR [#1039](https://github.com/webdriverio/desktop-mobile/pull/1039))
 - **BREAKING** **tauri**: reject a multiremote triggerDeeplink that the OS can't deliver (PR [#1010](https://github.com/webdriverio/desktop-mobile/pull/1010))
@@ -445,9 +484,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-utils@v2.8.1...wdio-native-utils@v3.0.0-next.0)
 
 ### Added
+
 - **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
 
 ### Changed
+
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - share runThenSync between the Tauri, Dioxus and Electron mocks (PR [#917](https://github.com/webdriverio/desktop-mobile/pull/917))
@@ -458,6 +499,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **tauri,native-types**: pass appArgs and env to the app with every driver provider (PR [#951](https://github.com/webdriverio/desktop-mobile/pull/951) · closes [#936](https://github.com/webdriverio/desktop-mobile/issues/936))
 - **BREAKING** await async withImplementation callbacks and correct execute's types and docs (PR [#896](https://github.com/webdriverio/desktop-mobile/pull/896))
 - **BREAKING** standalone init() stops tying connectionRetryTimeout to startTimeout, and cleanup() runs one order (PR [#883](https://github.com/webdriverio/desktop-mobile/pull/883))
@@ -473,9 +515,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-react-native-service@v1.0.0-next.3...wdio-react-native-service@v1.0.0-next.4)
 
 ### Added
+
 - **native-utils**: add shared severeServiceError(message, cause) helper (PR [#835](https://github.com/webdriverio/desktop-mobile/pull/835))
 
 ### Changed
+
 - **BREAKING** require WebdriverIO 9.33 or 10.2 as peers (PR [#1015](https://github.com/webdriverio/desktop-mobile/pull/1015))
 - update dependencies across multiple packages (PR [#982](https://github.com/webdriverio/desktop-mobile/pull/982))
 - **BREAKING** require Node.js 22.23.4, 24.22.1 or 26.12.1 on every package (PR [#916](https://github.com/webdriverio/desktop-mobile/pull/916))
@@ -484,6 +528,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** require Node.js 22.19 on every package (PR [#797](https://github.com/webdriverio/desktop-mobile/pull/797))
 
 ### Fixed
+
 - **BREAKING** **native-spy,electron,electrobun,react-native**: keep undefined arguments in mock call data (PR [#1044](https://github.com/webdriverio/desktop-mobile/pull/1044) · closes [#1027](https://github.com/webdriverio/desktop-mobile/issues/1027))
 - CI follow-ups for the dependency update (PR [#829](https://github.com/webdriverio/desktop-mobile/pull/829))
 - support WebdriverIO v10's multiremote flag and command options (PR [#792](https://github.com/webdriverio/desktop-mobile/pull/792))
