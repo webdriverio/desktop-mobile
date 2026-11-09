@@ -236,7 +236,7 @@ runs:
     # Cross-platform archive enabled - works for TypeScript packages (wdio-desktop-build)
     # Tauri apps use 7zip for cross-platform compatible ZIPs
     - name: 🗄️ Cache Artifact (Platform-specific)
-      uses: actions/cache/save@v5
+      uses: actions/cache/save@v6
       env:
         ACTIONS_CACHE_SERVICE_V2: "true"
       with:
