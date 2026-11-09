@@ -223,7 +223,11 @@ export function summarize(changes: PinChange[]): string[] {
 }
 
 function fetchTags(repo: string): RemoteTag[] {
-  const output = execFileSync('git', ['ls-remote', '--tags', `https://github.com/${repo}.git`], { encoding: 'utf8' });
+  // Fail on a missing or private repo instead of waiting at a credential prompt.
+  const output = execFileSync('git', ['ls-remote', '--tags', `https://github.com/${repo}.git`], {
+    encoding: 'utf8',
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
   return parseLsRemoteTags(output);
 }
 
