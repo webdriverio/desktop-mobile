@@ -60,6 +60,13 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "area:dependencies"
+    groups:
+      # One PR per action across every directory, not one per directory.
+      github-actions:
+        group-by: dependency-name
+    ignore:
+      # Moves with @releasekit/release through update:releasekit.
+      - dependency-name: "goosewobbler/releasekit"
   # Rust crates + Tauri/Dioxus fixture apps. Cargo.lock is committed, so drift now
   # arrives as a gated, reviewable PR instead of an ambient CI break.
   - package-ecosystem: "cargo"
