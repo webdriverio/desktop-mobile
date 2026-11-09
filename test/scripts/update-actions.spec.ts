@@ -1,6 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  filesToUpdate,
+  heldCommitPin,
   isUpdateTarget,
   nextPin,
   parseLsRemoteTags,
@@ -37,42 +42,44 @@ describe('parseLsRemoteTags', () => {
 
 describe('nextPin', () => {
   it('should advance a semver pin to the newest stable tag', () => {
-    expect(nextPin('v1.25.3', '', binstall)).toEqual({ version: 'v1.26.2', suffix: '' });
+    expect(nextPin('v1.25.3', binstall)).toBe('v1.26.2');
   });
 
   it('should ignore a prerelease tag', () => {
-    expect(nextPin('v1.26.2', '', binstall)).toBeUndefined();
+    expect(nextPin('v1.26.2', binstall)).toBeUndefined();
   });
 
   it('should cross a major when the newest stable tag is a new major', () => {
     const withMajor = [...binstall, { name: 'v2.0.0', sha: '9'.repeat(40) }];
-    expect(nextPin('v1.26.2', '', withMajor)?.version).toBe('v2.0.0');
+    expect(nextPin('v1.26.2', withMajor)).toBe('v2.0.0');
   });
 
   it('should move a major pin to the newest major tag', () => {
-    expect(nextPin('v5', '', majors)?.version).toBe('v6');
+    expect(nextPin('v5', majors)).toBe('v6');
   });
 
   it('should not turn a major pin into a patch pin', () => {
-    expect(nextPin('v6', '', majors)).toBeUndefined();
+    expect(nextPin('v6', majors)).toBeUndefined();
   });
 
   it('should leave a floating ref', () => {
-    expect(nextPin('v2.x', '', majors)).toBeUndefined();
-    expect(nextPin('stable', '', majors)).toBeUndefined();
+    expect(nextPin('v2.x', majors)).toBeUndefined();
+    expect(nextPin('stable', majors)).toBeUndefined();
   });
 
-  it('should move a commit pin and its version comment together', () => {
-    const sha = '0'.repeat(40);
-    expect(nextPin(sha, ' # v2.23.0', commits)).toEqual({ version: '2'.repeat(40), suffix: ' # v2.24.0' });
+  it('should leave a commit pin', () => {
+    expect(nextPin('0'.repeat(40), commits)).toBeUndefined();
+  });
+});
+
+describe('heldCommitPin', () => {
+  it('should report the newer tag for a commit pin', () => {
+    expect(heldCommitPin(' # v2.23.0', commits)).toEqual({ from: 'v2.23.0', to: 'v2.24.0' });
   });
 
-  it('should leave a commit pin that already matches the newest tag', () => {
-    expect(nextPin('2'.repeat(40), ' # v2.24.0', commits)).toBeUndefined();
-  });
-
-  it('should leave a commit pin with no version comment', () => {
-    expect(nextPin('0'.repeat(40), '', commits)).toBeUndefined();
+  it('should report nothing when the comment names the newest tag or no version', () => {
+    expect(heldCommitPin(' # v2.24.0', commits)).toBeUndefined();
+    expect(heldCommitPin('', commits)).toBeUndefined();
   });
 });
 
@@ -91,6 +98,14 @@ describe('planLine', () => {
   it('should ignore a commented example and a local workflow', () => {
     expect(planLine('      #   uses: actions/setup-example@v1', () => majors).change).toBeUndefined();
     expect(planLine('    uses: ./.github/workflows/_ci-build.reusable.yml', () => majors).change).toBeUndefined();
+  });
+
+  it('should hold a commit pin rather than move it', () => {
+    const line = `        uses: subosito/flutter-action@${'0'.repeat(40)} # v2.23.0`;
+    const planned = planLine(line, () => commits);
+    expect(planned.line).toBe(line);
+    expect(planned.change).toBeUndefined();
+    expect(planned.held).toMatchObject({ label: 'subosito/flutter-action', from: 'v2.23.0', to: 'v2.24.0' });
   });
 
   it('should keep surrounding quotes', () => {
@@ -112,12 +127,30 @@ describe('updateSource', () => {
 });
 
 describe('isUpdateTarget', () => {
-  it('should cover workflow files, composite actions, and docs, not changelogs or build output', () => {
+  it('should cover workflow files, composite actions, and docs, not changelogs', () => {
     expect(isUpdateTarget('.github/workflows/ci.yml')).toBe(true);
     expect(isUpdateTarget('.github/workflows/actions/setup-workspace/action.yml')).toBe(true);
     expect(isUpdateTarget('packages/dioxus-service/docs/quick-start.md')).toBe(true);
     expect(isUpdateTarget('packages/dioxus-service/CHANGELOG.md')).toBe(false);
-    expect(isUpdateTarget('packages/dioxus-bridge/target/package/readme.md')).toBe(false);
+    expect(isUpdateTarget('e2e/wdio.conf.yml')).toBe(false);
+  });
+});
+
+describe('filesToUpdate', () => {
+  it('should list tracked files only', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'update-actions-'));
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: repo });
+      mkdirSync(join(repo, '.claude/worktrees/other'), { recursive: true });
+      writeFileSync(join(repo, '.gitignore'), '.claude/worktrees/\n');
+      writeFileSync(join(repo, 'tracked.md'), '');
+      writeFileSync(join(repo, 'untracked.md'), '');
+      writeFileSync(join(repo, '.claude/worktrees/other/readme.md'), '');
+      execFileSync('git', ['add', '.gitignore', 'tracked.md'], { cwd: repo });
+      expect(filesToUpdate(repo)).toEqual([join(repo, 'tracked.md')]);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 });
 

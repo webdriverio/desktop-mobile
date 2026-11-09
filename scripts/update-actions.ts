@@ -3,16 +3,16 @@
 // Moves third-party `uses:` pins to the newest tag, which is what closes Dependabot's
 // github-actions PRs. releasekit stays with update:releasekit. Floating refs (`@stable`, `@v2.x`) stay put.
 // A major-only pin (`@v7`) moves to the newest major tag, not to a patch pin.
+// Commit pins guard jobs with secret access, so they are reported for a manual bump, never moved.
 
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const RELEASEKIT_REPO = 'goosewobbler/releasekit';
-const SKIP_DIRS = new Set(['node_modules', '.git', 'target', 'dist', '.turbo']);
 const SHA_RE = /^[0-9a-f]{40}$/i;
 const SEMVER_RE = /^v?(\d+)\.(\d+)\.(\d+)$/;
 const MAJOR_RE = /^v?(\d+)$/;
@@ -117,52 +117,30 @@ function newest(
   return group.find((tag) => tag.name.startsWith('v') === preferV) ?? group[0];
 }
 
-/** `undefined` when the pin is floating, owned elsewhere, or already current. */
-export function nextPin(
-  version: string,
-  suffix: string,
-  tags: RemoteTag[],
-): { version: string; suffix: string } | undefined {
-  if (SHA_RE.test(version)) {
-    const commented = suffix.match(/v?\d+\.\d+\.\d+/);
-    if (!commented) {
-      return;
-    }
-    const latest = newest(tags, semverKey, commented[0].startsWith('v'));
-    if (!latest) {
-      return;
-    }
-    const nextSuffix = suffix.replace(commented[0], latest.name);
-    if (latest.sha.toLowerCase() === version.toLowerCase() && nextSuffix === suffix) {
-      return;
-    }
-    return { version: latest.sha, suffix: nextSuffix };
+/** `undefined` when the pin is floating or already current. */
+export function nextPin(version: string, tags: RemoteTag[]): string | undefined {
+  const keyOf = MAJOR_RE.test(version) ? majorKey : SEMVER_RE.test(version) ? semverKey : undefined;
+  if (!keyOf) {
+    return;
   }
-  if (MAJOR_RE.test(version)) {
-    const latest = newest(tags, majorKey, version.startsWith('v'));
-    if (!latest || latest.name === version) {
-      return;
-    }
-    return { version: latest.name, suffix };
-  }
-  if (SEMVER_RE.test(version)) {
-    const latest = newest(tags, semverKey, version.startsWith('v'));
-    if (!latest || latest.name === version) {
-      return;
-    }
-    return { version: latest.name, suffix };
-  }
-  return;
+  const latest = newest(tags, keyOf, version.startsWith('v'));
+  return latest && latest.name !== version ? latest.name : undefined;
 }
 
-function shownVersion(version: string, suffix: string): string {
-  if (SHA_RE.test(version)) {
-    return suffix.match(/v?\d+\.\d+\.\d+/)?.[0] ?? version.slice(0, 12);
+/** The newer tag for a commit pin with a version comment, which is bumped by hand. */
+export function heldCommitPin(suffix: string, tags: RemoteTag[]): { from: string; to: string } | undefined {
+  const commented = suffix.match(/v?\d+\.\d+\.\d+/)?.[0];
+  if (!commented) {
+    return;
   }
-  return version;
+  const latest = newest(tags, semverKey, commented.startsWith('v'));
+  return latest && latest.name !== commented ? { from: commented, to: latest.name } : undefined;
 }
 
-export function planLine(line: string, tagsFor: (repo: string) => RemoteTag[]): { line: string; change?: PinChange } {
+export function planLine(
+  line: string,
+  tagsFor: (repo: string) => RemoteTag[],
+): { line: string; change?: PinChange; held?: PinChange } {
   if (line.trimStart().startsWith('#')) {
     return { line };
   }
@@ -176,16 +154,18 @@ export function planLine(line: string, tagsFor: (repo: string) => RemoteTag[]): 
   if (!action || action.repo === RELEASEKIT_REPO) {
     return { line };
   }
-  const next = nextPin(action.version, match[3], tagsFor(action.repo));
+  const label = action.subpath ? `${action.repo}/${action.subpath}` : action.repo;
+  if (SHA_RE.test(action.version)) {
+    const held = heldCommitPin(match[3], tagsFor(action.repo));
+    return held ? { line, held: { label, ...held, major: majorOf(held.from) !== majorOf(held.to) } } : { line };
+  }
+  const next = nextPin(action.version, tagsFor(action.repo));
   if (!next) {
     return { line };
   }
-  const from = shownVersion(action.version, match[3]);
-  const to = shownVersion(next.version, next.suffix);
-  const label = action.subpath ? `${action.repo}/${action.subpath}` : action.repo;
   return {
-    line: `${match[1]}uses: ${quote}${formatActionUse(action, next.version)}${quote}${next.suffix}`,
-    change: { label, from, to, major: majorOf(from) !== majorOf(to) },
+    line: `${match[1]}uses: ${quote}${formatActionUse(action, next)}${quote}${match[3]}`,
+    change: { label, from: action.version, to: next, major: majorOf(action.version) !== majorOf(next) },
   };
 }
 
@@ -197,52 +177,37 @@ function majorOf(version: string): number | undefined {
 export function updateSource(
   content: string,
   tagsFor: (repo: string) => RemoteTag[],
-): { content: string; changes: PinChange[] } {
+): { content: string; changes: PinChange[]; held: PinChange[] } {
   const changes: PinChange[] = [];
+  const held: PinChange[] = [];
   const lines = content.split('\n').map((line) => {
     const planned = planLine(line, tagsFor);
     if (planned.change) {
       changes.push(planned.change);
     }
+    if (planned.held) {
+      held.push(planned.held);
+    }
     return planned.line;
   });
-  return { content: lines.join('\n'), changes };
+  return { content: lines.join('\n'), changes, held };
 }
 
 export function isUpdateTarget(rel: string): boolean {
-  const parts = rel.split(/[/\\]/);
-  if (parts.some((part) => SKIP_DIRS.has(part))) {
-    return false;
-  }
-  const base = parts.at(-1) ?? '';
+  const base = rel.split('/').at(-1) ?? '';
   if (base === 'CHANGELOG.md') {
     return false;
   }
-  if (parts[0] === '.github') {
-    return base.endsWith('.yml') || base.endsWith('.yaml') || base.endsWith('.md');
-  }
-  return base.endsWith('.md');
+  return base.endsWith('.md') || (rel.startsWith('.github/') && /\.ya?ml$/.test(base));
 }
 
+/** Tracked files only, so ignored worktrees and untracked notes are never rewritten. */
 export function filesToUpdate(repoRoot: string): string[] {
-  const files: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (SKIP_DIRS.has(entry.name)) {
-        continue;
-      }
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(path);
-        continue;
-      }
-      if (isUpdateTarget(relative(repoRoot, path))) {
-        files.push(path);
-      }
-    }
-  };
-  walk(repoRoot);
-  return files;
+  const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: repoRoot, encoding: 'utf8' });
+  return tracked
+    .split('\0')
+    .filter((rel) => rel && isUpdateTarget(rel))
+    .map((rel) => join(repoRoot, rel));
 }
 
 export function summarize(changes: PinChange[]): string[] {
@@ -276,8 +241,10 @@ function main() {
   };
 
   const changes: PinChange[] = [];
+  const held: PinChange[] = [];
   for (const file of filesToUpdate(root)) {
     const updated = updateSource(readFileSync(file, 'utf8'), tagsFor);
+    held.push(...updated.held);
     if (updated.changes.length === 0) {
       continue;
     }
@@ -287,14 +254,20 @@ function main() {
     }
   }
 
-  if (changes.length === 0) {
+  if (changes.length === 0 && held.length === 0) {
     console.log('Action pins are current.');
     return;
   }
   for (const line of summarize(changes)) {
     console.log(line);
   }
-  if (dryRun) {
+  if (held.length > 0) {
+    console.log('Pinned by commit, so not moved. Bump these by hand:');
+    for (const line of summarize(held)) {
+      console.log(`  ${line}`);
+    }
+  }
+  if (dryRun && changes.length > 0) {
     console.log('Dry run; no files written.');
   }
 }
