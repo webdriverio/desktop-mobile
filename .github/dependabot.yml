@@ -60,12 +60,8 @@ updates:
     labels:
       - "area:dependencies"
     groups:
-      # One PR per action, covering every directory.
       github-actions:
         group-by: dependency-name
-    ignore:
-      # update:releasekit bumps it together with @releasekit/release.
-      - dependency-name: "goosewobbler/releasekit"
   # Rust crates + Tauri/Dioxus fixture apps. Cargo.lock is committed, so drift now
   # arrives as a gated, reviewable PR instead of an ambient CI break.
   - package-ecosystem: "cargo"
