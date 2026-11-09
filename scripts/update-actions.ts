@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
-// Moves third-party `uses:` pins to the newest tag, which is what closes Dependabot's
-// github-actions PRs. releasekit stays with update:releasekit.
-// Commit pins guard jobs with secret access and are bumped by hand, so they never move.
+// Moves `uses:` pins to their newest tags, which closes Dependabot's github-actions PRs.
+// Skips releasekit (update:releasekit owns it) and commit pins, which guard jobs with secret access.
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -73,7 +72,7 @@ function compareKeys(a: VersionKey, b: VersionKey): number {
   return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 }
 
-// Only a strictly newer tag in the pin's own `v` scheme counts, so a missing tag or a stray date tag never moves a pin.
+// Only newer tags with the pin's v prefix (or lack of one) count, so a stray date tag can't win and a pin never moves back.
 function newerTag(
   current: string,
   tags: string[],

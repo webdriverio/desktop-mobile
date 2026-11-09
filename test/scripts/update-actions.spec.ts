@@ -45,7 +45,7 @@ describe('nextPin', () => {
     expect(nextPin('v7', majors)).toBeUndefined();
   });
 
-  it('should stay within the v or bare tag scheme of the pin', () => {
+  it("should stay within the pin's v or bare tag scheme", () => {
     expect(nextPin('v5', [...majors, '2024'])).toBe('v6');
   });
 
@@ -85,7 +85,7 @@ describe('planLine', () => {
 });
 
 describe('updateSource', () => {
-  it('should count one grouped bump per pin', () => {
+  it('should group repeated bumps into one summary line with a count', () => {
     const content = ['uses: cargo-bins/cargo-binstall@v1.25.3', 'uses: cargo-bins/cargo-binstall@v1.25.3', ''].join(
       '\n',
     );
