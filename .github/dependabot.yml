@@ -63,7 +63,7 @@ updates:
       github-actions:
         group-by: dependency-name
     ignore:
-      # A workflow-only bump leaves @releasekit/release behind; update:releasekit moves both.
+      # Updating releasekit requires the workflow references and the npm package to be bumped in sync; use update:releasekit.
       - dependency-name: "goosewobbler/releasekit"
   # Rust crates + Tauri/Dioxus fixture apps. Cargo.lock is committed, so drift now
   # arrives as a gated, reviewable PR instead of an ambient CI break.
