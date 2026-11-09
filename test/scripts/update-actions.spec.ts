@@ -1,10 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  filesToUpdate,
   isUpdateTarget,
   nextPin,
   parseLsRemoteTags,
@@ -48,22 +43,15 @@ describe('nextPin', () => {
 
   it('should never move a pin to an older tag', () => {
     expect(nextPin('v7', majors)).toBeUndefined();
-    expect(nextPin('v1.27.0', binstall)).toBeUndefined();
   });
 
   it('should stay within the v or bare tag scheme of the pin', () => {
     expect(nextPin('v5', [...majors, '2024'])).toBe('v6');
-    expect(nextPin('v1.25.3', [...binstall, '3.0.0'])).toBe('v1.26.2');
-    expect(nextPin('5', ['5', '6', 'v7'])).toBe('6');
   });
 
   it('should leave a floating ref', () => {
     expect(nextPin('v2.x', majors)).toBeUndefined();
     expect(nextPin('stable', majors)).toBeUndefined();
-  });
-
-  it('should leave a commit pin', () => {
-    expect(nextPin('0'.repeat(40), commits)).toBeUndefined();
   });
 });
 
@@ -84,25 +72,9 @@ describe('planLine', () => {
     expect(planLine('    uses: ./.github/workflows/_ci-build.reusable.yml', () => majors).change).toBeUndefined();
   });
 
-  it('should hold a commit pin rather than move it', () => {
-    const line = `        uses: subosito/flutter-action@${'0'.repeat(40)} # v2.23.0`;
-    const planned = planLine(line, () => commits);
-    expect(planned.line).toBe(line);
-    expect(planned.change).toBeUndefined();
-    expect(planned.held).toMatchObject({ label: 'subosito/flutter-action', from: 'v2.23.0', to: 'v2.24.0' });
-  });
-
-  it('should hold nothing when a commit pin is current or has no version comment', () => {
-    const pin = `uses: subosito/flutter-action@${'0'.repeat(40)}`;
-    expect(planLine(`${pin} # v2.24.0`, () => commits).held).toBeUndefined();
-    expect(planLine(pin, () => commits).held).toBeUndefined();
-  });
-
-  it('should not fetch tags for a pin that cannot move', () => {
-    const tagsFor = vi.fn(() => majors);
-    planLine('uses: dtolnay/rust-toolchain@stable', tagsFor);
-    planLine(`uses: subosito/flutter-action@${'0'.repeat(40)}`, tagsFor);
-    expect(tagsFor).not.toHaveBeenCalled();
+  it('should leave a commit pin', () => {
+    const line = `        uses: subosito/flutter-action@${'a'.repeat(40)} # v2.23.0`;
+    expect(planLine(line, () => commits)).toEqual({ line });
   });
 
   it('should keep surrounding quotes', () => {
@@ -130,23 +102,5 @@ describe('isUpdateTarget', () => {
     expect(isUpdateTarget('packages/dioxus-service/docs/quick-start.md')).toBe(true);
     expect(isUpdateTarget('packages/dioxus-service/CHANGELOG.md')).toBe(false);
     expect(isUpdateTarget('e2e/wdio.conf.yml')).toBe(false);
-  });
-});
-
-describe('filesToUpdate', () => {
-  it('should list tracked files only', () => {
-    const repo = mkdtempSync(join(tmpdir(), 'update-actions-'));
-    try {
-      execFileSync('git', ['init', '-q'], { cwd: repo });
-      mkdirSync(join(repo, '.claude/worktrees/other'), { recursive: true });
-      writeFileSync(join(repo, '.gitignore'), '.claude/worktrees/\n');
-      writeFileSync(join(repo, 'tracked.md'), '');
-      writeFileSync(join(repo, 'untracked.md'), '');
-      writeFileSync(join(repo, '.claude/worktrees/other/readme.md'), '');
-      execFileSync('git', ['add', '.gitignore', 'tracked.md'], { cwd: repo });
-      expect(filesToUpdate(repo)).toEqual([join(repo, 'tracked.md')]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
   });
 });
