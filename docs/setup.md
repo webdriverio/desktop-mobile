@@ -263,6 +263,15 @@ pnpm update:dependencies
 
 # Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
 pnpm update:tauri
+
+# Move GitHub Actions uses: pins to their newest tags
+pnpm update:actions
+
+# update:dependencies, then update:actions
+pnpm update:all
+
+# Bump @releasekit/release and its workflow pins together. Not part of update:all.
+pnpm update:releasekit
 ```
 
 ## Troubleshooting
