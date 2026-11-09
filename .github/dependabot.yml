@@ -50,7 +50,10 @@ updates:
       - dependency-name: "electron-builder"
         update-types: [ "version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch" ]
   - package-ecosystem: "github-actions"
-    directory: "/"
+    # "/" covers only .github/workflows; composite actions need their own entry.
+    directories:
+      - "/"
+      - "/.github/workflows/actions/*"
     schedule:
       # Check for updates to GitHub Actions every week
       interval: "weekly"

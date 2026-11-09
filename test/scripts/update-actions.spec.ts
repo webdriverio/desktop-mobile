@@ -18,8 +18,8 @@ const majors = ['v5', 'v6', 'v6.1.0'];
 const commits = ['v2.23.0', 'v2.24.0'];
 
 describe('parseLsRemoteTags', () => {
-  it('should list each tag once, folding in the peeled entry of an annotated tag', () => {
-    const output = ['abc\trefs/tags/v1.0.0', 'def\trefs/tags/v1.0.0^{}', 'aaa\trefs/tags/v1.1.0'].join('\n');
+  it('should list tag names and skip other refs', () => {
+    const output = ['abc\trefs/tags/v1.0.0', 'def\trefs/heads/main', 'aaa\trefs/tags/v1.1.0', ''].join('\n');
     expect(parseLsRemoteTags(output)).toEqual(['v1.0.0', 'v1.1.0']);
   });
 });
@@ -49,6 +49,12 @@ describe('nextPin', () => {
   it('should never move a pin to an older tag', () => {
     expect(nextPin('v7', majors)).toBeUndefined();
     expect(nextPin('v1.27.0', binstall)).toBeUndefined();
+  });
+
+  it('should stay within the v or bare tag scheme of the pin', () => {
+    expect(nextPin('v5', [...majors, '2024'])).toBe('v6');
+    expect(nextPin('v1.25.3', [...binstall, '3.0.0'])).toBe('v1.26.2');
+    expect(nextPin('5', ['5', '6', 'v7'])).toBe('6');
   });
 
   it('should leave a floating ref', () => {

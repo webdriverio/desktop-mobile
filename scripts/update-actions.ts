@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 // Moves third-party `uses:` pins to the newest tag, which is what closes Dependabot's
-// github-actions PRs. releasekit stays with update:releasekit. Floating refs (`@stable`, `@v2.x`) stay put.
-// A major-only pin (`@v7`) moves to the newest major tag, not to a patch pin.
+// github-actions PRs. releasekit stays with update:releasekit.
 // Commit pins guard jobs with secret access, so they are reported for a manual bump, never moved.
 
 import { execFileSync } from 'node:child_process';
@@ -52,11 +51,10 @@ export function formatActionUse(action: ActionUse, version: string): string {
 }
 
 export function parseLsRemoteTags(output: string): string[] {
-  const names = output.split('\n').flatMap((line) => {
+  return output.split('\n').flatMap((line) => {
     const ref = line.split('\t')[1];
-    return ref?.startsWith('refs/tags/') ? [ref.slice('refs/tags/'.length).replace(/\^\{\}$/, '')] : [];
+    return ref?.startsWith('refs/tags/') ? [ref.slice('refs/tags/'.length)] : [];
   });
-  return [...new Set(names)];
 }
 
 type VersionKey = [number, number, number];
@@ -79,31 +77,26 @@ function keyFor(version: string): ((name: string) => VersionKey | undefined) | u
   return MAJOR_RE.test(version) ? majorKey : SEMVER_RE.test(version) ? semverKey : undefined;
 }
 
-// Only a strictly newer tag counts, so a pin whose tag is missing (a major kept as a branch) is never moved back.
+// Only a strictly newer tag in the pin's own `v` scheme counts, so a missing tag or a stray date tag never moves a pin.
 function newerTag(
   current: string,
   tags: string[],
   keyOf: (name: string) => VersionKey | undefined,
 ): string | undefined {
+  const prefixed = current.startsWith('v');
   let best = keyOf(current);
   if (!best) {
     return;
   }
-  let group: string[] = [];
+  let newer: string | undefined;
   for (const tag of tags) {
-    const key = keyOf(tag);
-    if (!key) {
-      continue;
-    }
-    const order = compareKeys(key, best);
-    if (order > 0) {
+    const key = tag.startsWith('v') === prefixed ? keyOf(tag) : undefined;
+    if (key && compareKeys(key, best) > 0) {
       best = key;
-      group = [tag];
-    } else if (order === 0 && group.length > 0) {
-      group.push(tag);
+      newer = tag;
     }
   }
-  return group.find((tag) => tag.startsWith('v') === current.startsWith('v')) ?? group[0];
+  return newer;
 }
 
 export function nextPin(version: string, tags: string[]): string | undefined {
@@ -202,7 +195,7 @@ export function summarize(changes: PinChange[]): string[] {
 
 function fetchTags(repo: string): string[] {
   // Fail on a missing or private repo instead of waiting at a credential prompt.
-  const output = execFileSync('git', ['ls-remote', '--tags', `https://github.com/${repo}.git`], {
+  const output = execFileSync('git', ['ls-remote', '--tags', '--refs', `https://github.com/${repo}.git`], {
     encoding: 'utf8',
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
