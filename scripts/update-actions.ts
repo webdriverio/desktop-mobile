@@ -18,12 +18,6 @@ const SEMVER_RE = /^v?(\d+)\.(\d+)\.(\d+)$/;
 const MAJOR_RE = /^v?(\d+)$/;
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-export interface RemoteTag {
-  name: string;
-  /** Peeled commit. Annotated tags must not keep the tag object id. */
-  sha: string;
-}
-
 export interface ActionUse {
   repo: string;
   subpath: string;
@@ -57,25 +51,12 @@ export function formatActionUse(action: ActionUse, version: string): string {
   return `${action.repo}${action.subpath ? `/${action.subpath}` : ''}@${version}`;
 }
 
-export function parseLsRemoteTags(output: string): RemoteTag[] {
-  const peeled = new Map<string, string>();
-  const lightweight = new Map<string, string>();
-  for (const line of output.split('\n')) {
-    const [sha, ref] = line.split('\t');
-    if (!sha || !ref?.startsWith('refs/tags/')) {
-      continue;
-    }
-    const name = ref.slice('refs/tags/'.length);
-    if (name.endsWith('^{}')) {
-      peeled.set(name.slice(0, -'^{}'.length), sha);
-    } else {
-      lightweight.set(name, sha);
-    }
-  }
-  return [...new Set([...peeled.keys(), ...lightweight.keys()])].flatMap((name) => {
-    const sha = peeled.get(name) ?? lightweight.get(name);
-    return sha ? [{ name, sha }] : [];
+export function parseLsRemoteTags(output: string): string[] {
+  const names = output.split('\n').flatMap((line) => {
+    const ref = line.split('\t')[1];
+    return ref?.startsWith('refs/tags/') ? [ref.slice('refs/tags/'.length).replace(/\^\{\}$/, '')] : [];
   });
+  return [...new Set(names)];
 }
 
 type VersionKey = [number, number, number];
@@ -94,52 +75,45 @@ function compareKeys(a: VersionKey, b: VersionKey): number {
   return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 }
 
-function newest(
-  tags: RemoteTag[],
+function keyFor(version: string): ((name: string) => VersionKey | undefined) | undefined {
+  return MAJOR_RE.test(version) ? majorKey : SEMVER_RE.test(version) ? semverKey : undefined;
+}
+
+// Only a strictly newer tag counts, so a pin whose tag is missing (a major kept as a branch) is never moved back.
+function newerTag(
+  current: string,
+  tags: string[],
   keyOf: (name: string) => VersionKey | undefined,
-  preferV: boolean,
-): RemoteTag | undefined {
-  let best: VersionKey | undefined;
-  let group: RemoteTag[] = [];
+): string | undefined {
+  let best = keyOf(current);
+  if (!best) {
+    return;
+  }
+  let group: string[] = [];
   for (const tag of tags) {
-    const key = keyOf(tag.name);
+    const key = keyOf(tag);
     if (!key) {
       continue;
     }
-    const order = best ? compareKeys(key, best) : 1;
+    const order = compareKeys(key, best);
     if (order > 0) {
       best = key;
       group = [tag];
-    } else if (order === 0) {
+    } else if (order === 0 && group.length > 0) {
       group.push(tag);
     }
   }
-  return group.find((tag) => tag.name.startsWith('v') === preferV) ?? group[0];
+  return group.find((tag) => tag.startsWith('v') === current.startsWith('v')) ?? group[0];
 }
 
-/** `undefined` when the pin is floating or already current. */
-export function nextPin(version: string, tags: RemoteTag[]): string | undefined {
-  const keyOf = MAJOR_RE.test(version) ? majorKey : SEMVER_RE.test(version) ? semverKey : undefined;
-  if (!keyOf) {
-    return;
-  }
-  const latest = newest(tags, keyOf, version.startsWith('v'));
-  return latest && latest.name !== version ? latest.name : undefined;
-}
-
-/** The newer tag for a commit pin with a version comment, which is bumped by hand. */
-export function heldCommitPin(suffix: string, tags: RemoteTag[]): { from: string; to: string } | undefined {
-  const commented = suffix.match(/v?\d+\.\d+\.\d+/)?.[0];
-  if (!commented) {
-    return;
-  }
-  const latest = newest(tags, semverKey, commented.startsWith('v'));
-  return latest && latest.name !== commented ? { from: commented, to: latest.name } : undefined;
+export function nextPin(version: string, tags: string[]): string | undefined {
+  const keyOf = keyFor(version);
+  return keyOf ? newerTag(version, tags, keyOf) : undefined;
 }
 
 export function planLine(
   line: string,
-  tagsFor: (repo: string) => RemoteTag[],
+  tagsFor: (repo: string) => string[],
 ): { line: string; change?: PinChange; held?: PinChange } {
   if (line.trimStart().startsWith('#')) {
     return { line };
@@ -156,8 +130,12 @@ export function planLine(
   }
   const label = action.subpath ? `${action.repo}/${action.subpath}` : action.repo;
   if (SHA_RE.test(action.version)) {
-    const held = heldCommitPin(match[3], tagsFor(action.repo));
-    return held ? { line, held: { label, ...held, major: majorOf(held.from) !== majorOf(held.to) } } : { line };
+    const from = match[3].match(/v?\d+\.\d+\.\d+/)?.[0];
+    const to = from && newerTag(from, tagsFor(action.repo), semverKey);
+    return from && to ? { line, held: { label, from, to, major: majorOf(from) !== majorOf(to) } } : { line };
+  }
+  if (!keyFor(action.version)) {
+    return { line };
   }
   const next = nextPin(action.version, tagsFor(action.repo));
   if (!next) {
@@ -176,7 +154,7 @@ function majorOf(version: string): number | undefined {
 
 export function updateSource(
   content: string,
-  tagsFor: (repo: string) => RemoteTag[],
+  tagsFor: (repo: string) => string[],
 ): { content: string; changes: PinChange[]; held: PinChange[] } {
   const changes: PinChange[] = [];
   const held: PinChange[] = [];
@@ -201,7 +179,7 @@ export function isUpdateTarget(rel: string): boolean {
   return base.endsWith('.md') || (rel.startsWith('.github/') && /\.ya?ml$/.test(base));
 }
 
-/** Tracked files only, so ignored worktrees and untracked notes are never rewritten. */
+// Tracked files only, so ignored worktrees and untracked notes are never rewritten.
 export function filesToUpdate(repoRoot: string): string[] {
   const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: repoRoot, encoding: 'utf8' });
   return tracked
@@ -222,7 +200,7 @@ export function summarize(changes: PinChange[]): string[] {
   return [...grouped].map(([key, entry]) => `${key}${entry.major ? ' (major)' : ''} (${entry.count})`);
 }
 
-function fetchTags(repo: string): RemoteTag[] {
+function fetchTags(repo: string): string[] {
   // Fail on a missing or private repo instead of waiting at a credential prompt.
   const output = execFileSync('git', ['ls-remote', '--tags', `https://github.com/${repo}.git`], {
     encoding: 'utf8',
@@ -233,7 +211,7 @@ function fetchTags(repo: string): RemoteTag[] {
 
 function main() {
   const dryRun = process.argv.includes('--dry-run');
-  const cache = new Map<string, RemoteTag[]>();
+  const cache = new Map<string, string[]>();
   const tagsFor = (repo: string) => {
     const cached = cache.get(repo);
     if (cached) {

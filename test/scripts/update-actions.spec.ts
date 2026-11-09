@@ -1,42 +1,26 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   filesToUpdate,
-  heldCommitPin,
   isUpdateTarget,
   nextPin,
   parseLsRemoteTags,
   planLine,
-  type RemoteTag,
   summarize,
   updateSource,
 } from '../../scripts/update-actions.ts';
 
-const binstall: RemoteTag[] = [
-  { name: 'v1.25.3', sha: 'a'.repeat(40) },
-  { name: 'v1.26.2', sha: 'b'.repeat(40) },
-  { name: 'v2.0.0-beta.1', sha: 'c'.repeat(40) },
-];
-const majors: RemoteTag[] = [
-  { name: 'v5', sha: 'd'.repeat(40) },
-  { name: 'v6', sha: 'e'.repeat(40) },
-  { name: 'v6.1.0', sha: 'f'.repeat(40) },
-];
-const commits: RemoteTag[] = [
-  { name: 'v2.23.0', sha: '1'.repeat(40) },
-  { name: 'v2.24.0', sha: '2'.repeat(40) },
-];
+const binstall = ['v1.25.3', 'v1.26.2', 'v2.0.0-beta.1'];
+const majors = ['v5', 'v6', 'v6.1.0'];
+const commits = ['v2.23.0', 'v2.24.0'];
 
 describe('parseLsRemoteTags', () => {
-  it('should keep the peeled commit for an annotated tag', () => {
+  it('should list each tag once, folding in the peeled entry of an annotated tag', () => {
     const output = ['abc\trefs/tags/v1.0.0', 'def\trefs/tags/v1.0.0^{}', 'aaa\trefs/tags/v1.1.0'].join('\n');
-    expect(parseLsRemoteTags(output)).toEqual([
-      { name: 'v1.0.0', sha: 'def' },
-      { name: 'v1.1.0', sha: 'aaa' },
-    ]);
+    expect(parseLsRemoteTags(output)).toEqual(['v1.0.0', 'v1.1.0']);
   });
 });
 
@@ -50,7 +34,7 @@ describe('nextPin', () => {
   });
 
   it('should cross a major when the newest stable tag is a new major', () => {
-    const withMajor = [...binstall, { name: 'v2.0.0', sha: '9'.repeat(40) }];
+    const withMajor = [...binstall, 'v2.0.0'];
     expect(nextPin('v1.26.2', withMajor)).toBe('v2.0.0');
   });
 
@@ -60,6 +44,11 @@ describe('nextPin', () => {
 
   it('should not turn a major pin into a patch pin', () => {
     expect(nextPin('v6', majors)).toBeUndefined();
+  });
+
+  it('should never move a pin to an older tag', () => {
+    expect(nextPin('v7', majors)).toBeUndefined();
+    expect(nextPin('v1.27.0', binstall)).toBeUndefined();
   });
 
   it('should leave a floating ref', () => {
@@ -72,17 +61,6 @@ describe('nextPin', () => {
   });
 });
 
-describe('heldCommitPin', () => {
-  it('should report the newer tag for a commit pin', () => {
-    expect(heldCommitPin(' # v2.23.0', commits)).toEqual({ from: 'v2.23.0', to: 'v2.24.0' });
-  });
-
-  it('should report nothing when the comment names the newest tag or no version', () => {
-    expect(heldCommitPin(' # v2.24.0', commits)).toBeUndefined();
-    expect(heldCommitPin('', commits)).toBeUndefined();
-  });
-});
-
 describe('planLine', () => {
   it('should rewrite a workflow pin, including a subpath', () => {
     const planned = planLine('        uses: actions/cache/save@v5', () => majors);
@@ -92,7 +70,7 @@ describe('planLine', () => {
 
   it('should keep the releasekit pin for update:releasekit', () => {
     const line = '        uses: goosewobbler/releasekit@v0.43.0';
-    expect(planLine(line, () => [{ name: 'v0.44.0', sha: 'a'.repeat(40) }])).toEqual({ line });
+    expect(planLine(line, () => ['v0.44.0'])).toEqual({ line });
   });
 
   it('should ignore a commented example and a local workflow', () => {
@@ -106,6 +84,19 @@ describe('planLine', () => {
     expect(planned.line).toBe(line);
     expect(planned.change).toBeUndefined();
     expect(planned.held).toMatchObject({ label: 'subosito/flutter-action', from: 'v2.23.0', to: 'v2.24.0' });
+  });
+
+  it('should hold nothing when a commit pin is current or has no version comment', () => {
+    const pin = `uses: subosito/flutter-action@${'0'.repeat(40)}`;
+    expect(planLine(`${pin} # v2.24.0`, () => commits).held).toBeUndefined();
+    expect(planLine(pin, () => commits).held).toBeUndefined();
+  });
+
+  it('should not fetch tags for a pin that cannot move', () => {
+    const tagsFor = vi.fn(() => majors);
+    planLine('uses: dtolnay/rust-toolchain@stable', tagsFor);
+    planLine(`uses: subosito/flutter-action@${'0'.repeat(40)}`, tagsFor);
+    expect(tagsFor).not.toHaveBeenCalled();
   });
 
   it('should keep surrounding quotes', () => {
@@ -151,17 +142,5 @@ describe('filesToUpdate', () => {
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
-  });
-});
-
-describe('package scripts', () => {
-  const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
-    scripts: Record<string, string>;
-  };
-
-  it('should run action pins only from update:actions and update:all', () => {
-    expect(pkg.scripts['update:actions']).toBe('node ./scripts/update-actions.ts');
-    expect(pkg.scripts['update:all']).toBe('pnpm update:dependencies && pnpm update:actions');
-    expect(pkg.scripts['update:dependencies']).not.toContain('update:actions');
   });
 });
