@@ -54,7 +54,7 @@ jobs:
           PACKAGE_TESTS_INPUT: ${{ inputs.package-tests }}
           LABEL: ci:wdio-v9
           # The labels that publish: the standing release PR's release types, and a direct release on merge.
-          RELEASE_LABELS: release:prerelease release:stable release:graduate release:immediate
+          RELEASE_LABELS: release:prerelease release:stable release:immediate
           ADDED_LABEL: ${{ github.event.label.name }}
           HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:wdio-v9') }}
           REPO: ${{ github.repository }}

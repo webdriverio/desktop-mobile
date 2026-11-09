@@ -54,7 +54,7 @@
     "releaseStrategy": "standing-pr",
     "releaseTrigger": "label",
     "labels": {
-      "stable": "release:stable",
+      "graduate": "release:stable",
       "prerelease": "release:prerelease"
     },
     "standingPr": {
