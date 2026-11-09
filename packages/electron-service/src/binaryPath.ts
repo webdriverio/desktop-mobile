@@ -193,7 +193,7 @@ function unrunnableBuildWarning(binaryPath: string, options: BinaryOptions): Pat
   return {
     type: 'CONFIG_WARNING',
     message:
-      `No ${host} build of the app was found, so the service is using the ${buildArch} build at ${binaryPath}, which a ${host} machine likely can't run. ` +
+      `No ${host} build of the app was found, so the service is using the ${buildArch} build at ${binaryPath}, which this ${host} machine likely can't run. ` +
       `Build the app for ${host}, or set appBinaryPath. ` +
       "The machine's arch comes from Node.js, so if Node.js itself runs emulated, such as an x64 Node.js on Apple Silicon, ignore this.",
   };

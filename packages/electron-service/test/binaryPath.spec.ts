@@ -209,7 +209,6 @@ async function resolveFrom(platform: string, arch: string | undefined, appBuildI
   return result.ok ? result.value.binaryPath.replace(/\\/g, '/') : undefined;
 }
 
-// The warning the service gives when it found no build the host can run
 async function hostWarningFrom(platform: string, arch: string, appBuildInfo: AppBuildInfo, dirs: string[]) {
   mockBinaryPath(dirs.map((dir) => appPath(platform, dir)));
   const result = await getBinaryPath(pkgJSONPath, appBuildInfo, { platform, arch } as NodeJS.Process);
