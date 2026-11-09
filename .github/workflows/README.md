@@ -39,7 +39,7 @@ Automated releases trigger when CI completes on `main` with release labels on me
 
 - **Release type labels** (prefix `release:`):
   - `release:prerelease` - Use with bump labels for prerelease versions
-  - `release:stable` - Use with bump labels to clean prerelease to stable
+  - `release:stable` - Graduates a prerelease to its stable version; bump labels are ignored
 
 **Examples:**
 
