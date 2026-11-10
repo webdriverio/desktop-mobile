@@ -72,7 +72,7 @@ describe('Tauri mocking using Multiremote', () => {
       expect(mockA.mock.calls).toStrictEqual([]);
       expect(mockB.mock.calls).toStrictEqual([]);
 
-      // Each mock counts one call again only if each app's own record was cleared too.
+      // If the clear reached only the test side, the next sync would bring back each app's old call and count two.
       const [platformA, platformB] = await getBothPlatformInfo();
       expect(platformA).toEqual({ os: 'mock-a' });
       expect(platformB).toEqual({ os: 'mock-b' });
@@ -94,8 +94,8 @@ describe('Tauri mocking using Multiremote', () => {
     });
   });
 
-  // Only browserA's options set restoreMocks, so only its mock is restored before the second test.
-  // A restore in afterEach would hide that, so this pair cleans up once both have run.
+  // Only browserA sets restoreMocks, so before the second test only its mock is restored.
+  // An afterEach restore would hide that, so the pair cleans up once both have run.
   describe("each instance's restoreMocks", () => {
     after(async () => {
       await root().tauri.restoreAllMocks();
