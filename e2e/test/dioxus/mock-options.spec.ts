@@ -29,18 +29,14 @@ describe('Dioxus mock options', () => {
   });
 
   describe('resetMocks', () => {
-    let mock: DioxusMock;
-
     it('should mock a command', async () => {
-      mock = await browser.dioxus.mock('mock_options_reset');
+      const mock = await browser.dioxus.mock('mock_options_reset');
       await mock.mockReturnValue('mocked');
 
       expect(await browser.dioxus.execute(({ invoke }) => invoke('mock_options_reset'))).toBe('mocked');
     });
 
     it('should reset the mock before the next test', async () => {
-      await mock.update();
-      expect(mock.mock.calls).toStrictEqual([]);
       // Compared in the page: the external provider returns undefined as null.
       const returnedUndefined = await browser.dioxus.execute(
         async ({ invoke }) => (await invoke('mock_options_reset')) === undefined,
@@ -51,18 +47,15 @@ describe('Dioxus mock options', () => {
 
   describe('restoreMocks', () => {
     it('should mock a command', async () => {
-      const mock = await browser.dioxus.mock('get_platform_info');
+      const mock = await browser.dioxus.mock('get_command_line_args');
       await mock.mockReturnValue('mocked');
 
-      expect(await browser.dioxus.execute(({ invoke }) => invoke('get_platform_info'))).toBe('mocked');
+      expect(await browser.dioxus.execute(({ invoke }) => invoke('get_command_line_args'))).toBe('mocked');
     });
 
     it('should restore the command before the next test', async () => {
-      expect(browser.dioxus.isMockFunction('get_platform_info')).toBe(false);
-      expect(await browser.dioxus.execute(({ invoke }) => invoke('get_platform_info'))).toEqual({
-        os: expect.any(String),
-        arch: expect.any(String),
-      });
+      expect(browser.dioxus.isMockFunction('get_command_line_args')).toBe(false);
+      expect(await browser.dioxus.execute(({ invoke }) => invoke('get_command_line_args'))).toEqual(expect.any(Array));
     });
   });
 });

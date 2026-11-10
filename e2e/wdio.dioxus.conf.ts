@@ -170,7 +170,7 @@ if (testType === 'multiremote') {
         resetMocks: true,
         resetMocksPrefix: 'mock_options_reset',
         restoreMocks: true,
-        restoreMocksPrefix: 'get_platform_info',
+        restoreMocksPrefix: 'get_command_line_args',
       },
     },
   ];

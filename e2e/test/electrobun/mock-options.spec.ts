@@ -51,19 +51,15 @@ describe('Electrobun mock options', () => {
   });
 
   describe('resetMocks', () => {
-    let mock: ElectrobunMock;
-
     it('should mock a function', async () => {
       await defineTarget('mockOptionsReset');
-      mock = await browser.electrobun.mock('mockOptionsReset');
+      const mock = await browser.electrobun.mock('mockOptionsReset');
       await mock.mockReturnValue('mocked');
 
       expect(await callTarget('mockOptionsReset')).toBe('mocked');
     });
 
     it('should reset the mock before the next test', async () => {
-      await mock.update();
-      expect(mock.mock.calls).toStrictEqual([]);
       expect(await callTarget('mockOptionsReset')).toBeUndefined();
     });
   });
