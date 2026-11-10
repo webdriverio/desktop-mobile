@@ -135,6 +135,7 @@ type TauriCapability = {
     appBinaryPath: string;
     appArgs: string[];
     env?: Record<string, string>;
+    restoreMocks?: boolean;
     captureBackendLogs?: boolean;
     captureFrontendLogs?: boolean;
     backendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
@@ -178,6 +179,8 @@ if (envContext.isMultiremote) {
           appBinaryPath: appBinaryPath,
           appArgs: ['--browser=A'],
           env: baseEnv,
+          // Only A sets restoreMocks, so a test can check the option applies per instance.
+          restoreMocks: true,
           // Enable log capture for logging tests
           captureBackendLogs: true,
           captureFrontendLogs: true,

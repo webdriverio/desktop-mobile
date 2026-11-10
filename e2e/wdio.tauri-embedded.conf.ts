@@ -136,6 +136,7 @@ type TauriCapability = {
     driverProvider: 'embedded';
     embeddedPort?: number;
     env?: Record<string, string>;
+    restoreMocks?: boolean;
     captureBackendLogs?: boolean;
     captureFrontendLogs?: boolean;
     backendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
@@ -181,6 +182,8 @@ if (envContext.isMultiremote) {
           driverProvider: 'embedded',
           embeddedPort: 4445,
           env: baseEnv,
+          // Only A sets restoreMocks, so a test can check the option applies per instance.
+          restoreMocks: true,
           // Enable log capture for logging tests
           captureBackendLogs: true,
           captureFrontendLogs: true,
