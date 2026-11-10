@@ -93,6 +93,19 @@ impl<R: Runtime> LinuxExecutor<R> {
   pub fn new(window: WebviewWindow<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
     Self { window, timeouts, frame_context }
   }
+
+  /// Lets the page collect a timed-out async script's promise. Runs in the top window, where
+  /// async scripts run until #1025 makes them follow the selected frame, so it can't use
+  /// `evaluate_js_raw`.
+  fn release_async_script(&self, pending_key: &str) {
+    let release = format!("delete window['{pending_key}'];");
+    let _ = self.window.with_webview(move |webview| {
+      let webview = webview.inner().clone();
+      MainContext::default().spawn_local(async move {
+        let _ = webview.evaluate_javascript_future(&release, None, None).await;
+      });
+    });
+  }
 }
 
 /// Register `WebKitGTK` handlers at webview creation time.
@@ -457,30 +470,14 @@ impl<R: Runtime + 'static> LinuxExecutor<R> {
       Some(prefix) => (script_result_refs_js(prefix), "__wdio_refs.withRefs(result)"),
       None => (String::new(), "result"),
     };
-    let deserialize_arg_js = deserialize_arg_js();
-
-    // Build wrapper that includes argument deserialization.
-    // call_async_javascript_function_future treats the body as function statements,
-    // so `return` is required — without it the function returns undefined immediately.
-    let wrapper = format!(
-      r"return new Promise((resolve, reject) => {{
-                {refs_js}
-                {deserialize_arg_js}
-                var __done = function(result, error) {{
-                    if (error) {{
-                        reject(new Error(typeof error === 'string' ? error : String(error)));
-                    }} else {{
-                        resolve({result_js});
-                    }}
-                }};
-                var __args = {args_json}.map(deserializeArg);
-                __args.push(__done);
-                try {{
-                    (function() {{ {script} }}).apply(null, __args);
-                }} catch (e) {{
-                    reject(e);
-                }}
-            }})"
+    let pending_key = format!("__wdio_async_{}", uuid::Uuid::new_v4());
+    let wrapper = async_script_wrapper(
+      script,
+      &args_json,
+      &pending_key,
+      &refs_js,
+      &deserialize_arg_js(),
+      result_js,
     );
 
     let (tx, rx) = oneshot::channel();
@@ -527,7 +524,45 @@ impl<R: Runtime + 'static> LinuxExecutor<R> {
       Ok(Ok(Ok(value))) => Ok(value),
       Ok(Ok(Err(error))) => Err(WebDriverErrorResponse::javascript_error(&error, None)),
       Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error("Channel closed")),
-      Err(_) => Err(WebDriverErrorResponse::script_timeout()),
+      Err(_) => {
+        self.release_async_script(&pending_key);
+        Err(WebDriverErrorResponse::script_timeout())
+      }
     }
   }
+}
+
+/// `call_async_javascript_function_future` runs this as a function body, so it must `return` the
+/// promise. `WebKitGTK` fails the call once the promise is garbage-collected, as it is when only an
+/// uncalled `done` refers to it, so `window[pending_key]` holds it until it settles or times out.
+fn async_script_wrapper(
+  script: &str,
+  args_json: &str,
+  pending_key: &str,
+  refs_js: &str,
+  deserialize_arg_js: &str,
+  result_js: &str,
+) -> String {
+  format!(
+    r"var __promise = new Promise((resolve, reject) => {{
+                {refs_js}
+                {deserialize_arg_js}
+                var __done = function(result, error) {{
+                    if (error) {{
+                        reject(new Error(typeof error === 'string' ? error : String(error)));
+                    }} else {{
+                        resolve({result_js});
+                    }}
+                }};
+                var __args = {args_json}.map(deserializeArg);
+                __args.push(__done);
+                try {{
+                    (function() {{ {script} }}).apply(null, __args);
+                }} catch (e) {{
+                    reject(e);
+                }}
+            }});
+            window['{pending_key}'] = __promise;
+            return __promise.finally(function() {{ delete window['{pending_key}']; }});"
+  )
 }

@@ -61,10 +61,25 @@ describe('Execute Async Script (embedded)', () => {
       });
 
       after(async () => {
+        await browser.execute(() => {
+          const page = window as unknown as { __wdioGarbageTimer?: number; __wdioGarbage?: unknown };
+          clearInterval(page.__wdioGarbageTimer);
+          delete page.__wdioGarbage;
+        });
         await browser.setTimeouts(undefined, undefined, originalScriptTimeout);
       });
 
       it('should fail with a script timeout when the script never calls done', async () => {
+        // Allocate while the script waits so the page collects garbage, freeing a promise that only `done` refers to.
+        // Start the timer in its own script: a closure inside the async script would keep the promise alive.
+        await browser.execute(() => {
+          const page = window as unknown as { __wdioGarbageTimer?: number; __wdioGarbage?: unknown };
+          clearInterval(page.__wdioGarbageTimer);
+          page.__wdioGarbageTimer = window.setInterval(() => {
+            page.__wdioGarbage = new Array(1e5).fill(Math.random());
+          }, 10);
+        });
+
         await expect(
           browser.executeAsyncScript('window.__wdioScriptStartedAt = Date.now();', []),
         ).rejects.toMatchObject({ name: 'script timeout' });
