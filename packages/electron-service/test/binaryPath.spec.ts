@@ -209,6 +209,14 @@ async function resolveFrom(platform: string, arch: string | undefined, appBuildI
   return result.ok ? result.value.binaryPath.replace(/\\/g, '/') : undefined;
 }
 
+async function hostWarningFrom(platform: string, arch: string, appBuildInfo: AppBuildInfo, dirs: string[]) {
+  mockBinaryPath(dirs.map((dir) => appPath(platform, dir)));
+  const result = await getBinaryPath(pkgJSONPath, appBuildInfo, { platform, arch } as NodeJS.Process);
+  const warnings =
+    result.ok && result.value.pathGeneration.ok ? (result.value.pathGeneration.value.warnings ?? []) : [];
+  return warnings.find(({ message }) => message.startsWith('No '))?.message;
+}
+
 describe('getBinaryPath', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -448,6 +456,31 @@ describe('getBinaryPath', () => {
       const binaryPath = await resolveFrom(platform, arch, builderInfo(config), dirs.map(inDist));
 
       expect(binaryPath).toBe(appPath(platform, inDist(expected)));
+    });
+  });
+
+  describe('when no build the host runs exists', () => {
+    it.each<[string, string, string, AppBuildInfo, string]>([
+      ['darwin', 'x64', 'dist/mac-arm64', builderInfo(), 'arm64'],
+      ['linux', 'arm64', 'dist/linux-unpacked', builderInfo(), 'x64'],
+      ['win32', 'x64', 'dist/win-unpacked', builderInfo({ win: { defaultArch: 'arm64' } }), 'arm64'],
+      ['darwin', 'x64', 'out/my-app-darwin-arm64', forgeInfo, 'arm64'],
+    ])('should warn on a %s %s host when only %s exists', async (platform, arch, dir, appBuildInfo, buildArch) => {
+      expect(await resolveFrom(platform, arch, appBuildInfo, [dir])).toBe(appPath(platform, dir));
+      expect(await hostWarningFrom(platform, arch, appBuildInfo, [dir])).toContain(
+        `No ${arch} build of the app was found, so the service is using the ${buildArch} build`,
+      );
+    });
+
+    it.each<[string, string, string]>([
+      ['darwin', 'arm64', 'dist/mac'],
+      ['win32', 'arm64', 'dist/win-unpacked'],
+      ['win32', 'x64', 'dist/win-ia32-unpacked'],
+      ['linux', 'x64', 'dist/linux-unpacked'],
+      ['linux', 'ppc64', 'dist/linux-unpacked'],
+    ])('should not warn on a %s %s host when only %s exists', async (platform, arch, dir) => {
+      expect(await resolveFrom(platform, arch, builderInfo(), [dir])).toBe(appPath(platform, dir));
+      expect(await hostWarningFrom(platform, arch, builderInfo(), [dir])).toBeUndefined();
     });
   });
 });
