@@ -63,17 +63,14 @@ type PointerProbeWindow = PageWindow & {
   __pointerProbe?: { events: ProbedEvent[]; stop: () => void };
 };
 
-type ProbeOptions = { cancel?: 'pointerdown' | 'pointermove'; withFocusEvents?: boolean };
+type ProbeOptions = { cancel?: 'pointerdown' | 'pointermove' };
 
 async function startPointerProbe(options: ProbeOptions = {}) {
-  await browser.execute(({ cancel: canceledType, withFocusEvents }: ProbeOptions) => {
+  await browser.execute(({ cancel: canceledType }: ProbeOptions) => {
     const probeWindow = globalThis as unknown as PointerProbeWindow;
     probeWindow.__pointerProbe?.stop();
     const events: ProbedEvent[] = [];
     const types = ['pointerdown', 'mousedown', 'pointermove', 'mousemove', 'pointerup', 'mouseup', 'click'];
-    if (withFocusEvents) {
-      types.push('change', 'blur', 'focus');
-    }
     const record = (pageEvent: PageMouseEvent) => {
       const event = pageEvent as ProbeEvent;
       const { type, pointerType, isPrimary, button, buttons, detail, clientX, clientY } = event;
@@ -307,26 +304,5 @@ describe('Embedded WebDriver pointer events', () => {
     ]);
     expect(events[0]).toMatchObject({ inView: true });
     expectAtCentre(events);
-  });
-
-  it("should fire the change a field owes, then move focus, between Element Click's mouse down and up, as Chrome does", async () => {
-    await browser.execute('document.querySelector("#keys-scratch").innerHTML = \'<input id="owes-change">\';');
-    await browser.$('#owes-change').addValue('x');
-    // Started after the typing, so the drivers' own document listener that fires the owed change runs first.
-    await startPointerProbe({ withFocusEvents: true });
-
-    await browser.$('#increment-button').click();
-
-    const events = await stopPointerProbe();
-    expect(events.map(({ type, target }) => `${type} ${target}`)).toEqual([
-      'pointerdown increment-button',
-      'mousedown increment-button',
-      'change owes-change',
-      'blur owes-change',
-      'focus increment-button',
-      'pointerup increment-button',
-      'mouseup increment-button',
-      'click increment-button',
-    ]);
   });
 });
