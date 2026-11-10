@@ -157,8 +157,6 @@ if (testType === 'multiremote') {
         captureFrontendLogs: true,
         backendLogLevel: 'info',
         frontendLogLevel: 'info',
-        // The prefixes limit reset and restore to mocks made to test them, so a restore can't undo other
-        // specs' mocks or hide whether clear and reset ran.
         clearMocks: true,
         resetMocks: true,
         resetMocksPrefix: 'mock_options_reset',

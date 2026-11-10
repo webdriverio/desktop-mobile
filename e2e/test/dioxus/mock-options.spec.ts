@@ -1,8 +1,9 @@
 import { browser, expect } from '@wdio/globals';
 import type { DioxusMock } from '@wdio/native-types';
 
-// The standard capability sets clearMocks, resetMocks and restoreMocks, and this file doesn't restore
-// between tests. Each pair mocks in one test and checks in the next that the service applied the option.
+// The standard capability sets clearMocks, resetMocks and restoreMocks, with prefixes that give each option
+// its own command so one can't mask another. Each pair mocks in one test and checks in the next that the
+// service applied the option; nothing restores between them.
 describe('Dioxus mock options', () => {
   after(async () => {
     await browser.dioxus.restoreAllMocks();
