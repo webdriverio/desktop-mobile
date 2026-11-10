@@ -94,8 +94,9 @@ impl<R: Runtime> LinuxExecutor<R> {
     Self { window, timeouts, frame_context }
   }
 
-  /// Let the page collect a timed-out async script's promise. Runs in the top window, where the
-  /// script ran, not through `evaluate_js_raw`, which targets the selected frame.
+  /// Lets the page collect a timed-out async script's promise. Runs in the top window, where
+  /// async scripts run until #1025 makes them follow the selected frame, so it can't use
+  /// `evaluate_js_raw`.
   fn release_async_script(&self, pending_key: &str) {
     let release = format!("delete window['{pending_key}'];");
     let _ = self.window.with_webview(move |webview| {
@@ -531,12 +532,9 @@ impl<R: Runtime + 'static> LinuxExecutor<R> {
   }
 }
 
-/// A function body that runs an async-style `script` with its arguments and a done callback, and
-/// returns a promise of the value passed to `done`. `call_async_javascript_function_future` treats
-/// the body as function statements, so it must `return` the promise.
-///
-/// `WebKitGTK` fails the call once the promise is garbage-collected, which a script that never
-/// calls `done` allows, so `window[pending_key]` holds the promise until it settles or times out.
+/// `call_async_javascript_function_future` runs this as a function body, so it must `return` the
+/// promise. `WebKitGTK` fails the call once the promise is garbage-collected, as it is when only an
+/// uncalled `done` refers to it, so `window[pending_key]` holds it until it settles or times out.
 fn async_script_wrapper(
   script: &str,
   args_json: &str,

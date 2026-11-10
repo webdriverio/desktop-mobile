@@ -70,8 +70,8 @@ describe('Execute Async Script (embedded)', () => {
       });
 
       it('should fail with a script timeout when the script never calls done', async () => {
-        // Allocating while the script waits makes the page collect garbage, which would free a promise only
-        // `done` refers to. The timer starts in its own script: a closure in the async script would keep it.
+        // Allocate while the script waits so the page collects garbage, freeing a promise that only `done` refers to.
+        // Start the timer in its own script: a closure inside the async script would keep the promise alive.
         await browser.execute(() => {
           const page = window as unknown as { __wdioGarbageTimer?: number; __wdioGarbage?: unknown };
           clearInterval(page.__wdioGarbageTimer);
