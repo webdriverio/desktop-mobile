@@ -40,18 +40,43 @@ describe('W3C Actions API (click with options)', () => {
   });
 });
 
-type PointerProbeWindow = PageWindow & {
-  __pointerProbe?: { events: PageMouseEventFields[]; stop: () => void };
+type ProbeRect = { left: number; top: number; width: number; height: number; bottom: number };
+type ProbeEvent = PageMouseEvent & {
+  detail: number;
+  clientX: number;
+  clientY: number;
+  target: { id: string; getBoundingClientRect(): ProbeRect };
+};
+// An event's fields, and where its target was when it fired.
+type ProbedEvent = PageMouseEventFields & {
+  target: string;
+  detail: number;
+  clientX: number;
+  clientY: number;
+  centreX: number;
+  centreY: number;
+  inView: boolean;
 };
 
-async function startPointerProbe({ cancel }: { cancel?: 'pointerdown' | 'pointermove' } = {}) {
-  await browser.execute((canceledType?: string) => {
+type PointerProbeWindow = PageWindow & {
+  innerHeight: number;
+  __pointerProbe?: { events: ProbedEvent[]; stop: () => void };
+};
+
+type ProbeOptions = { cancel?: 'pointerdown' | 'pointermove'; withFocusEvents?: boolean };
+
+async function startPointerProbe(options: ProbeOptions = {}) {
+  await browser.execute(({ cancel: canceledType, withFocusEvents }: ProbeOptions) => {
     const probeWindow = globalThis as unknown as PointerProbeWindow;
     probeWindow.__pointerProbe?.stop();
-    const events: PageMouseEventFields[] = [];
+    const events: ProbedEvent[] = [];
     const types = ['pointerdown', 'mousedown', 'pointermove', 'mousemove', 'pointerup', 'mouseup', 'click'];
-    const record = (event: PageMouseEvent) => {
-      const { type, pointerType, isPrimary, button, buttons } = event;
+    if (withFocusEvents) {
+      types.push('change', 'blur', 'focus');
+    }
+    const record = (pageEvent: PageMouseEvent) => {
+      const event = pageEvent as ProbeEvent;
+      const { type, pointerType, isPrimary, button, buttons, detail, clientX, clientY } = event;
       // Hover moves are skipped so a real cursor resting over the window can't add noise.
       if (type.endsWith('move') && buttons === 0) {
         return;
@@ -59,7 +84,21 @@ async function startPointerProbe({ cancel }: { cancel?: 'pointerdown' | 'pointer
       if (type === canceledType) {
         event.preventDefault();
       }
-      events.push({ type, pointerType, isPrimary, button, buttons });
+      const rect = event.target.getBoundingClientRect();
+      events.push({
+        type,
+        pointerType,
+        isPrimary,
+        button,
+        buttons,
+        detail,
+        clientX,
+        clientY,
+        target: event.target.id,
+        centreX: rect.left + rect.width / 2,
+        centreY: rect.top + rect.height / 2,
+        inView: rect.top >= 0 && rect.bottom <= probeWindow.innerHeight,
+      });
     };
     for (const type of types) {
       probeWindow.document.addEventListener(type, record, true);
@@ -72,10 +111,10 @@ async function startPointerProbe({ cancel }: { cancel?: 'pointerdown' | 'pointer
         }
       },
     };
-  }, cancel);
+  }, options);
 }
 
-async function stopPointerProbe(): Promise<PageMouseEventFields[]> {
+async function stopPointerProbe(): Promise<ProbedEvent[]> {
   const events: unknown = await browser.execute(() => {
     const probeWindow = globalThis as unknown as PointerProbeWindow;
     const probe = probeWindow.__pointerProbe;
@@ -83,7 +122,15 @@ async function stopPointerProbe(): Promise<PageMouseEventFields[]> {
     delete probeWindow.__pointerProbe;
     return probe?.events ?? [];
   });
-  return events as PageMouseEventFields[];
+  return events as ProbedEvent[];
+}
+
+// The press lands on its target's centre, rounded down as in W3C's in-view centre point, and the release
+// lands on the same point.
+function expectAtCentre(events: ProbedEvent[]) {
+  const [{ clientX, clientY, centreX, centreY }] = events;
+  expect([clientX, clientY]).toEqual([Math.floor(centreX), Math.floor(centreY)]);
+  expect(events).toMatchObject(events.map(() => ({ clientX, clientY })));
 }
 
 async function pressAt(x: number, y: number, button: 0 | 1 | 2 = 0) {
@@ -134,6 +181,11 @@ describe('Embedded WebDriver pointer events', () => {
 
   afterEach(async () => {
     await stopPointerProbe();
+    await browser.execute(
+      'if (document.activeElement) { document.activeElement.blur(); }' +
+        'document.querySelector("#keys-scratch").innerHTML = "";' +
+        'window.scrollTo(0, 0);',
+    );
   });
 
   it('should dispatch a primary mouse pointerdown/pointerup before the compatibility mouse events', async () => {
@@ -212,5 +264,69 @@ describe('Embedded WebDriver pointer events', () => {
 
     const events = await stopPointerProbe();
     expect(events.map(({ type }) => type)).toEqual(CHORDED_SEQUENCE);
+  });
+
+  // Leaves out where the drivers differ from Chrome: mousedown's and mouseup's detail, which they keep at 0 so
+  // a click can't start a Tauri window drag, and click's isPrimary, which Chrome leaves false.
+  it("should send Element Click's pointer and mouse events at the element's centre, as Chrome does", async () => {
+    await startPointerProbe();
+
+    await browser.$('#increment-button').click();
+
+    const events = await stopPointerProbe();
+    const pointer = { target: 'increment-button', pointerType: 'mouse', button: 0 };
+    expect(events).toMatchObject([
+      { type: 'pointerdown', ...pointer, isPrimary: true, buttons: 1, detail: 0 },
+      { type: 'mousedown', target: 'increment-button', button: 0, buttons: 1 },
+      { type: 'pointerup', ...pointer, isPrimary: true, buttons: 0, detail: 0 },
+      { type: 'mouseup', target: 'increment-button', button: 0, buttons: 0 },
+      { type: 'click', ...pointer, buttons: 0, detail: 1 },
+    ]);
+    expectAtCentre(events);
+  });
+
+  it('should scroll an element below the fold into view before Element Click presses it', async () => {
+    const belowTheFold = await browser.execute(
+      `document.querySelector("#keys-scratch").innerHTML =
+        '<div style="height: 200vh"></div><button type="button" id="below-the-fold">below</button>';
+      window.scrollTo(0, 0);
+      return document.querySelector("#below-the-fold").getBoundingClientRect().top >= window.innerHeight;`,
+    );
+    expect(belowTheFold).toBe(true);
+    await startPointerProbe();
+
+    await browser.$('#below-the-fold').click();
+
+    const events = await stopPointerProbe();
+    expect(events.map(({ type, target }) => `${type} ${target}`)).toEqual([
+      'pointerdown below-the-fold',
+      'mousedown below-the-fold',
+      'pointerup below-the-fold',
+      'mouseup below-the-fold',
+      'click below-the-fold',
+    ]);
+    expect(events[0]).toMatchObject({ inView: true });
+    expectAtCentre(events);
+  });
+
+  it("should fire the change a field owes, then move focus, between Element Click's mouse down and up, as Chrome does", async () => {
+    await browser.execute('document.querySelector("#keys-scratch").innerHTML = \'<input id="owes-change">\';');
+    await browser.$('#owes-change').addValue('x');
+    // Started after the typing, so the drivers' own document listener that fires the owed change runs first.
+    await startPointerProbe({ withFocusEvents: true });
+
+    await browser.$('#increment-button').click();
+
+    const events = await stopPointerProbe();
+    expect(events.map(({ type, target }) => `${type} ${target}`)).toEqual([
+      'pointerdown increment-button',
+      'mousedown increment-button',
+      'change owes-change',
+      'blur owes-change',
+      'focus increment-button',
+      'pointerup increment-button',
+      'mouseup increment-button',
+      'click increment-button',
+    ]);
   });
 });

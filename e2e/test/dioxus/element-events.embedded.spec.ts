@@ -22,6 +22,62 @@ async function focusedId() {
   );
 }
 
+// An event's fields, and where its target was when it fired.
+type ProbedEvent = {
+  type: string;
+  target: string;
+  pointerType?: string;
+  isPrimary?: boolean;
+  button?: number;
+  buttons?: number;
+  detail?: number;
+  clientX?: number;
+  clientY?: number;
+  centreX: number;
+  centreY: number;
+  inView: boolean;
+};
+
+async function startPointerProbe({ withFocusEvents = false } = {}) {
+  const types = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+  if (withFocusEvents) {
+    types.push('change', 'blur', 'focus');
+  }
+  await browser.execute(
+    `if (window.__pointerProbe) { window.__pointerProbe.stop(); }
+    var types = ${JSON.stringify(types)};
+    var events = [];
+    function record(ev) {
+      var rect = ev.target.getBoundingClientRect();
+      events.push({
+        type: ev.type, target: ev.target.id, pointerType: ev.pointerType, isPrimary: ev.isPrimary,
+        button: ev.button, buttons: ev.buttons, detail: ev.detail, clientX: ev.clientX, clientY: ev.clientY,
+        centreX: rect.left + rect.width / 2, centreY: rect.top + rect.height / 2,
+        inView: rect.top >= 0 && rect.bottom <= window.innerHeight,
+      });
+    }
+    for (var type of types) { document.addEventListener(type, record, true); }
+    window.__pointerProbe = { events: events, stop: function () {
+      for (var type of types) { document.removeEventListener(type, record, true); }
+    } };`,
+  );
+}
+
+async function stopPointerProbe() {
+  return (await browser.execute(
+    'var probe = window.__pointerProbe; window.__pointerProbe = undefined;' +
+      'if (!probe) { return []; } probe.stop(); return probe.events;',
+  )) as unknown as ProbedEvent[];
+}
+
+// The press lands on its target's centre, rounded down as in W3C's in-view centre point, and the release
+// lands on the same point.
+function expectAtCentre(events: ProbedEvent[]) {
+  const [{ clientX, clientY, centreX, centreY }] = events;
+  expect([clientX, clientY]).toEqual([Math.floor(centreX), Math.floor(centreY)]);
+  expect(events).toMatchObject(events.map(() => ({ clientX, clientY })));
+}
+
 // A field that logs input, change and blur with its value, next to a button to move focus to.
 async function fillChangeScratch(initialValue = '', { inShadowHost = false } = {}) {
   const field = `<input id="fresh-field" value="${initialValue}">`;
@@ -69,7 +125,8 @@ describe('Dioxus element events (embedded)', () => {
     await browser.execute(
       'if (document.activeElement) { document.activeElement.blur(); }' +
         'var scratch = document.querySelector("#change-scratch");' +
-        'if (scratch) { scratch.innerHTML = ""; }',
+        'if (scratch) { scratch.innerHTML = ""; }' +
+        'window.scrollTo(0, 0);',
     );
   });
 
@@ -201,6 +258,64 @@ describe('Dioxus element events (embedded)', () => {
     );
     await browser.$('#fresh-other').click();
     expect(await browser.execute('return window.__releaseSawPress')).toBe(true);
+  });
+
+  // Leaves out where the driver differs from Chrome: mousedown's and mouseup's detail, which stays 0 so a
+  // click can't start a Tauri window drag (the driver shares Tauri's script), and click's isPrimary, which
+  // Chrome leaves false.
+  it("should send Element Click's pointer and mouse events at the element's centre, as Chrome does", async () => {
+    await startPointerProbe();
+    await browser.$('#increment-button').click();
+    const events = await stopPointerProbe();
+    const pointer = { target: 'increment-button', pointerType: 'mouse', button: 0 };
+    expect(events).toMatchObject([
+      { type: 'pointerdown', ...pointer, isPrimary: true, buttons: 1, detail: 0 },
+      { type: 'mousedown', target: 'increment-button', button: 0, buttons: 1 },
+      { type: 'pointerup', ...pointer, isPrimary: true, buttons: 0, detail: 0 },
+      { type: 'mouseup', target: 'increment-button', button: 0, buttons: 0 },
+      { type: 'click', ...pointer, buttons: 0, detail: 1 },
+    ]);
+    expectAtCentre(events);
+  });
+
+  it('should scroll an element below the fold into view before Element Click presses it', async () => {
+    await fillChangeScratch();
+    await addToScratch('<div style="height: 200vh"></div><button id="fresh-below">below</button>');
+    const belowTheFold = await browser.execute(
+      'window.scrollTo(0, 0);' +
+        'return document.querySelector("#fresh-below").getBoundingClientRect().top >= window.innerHeight;',
+    );
+    expect(belowTheFold).toBe(true);
+    await startPointerProbe();
+    await browser.$('#fresh-below').click();
+    const events = await stopPointerProbe();
+    expect(events.map(({ type, target }) => `${type} ${target}`)).toEqual([
+      'pointerdown fresh-below',
+      'mousedown fresh-below',
+      'pointerup fresh-below',
+      'mouseup fresh-below',
+      'click fresh-below',
+    ]);
+    expect(events[0]).toMatchObject({ inView: true });
+    expectAtCentre(events);
+  });
+
+  it("should fire the change a field owes, then move focus, between Element Click's mouse down and up, as Chrome does", async () => {
+    await fillChangeScratch();
+    await browser.$('#fresh-field').addValue('x');
+    // Started after the typing, so the driver's own document listener that fires the owed change runs first.
+    await startPointerProbe({ withFocusEvents: true });
+    await browser.$('#increment-button').click();
+    expect((await stopPointerProbe()).map(({ type, target }) => `${type} ${target}`)).toEqual([
+      'pointerdown increment-button',
+      'mousedown increment-button',
+      'change fresh-field',
+      'blur fresh-field',
+      'focus increment-button',
+      'pointerup increment-button',
+      'mouseup increment-button',
+      'click increment-button',
+    ]);
   });
 
   it('should take focus off the field when a click lands on an element that cannot take it', async () => {
