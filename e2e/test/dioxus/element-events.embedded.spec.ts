@@ -311,7 +311,7 @@ describe('Dioxus element events (embedded)', () => {
     ]);
   });
 
-  // Chrome would navigate, but Dioxus desktop blocks navigation to the app's pages once it has loaded.
+  // Unlike Chrome, Dioxus desktop blocks navigation to the app's own pages after the first load.
   it('should fire submit on Enter in a form no handler cancels, without navigating', async () => {
     await fillFormScratch('<input id="fresh-field" name="q"><button id="fresh-submit">go</button>', {
       cancelSubmit: false,
