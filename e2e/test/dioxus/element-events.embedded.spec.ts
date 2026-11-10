@@ -70,8 +70,8 @@ async function stopPointerProbe() {
   )) as unknown as ProbedEvent[];
 }
 
-// The press lands on its target's centre, rounded down as W3C's in-view centre point is, and the release
-// lands where the press did.
+// The press lands on its target's centre, rounded down as in W3C's in-view centre point, and the release
+// lands on the same point.
 function expectAtCentre(events: ProbedEvent[]) {
   const [{ clientX, clientY, centreX, centreY }] = events;
   expect([clientX, clientY]).toEqual([Math.floor(centreX), Math.floor(centreY)]);
@@ -220,8 +220,9 @@ describe('Dioxus element events (embedded)', () => {
     expect(await browser.execute('return window.__releaseSawPress')).toBe(true);
   });
 
-  // Leaves out where the driver differs from Chrome: mousedown's and mouseup's detail, which the script it
-  // shares with Tauri's keeps at 0 for Tauri's drag regions, and click's isPrimary, which Chrome leaves false.
+  // Leaves out where the driver differs from Chrome: mousedown's and mouseup's detail, which stays 0 so a
+  // click can't start a Tauri window drag (the driver shares Tauri's script), and click's isPrimary, which
+  // Chrome leaves false.
   it("should send Element Click's pointer and mouse events at the element's centre, as Chrome does", async () => {
     await startPointerProbe();
     await browser.$('#increment-button').click();

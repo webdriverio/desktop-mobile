@@ -125,8 +125,8 @@ async function stopPointerProbe(): Promise<ProbedEvent[]> {
   return events as ProbedEvent[];
 }
 
-// The press lands on its target's centre, rounded down as W3C's in-view centre point is, and the release
-// lands where the press did.
+// The press lands on its target's centre, rounded down as in W3C's in-view centre point, and the release
+// lands on the same point.
 function expectAtCentre(events: ProbedEvent[]) {
   const [{ clientX, clientY, centreX, centreY }] = events;
   expect([clientX, clientY]).toEqual([Math.floor(centreX), Math.floor(centreY)]);
