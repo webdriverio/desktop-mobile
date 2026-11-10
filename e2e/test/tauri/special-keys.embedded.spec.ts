@@ -64,8 +64,8 @@ async function fillChangeScratch({ initialValue = '', inShadowHost = false } = {
   );
 }
 
-// Cancels the form's submit so the page doesn't navigate.
-async function fillFormScratch(fields: string) {
+// Cancels the form's submit by default, so the page doesn't navigate.
+async function fillFormScratch(fields: string, { cancelSubmit = true } = {}) {
   await fillScratch(
     `scratch.innerHTML = '<form id="fresh-form">${fields}</form>';
     var form = document.querySelector("#fresh-form");
@@ -78,7 +78,7 @@ async function fillFormScratch(fields: string) {
         window.__fieldEvents.push(ev.type + " " + detail);
       });
     }
-    form.addEventListener("submit", function (ev) { ev.preventDefault(); });`,
+    ${cancelSubmit ? 'form.addEventListener("submit", function (ev) { ev.preventDefault(); });' : ''}`,
   );
 }
 
@@ -699,14 +699,12 @@ describe('special keys (embedded)', () => {
     });
 
     async function fillSubmittingForm() {
-      await fillScratch(
-        `scratch.innerHTML = '<form method="get"><input id="fresh-field" name="q"><button>go</button></form>';
-        window.__beforeSubmit = true;`,
-      );
+      await fillFormScratch('<input id="fresh-field" name="q"><button>go</button>', { cancelSubmit: false });
+      await browser.execute('window.__beforeSubmit = true');
     }
 
-    // Waits with getUrl, which reads the page in one script: execute polls for its result in a second script,
-    // which a navigation can drop.
+    // Workaround for #1012: execute's result can be lost when the page navigates. Switch back to execute once
+    // that's fixed.
     async function waitForSubmitNavigation(search: string) {
       await browser.waitUntil(async () => new URL(await browser.getUrl()).search === search, {
         timeoutMsg: `The submit didn't navigate to ${search}`,

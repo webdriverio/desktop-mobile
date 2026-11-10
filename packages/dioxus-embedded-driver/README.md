@@ -107,7 +107,7 @@ Element Send Keys sets a date, time or range input's value without pressing any 
 
 Space on a focused button clicks it on the `keyup`, as in Chrome. It doesn't click if a handler cancels the `keydown` or the `keyup`, or if focus moves between them.
 
-Each click is a single `click` event, without pointer or mouse events. Unlike in Chrome, a `submit` that no handler cancels doesn't navigate the page: once the app has loaded, Dioxus desktop blocks navigation to the app's pages, and opens an `http` or `https` URL in the system browser instead.
+Each click is a single `click` event, without pointer or mouse events. Unlike in Chrome, a `submit` that no handler cancels doesn't navigate the page: once the app has loaded, Dioxus desktop blocks navigation to its own pages. A form whose `action` is an external `http` or `https` URL opens it in the system browser.
 
 Unlike in Chrome, Enter and Space send only their key events in these cases:
 - Enter on a link, a `<summary>`, a colour or file input or a `<select>`.

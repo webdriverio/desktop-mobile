@@ -41,8 +41,8 @@ async function fillChangeScratch(initialValue = '') {
   );
 }
 
-// Cancels the form's submit so the page doesn't navigate.
-async function fillFormScratch(fields: string) {
+// Cancels the form's submit by default, so the page doesn't navigate.
+async function fillFormScratch(fields: string, { cancelSubmit = true } = {}) {
   await fillChangeScratch();
   await browser.execute(
     `document.querySelector("#change-scratch").innerHTML = '<form id="fresh-form">${fields}</form>';
@@ -56,7 +56,7 @@ async function fillFormScratch(fields: string) {
         window.__fieldEvents.push(ev.type + " " + detail);
       });
     }
-    form.addEventListener("submit", function (ev) { ev.preventDefault(); });`,
+    ${cancelSubmit ? 'form.addEventListener("submit", function (ev) { ev.preventDefault(); });' : ''}`,
   );
 }
 
@@ -313,15 +313,10 @@ describe('Dioxus element events (embedded)', () => {
 
   // Chrome would navigate, but Dioxus desktop blocks navigation to the app's pages once it has loaded.
   it('should fire submit on Enter in a form no handler cancels, without navigating', async () => {
-    await fillChangeScratch();
-    await browser.execute(
-      `document.querySelector("#change-scratch").innerHTML = '<form id="fresh-form" method="get"><input id="fresh-field" name="q"><button id="fresh-submit">go</button></form>';
-      window.__fieldEvents = [];
-      window.__beforeSubmit = true;
-      document.querySelector("#fresh-form").addEventListener("submit", function (ev) {
-        window.__fieldEvents.push("submit " + ev.submitter.id);
-      });`,
-    );
+    await fillFormScratch('<input id="fresh-field" name="q"><button id="fresh-submit">go</button>', {
+      cancelSubmit: false,
+    });
+    await browser.execute('window.__beforeSubmit = true');
     await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
     await browser.keys(Key.Enter);
     const navigation = browser.waitUntil(async () => (await browser.getUrl()).includes('?'), {
@@ -329,7 +324,10 @@ describe('Dioxus element events (embedded)', () => {
       timeoutMsg: 'no navigation',
     });
     expect((await errorOf(navigation))?.message).toBe('no navigation');
-    expect(await fieldEvents()).toEqual(['submit fresh-submit', 'submit fresh-submit']);
+    expect((await fieldEvents()).filter((event) => event.startsWith('submit'))).toEqual([
+      'submit fresh-submit',
+      'submit fresh-submit',
+    ]);
     expect(await browser.execute('return [location.search, window.__beforeSubmit]')).toEqual(['', true]);
   });
 
