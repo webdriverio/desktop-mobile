@@ -208,7 +208,7 @@ if (envContext.isMultiremote) {
           ...(envContext.isScript ? { appEntryPoint } : { appBinaryPath }),
           appArgs: ['--foo', '--bar=baz', '--browser=B'],
           apparmorAutoInstall: 'sudo',
-          // Unlike browserA, so multiremote/api.spec.ts can check each instance applies its own option.
+          // browserA restores mocks and browserB doesn't, so a test can check each instance applies its own option.
           restoreMocks: false,
           mainProcessLogLevel: 'info',
         },

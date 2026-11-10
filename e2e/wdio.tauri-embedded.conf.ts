@@ -168,7 +168,7 @@ if (envContext.isMultiremote) {
   }
 
   // A takes its args from appArgs and B from tauri:options.args. Both prefer port 4445, so B gets another
-  // free port, and the launcher points each instance at its own.
+  // free port, which the session reaches only through the launcher.
   capabilities = {
     browserA: {
       capabilities: {

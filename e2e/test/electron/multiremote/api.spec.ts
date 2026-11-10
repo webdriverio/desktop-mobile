@@ -80,11 +80,11 @@ describe('Electron APIs using Multiremote', () => {
 
     expect(await browserA.electron.execute((electron) => electron.app.getName())).toBe(getExpectedAppName());
     expect(await browserB.electron.execute((electron) => electron.app.getName())).toBe('mocked in B');
-    // browserB's options don't restore mocks between tests.
+    // browserB doesn't restore its own mocks, so clean up here.
     await browserB.electron.restoreAllMocks();
   });
 
-  // browserA's options set restoreMocks and browserB's don't, so only A's mock is restored before the second test.
+  // Only browserA sets restoreMocks, so before the second test only its mock is restored.
   describe("each instance's restoreMocks", () => {
     it('should mock an API in both instances', async () => {
       const multi = multiRemoteBrowser as WebdriverIO.MultiRemoteBrowser;

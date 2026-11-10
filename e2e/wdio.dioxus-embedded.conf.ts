@@ -90,7 +90,7 @@ let capabilities: MultiremoteCapabilities | StandardCapabilities;
 
 if (testType === 'multiremote') {
   // A takes its args from 'dioxus:options' and B from appArgs. Both prefer port 4445, so B gets another
-  // free port, and the launcher points each instance at its own.
+  // free port, which the session reaches only through the launcher.
   capabilities = {
     browserA: {
       capabilities: {
