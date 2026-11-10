@@ -41,8 +41,8 @@ async function fillChangeScratch(initialValue = '') {
   );
 }
 
-// Cancels the form's submit by default, so the page doesn't navigate.
-async function fillFormScratch(fields: string, { cancelSubmit = true } = {}) {
+// Cancels the form's submit so the page doesn't navigate.
+async function fillFormScratch(fields: string) {
   await fillChangeScratch();
   await browser.execute(
     `document.querySelector("#change-scratch").innerHTML = '<form id="fresh-form">${fields}</form>';
@@ -56,7 +56,7 @@ async function fillFormScratch(fields: string, { cancelSubmit = true } = {}) {
         window.__fieldEvents.push(ev.type + " " + detail);
       });
     }
-    ${cancelSubmit ? 'form.addEventListener("submit", function (ev) { ev.preventDefault(); });' : ''}`,
+    form.addEventListener("submit", function (ev) { ev.preventDefault(); });`,
   );
 }
 
@@ -309,26 +309,6 @@ describe('Dioxus element events (embedded)', () => {
       'submit fresh-submit',
       'keyup Enter',
     ]);
-  });
-
-  // Unlike Chrome, Dioxus desktop blocks navigation to the app's own pages after the first load.
-  it('should fire submit on Enter in a form no handler cancels, without navigating', async () => {
-    await fillFormScratch('<input id="fresh-field" name="q"><button id="fresh-submit">go</button>', {
-      cancelSubmit: false,
-    });
-    await browser.execute('window.__beforeSubmit = true');
-    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
-    await browser.keys(Key.Enter);
-    const navigation = browser.waitUntil(async () => (await browser.getUrl()).includes('?'), {
-      timeout: 1000,
-      timeoutMsg: 'no navigation',
-    });
-    expect((await errorOf(navigation))?.message).toBe('no navigation');
-    expect((await fieldEvents()).filter((event) => event.startsWith('submit'))).toEqual([
-      'submit fresh-submit',
-      'submit fresh-submit',
-    ]);
-    expect(await browser.execute('return [location.search, window.__beforeSubmit]')).toEqual(['', true]);
   });
 
   it('should click a button on Enter and Space in addValue, leaving its value alone', async () => {

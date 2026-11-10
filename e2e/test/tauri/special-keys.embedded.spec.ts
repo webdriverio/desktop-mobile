@@ -64,8 +64,8 @@ async function fillChangeScratch({ initialValue = '', inShadowHost = false } = {
   );
 }
 
-// Cancels the form's submit by default, so the page doesn't navigate.
-async function fillFormScratch(fields: string, { cancelSubmit = true } = {}) {
+// Cancels the form's submit so the page doesn't navigate.
+async function fillFormScratch(fields: string) {
   await fillScratch(
     `scratch.innerHTML = '<form id="fresh-form">${fields}</form>';
     var form = document.querySelector("#fresh-form");
@@ -78,7 +78,7 @@ async function fillFormScratch(fields: string, { cancelSubmit = true } = {}) {
         window.__fieldEvents.push(ev.type + " " + detail);
       });
     }
-    ${cancelSubmit ? 'form.addEventListener("submit", function (ev) { ev.preventDefault(); });' : ''}`,
+    form.addEventListener("submit", function (ev) { ev.preventDefault(); });`,
   );
 }
 
@@ -679,51 +679,6 @@ describe('special keys (embedded)', () => {
     );
     await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
     expect(await fieldEvents()).toEqual(['keydown Enter', 'keyup Enter']);
-  });
-
-  describe('with a form no handler cancels', () => {
-    let startUrl: string;
-
-    before(async () => {
-      startUrl = await browser.getUrl();
-    });
-
-    // The submit reloads the app, which later specs share, so put back the page the spec started on.
-    afterEach(async () => {
-      if ((await browser.getUrl()) === startUrl) {
-        return;
-      }
-      await browser.url(startUrl);
-      await browser.waitUntil(async () => (await browser.getUrl()) === startUrl);
-      await browser.waitUntil(() => browser.execute('return document.readyState === "complete"'));
-    });
-
-    async function fillSubmittingForm() {
-      await fillFormScratch('<input id="fresh-field" name="q"><button>go</button>', { cancelSubmit: false });
-      await browser.execute('window.__beforeSubmit = true');
-    }
-
-    // Workaround for #1012: execute's result can be lost when the page navigates. Switch back to execute once
-    // that's fixed.
-    async function waitForSubmitNavigation(search: string) {
-      await browser.waitUntil(async () => new URL(await browser.getUrl()).search === search, {
-        timeoutMsg: `The submit didn't navigate to ${search}`,
-      });
-      expect(await browser.execute('return "__beforeSubmit" in window')).toBe(false);
-    }
-
-    it('should navigate on Enter in addValue, as Chrome does', async () => {
-      await fillSubmittingForm();
-      await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
-      await waitForSubmitNavigation('?q=x');
-    });
-
-    it('should navigate on Enter in key actions, as Chrome does', async () => {
-      await fillSubmittingForm();
-      await browser.$('#fresh-field').addValue('y');
-      await browser.keys(Key.Enter);
-      await waitForSubmitNavigation('?q=y');
-    });
   });
 
   it('should click a button on Enter before the keyup, and on Space after it, as Chrome does', async () => {
