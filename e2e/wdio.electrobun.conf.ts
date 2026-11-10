@@ -131,8 +131,8 @@ const capabilities =
     : [
         {
           ...baseCapability,
-          // Checked by mock-options.spec.ts. The prefixes keep reset and restore to the mocks it makes for
-          // them, so a restore can't hide whether clear and reset ran.
+          // The prefixes limit reset and restore to mocks made to test them, so a restore can't undo other
+          // specs' mocks or hide whether clear and reset ran.
           'wdio:electrobunServiceOptions': {
             ...electrobunServiceOptions,
             clearMocks: true,
