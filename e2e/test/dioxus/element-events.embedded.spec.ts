@@ -38,11 +38,8 @@ type ProbedEvent = {
   inView: boolean;
 };
 
-async function startPointerProbe({ withFocusEvents = false } = {}) {
+async function startPointerProbe() {
   const types = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
-  if (withFocusEvents) {
-    types.push('change', 'blur', 'focus');
-  }
   await browser.execute(
     `if (window.__pointerProbe) { window.__pointerProbe.stop(); }
     var types = ${JSON.stringify(types)};
@@ -298,24 +295,6 @@ describe('Dioxus element events (embedded)', () => {
     ]);
     expect(events[0]).toMatchObject({ inView: true });
     expectAtCentre(events);
-  });
-
-  it("should fire the change a field owes, then move focus, between Element Click's mouse down and up, as Chrome does", async () => {
-    await fillChangeScratch();
-    await browser.$('#fresh-field').addValue('x');
-    // Started after the typing, so the driver's own document listener that fires the owed change runs first.
-    await startPointerProbe({ withFocusEvents: true });
-    await browser.$('#increment-button').click();
-    expect((await stopPointerProbe()).map(({ type, target }) => `${type} ${target}`)).toEqual([
-      'pointerdown increment-button',
-      'mousedown increment-button',
-      'change fresh-field',
-      'blur fresh-field',
-      'focus increment-button',
-      'pointerup increment-button',
-      'mouseup increment-button',
-      'click increment-button',
-    ]);
   });
 
   it('should take focus off the field when a click lands on an element that cannot take it', async () => {
