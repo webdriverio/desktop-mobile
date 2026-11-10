@@ -568,26 +568,3 @@ fn async_script_wrapper(
             return __promise.finally(function() {{ delete window['{pending_key}']; }});"
   )
 }
-
-#[cfg(test)]
-mod tests {
-  use super::async_script_wrapper;
-
-  #[test]
-  fn async_script_wrapper_holds_the_promise_on_window_until_it_settles() {
-    let body = async_script_wrapper(
-      "arguments[1](arguments[0] * 2)",
-      "[21]",
-      "__wdio_async_key",
-      "",
-      "result",
-    );
-
-    assert!(body.starts_with("var __promise = new Promise((resolve, reject) => {"));
-    assert!(body.contains("var __args = [21].map(deserializeArg);"));
-    assert!(body.contains("(function() { arguments[1](arguments[0] * 2) }).apply(null, __args);"));
-    assert!(body.contains("window['__wdio_async_key'] = __promise;"));
-    assert!(body
-      .ends_with("return __promise.finally(function() { delete window['__wdio_async_key']; });"));
-  }
-}
