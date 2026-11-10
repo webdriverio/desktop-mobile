@@ -78,6 +78,11 @@ type DioxusCapability = {
     captureFrontendLogs?: boolean;
     backendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
     frontendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+    clearMocks?: boolean;
+    resetMocks?: boolean;
+    resetMocksPrefix?: string;
+    restoreMocks?: boolean;
+    restoreMocksPrefix?: string;
   };
 };
 
@@ -160,6 +165,11 @@ if (testType === 'multiremote') {
         captureFrontendLogs: true,
         backendLogLevel: 'info',
         frontendLogLevel: 'info',
+        clearMocks: true,
+        resetMocks: true,
+        resetMocksPrefix: 'mock_options_reset',
+        restoreMocks: true,
+        restoreMocksPrefix: 'get_command_line_args',
       },
     },
   ];

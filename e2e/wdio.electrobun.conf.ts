@@ -128,7 +128,19 @@ const baseCapability: ElectrobunCapability = {
 const capabilities =
   testType === 'multiremote'
     ? { instanceA: { capabilities: { ...baseCapability } }, instanceB: { capabilities: { ...baseCapability } } }
-    : [baseCapability];
+    : [
+        {
+          ...baseCapability,
+          'wdio:electrobunServiceOptions': {
+            ...electrobunServiceOptions,
+            clearMocks: true,
+            resetMocks: true,
+            resetMocksPrefix: 'mockOptionsReset',
+            restoreMocks: true,
+            restoreMocksPrefix: 'mockOptionsRestore',
+          },
+        },
+      ];
 
 const logDirName = getLogDirName(testType, 'electrobun');
 const logDir = join(__dirname, 'logs', logDirName);
