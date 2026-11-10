@@ -187,7 +187,7 @@ let capabilities: MultiremoteCapabilities | StandardCapabilities;
 
 if (envContext.isMultiremote) {
   // Multiremote configuration. Log capture is set at service level (see `services`), so the logging
-  // spec checks that it reaches every instance and merges with each instance's own log level.
+  // spec checks that it reaches every instance.
   capabilities = {
     browserA: {
       capabilities: {

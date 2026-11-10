@@ -376,7 +376,7 @@ describe('special keys (embedded)', () => {
     await input.setValue('ab\b\r\nc');
     expect(await input.getValue()).toBe('ac');
     expect(await keysInputEvents()).toContainEqual({ type: 'change', value: 'a' });
-    // A textarea turns a typed carriage return into a newline.
+    // A typed carriage return would show as a newline in a textarea, so `ab` shows the driver skipped it (#828).
     const textarea = browser.$('#keys-textarea');
     await textarea.setValue('a\rb');
     expect(await textarea.getValue()).toBe('ab');

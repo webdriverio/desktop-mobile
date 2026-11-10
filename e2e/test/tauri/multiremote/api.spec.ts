@@ -30,7 +30,7 @@ describe('Tauri APIs using Multiremote', () => {
     expect(resultA.os).toBe(resultB.os); // Same OS for both instances
   });
 
-  it('should execute commands independently on multiple instances', async () => {
+  it('should drive a separate app from each instance', async () => {
     const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
     const browserA = multi.getInstance('browserA');
     const browserB = multi.getInstance('browserB');

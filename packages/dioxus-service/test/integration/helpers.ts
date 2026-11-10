@@ -26,9 +26,9 @@ export function createFakeBrowser(): FakeBrowser {
     url: vi.fn().mockResolvedValue(undefined),
     execute: vi.fn().mockResolvedValue(undefined),
     overwriteCommand: vi.fn((name: string, fn: OverrideFn, options?: unknown) => {
-      // WebdriverIO v10 throws on v9's boolean third argument.
+      // overwriteCommand rejects a boolean third argument.
       if (typeof options === 'boolean') {
-        throw new Error('overwriteCommand no longer takes a boolean in WebdriverIO v10.');
+        throw new Error("overwriteCommand doesn't take a boolean third argument.");
       }
       overrides.set(name, fn);
       // Mirror webdriverio: overwriting a browser command (e.g. url — read-only in wdio >=9.27,
