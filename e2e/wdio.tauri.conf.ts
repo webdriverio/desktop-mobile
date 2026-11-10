@@ -184,7 +184,7 @@ if (envContext.isMultiremote) {
           appBinaryPath: appBinaryPath,
           appArgs: ['--browser=A'],
           env: baseEnv,
-          // Only A restores mocks before each test, which multiremote/mocking.spec.ts checks
+          // Only A sets restoreMocks, so a test can check the option applies per instance.
           restoreMocks: true,
           // Enable log capture for logging tests
           captureBackendLogs: true,

@@ -29,8 +29,7 @@ describe('Tauri mocking using Multiremote', () => {
 
   describe('per-instance mocks', () => {
     afterEach(async () => {
-      await instance('browserA').tauri.restoreAllMocks();
-      await instance('browserB').tauri.restoreAllMocks();
+      await root().tauri.restoreAllMocks();
     });
 
     it('should give each instance its own mock', async () => {
@@ -41,8 +40,6 @@ describe('Tauri mocking using Multiremote', () => {
       expect(platformB).toEqual({ os: 'mock-b' });
 
       expect(mockA).not.toBe(mockB);
-      await mockA.update();
-      await mockB.update();
       expect(mockA).toHaveBeenCalledTimes(1);
       expect(mockB).toHaveBeenCalledTimes(1);
 
@@ -67,8 +64,6 @@ describe('Tauri mocking using Multiremote', () => {
     it("should clear every instance's mock calls from the root", async () => {
       const [mockA, mockB] = await mockBoth();
       await getBothPlatformInfo();
-      await mockA.update();
-      await mockB.update();
       expect(mockA).toHaveBeenCalledTimes(1);
       expect(mockB).toHaveBeenCalledTimes(1);
 
@@ -81,8 +76,6 @@ describe('Tauri mocking using Multiremote', () => {
       const [platformA, platformB] = await getBothPlatformInfo();
       expect(platformA).toEqual({ os: 'mock-a' });
       expect(platformB).toEqual({ os: 'mock-b' });
-      await mockA.update();
-      await mockB.update();
       expect(mockA).toHaveBeenCalledTimes(1);
       expect(mockB).toHaveBeenCalledTimes(1);
     });
@@ -105,8 +98,7 @@ describe('Tauri mocking using Multiremote', () => {
   // A restore in afterEach would hide that, so this pair cleans up once both have run.
   describe("each instance's restoreMocks", () => {
     after(async () => {
-      await instance('browserA').tauri.restoreAllMocks();
-      await instance('browserB').tauri.restoreAllMocks();
+      await root().tauri.restoreAllMocks();
     });
 
     it('should mock a command in both instances', async () => {
