@@ -15,5 +15,16 @@ describe('Electrobun APIs using Multiremote', () => {
 
     expect(await instanceA.electrobun.execute(readAppTitleId)).toBe('app-title');
     expect(await instanceB.electrobun.execute(readAppTitleId)).toBe('app-title');
+
+    // Each page keeps its own value, which it wouldn't if both instances drove one app.
+    type Marked = { __wdioInstance?: string };
+    await instanceA.electrobun.execute(() => {
+      (globalThis as unknown as Marked).__wdioInstance = 'A';
+    });
+    await instanceB.electrobun.execute(() => {
+      (globalThis as unknown as Marked).__wdioInstance = 'B';
+    });
+    expect(await instanceA.electrobun.execute(() => (globalThis as unknown as Marked).__wdioInstance)).toBe('A');
+    expect(await instanceB.electrobun.execute(() => (globalThis as unknown as Marked).__wdioInstance)).toBe('B');
   });
 });

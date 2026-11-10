@@ -63,7 +63,7 @@ type DioxusCapability = {
   };
   'wdio:dioxusServiceOptions': {
     appBinaryPath: string;
-    appArgs: string[];
+    appArgs?: string[];
     driverProvider: 'embedded';
     embeddedPort?: number;
     captureBackendLogs?: boolean;
@@ -94,6 +94,8 @@ type StandardCapabilities = DioxusCapability[];
 let capabilities: MultiremoteCapabilities | StandardCapabilities;
 
 if (testType === 'multiremote') {
+  // A takes its args from 'dioxus:options' and B from appArgs. Both prefer port 4445, so B gets another
+  // free port, which the session reaches only through the launcher.
   capabilities = {
     browserA: {
       capabilities: {
@@ -105,7 +107,6 @@ if (testType === 'multiremote') {
         },
         'wdio:dioxusServiceOptions': {
           appBinaryPath,
-          appArgs: ['--browser=A'],
           driverProvider: 'embedded',
           embeddedPort: 4445,
           captureBackendLogs: true,
@@ -114,8 +115,6 @@ if (testType === 'multiremote') {
           frontendLogLevel: 'info',
         },
       },
-      hostname: '127.0.0.1',
-      port: 4445,
     },
     browserB: {
       capabilities: {
@@ -123,21 +122,18 @@ if (testType === 'multiremote') {
         'wdio:enforceWebDriverClassic': true,
         'dioxus:options': {
           application: appBinaryPath,
-          args: ['--browser=B'],
         },
         'wdio:dioxusServiceOptions': {
           appBinaryPath,
           appArgs: ['--browser=B'],
           driverProvider: 'embedded',
-          embeddedPort: 4446,
+          embeddedPort: 4445,
           captureBackendLogs: true,
           captureFrontendLogs: true,
           backendLogLevel: 'info',
           frontendLogLevel: 'info',
         },
       },
-      hostname: '127.0.0.1',
-      port: 4446,
     },
   };
 } else {
@@ -151,7 +147,8 @@ if (testType === 'multiremote') {
       },
       'wdio:dioxusServiceOptions': {
         appBinaryPath,
-        appArgs: ['foo', 'bar=baz'],
+        // Never reaches the app: 'dioxus:options'.args replaces appArgs.
+        appArgs: ['--not-passed'],
         driverProvider: 'embedded',
         captureBackendLogs: true,
         captureFrontendLogs: true,

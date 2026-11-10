@@ -491,7 +491,7 @@ describe('Dioxus element events (embedded)', () => {
     await browser.$('#fresh-box').addValue('x');
     expect(await browser.$('#fresh-box').getValue()).toBe('on');
     expect(await browser.execute('return window.__boxEvents')).toEqual([]);
-    expect((await errorOf(browser.$('#fresh-file').addValue('/tmp/upload.txt')))?.message).toMatch(/file/);
+    expect((await errorOf(browser.$('#fresh-file').addValue('/tmp/upload.txt')))?.message).toMatch(/file input/);
   });
 
   it('should release held keys in reverse press order, so Space clicks once Control is up', async () => {

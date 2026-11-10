@@ -15,6 +15,7 @@ describe('Tauri Multiremote - Advanced Patterns', () => {
     // endsWith: on Windows msedgedriver may re-prefix args as Chrome switches
     expect(argsA.some((arg) => arg.endsWith('browser=A'))).toBe(true);
     expect(argsB.some((arg) => arg.endsWith('browser=B'))).toBe(true);
+    expect(argsB.some((arg) => arg.endsWith('browser=decoy'))).toBe(false);
   });
 
   it('should handle sequential execution in multiremote', async () => {
