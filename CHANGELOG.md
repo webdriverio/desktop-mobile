@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [@wdio/dioxus-service@2.0.0-next.1] - 2026-11-11
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-service@v2.0.0-next.0...wdio-dioxus-service@v2.0.0-next.1)
+
+### Changed
+
+- make the v10 checks fail when the fix they cover is reverted (PR [#1000](https://github.com/webdriverio/desktop-mobile/pull/1000))
+
+## [wdio-dioxus-embedded-driver@2.0.0-next.1] - 2026-11-11
+
+### Changed
+
+- **dioxus**: say an uncancelled submit doesn't navigate the page (\#1009)
+
+### Fixed
+
+- **dioxus**: stop the screenshot error pointing at the external provider (\#1093)
+
+## [@wdio/tauri-plugin@2.0.0-next.1] - 2026-11-11
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v2.0.0-next.0...wdio-tauri-plugin@v2.0.0-next.1)
+
+### Fixed
+
+- **tauri**: declare the Rust versions the plugins need (PR [#1002](https://github.com/webdriverio/desktop-mobile/pull/1002))
+
+## [tauri-plugin-wdio-webdriver@2.0.0-next.1] - 2026-11-11
+
+### Fixed
+
+- **tauri**: declare the Rust versions the plugins need (\#1002)
+- **tauri**: report a script timeout when a Linux async script never calls done (\#1035)
+
+## [@wdio/electron-service@11.0.0-next.1] - 2026-11-11
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v11.0.0-next.0...wdio-electron-service@v11.0.0-next.1)
+
+### Added
+
+- **electron**: warn when the only app build found can't run on this machine (PR [#1045](https://github.com/webdriverio/desktop-mobile/pull/1045))
+
+### Changed
+
+- make the v10 checks fail when the fix they cover is reverted (PR [#1000](https://github.com/webdriverio/desktop-mobile/pull/1000))
+
 ## [@wdio/dioxus-bridge@2.0.0-next.0] - 2026-11-08
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-bridge@v1.1.0...wdio-dioxus-bridge@v2.0.0-next.0)

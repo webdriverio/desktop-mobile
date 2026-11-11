@@ -3323,7 +3323,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-wdio-webdriver"
-version = "2.0.0-next.0"
+version = "2.0.0-next.1"
 dependencies = [
  "async-trait",
  "axum",
