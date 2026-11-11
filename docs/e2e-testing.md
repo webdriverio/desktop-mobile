@@ -55,9 +55,7 @@ fixtures/e2e-apps/
    pnpm turbo build --filter electron-builder-e2e-app
    pnpm turbo build --filter electron-forge-e2e-app
    pnpm turbo build --filter tauri-e2e-app
-
-   # Build the Dioxus E2E app (Rust — no pnpm filter)
-   cd fixtures/e2e-apps/dioxus && cargo build
+   pnpm turbo build --filter wdio-dioxus-e2e-app
    ```
 
 2. **Build the services:**
@@ -92,7 +90,7 @@ pnpm --filter @repo/e2e test:e2e:tauri-basic:multiremote
 pnpm --filter @repo/e2e test:e2e:tauri-basic:standalone
 
 # Dioxus tests (embedded provider, all platforms)
-pnpm --filter @repo/e2e test:e2e:dioxus-embedded
+pnpm --filter @repo/e2e test:e2e:dioxus
 ```
 
 ## Configuration
@@ -136,12 +134,14 @@ export const config: WebdriverIO.Config = {
 The `'embedded'` provider is the recommended default and works on all three platforms (Windows, macOS, Linux).
 
 ```typescript
-import { join } from 'node:path';
-import type { Options } from '@wdio/types';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const appBinaryPath = join(__dirname, '../fixtures/e2e-apps/dioxus/target/debug/dioxus-e2e-app');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// Add `.exe` on Windows
+const appBinaryPath = join(__dirname, '../fixtures/e2e-apps/dioxus/target/debug/wdio-dioxus-e2e-app');
 
-export const config: Options.Testrunner = {
+export const config: WebdriverIO.Config = {
   runner: 'local',
   framework: 'mocha',
   services: [
@@ -161,7 +161,7 @@ export const config: Options.Testrunner = {
       },
     },
   ],
-  specs: ['test/dioxus/**/*.spec.ts'],
+  specs: ['./test/dioxus/*.spec.ts'],
 };
 ```
 
@@ -316,7 +316,7 @@ strategy:
   working-directory: fixtures/e2e-apps/dioxus
 
 - name: Run Dioxus E2E tests
-  run: pnpm --filter @repo/e2e test:e2e:dioxus-embedded
+  run: pnpm --filter @repo/e2e test:e2e:dioxus
 ```
 
 ### Platform-Specific Notes
