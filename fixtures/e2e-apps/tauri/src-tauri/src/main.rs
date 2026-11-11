@@ -307,7 +307,7 @@ fn main() {
   let is_splash = std::env::var("ENABLE_SPLASH_WINDOW").is_ok();
 
   // The single-instance plugin lets only one copy of the app run, which breaks multiremote, so
-  // only deeplink runs register it. The instance the OS starts for a URL doesn't get the
+  // only the external and CrabNebula deeplink runs register it. The instance the OS starts for a URL doesn't get the
   // service's `env`, so a testapp:// argument registers the plugin too.
   let has_deeplink_arg = std::env::args().any(|a| a.starts_with("testapp://"));
   let enable_single_instance = std::env::var("ENABLE_SINGLE_INSTANCE").is_ok() || has_deeplink_arg;

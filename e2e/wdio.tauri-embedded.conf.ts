@@ -217,7 +217,7 @@ if (envContext.isMultiremote) {
   };
 } else {
   // No ENABLE_SINGLE_INSTANCE on deeplink runs: without the single-instance plugin, a triggerDeeplink() that
-  // wrongly opens the URL through the OS starts a second app and fails the job.
+  // wrongly opens the URL through the OS never reaches this app, so the deeplink specs fail.
   capabilities = [
     {
       browserName: 'tauri',

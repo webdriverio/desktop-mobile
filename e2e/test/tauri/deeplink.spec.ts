@@ -58,7 +58,7 @@ describe('Deeplink Testing (browser.tauri.triggerDeeplink)', () => {
     });
 
     it("should run the app's on_open_url handler on the main thread", async function () {
-      // Covers the emit route #857 changed. On the OS route, the handler's thread depends on the platform and the
+      // Covers only the emit route. On the OS route, the handler's thread depends on the platform and the
       // single-instance plugin.
       if (!emitsInApp) {
         this.skip();
