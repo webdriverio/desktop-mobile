@@ -43,7 +43,7 @@ Add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tauri-plugin-wdio-webdriver = "1"
+tauri-plugin-wdio-webdriver = "2"
 ```
 
 The registration below only runs in debug builds, so release builds never start the server. To leave the crate out of release builds entirely, use a feature flag, and gate the registration on `#[cfg(feature = "webdriver")]` instead:
@@ -53,7 +53,7 @@ The registration below only runs in debug builds, so release builds never start 
 webdriver = ["tauri-plugin-wdio-webdriver"]
 
 [dependencies]
-tauri-plugin-wdio-webdriver = { version = "1", optional = true }
+tauri-plugin-wdio-webdriver = { version = "2", optional = true }
 ```
 
 ## Usage with @wdio/tauri-service
@@ -308,9 +308,11 @@ before a requested size is applied, including moves between displays.
 
 ## Keyboard Events
 
-Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, a tab the Tab key and a backspace character the Backspace key, as in chromedriver, which skips a carriage return, so a `\r\n` line ending presses Enter once.
+Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, a tab the Tab key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. In key actions, chromedriver sends a newline, a tab and a backspace character with the same `key` but an empty `code`.
 
-Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held. If a `keydown` handler moves focus, typing, deleting and select-all act on the newly focused element, and the arrow keys still step from the radio that got the `keydown`, as in Chrome. A text field that keys edit fires `change` when focus leaves it, if its value changed.
+Key events go to the focused element, even one inside an open shadow root. Unless a `keydown` handler cancels it, a key types its character into a text field or contenteditable, Backspace and Delete delete in a text field, Control+A or Meta+A selects all, and the arrow keys check the next or previous radio button in a group. If the handler moves focus, typing, deleting and select-all act on the newly focused element, and the arrow keys still step from the radio that got the `keydown`, as in Chrome. With Control, Alt or Meta held, a key types nothing. A read-only or disabled field keeps its value. Edits in a text field fire `input` but no `beforeinput`, and the field fires `change` when focus leaves it, if its value changed. [#927](https://github.com/webdriverio/desktop-mobile/issues/927) lists where typing still differs from Chrome, such as not deleting in a contenteditable.
+
+Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held, so `addValue('x' + Key.Enter)` types `x`, then presses Enter. Element Send Keys types only into a text field or contenteditable, and refuses a file input. A text field it types into owes a `change` until focus leaves the field or Enter commits it, and fires it then if its value changed.
 
 While Shift is held, a key sends and types the character Shift gives it on a US keyboard, as in Chrome: `browser.keys([Key.Shift, 'a', '1', ';'])` sends `key: 'A'`, `'!'` and `':'` and types `A!:`, and `addValue(Key.Shift + 'a1;')` types `A!:` too. The `code` and `keyCode` stay those of the key, and the numpad keys don't change.
 
@@ -334,7 +336,7 @@ Unlike in Chrome, Enter and Space send only their key events in these cases:
 - Space on a checkbox, a radio button, a `<summary>`, a colour or file input or a `<select>`.
 - Either key with Control, Alt or Meta held.
 
-The driver also sends no `keypress` events, so a `keypress` handler can't cancel Enter.
+The driver also sends no `keypress` events, so a `keypress` handler can't cancel a key's default action.
 
 Unless a `keydown` handler cancels it, Tab moves focus to the next element and Shift+Tab to the previous one, as in Chrome:
 
@@ -357,7 +359,7 @@ Unlike in Chrome, Tab:
 - Stops once on a date or time input. Chrome stops on each of its fields.
 - Differs in the cases [#929](https://github.com/webdriverio/desktop-mobile/issues/929) tracks, such as from inside a host with `tabindex="-1"`, or with two modal dialogs open.
 
-One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
+One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The W3C tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 
 ## See Also
 

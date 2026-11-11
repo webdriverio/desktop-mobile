@@ -123,7 +123,7 @@ windowLabel: 'window-1'; // Start in the second window the app opens
 
 ### `captureBackendLogs` (boolean, optional)
 
-Capture logs from the Dioxus backend (Rust code) and forward them to WebdriverIO's logger.
+Capture what the app writes to stdout and stderr, such as its Rust logs, into the log file.
 
 **Example:**
 
@@ -139,7 +139,7 @@ captureBackendLogs: true;
 
 ### `captureFrontendLogs` (boolean, optional)
 
-Capture console logs from the frontend (JavaScript/TypeScript in the webview).
+Capture the webview's `console.*` calls, which the bridge forwards through the app's stdout.
 
 **Example:**
 
@@ -336,15 +336,19 @@ capabilities: [
 ```typescript
 capabilities: {
   app1: {
-    browserName: 'dioxus',
-    'dioxus:options': {
-      application: './target/debug/my_app'
+    capabilities: {
+      browserName: 'dioxus',
+      'dioxus:options': {
+        application: './target/debug/my_app'
+      }
     }
   },
   app2: {
-    browserName: 'dioxus',
-    'dioxus:options': {
-      application: './target/debug/my_app'
+    capabilities: {
+      browserName: 'dioxus',
+      'dioxus:options': {
+        application: './target/debug/my_app'
+      }
     }
   }
 }

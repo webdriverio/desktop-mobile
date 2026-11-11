@@ -37,7 +37,7 @@ export const config = {
     [
       'tauri',
       {
-        application: './path/to/your-app.exe',
+        appBinaryPath: './path/to/your-app.exe',
         // autoDownloadEdgeDriver: true (default)
       },
     ],
@@ -55,7 +55,7 @@ export const config = {
     [
       'tauri',
       {
-        application: './path/to/your-app.exe',
+        appBinaryPath: './path/to/your-app.exe',
         autoDownloadEdgeDriver: false,
       },
     ],
@@ -108,7 +108,7 @@ services: [
   [
     'tauri',
     {
-      application: './dist/my-app.exe',
+      appBinaryPath: './dist/my-app.exe',
       edgeDriverVersion: '149.0.4022.98', // or set EDGEDRIVER_VERSION in the environment
     },
   ],
@@ -122,7 +122,7 @@ services: [
   [
     'tauri',
     {
-      application: './dist/my-app.exe',
+      appBinaryPath: './dist/my-app.exe',
       env: {
         // The app renders with this runtime; the driver is matched to it automatically.
         WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\path\\to\\fixed-version-runtime',
@@ -223,7 +223,7 @@ services: [
   [
     'tauri',
     {
-      application: './dist/my-app.exe',
+      appBinaryPath: './dist/my-app.exe',
     },
   ],
 ];
@@ -236,7 +236,7 @@ services: [
   [
     'tauri',
     {
-      application: './dist/my-app.exe',
+      appBinaryPath: './dist/my-app.exe',
       autoDownloadEdgeDriver: true,
       tauriDriverPort: 4444,
     },
@@ -251,7 +251,7 @@ services: [
   [
     'tauri',
     {
-      application: './dist/my-app.exe',
+      appBinaryPath: './dist/my-app.exe',
       autoDownloadEdgeDriver: false,
     },
   ],

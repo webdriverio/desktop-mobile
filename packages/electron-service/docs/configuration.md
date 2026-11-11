@@ -4,7 +4,9 @@ This document covers all configuration options for the WDIO Electron Service, in
 
 ## Service Configuration
 
-The service can be configured by setting `wdio:electronServiceOptions` either on the service level or capability level, in which capability level configurations take precedence, e.g. the following WebdriverIO configuration:
+Set options on the service, or per capability in `wdio:electronServiceOptions`. A capability's value takes precedence over the service's. Some options work only at the service level; their sections say so.
+
+For example, this WebdriverIO configuration:
 
 _`wdio.conf.ts`_
 
@@ -15,15 +17,15 @@ export const config = {
     [
       'electron',
       {
-        appBinaryPath: '/foo/bar/myApp'
+        appBinaryPath: '/foo/bar/myApp',
       },
     ],
   ],
   capabilities: [
     {
-      'browserName': 'electron',
+      browserName: 'electron',
       'wdio:electronServiceOptions': {
-        appBinaryPath: '/foo/bar/myOtherApp'
+        appBinaryPath: '/foo/bar/myOtherApp',
         appArgs: ['foo', 'bar'],
       },
     },
@@ -52,7 +54,10 @@ The service supports the following configuration options:
 
 An array of string arguments to be passed through to the app on execution of the test run. Electron [command line switches](https://www.electronjs.org/docs/latest/api/command-line-switches) and some [Chromium switches](https://peter.sh/experiments/chromium-command-line-switches) can be used here.
 
+Setting `appArgs` replaces the default `['--no-sandbox']`. To keep the app running without the sandbox, include `--no-sandbox` in your list.
+
 Type: `string[]`
+Default: `['--no-sandbox']`
 
 ### `appBinaryPath`:
 
@@ -147,8 +152,18 @@ Example: `'config/electron-builder-staging.config.js'`
 
 Where the service looks for your app's `package.json`, searching upward from it. It reads the `electron` dependency there to choose the Chromedriver version, and the Electron Forge or electron-builder config to [find your app binary](#automatic-detection-of-app-binary). Set it when your WebdriverIO config isn't next to your app's `package.json`, as in a monorepo, or in [standalone mode](./standalone-mode.md), which has no WebdriverIO config.
 
+Service level only. In standalone mode, pass it in `startWdioSession()`'s second argument.
+
 Type: `string`
 Default: WebdriverIO's `rootDir`, else the current working directory
+
+### `devServer`:
+
+Starts the dev server for browser mode before the run, waits until `devServerUrl` responds, and stops it afterwards. Ignored outside browser mode. Service level only: one dev server serves every capability.
+
+Type: `string | { command, cwd?, env?, timeoutMs?, reuseExistingServer? } | () => Promise<{ url, close }>`
+
+See [Auto-managing the dev server](./browser-mode.md#auto-managing-the-dev-server) for the three forms.
 
 ### `devServerUrl`:
 
@@ -222,6 +237,8 @@ Number of times to retry connecting to the node debugger once its port is open.
 
 Type: `number`
 Default: `3`
+
+**Multiremote:** the three `cdpBridge*` options apply to every instance from the service level. A value in an instance's `wdio:electronServiceOptions` is ignored.
 
 ### `apparmorAutoInstall`:
 

@@ -39,7 +39,7 @@ For most users, the **embedded provider** (via `tauri-plugin-wdio-webdriver`) is
 
 ### Linux Only
 
-- **WebKitWebDriver** installed (see [Linux Installation](#linux-installation))
+- **WebKitWebDriver** installed (see [Linux Installation](#step-2-linux-installation))
 
 ### macOS Only
 

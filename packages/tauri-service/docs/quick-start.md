@@ -139,8 +139,8 @@ fn main() {
 ```toml
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-wdio = "1"
-tauri-plugin-wdio-webdriver = "1"
+tauri-plugin-wdio = "2"
+tauri-plugin-wdio-webdriver = "2"
 
 [build-dependencies]
 tauri-build = "2"
@@ -156,7 +156,7 @@ fn main() {
 
 ## Tauri Plugin Setup
 
-Your app needs two plugins: `tauri-plugin-wdio`, for mocking, `execute` and log capture, and `tauri-plugin-wdio-webdriver`, the WebDriver server the default `embedded` provider connects to. Both are in the `Cargo.toml` above. The WebDriver server plugin is only registered in debug builds, so release builds never start it.
+Your app needs two plugins: `tauri-plugin-wdio`, for mocking, `execute` and log capture, and `tauri-plugin-wdio-webdriver`, the WebDriver server the default `embedded` provider connects to. Both are in the `Cargo.toml` above. The WebDriver server plugin is only registered in debug builds, so release builds never start it. `tauri-plugin-wdio` is registered in every build, so the builds you ship include it. To leave it out, see [Should I Include the Plugin in Production?](./plugin-setup.md#should-i-include-the-plugin-in-production).
 
 ### Complete Plugin Setup
 
@@ -299,11 +299,8 @@ Create `test/specs/example.spec.ts`:
 ```typescript
 describe('My Tauri App', () => {
   it('should display hello world', async () => {
-    // Wait for the app to fully load
-    await browser.pause(500);
-
-    // Find and check a heading
     const heading = await browser.$('h1');
+    await heading.waitForDisplayed();
     expect(await heading.getText()).toBe('Hello, Tauri!');
   });
 
@@ -419,7 +416,7 @@ Make sure you're using `browserName: 'tauri'` in capabilities, not other browser
 ## Next Steps
 
 1. **Add more tests** - See [Usage Examples](./usage-examples.md) for patterns
-2. **Advanced features** - Read about [Mocking](./api-reference.md#mock-functions) and [Logging](./log-forwarding.md)
+2. **Advanced features** - Read about [Mocking](./api-reference.md#browsertaurimockcommand) and [Logging](./log-forwarding.md)
 3. **Configure the service** - See [Configuration](./configuration.md) for all options
 4. **Debug issues** - Check [Troubleshooting](./troubleshooting.md)
 

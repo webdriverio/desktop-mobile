@@ -142,6 +142,9 @@ The service adds `wdio:flutterServiceOptions`:
 
 ```ts
 interface FlutterServiceOptions {
+  // Defaults to the capability's platformName; set it only if the capability doesn't
+  platform?: 'Android' | 'iOS';
+
   // Dart VM Service connection
   vmServiceHost?: string; // default: 'localhost'
   vmServicePort?: number; // pin the port (skips the log scrape); also via appium:dartVmServicePort
@@ -163,8 +166,13 @@ interface FlutterServiceOptions {
   clearMocks?: boolean; // clear mock call history
   resetMocks?: boolean; // clear value + call history
   restoreMocks?: boolean; // remove the mock entirely
+  clearMocksPrefix?: string; // limit clearMocks to the mocks under a target
+  resetMocksPrefix?: string; // limit resetMocks to the mocks under a target
+  restoreMocksPrefix?: string; // limit restoreMocks to the mocks under a target
 }
 ```
+
+A prefix covers the target and everything under it: `'Foo'` matches `Foo` and `Foo.Bar`, but not `Foo2`.
 
 ## Zero-config setup automation
 
