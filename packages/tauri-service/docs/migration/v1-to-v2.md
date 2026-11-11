@@ -6,15 +6,22 @@ v2 covers three packages that ship together: the service (`@wdio/tauri-service`)
 
 ## What's New in v2
 
-v2 supports WebdriverIO v10 as well as v9. Most of the other changes make the embedded driver behave as Chrome does under chromedriver: its events, keys and focus, and element references in script results. Mocks also see the app's own `invoke()` calls. For the full list, see the [v2.0.0 release notes](../release-notes/v2.0.0.md). New features are additive and need no migration.
+Most of the changes make the embedded driver behave as Chrome does under chromedriver: its events, keys and focus, and element references in script results. Mocks also see the app's own `invoke()` calls. For the full list, see the [v2.0.0 release notes](../release-notes/v2.0.0.md). New features are additive and need no migration.
+
+### WebdriverIO v10
+
+v2 runs on WebdriverIO v10 as well as v9. Moving to v10 is optional. If you do, see WebdriverIO's [From v9 to v10](https://webdriver.io/docs/v10-migration) guide for the changes in your own tests, such as a strict `$`, the removal of `multiremotebrowser` and `executeAsync`, and Mocha 12. Two of v10's changes show in a Tauri app:
+
+- **Linux display:** WebdriverIO starts a display server itself, Weston if it's installed and Xvfb otherwise, so no `xvfb-run` wrapper is needed. The `embedded` and `external` providers are tested on both and need no setting. An app with X11-only dependencies sets `displayServer: 'xvfb'`. Local runs on a Linux desktop now show the app instead of a hidden Xvfb. See [Linux Without a Display](../quick-start.md#linux-without-a-display).
+- **Async `browser.execute()`:** `browser.execute(async () => …)` is awaited on WebKit-based drivers, where v9 didn't await it. That covers Tauri on macOS and Linux.
 
 ## Breaking Changes
 
 ### Requirements
 
-#### WebdriverIO v9 and v10
+#### WebdriverIO 9.33.0+
 
-The service supports WebdriverIO v9 (9.33.0+) and v10 (10.2.0+). v10 changes some things in your own tests, such as a strict `$`, the removal of `multiremotebrowser` and `executeAsync`, and Mocha 12. See WebdriverIO's [From v9 to v10](https://webdriver.io/docs/v10-migration) guide for those.
+v2 needs WebdriverIO 9.33.0+ on v9, or 10.2.0+ on v10 (`^9.33.0 || ^10.2.0`), the first releases with the Node.js floors below.
 
 #### Node.js
 
@@ -163,10 +170,6 @@ services: [['@wdio/tauri-service', { tauriDriverPort: 4500 }]],
 
 A launcher failure, such as an app binary that isn't found or a driver that doesn't start, now stops the run, where WebdriverIO used to log it and carry on.
 
-#### Linux display on WebdriverIO v10
-
-On v10, WebdriverIO starts a display server itself, Weston if it's installed and Xvfb otherwise, so no `xvfb-run` wrapper is needed. The `embedded` and `external` providers are tested on both and need no setting. An app with X11-only dependencies sets `displayServer: 'xvfb'`. Local runs on a Linux desktop now show the app instead of a hidden Xvfb. See [Linux Without a Display](../quick-start.md#linux-without-a-display).
-
 ### Mocking
 
 #### Mocks see the commands the app invokes
@@ -248,17 +251,13 @@ With the `embedded` provider, `browser.execute()` returns a DOM element or shado
 
 A test that compared such a result with `{}` or with an object keyed by index needs a reference or an array instead.
 
-#### Async `browser.execute()` is awaited on WebKit
-
-On v10, `browser.execute(async () => …)` is awaited on WebKit-based drivers, where v9 didn't await it. That covers Tauri on macOS and Linux.
-
 ### Embedded Driver Behaviour
 
 These changes are in `tauri-plugin-wdio-webdriver`, so they apply to the `embedded` provider, the default. Each brings the driver closer to Chrome driven by chromedriver. The [Keyboard Events](../../../tauri-plugin-webdriver/README.md#keyboard-events) section of the crate's README has the full rules.
 
 #### `change` fires when focus leaves the field
 
-Clear and Send Keys no longer fire `change` while the field keeps focus. It fires when focus leaves the field, before `blur`, or when Enter commits an input. A test that waits for `change` right after `setValue()` or `addValue()` must move focus first, with `el.click()` on another element or `browser.keys(Key.Tab)`. Pointer actions don't move focus in this driver, so `browser.action()`, `doubleClick()`, and `click()` with `x`, `y` or `button` don't fire it.
+Clear and Send Keys no longer fire `change` while the field keeps focus. It fires when focus leaves the field, before `blur` and before any `blur` or `focusout` listener the page adds, or when Enter commits an input. A test that waits for `change` right after `setValue()` or `addValue()` must move focus first, with `el.click()` on another element or `browser.keys(Key.Tab)`. Pointer actions don't move focus in this driver, so `browser.action()`, `doubleClick()`, and `click()` with `x`, `y` or `button` don't fire it.
 
 #### Clear blurs the field, fires no `input` and refuses non-editable elements
 
@@ -290,9 +289,7 @@ Element Click (`el.click()` with no options) fires `pointerdown`, `mousedown`, `
 
 #### Fields edited by `browser.keys()` owe a `change`
 
-A field edited by `browser.keys()` owes a `change` too, which fires when focus leaves it, before `blur`, if its value changed. When a `keydown` handler moves focus, a key types or deletes in the newly focused element. Element Send Keys leaves a `change` owed only when it edits the field, so a field it focused but didn't edit no longer fires `change` after a script changes the value.
-
-The `change` a field owes fires before any `blur` or `focusout` listener the page adds, capture listeners on `window` and `document` included, as in Chrome.
+A field edited by `browser.keys()` owes a `change` too, which fires when focus leaves it, before `blur`, if its value changed. When a `keydown` handler moves focus, a key types or deletes in the newly focused element.
 
 #### `releaseActions()` releases in reverse press order
 
