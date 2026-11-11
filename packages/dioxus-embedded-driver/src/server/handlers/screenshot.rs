@@ -7,8 +7,7 @@ use crate::server::AppState;
 
 /// Until #741 captures the webview natively, screenshots fail rather than return a blank image.
 pub(crate) const UNSUPPORTED: &str = "screenshots are not supported by the Dioxus embedded driver \
-  yet (https://github.com/webdriverio/desktop-mobile/issues/741); on Windows and Linux, the \
-  external driver provider supports them";
+  yet (https://github.com/webdriverio/desktop-mobile/issues/741)";
 
 /// GET `/session/{session_id}/screenshot`
 pub async fn take(
