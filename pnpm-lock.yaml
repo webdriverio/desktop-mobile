@@ -271,6 +271,9 @@ importers:
       shx:
         specifier: ^0.4.0
         version: 0.4.0
+      smol-toml:
+        specifier: ^1.9.1
+        version: 1.9.1
       turbo:
         specifier: 2.11.10
         version: 2.11.10
@@ -1205,6 +1208,9 @@ importers:
       '@wdio/native-core':
         specifier: workspace:*
         version: link:../native-core
+      '@wdio/native-spy':
+        specifier: workspace:*
+        version: link:../native-spy
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../native-types
@@ -1269,9 +1275,6 @@ importers:
       '@wdio/globals':
         specifier: catalog:default
         version: 10.2.0(expect-webdriverio@8.0.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)))(webdriverio@10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0))
-      '@wdio/native-spy':
-        specifier: workspace:*
-        version: link:../native-spy
       '@wdio/types':
         specifier: catalog:default
         version: 10.2.0
@@ -1521,6 +1524,10 @@ importers:
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@31.0.0(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-types:
+    dependencies:
+      '@wdio/native-spy':
+        specifier: workspace:*
+        version: link:../native-spy
     devDependencies:
       '@electron-forge/shared-types':
         specifier: ^8.0.1
@@ -1537,9 +1544,6 @@ importers:
       '@wdio/globals':
         specifier: catalog:default
         version: 10.2.0(expect-webdriverio@8.0.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)))(webdriverio@10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0))
-      '@wdio/native-spy':
-        specifier: workspace:*
-        version: link:../native-spy
       '@wdio/types':
         specifier: catalog:default
         version: 10.2.0
@@ -1561,6 +1565,9 @@ importers:
 
   packages/native-utils:
     dependencies:
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../native-types
       debug:
         specifier: ^4.4.3
         version: 4.4.3(supports-color@8.1.1)
@@ -1598,9 +1605,6 @@ importers:
       '@wdio/logger':
         specifier: catalog:default
         version: 10.2.0
-      '@wdio/native-types':
-        specifier: workspace:*
-        version: link:../native-types
       shx:
         specifier: ^0.4.0
         version: 0.4.0

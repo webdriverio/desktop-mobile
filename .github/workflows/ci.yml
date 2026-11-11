@@ -422,6 +422,11 @@ jobs:
           - os: ubuntu-latest
             display-name: Linux
             module-type: esm
+          # Node 22, the other supported line. CJS, so the row skips the Weston pass the Linux ESM row adds.
+          - os: ubuntu-latest
+            display-name: Linux, Node 22
+            module-type: cjs
+            node-version: "22"
           - os: windows-latest
             display-name: Windows
             module-type: cjs
@@ -451,6 +456,7 @@ jobs:
     secrets: inherit
     with:
       os: ${{ matrix.os }}
+      node-version: ${{ matrix.node-version || '24' }}
       service: "electron"
       module-type: ${{ matrix.module-type }}
       build_id: ${{ needs.build.outputs.build_id }}

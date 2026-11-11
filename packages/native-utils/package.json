@@ -48,6 +48,7 @@
     "lint": "biome check ."
   },
   "dependencies": {
+    "@wdio/native-types": "workspace:*",
     "debug": "^4.4.3",
     "esbuild": "^0.28.2",
     "find-up-simple": "^1.0.1",
@@ -78,7 +79,6 @@
     "@vitest/coverage-v8": "^5.1.0",
     "@wdio/bundler": "workspace:*",
     "@wdio/logger": "catalog:default",
-    "@wdio/native-types": "workspace:*",
     "shx": "^0.4.0",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",

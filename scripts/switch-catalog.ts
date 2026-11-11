@@ -130,6 +130,13 @@ export function versionsInTree(projects: DependencyTree[], name: string): string
   return [...versions];
 }
 
+// The packages that resolve to more than one version in the tree, with those versions.
+export function multipleVersionsInTree(projects: DependencyTree[], names: string[]): Record<string, string[]> {
+  return Object.fromEntries(
+    names.map((name) => [name, versionsInTree(projects, name).sort()]).filter(([, versions]) => versions.length > 1),
+  );
+}
+
 // Expands only trailing `dir/*` globs, the only kind pnpm-workspace.yaml uses.
 export function listWorkspacePackages(rootDir: string): string[] {
   const workspace = yaml.parse(fs.readFileSync(path.join(rootDir, 'pnpm-workspace.yaml'), 'utf8')) as {
