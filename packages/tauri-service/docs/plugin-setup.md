@@ -66,7 +66,7 @@ Add the plugin to your `src-tauri/Cargo.toml`:
 ```toml
 [dependencies]
 tauri = { version = "2", features = ["..your other features.."] }
-tauri-plugin-wdio = "1"
+tauri-plugin-wdio = "2"
 ```
 
 ### Step 2: Register Plugin in Rust
@@ -244,15 +244,13 @@ The frontend plugin didn't initialize. Make sure:
 
 1. The import statement is in your **main entry point**, before tests run
 2. You're not running in an iframe or separate context
-3. The app has time to initialize (add a small delay if needed):
+3. The plugin has initialized. `window` is the app's, so check it with `browser.execute`, and wait for it:
 
 ```typescript
 it('should have wdioTauri', async () => {
-  // Give plugin time to initialize
-  await browser.pause(500);
-
-  const hasPlugin = 'wdioTauri' in window;
-  expect(hasPlugin).toBe(true);
+  await browser.waitUntil(() => browser.execute(() => 'wdioTauri' in window), {
+    timeoutMsg: 'window.wdioTauri never appeared',
+  });
 });
 ```
 
@@ -303,7 +301,7 @@ If you get Rust compilation errors:
 
    ```toml
    tauri = { version = "2", ... }
-   tauri-plugin-wdio = "1"
+   tauri-plugin-wdio = "2"
    ```
 
 ## Plugin Architecture
@@ -388,7 +386,7 @@ If you want a smaller surface, you can grant a subset — `wdio:allow-execute` a
    wdio = ["dep:tauri-plugin-wdio"]
 
    [dependencies]
-   tauri-plugin-wdio = { version = "1", optional = true }
+   tauri-plugin-wdio = { version = "2", optional = true }
    ```
 
    ```rust
@@ -447,7 +445,7 @@ In builds that register it, the plugin also adds `window.__wdio_element_events` 
 
 ```toml
 [dependencies]
-tauri-plugin-wdio-webdriver = "1"
+tauri-plugin-wdio-webdriver = "2"
 ```
 
 The next step registers it only in debug builds, so release builds never start its WebDriver server.
@@ -528,4 +526,4 @@ TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
 
 - [Tauri Plugin Documentation](https://v2.tauri.app/develop/plugins/)
 - [WebdriverIO Documentation](https://webdriver.io/docs)
-- [Tauri Application Setup](./quick-start.md#tauri-application-setup)
+- [Setting Up a Tauri App](./quick-start.md#setting-up-a-tauri-app)

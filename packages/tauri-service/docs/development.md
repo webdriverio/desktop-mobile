@@ -4,7 +4,7 @@ Guide for developing and contributing to `@wdio/tauri-service`.
 
 ## Prerequisites
 
-See the [Monorepo Setup Guide](../../docs/setup.md) for Node.js, pnpm, and Git setup.
+See the [Monorepo Setup Guide](../../../docs/setup.md) for Node.js, pnpm, and Git setup.
 
 **Tauri-specific requirement — Rust Toolchain:**
 
@@ -17,7 +17,7 @@ Install via [rustup](https://rustup.rs) if not present.
 
 ## Setup
 
-Follow the [Monorepo Setup Guide](../../docs/setup.md) to clone the repo and install dependencies, then build the Tauri service:
+Follow the [Monorepo Setup Guide](../../../docs/setup.md) to clone the repo and install dependencies, then build the Tauri service:
 
 ```bash
 pnpm --filter @wdio/tauri-service build
@@ -46,7 +46,7 @@ Aim for 80%+ coverage. Mock external dependencies where needed.
 
 ## Code Quality
 
-See the [Monorepo Setup Guide](../../docs/setup.md#code-quality) for formatting and linting commands.
+See the [Monorepo Setup Guide](../../../docs/setup.md#code-quality) for formatting and linting commands.
 
 ## Key Features
 
@@ -134,15 +134,15 @@ Add to `.vscode/launch.json`:
 
 ## Dependency Management
 
-Dependencies are managed via the monorepo's catalog system. See [Dependency Management](../../docs/setup.md#dependency-management) for details.
+Dependencies are managed via the monorepo's catalog system. See [Dependency Management](../../../docs/setup.md#dependency-management) for details.
 
 ## Release
 
-Releases are managed by maintainers via GitHub Actions. See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the release process.
+Releases are managed by maintainers via GitHub Actions. See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for the release process.
 
 ## Contributing
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines, commit message format, and PR process.
+See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for contribution guidelines, commit message format, and PR process.
 
 - **Questions**: [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
 - **Bugs**: [GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)

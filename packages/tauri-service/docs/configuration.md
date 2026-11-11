@@ -172,6 +172,23 @@ tauriDriverPath: 'C:\\tools\\tauri-driver.exe'; // Windows
 
 ---
 
+### `nativeDriverPath` (string, optional)
+
+Path to the native driver that tauri-driver controls the webview with: `WebKitWebDriver` on Linux, `msedgedriver.exe` on Windows. The service passes it to tauri-driver as `--native-driver`. Only the `'external'` and `'crabnebula'` providers use it.
+
+**Example:**
+
+```typescript
+nativeDriverPath: '/usr/bin/WebKitWebDriver'; // Linux
+nativeDriverPath: 'C:\\tools\\msedgedriver.exe'; // Windows
+```
+
+**Default:** On Linux, `WebKitWebDriver` from PATH. On Windows, the msedgedriver the service downloads or finds.
+
+**Note:** Service-level only. On Windows, it wins over the msedgedriver the service matched to the WebView2 runtime, so keep its version in step with the runtime yourself.
+
+---
+
 ### `logLevel` ('trace' | 'debug' | 'info' | 'warn' | 'error', optional)
 
 Minimum level of `tauri-driver` output to print. It filters what the driver already writes and doesn't make `tauri-driver` log more. Lines without a level count as `info`. The `logLevel` in your WebdriverIO config must also allow the level.
@@ -224,7 +241,7 @@ startTimeout: 60000; // 60 seconds
 
 ### `captureBackendLogs` (boolean, optional)
 
-Capture logs from the Tauri backend (Rust code).
+Capture what the app writes to stdout and stderr, such as Rust `log` output.
 
 **Example:**
 
@@ -234,13 +251,13 @@ captureBackendLogs: true;
 
 **Default:** `false`
 
-**Note:** When enabled, logs appear in WebdriverIO reports. See [Log Forwarding](./log-forwarding.md).
+**Note:** Logs go to a log file in WebdriverIO's `outputDir` (`logDir` in standalone mode), filtered by `backendLogLevel`. Not available in browser mode. See [Log Forwarding](./log-forwarding.md).
 
 ---
 
 ### `captureFrontendLogs` (boolean, optional)
 
-Capture console logs from the frontend (JavaScript/TypeScript).
+Capture the frontend's console calls. Needs the frontend to import `@wdio/tauri-plugin`.
 
 **Example:**
 
@@ -250,7 +267,7 @@ captureFrontendLogs: true;
 
 **Default:** `false`
 
-**Note:** When enabled, console.log() calls appear in WebdriverIO reports. See [Log Forwarding](./log-forwarding.md).
+**Note:** Logs go to the same log file as backend logs, filtered by `frontendLogLevel`. `console.log` is `trace` level, below the default `'info'`. Not available in browser mode. See [Log Forwarding](./log-forwarding.md).
 
 ---
 
@@ -288,7 +305,7 @@ frontendLogLevel: 'debug';
 
 ### `logDir` (string, optional)
 
-Directory to store logs from the Tauri service (for standalone mode).
+Directory to write captured logs to in standalone mode, when `captureBackendLogs` or `captureFrontendLogs` is on. The test runner ignores it and writes to WebdriverIO's `outputDir`, or `logs/` in the working directory if that isn't set.
 
 **Example:**
 
@@ -296,7 +313,7 @@ Directory to store logs from the Tauri service (for standalone mode).
 logDir: './test-logs';
 ```
 
-**Default:** Logs to stdout/stderr
+**Default:** `logs/` in the working directory
 
 ---
 
@@ -593,43 +610,30 @@ See [msedgedriver's `webviewOptions`](https://learn.microsoft.com/en-us/microsof
 
 ### Multiremote Configuration
 
-Run multiple instances of the app:
+Run several instances of the app in one session. Each instance's capabilities go under a `capabilities` key:
 
 ```typescript
 capabilities: {
   app1: {
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './src-tauri/target/debug/my-app.exe'
-    }
+    capabilities: {
+      browserName: 'tauri',
+      'tauri:options': {
+        application: './src-tauri/target/debug/my-app.exe',
+      },
+    },
   },
   app2: {
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './src-tauri/target/debug/my-app.exe'
-    }
-  }
-}
-```
-
-Or as array:
-
-```typescript
-capabilities: [
-  {
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './src-tauri/target/debug/my-app.exe',
+    capabilities: {
+      browserName: 'tauri',
+      'tauri:options': {
+        application: './src-tauri/target/debug/my-app.exe',
+      },
     },
   },
-  {
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './src-tauri/target/debug/my-app.exe',
-    },
-  },
-];
+},
 ```
+
+An array of capabilities isn't multiremote: each capability gets its own session, in parallel up to `maxInstances`.
 
 ## Complete Configuration Example
 
@@ -909,12 +913,6 @@ Change the tauri-driver port:
 
 ```typescript
 tauriDriverPort: 4445; // Instead of 4444
-```
-
-Or enable multiremote with auto-port assignment:
-
-```typescript
-maxInstances: 3; // Each gets unique port
 ```
 
 ## See Also

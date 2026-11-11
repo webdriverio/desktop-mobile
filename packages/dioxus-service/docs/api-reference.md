@@ -54,6 +54,8 @@ const href = await browser.dioxus.execute('window.location.href');
 
 **Note:** Requires the bridge, which `wdio_dioxus::install(config)` installs in the app. See [App Setup](./app-setup.md).
 
+**Note:** A function script is serialised and runs in the app's webview, not in the test process. It can't read the test's variables or call WebdriverIO commands. Pass values in as `args`.
+
 **Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. It rejects if any instance fails. To run it in one app, call it on that instance: `browser.getInstance('app1').dioxus.execute(...)`.
 
 ---
@@ -83,23 +85,29 @@ expect(content).toBe('mocked file content');
 
 ---
 
-### `browser.dioxus.isMockFunction(fn)`
+### `browser.dioxus.isMockFunction(commandOrFn)`
 
-Check if a value is a Dioxus mock function. This is a TypeScript type guard.
+Check whether a command is mocked, or whether a value is a Dioxus mock.
 
 **Parameters:**
 
-- `fn` (unknown) - Value to check
+- `commandOrFn` (string | unknown) - A command name, or a value to check
 
-**Returns:** `boolean` (type narrows to `DioxusMockInstance` when true)
+**Returns:** `boolean`
+
+- With a command name, `true` while a mock for that command is registered. `mockRestore()` and `restoreAllMocks()` unregister it.
+- With any other value, `true` if it's a Dioxus mock. This form is a TypeScript type guard: the type narrows to `DioxusMockInstance`.
 
 **Example:**
 
 ```typescript
 const mock = await browser.dioxus.mock('clipboard_read');
+
+expect(browser.dioxus.isMockFunction('clipboard_read')).toBe(true);
+
 if (browser.dioxus.isMockFunction(mock)) {
   // TypeScript knows mock is DioxusMockInstance here
-  expect(mock.mock.calls).toHaveLength(1);
+  expect(mock.mock.calls).toHaveLength(0);
 }
 ```
 
@@ -239,7 +247,7 @@ When you call `browser.dioxus.mock(command)`, you receive a `DioxusMock` object 
 
 ### `mockImplementation(fn)`
 
-Set a custom implementation function for the mock.
+Set a custom implementation function for the mock. The function is serialised and runs in the app, so it can't read the test's variables.
 
 **Returns:** `Promise<DioxusMock>`
 
@@ -388,7 +396,7 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 
 ### `withImplementation(implFn, callbackFn)`
 
-Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's webview like an `execute()` script, and receives the same `dx`. The implementation is restored when the callback returns, or when its promise settles. Mocks are per window, so this rejects if the command isn't mocked in the current window.
+Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's webview like an `execute()` script, and receives the same `dx`. Both `implFn` and the callback are serialised and run in the app, so neither can read the test's variables or call WebdriverIO commands. The implementation is restored when the callback returns, or when its promise settles. Mocks are per window, so this rejects if the command isn't mocked in the current window.
 
 > **Note:** The callback has to settle within the script timeout, 30 seconds unless you change it with `browser.setTimeout({ script })`. With the embedded driver, one that never settles blocks every later command until the app restarts ([#913](https://github.com/webdriverio/desktop-mobile/issues/913)). Don't wait in it for something the test does next, such as a click. To give a UI action a temporary result, call `mockReturnValueOnce()` before the action instead.
 
@@ -426,6 +434,8 @@ console.log(after); // 'default'
 
 Initialize the Dioxus service in standalone mode. Use this when you want to manage the session manually outside of WebdriverIO's lifecycle.
 
+Standalone mode needs `webdriverio` (9.33.0+ or 10.2.0+) installed next to the service: `npm install --save-dev @wdio/dioxus-service webdriverio`.
+
 **Parameters:**
 
 - `capabilities` (Capabilities) - WebdriverIO capabilities with Dioxus options
@@ -436,7 +446,7 @@ Initialize the Dioxus service in standalone mode. Use this when you want to mana
 **Example:**
 
 ```typescript
-import { startWdioSession } from '@wdio/dioxus-service';
+import { cleanupWdioSession, startWdioSession } from '@wdio/dioxus-service';
 
 const browser = await startWdioSession({
   browserName: 'dioxus',
@@ -446,8 +456,10 @@ const browser = await startWdioSession({
 });
 
 // Use browser...
-await browser.deleteSession();
+await cleanupWdioSession(browser);
 ```
+
+End the session with `cleanupWdioSession(browser)`, not `browser.deleteSession()`. It runs the service's `after` and `afterSession` hooks, deletes the session, then runs the launcher's `onComplete` to shut down what it started.
 
 ---
 

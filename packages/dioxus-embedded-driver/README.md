@@ -15,7 +15,7 @@ This is the WebDriver server `@wdio/dioxus-service` connects to. It lives inside
 ```toml
 # Cargo.toml
 [dependencies]
-wdio-dioxus-embedded-driver = "1"
+wdio-dioxus-embedded-driver = "2"
 ```
 
 Wire into `main.rs`, guarded for debug builds so the driver never ships in release binaries:
@@ -93,7 +93,7 @@ Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser send
 
 Key events go to the focused element, even one inside an open shadow root. Unless a `keydown` handler cancels it, a key types its character into a text field or contenteditable, Backspace and Delete delete in a text field, Control+A or Meta+A selects all, and the arrow keys check the next or previous radio button in a group. If the handler moves focus, typing, deleting and select-all act on the newly focused element, and the arrow keys still step from the radio that got the `keydown`, as in Chrome. With Control, Alt or Meta held, a key types nothing. A read-only or disabled field keeps its value. Edits in a text field fire `input` but no `beforeinput`, and the field fires `change` when focus leaves it, if its value changed. [#927](https://github.com/webdriverio/desktop-mobile/issues/927) lists where typing still differs from Chrome, such as not deleting in a contenteditable.
 
-Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held, so `addValue('x' + Key.Enter)` types `x`, then presses Enter. Element Send Keys types only into a text field or contenteditable, and refuses a file input.
+Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held, so `addValue('x' + Key.Enter)` types `x`, then presses Enter. Element Send Keys types only into a text field or contenteditable, and refuses a file input. A text field it types into owes a `change` until focus leaves the field or Enter commits it, and fires it then if its value changed.
 
 While Shift is held, a key sends and types the character Shift gives it on a US keyboard, as in Chrome: `browser.keys([Key.Shift, 'a', '1', ';'])` sends `key: 'A'`, `'!'` and `':'` and types `A!:`, and `addValue(Key.Shift + 'a1;')` types `A!:` too. The `code` and `keyCode` stay those of the key, and the numpad keys don't change.
 

@@ -200,22 +200,9 @@ See [Plugin Setup](./plugin-setup.md) for complete installation guide.
 
 The frontend plugin didn't initialize.
 
-**Solution 1: Add Delay for Initialization**
+`browser.tauri.execute()` waits a few seconds for the plugin, then throws `Tauri plugin not available`.
 
-```typescript
-it('should have plugin', async () => {
-  // Wait for plugin to initialize
-  await browser.pause(500);
-
-  const hasPlugin = await browser.tauri.execute(() => {
-    return typeof window.wdioTauri !== 'undefined';
-  });
-
-  expect(hasPlugin).toBe(true);
-});
-```
-
-**Solution 2: Check Import Timing**
+**Solution 1: Check Import Timing**
 
 Make sure the plugin is imported **before** tests run:
 
@@ -223,15 +210,15 @@ Make sure the plugin is imported **before** tests run:
 - In your main framework entry point (main.ts, main.js)
 - Not inside an iframe or separate context
 
-**Solution 3: Verify Plugin Loaded**
+**Solution 2: Check Whether the Plugin Loads**
+
+`browser.execute` doesn't need the plugin, so use it to see whether `window.wdioTauri` ever appears:
 
 ```typescript
-it('should verify plugin is available', async () => {
-  const available = await browser.tauri.execute(() => {
-    return 'wdioTauri' in window;
+it('should load the plugin', async () => {
+  await browser.waitUntil(() => browser.execute(() => 'wdioTauri' in window), {
+    timeoutMsg: 'window.wdioTauri never appeared',
   });
-
-  expect(available).toBe(true);
 });
 ```
 
@@ -348,14 +335,13 @@ const browser = await startWdioSession(capabilities, { connectionRetryTimeout: 1
 
 **Solution 2: Wait for App to Be Ready**
 
+Wait for the element the test needs before you use it:
+
 ```typescript
 it('should wait for app', async () => {
-  // Give app time to fully initialize
-  await browser.pause(1000);
-
-  // Then run test
-  const element = await browser.$('button');
-  expect(element).toBeDefined();
+  const button = await browser.$('button');
+  await button.waitForDisplayed();
+  await button.click();
 });
 ```
 

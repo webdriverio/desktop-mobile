@@ -177,11 +177,12 @@ spawn) — mobile does **not** use it.
 
 ## Logs
 
-Two channels, both gated on `captureBackendLogs` (`logCapture.ts`):
-1. **Native device logs** via `browser.getLogs('logcat'|'syslog')`, drained in the worker's
-   **`afterTest`** (not `after`) so each test's lines attribute to it — `getLogs` drains everything
-   since the last call.
-2. **JS console** via CDP `Runtime.consoleAPICalled` over the Hermes bridge. The listener binds to a
+Two channels, each with its own gate and level option (`logCapture.ts`):
+1. **Native device logs** (`captureBackendLogs`, `backendLogLevel`) via `browser.getLogs('logcat'|'syslog')`,
+   drained in the worker's **`afterTest`** (not `after`) so each test's lines attribute to it — `getLogs`
+   drains everything since the last call.
+2. **JS console** (`captureFrontendLogs`, `frontendLogLevel`) via CDP `Runtime.consoleAPICalled` over the
+   Hermes bridge. The listener binds to a
    **specific `CdpBridge` instance**, and there is **no dedicated reconnect hook** — so re-attach it
    in the same place you (re)connect: RN attaches once in `before` (the initial warm-up) and
    **re-attaches inside the `ensureHermes()` lazy-(re)connect guard** that the next
