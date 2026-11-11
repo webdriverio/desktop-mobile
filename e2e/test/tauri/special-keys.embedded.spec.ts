@@ -49,12 +49,12 @@ async function focusedId() {
 }
 
 // A field that logs its events with its value, and a button to move focus to.
-async function fillChangeScratch({ initialValue = '', inShadowHost = false } = {}) {
+async function fillChangeScratch({ initialValue = '', inShadowHost = false, type = 'text' } = {}) {
   await fillScratch(
     `scratch.innerHTML = '<div id="fresh-host"></div><button id="fresh-other">other</button>';
     var host = document.querySelector("#fresh-host");
     var parent = ${inShadowHost ? 'host.attachShadow({ mode: "open", delegatesFocus: true })' : 'host'};
-    parent.innerHTML = '<input id="fresh-field" value="${initialValue}">';
+    parent.innerHTML = '<input id="fresh-field" type="${type}" value="${initialValue}">';
     window.__fieldEvents = [];
     for (var type of ["input", "change", "blur"]) {
       parent.querySelector("#fresh-field").addEventListener(type, function (ev) {
@@ -418,6 +418,27 @@ describe('special keys (embedded)', () => {
       { type: 'input', value: 'a' },
       { type: 'change', value: 'a' },
     ]);
+  });
+
+  it('should drop letters typed into a number input, firing input only for the digits, as Chrome does', async () => {
+    await fillChangeScratch({ initialValue: '12', type: 'number' });
+    const field = browser.$('#fresh-field');
+    await field.click();
+    await browser.keys(['a', '3']);
+    await field.addValue('x4');
+    expect(await field.getValue()).toBe('1234');
+    expect(await fieldEvents()).toEqual(['input 123', 'input 1234']);
+  });
+
+  it('should owe no change when a keydown handler cancels the key Send Keys presses, as Chrome does', async () => {
+    await fillChangeScratch({ initialValue: 'old' });
+    await browser.execute(
+      'document.querySelector("#fresh-field").addEventListener("keydown", function (ev) { ev.preventDefault(); });',
+    );
+    await browser.$('#fresh-field').addValue(Key.Backspace);
+    await browser.execute('document.querySelector("#fresh-field").value = "y";');
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['blur y']);
   });
 
   it('should fire change before blur when a click moves focus', async () => {
