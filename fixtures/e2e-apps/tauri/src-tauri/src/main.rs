@@ -4,11 +4,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use once_cell::sync::Lazy;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
+use std::thread::ThreadId;
 
 static DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
 static CLOSE_GUARD_REQUESTS: AtomicU32 = AtomicU32::new(0);
+static MAIN_THREAD: OnceLock<ThreadId> = OnceLock::new();
+static OPEN_URL_ON_MAIN_THREAD: Lazy<Mutex<HashMap<String, bool>>> =
+  Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn collect_deep_links_from_args() -> Vec<String> {
   let mut deep_links = Vec::new();
@@ -225,6 +230,13 @@ async fn get_deep_links(_app: tauri::AppHandle) -> Result<Vec<String>, String> {
   Ok(links)
 }
 
+// Whether the app's on_open_url handler ran on the main thread for this URL; None if it hasn't run.
+#[tauri::command]
+async fn open_url_ran_on_main_thread(url: String) -> Result<Option<bool>, String> {
+  let threads = OPEN_URL_ON_MAIN_THREAD.lock().map_err(|e| e.to_string())?;
+  Ok(threads.get(&url).copied())
+}
+
 #[tauri::command]
 async fn get_command_line_args() -> Result<Vec<String>, String> {
   Ok(std::env::args().collect())
@@ -326,11 +338,14 @@ fn main() {
     .plugin(tauri_plugin_deep_link::init())
     .setup(move |app| {
       DEEP_LINKS.lock().unwrap().extend(collect_deep_links_from_args());
+      let _ = MAIN_THREAD.set(std::thread::current().id());
 
       // Runtime links go straight to the page; DEEP_LINKS keeps only the launch links.
       let handle = app.handle().clone();
       app.deep_link().on_open_url(move |event| {
+        let on_main_thread = MAIN_THREAD.get() == Some(&std::thread::current().id());
         for url in event.urls() {
+          OPEN_URL_ON_MAIN_THREAD.lock().unwrap().insert(url.to_string(), on_main_thread);
           let _ = handle.emit("deeplink-received", url.to_string());
         }
       });
@@ -403,6 +418,7 @@ fn main() {
       generate_test_logs,
       switch_to_main,
       get_deep_links,
+      open_url_ran_on_main_thread,
       get_command_line_args,
       open_close_guard_window,
       get_close_guard_requests,
