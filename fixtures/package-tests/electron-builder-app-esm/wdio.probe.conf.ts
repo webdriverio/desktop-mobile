@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getElectronBinaryPath } from '@wdio/electron-service';
-import type { Options } from '@wdio/types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -10,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // See https://github.com/webdriverio/desktop-mobile/issues/578
 const appBinaryPath = await getElectronBinaryPath(__dirname);
 
-export const config: Options.Testrunner = {
+export const config: WebdriverIO.Config = {
   runner: 'local',
   specs: ['./test/probe.spec.ts'],
   exclude: [],
@@ -34,7 +33,7 @@ export const config: Options.Testrunner = {
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
   // Allows the Linux package test to select wayland for its Weston run (see .github/workflows/_ci-package.reusable.yml)
-  displayServer: process.env.DISPLAY_SERVER as Options.Testrunner['displayServer'],
+  displayServer: process.env.DISPLAY_SERVER as WebdriverIO.Config['displayServer'],
   services: [['electron', { appBinaryPath }]],
   framework: 'mocha',
   reporters: ['spec'],
