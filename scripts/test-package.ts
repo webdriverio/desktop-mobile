@@ -18,7 +18,7 @@ import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { readCatalogs } from './strip-fixture-catalogs.ts';
-import { pinWdioToCatalog, specMajor, versionsInTree } from './switch-catalog.ts';
+import { multipleVersionsInTree, pinWdioToCatalog, specMajor, versionsInTree } from './switch-catalog.ts';
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
@@ -36,6 +36,9 @@ const __dirname = dirname(__filename);
 const rootDir = normalize(join(__dirname, '..'));
 
 const SANDBOX_CONFIG_FILE = 'pnpm-workspace.sandbox.yaml';
+
+// A service that pins one of these gets its own nested copy, which runs apart from the test runner's.
+const SINGLE_COPY_PACKAGES = ['webdriverio', '@wdio/globals', '@wdio/types', '@wdio/logger', '@wdio/utils'];
 
 interface WorkspaceConfig {
   overrides?: Record<string, string>;
@@ -645,10 +648,25 @@ async function testExample(
 
     execCommand('pnpm install', packageDir, `Installing dependencies for ${packageName}`);
 
+    const tree = JSON.parse(
+      execSync(`pnpm ls ${SINGLE_COPY_PACKAGES.join(' ')} --depth Infinity --json`, {
+        cwd: packageDir,
+        encoding: 'utf-8',
+        maxBuffer: 256 * 1024 * 1024,
+      }),
+    );
+    const duplicates = multipleVersionsInTree(tree, SINGLE_COPY_PACKAGES);
+    if (Object.keys(duplicates).length > 0) {
+      throw new Error(
+        `Expected one version of each WebdriverIO package in ${packageName}, but found ${Object.entries(duplicates)
+          .map(([name, versions]) => `${name} ${versions.join(', ')}`)
+          .join('; ')}`,
+      );
+    }
+
     if (wdioCatalog) {
       const major = specMajor(wdioCatalog.versions.webdriverio);
-      const tree = execSync('pnpm ls webdriverio --depth Infinity --json', { cwd: packageDir, encoding: 'utf-8' });
-      const versions = versionsInTree(JSON.parse(tree), 'webdriverio');
+      const versions = versionsInTree(tree, 'webdriverio');
       if (versions.length === 0 || versions.some((version) => specMajor(version) !== major)) {
         throw new Error(
           `Expected only webdriverio ${major}.x in ${packageName}, from the '${wdioCatalog.name}' catalog, but found ${versions.join(', ') || 'none'}`,

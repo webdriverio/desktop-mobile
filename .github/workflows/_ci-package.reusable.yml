@@ -13,6 +13,11 @@ on:
         description: "Operating system to run tests on"
         type: string
         required: true
+      node-version:
+        description: "Node.js version to run the Electron package tests on"
+        type: string
+        required: false
+        default: "24"
       service:
         description: "Service to test (electron, tauri, dioxus, electrobun, or all)"
         type: string
@@ -264,6 +269,14 @@ jobs:
              fi
            fi
 
+      # The workspace requires Node 24, so only the package tests switch, using the tarballs packed above.
+      - name: 🛠️ Setup Node.js ${{ inputs.node-version }} for the Package Tests
+        if: inputs.node-version != '24'
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          check-latest: true
+
       # Run package tests using test-package.ts script
       # All apps are built in isolated environments (Electron always, Tauri if not skipBuild)
       # Tauri uses skipBuild to copy pre-built binaries from separate build jobs
@@ -296,12 +309,13 @@ jobs:
           NO_AT_BRIDGE: "1"
           SERVICE: ${{ inputs.service }}
           WDIO_CATALOG: ${{ inputs.wdio-catalog }}
+          SKIP_BUILD: ${{ inputs.node-version != '24' && '--skip-build' || '' }}
         run: |
           case "$SERVICE" in
             electron)
               echo "Running Electron package tests (apps built in isolated environments)"
               echo "Module type: ${{ inputs.module-type }}"
-              pnpm run test:package:electron -- --module-type=${{ inputs.module-type }} ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
+              pnpm run test:package:electron -- --module-type=${{ inputs.module-type }} $SKIP_BUILD ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
               ;;
             dioxus)
               echo "Running Dioxus package tests (using pre-built binaries from separate build job)"
@@ -371,7 +385,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
-          name: package-test-logs-${{ inputs.os }}-${{ inputs.service }}-${{ inputs.module-type || 'default' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: package-test-logs-${{ inputs.os }}-node${{ inputs.node-version }}-${{ inputs.service }}-${{ inputs.module-type || 'default' }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: logs/package-tests/**/*.log
           retention-days: 90
           if-no-files-found: warn

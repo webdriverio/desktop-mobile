@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { parse as parseToml } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
@@ -37,5 +38,39 @@ describe('crate-drift workflow', () => {
     for (const leg of legs) {
       expect(publishedCrates).toEqual(expect.arrayContaining(cratesOf(leg)));
     }
+  });
+});
+
+describe('crate-drift tauri floor', () => {
+  const floorJob: { env: { CRATES: string; FLOOR: string } } = workflow.jobs['floor-deps'];
+  const floor = Object.fromEntries(
+    floorJob.env.FLOOR.trim()
+      .split(/\s+/)
+      .map((pin) => pin.split('=')),
+  );
+  const tauriCrates = publishedCrates.filter((dir) => dir.startsWith('packages/tauri-plugin'));
+
+  type Requirement = string | { version?: string } | undefined;
+  interface CargoManifest {
+    dependencies?: Record<string, Requirement>;
+    'build-dependencies'?: Record<string, Requirement>;
+  }
+  const manifest = (dir: string): CargoManifest =>
+    parseToml(readFileSync(new URL(`${dir}/Cargo.toml`, REPO_ROOT), 'utf8'));
+  const floorOf = (requirement: Requirement) => {
+    const version = typeof requirement === 'string' ? requirement : requirement?.version;
+    return version?.replace(/^\^/, '');
+  };
+
+  it('should build every published tauri plugin crate', () => {
+    expect(cratesOf({ crates: floorJob.env.CRATES })).toEqual(tauriCrates);
+  });
+
+  it.each(tauriCrates)('should pin tauri to the floor %s requires', (dir) => {
+    expect(floor.tauri).toBe(floorOf(manifest(dir).dependencies?.tauri));
+  });
+
+  it.each(tauriCrates)('should pin the tauri-plugin build dependency to the floor %s requires', (dir) => {
+    expect(floor['tauri-plugin']).toBe(floorOf(manifest(dir)['build-dependencies']?.['tauri-plugin']));
   });
 });

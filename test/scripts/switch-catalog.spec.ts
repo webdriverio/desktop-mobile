@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readCatalogs } from '../../scripts/strip-fixture-catalogs.ts';
 import {
+  multipleVersionsInTree,
   pinWdioToCatalog,
   specMajor,
   switchCatalog,
@@ -177,6 +178,33 @@ describe('versionsInTree', () => {
 
   it('should return nothing when the tree has no such package', () => {
     expect(versionsInTree([{ dependencies: { yaml: { version: '2.9.1' } } }], 'webdriverio')).toEqual([]);
+  });
+});
+
+describe('multipleVersionsInTree', () => {
+  const tree = [
+    {
+      dependencies: {
+        '@wdio/cli': {
+          version: '10.2.0',
+          dependencies: { '@wdio/logger': { version: '10.2.0' }, webdriverio: { version: '10.2.0' } },
+        },
+        '@wdio/electron-service': {
+          version: '10.0.0',
+          dependencies: { '@wdio/logger': { version: '10.2.0' }, webdriverio: { version: '9.33.1' } },
+        },
+      },
+    },
+  ];
+
+  it('should list each package found at more than one version', () => {
+    expect(multipleVersionsInTree(tree, ['webdriverio', '@wdio/logger', '@wdio/utils'])).toEqual({
+      webdriverio: ['10.2.0', '9.33.1'],
+    });
+  });
+
+  it('should return nothing when every package has one version', () => {
+    expect(multipleVersionsInTree(tree, ['@wdio/logger', '@wdio/cli'])).toEqual({});
   });
 });
 
