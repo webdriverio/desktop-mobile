@@ -1213,6 +1213,33 @@ describe('wdioClearElement', () => {
     expect(log).toEqual(['change f=x', 'blur f=x', 'focus ed', 'blur ed']);
   });
 
+  it('should take focus off another field when the element to clear cannot take it, as chromedriver does', () => {
+    render('<input id="f"><div id="ed" contenteditable="true"><p id="p">text</p></div>');
+    for (const id of ['ed', 'p']) {
+      Object.defineProperty($(`#${id}`), 'isContentEditable', { value: true });
+    }
+    type($('#f'), 'x');
+    expect(events.wdioClearElement($('#p'))).toBe('cleared');
+    expect($('#p').textContent).toBe('');
+    expect(log).toEqual(['change f=x', 'blur f=x']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("should blur the element a field's change handler moves focus to, as chromedriver does", () => {
+    render('<input id="a" value="old"><input id="next">');
+    $('#a').addEventListener('change', () => $('#next').focus());
+    events.wdioClearElement($('#a'));
+    expect(log).toEqual(['focus a=old', 'change a=', 'blur a=', 'focus next=', 'blur next=']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('should clear a number input showing text it cannot parse, with no change, as chromedriver does', () => {
+    render('<input id="num" type="number">');
+    Object.defineProperty($('#num'), 'validity', { value: { badInput: true } });
+    expect(events.wdioClearElement($('#num'))).toBe('cleared');
+    expect(log).toEqual(['focus num=', 'blur num=']);
+  });
+
   it('should fire change when clearing a value Send Keys typed, as chromedriver does', () => {
     type($('#empty'), 'x');
     events.wdioClearElement($('#empty'));
