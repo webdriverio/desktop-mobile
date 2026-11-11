@@ -22,6 +22,8 @@ concurrency:
 jobs:
   fresh-deps:
     name: Fresh deps [${{ matrix.label }}]
+    # Upstream drift isn't caused by the PR, so PRs only run the floor check. To test this job, dispatch it on the branch.
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
