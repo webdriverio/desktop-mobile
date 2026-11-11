@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const ENGINES_NODE = '>=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1';
@@ -17,24 +17,10 @@ interface Manifest {
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
 }
 
-type BundleFormat = { bundle?: string[] } | boolean | undefined;
-
 const manifests = readdirSync(PACKAGES_DIR)
   .map((dir) => join(PACKAGES_DIR, dir))
   .filter((dir) => existsSync(join(dir, 'package.json')))
   .map((dir) => ({ dir, manifest: JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as Manifest }));
-
-// Packages the bundler inlines into every build format, so the published code never imports them.
-async function inlined(dir: string): Promise<Set<string>> {
-  const configPath = join(dir, 'wdio-bundler.config.ts');
-  if (!existsSync(configPath)) {
-    return new Set();
-  }
-  const config: { esm?: BundleFormat; cjs?: BundleFormat } = (await import(pathToFileURL(configPath).href)).default;
-  const bundled = (format: BundleFormat) => (typeof format === 'object' ? (format.bundle ?? []) : []);
-  const cjs = new Set(bundled(config.cjs));
-  return new Set(bundled(config.esm).filter((name) => cjs.has(name)));
-}
 
 const IMPORT_PATTERN = /(?:\bfrom|\bimport|\brequire\(|\bimport\(|declare module)\s*['"]((?:@[\w.-]+\/)?[\w.-]+)/g;
 
@@ -58,11 +44,9 @@ function importedPackages(dir: string): Set<string> {
 }
 
 const workspaceNames = new Set(manifests.map(({ manifest }) => manifest.name));
-const published = await Promise.all(
-  manifests
-    .filter(({ manifest }) => !manifest.private)
-    .map(async (pkg) => ({ ...pkg, inlined: await inlined(pkg.dir), imported: importedPackages(pkg.dir) })),
-);
+const published = manifests
+  .filter(({ manifest }) => !manifest.private)
+  .map((pkg) => ({ ...pkg, imported: importedPackages(pkg.dir) }));
 
 // WebdriverIO's own packages, as opposed to the @wdio/native-* ones published from this repo.
 const isWdio = (name: string) => name === 'webdriverio' || (name.startsWith('@wdio/') && !workspaceNames.has(name));
@@ -78,39 +62,35 @@ describe('published package manifests', () => {
     );
   });
 
-  describe.each(published.map((pkg) => ({ name: pkg.manifest.name, ...pkg })))(
-    '$name',
-    ({ manifest, inlined, imported }) => {
-      const wdioPeers = Object.keys(manifest.peerDependencies ?? {}).filter(isWdio);
+  describe.each(published.map((pkg) => ({ name: pkg.manifest.name, ...pkg })))('$name', ({ manifest, imported }) => {
+    const wdioPeers = Object.keys(manifest.peerDependencies ?? {}).filter(isWdio);
 
-      it('should accept both WebdriverIO majors in its WebdriverIO peers', () => {
-        expect(Object.fromEntries(wdioPeers.map((name) => [name, manifest.peerDependencies?.[name]]))).toEqual(
-          Object.fromEntries(wdioPeers.map((name) => [name, WDIO_PEER_RANGE])),
-        );
-      });
+    it('should accept both WebdriverIO majors in its WebdriverIO peers', () => {
+      expect(Object.fromEntries(wdioPeers.map((name) => [name, manifest.peerDependencies?.[name]]))).toEqual(
+        Object.fromEntries(wdioPeers.map((name) => [name, WDIO_PEER_RANGE])),
+      );
+    });
 
-      it('should mark its WebdriverIO peers optional', () => {
-        const unmarked = wdioPeers.filter((name) => manifest.peerDependenciesMeta?.[name]?.optional !== true);
-        expect(unmarked).toEqual([]);
-      });
+    it('should mark its WebdriverIO peers optional', () => {
+      const unmarked = wdioPeers.filter((name) => manifest.peerDependenciesMeta?.[name]?.optional !== true);
+      expect(unmarked).toEqual([]);
+    });
 
-      it('should not depend on WebdriverIO packages directly', () => {
-        expect(Object.keys(manifest.dependencies ?? {}).filter(isWdio)).toEqual([]);
-      });
+    it('should not depend on WebdriverIO packages directly', () => {
+      expect(Object.keys(manifest.dependencies ?? {}).filter(isWdio)).toEqual([]);
+    });
 
-      // Type-only imports count too: the emitted .d.ts files keep them.
-      it('should declare every @wdio package its source imports', () => {
-        const declared = new Set([
-          manifest.name,
-          ...inlined,
-          ...Object.keys(manifest.dependencies ?? {}),
-          ...Object.keys(manifest.peerDependencies ?? {}),
-        ]);
-        const undeclared = [...imported].filter(
-          (name) => (name === 'webdriverio' || name.startsWith('@wdio/')) && !declared.has(name),
-        );
-        expect(undeclared).toEqual([]);
-      });
-    },
-  );
+    // Type-only imports count too, even of packages the bundler inlines: the emitted .d.ts files keep them.
+    it('should declare every @wdio package its source imports', () => {
+      const declared = new Set([
+        manifest.name,
+        ...Object.keys(manifest.dependencies ?? {}),
+        ...Object.keys(manifest.peerDependencies ?? {}),
+      ]);
+      const undeclared = [...imported].filter(
+        (name) => (name === 'webdriverio' || name.startsWith('@wdio/')) && !declared.has(name),
+      );
+      expect(undeclared).toEqual([]);
+    });
+  });
 });
