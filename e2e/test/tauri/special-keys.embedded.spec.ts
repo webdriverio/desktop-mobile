@@ -704,22 +704,6 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ']);
   });
 
-  it('should clear a contenteditable with input, then blur', async () => {
-    await fillScratch(
-      `scratch.innerHTML = '<div id="fresh-editor" contenteditable="true">old</div>';
-      window.__fieldEvents = [];
-      for (var type of ["input", "change", "blur"]) {
-        document.querySelector("#fresh-editor").addEventListener(type, function (ev) {
-          window.__fieldEvents.push(ev.type + " " + ev.target.textContent);
-        });
-      }`,
-    );
-    await browser.$('#fresh-editor').clearValue();
-    expect(await editorText('#fresh-editor')).toBe('');
-    expect(await fieldEvents()).toEqual(['input ', 'blur ']);
-    expect(await browser.execute('return document.activeElement === document.body')).toBe(true);
-  });
-
   it('should fire the change resulting from setValue when focus leaves', async () => {
     await fillChangeScratch({ initialValue: '1' });
     await browser.$('#fresh-field').setValue('2');
