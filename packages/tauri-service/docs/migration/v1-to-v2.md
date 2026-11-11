@@ -261,7 +261,7 @@ Clear and Send Keys no longer fire `change` while the field keeps focus. It fire
 
 #### Clear blurs the field, fires no `input` and refuses non-editable elements
 
-Clear leaves the field blurred, as W3C specifies. As in chromedriver, it fires `change` whenever it empties a field, including one Send Keys typed into from empty, and no `input`. After `clearValue()` alone, an app that updates its state only on `input`, such as Vue's `v-model`, doesn't see the field emptied; `setValue()` still fires `input` when its typing changes the field ([#1094](https://github.com/webdriverio/desktop-mobile/pull/1094)). It refuses a disabled or read-only field, or an element that isn't a text field or contenteditable, such as a checkbox or a `<select>`, with `invalid element state`, as chromedriver does. That includes a web component's host element that delegates focus to an input inside it: target the inner input instead.
+Clear leaves the field blurred, as W3C specifies. As in chromedriver, it fires `change` whenever it empties a field, including one Send Keys typed into from empty, and no `input`. After `clearValue()` alone, an app that updates its state only on `input`, such as Vue's `v-model`, doesn't see the field emptied; `setValue()` still fires `input` when its typing changes the field. It refuses a disabled or read-only field, or an element that isn't a text field or contenteditable, such as a checkbox or a `<select>`, with `invalid element state`, as chromedriver does. That includes a web component's host element that delegates focus to an input inside it: target the inner input instead.
 
 #### Key codes, newlines and Backspace
 
