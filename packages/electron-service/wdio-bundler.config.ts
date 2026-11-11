@@ -33,11 +33,12 @@ const config: BundlerConfig = {
       },
     },
   ],
+  // native-spy is a dependency only for the published types. Its subpaths stay external unless listed.
   esm: {
-    bundle: ['@wdio/native-spy'],
+    bundle: ['@wdio/native-spy', '@wdio/native-spy/interceptor'],
   },
   cjs: {
-    bundle: ['fast-copy', '@wdio/native-spy'],
+    bundle: ['fast-copy', '@wdio/native-spy', '@wdio/native-spy/interceptor'],
   },
 };
 
