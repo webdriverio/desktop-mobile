@@ -547,3 +547,29 @@ pub(crate) async fn get_window_states<R: Runtime>(
 
   Ok(states)
 }
+
+#[cfg(test)]
+mod tests {
+  use std::sync::{Arc, Mutex};
+
+  use tauri::Listener;
+
+  // The mock runtime runs main-thread tasks inline, so the thread is checked in E2E, not here.
+  #[test]
+  fn emit_deep_link_emits_the_url_as_a_new_url_event() {
+    let app = tauri::test::mock_app();
+    let payloads = Arc::new(Mutex::new(Vec::new()));
+    let received = Arc::clone(&payloads);
+    app.listen("deep-link://new-url", move |event| {
+      received.lock().unwrap().push(event.payload().to_string());
+    });
+
+    tauri::async_runtime::block_on(super::emit_deep_link(
+      app.handle().clone(),
+      "testapp://open?file=a.txt".to_string(),
+    ))
+    .unwrap();
+
+    assert_eq!(*payloads.lock().unwrap(), [r#"["testapp://open?file=a.txt"]"#]);
+  }
+}

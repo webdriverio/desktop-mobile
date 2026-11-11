@@ -1,6 +1,6 @@
 import { expect, multiRemoteBrowser } from '@wdio/globals';
 import '@wdio/native-types';
-import { createDeeplinkHelpers } from '../../../lib/deeplink.js';
+import { createDeeplinkHelpers, tauriDeeplinkEmitsInApp } from '../../../lib/deeplink.js';
 
 declare global {
   var receivedDeeplinks: string[];
@@ -9,8 +9,7 @@ declare global {
 
 type InstanceName = 'browserA' | 'browserB';
 
-const provider = process.env.DRIVER_PROVIDER ?? 'external';
-const opensThroughOs = provider === 'external' || (provider === 'crabnebula' && process.platform !== 'darwin');
+const opensThroughOs = !tauriDeeplinkEmitsInApp();
 
 const root = () => multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
 const instance = (name: InstanceName) => root().getInstance(name);

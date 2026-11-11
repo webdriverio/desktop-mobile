@@ -102,7 +102,6 @@ switch (envContext.testType) {
     specs = ['./test/tauri/window.spec.ts'];
     break;
   case 'deeplink':
-    // Deeplink tests require single-instance mode and sequential execution
     specs = ['./test/tauri/deeplink.spec.ts'];
     maxInstances = 1;
     break;
@@ -115,7 +114,7 @@ switch (envContext.testType) {
     maxInstances = 1;
     // Exclude:
     // - window tests (require splash)
-    // - deeplink tests (require single-instance)
+    // - deeplink tests (run on their own)
     // - tauri-driver-only tests (*.tauri-driver.spec.ts, not applicable to the embedded driver)
     exclude = ['./test/tauri/window.spec.ts', './test/tauri/deeplink.spec.ts', './test/tauri/*.tauri-driver.spec.ts'];
     // Note: logging.embedded.spec.ts is included to document the limitation
@@ -217,14 +216,8 @@ if (envContext.isMultiremote) {
     },
   };
 } else {
-  const baseEnv: Record<string, string> = {};
-  if (envContext.isSplashEnabled) {
-    baseEnv.ENABLE_SPLASH_WINDOW = 'true';
-  }
-  if (envContext.testType === 'deeplink') {
-    baseEnv.ENABLE_SINGLE_INSTANCE = 'true';
-  }
-
+  // No ENABLE_SINGLE_INSTANCE on deeplink runs: without the single-instance plugin, a triggerDeeplink() that
+  // wrongly opens the URL through the OS never reaches this app, so the deeplink specs fail.
   capabilities = [
     {
       browserName: 'tauri',
