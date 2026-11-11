@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { createClassMock } from '../src/classMock.js';
+import mockStore from '../src/mockStore.js';
 
 let mockFn: Mock;
 let mockExecute: Mock;
@@ -130,6 +131,24 @@ describe('createClassMock()', () => {
 
     expect(mockExecute).toHaveBeenCalledWith(expect.any(Function), 'Tray', 'destroy', { internal: true });
     expect(mockExecute).toHaveBeenCalledWith(expect.any(Function), 'Tray', { internal: true });
+  });
+
+  it("should create the mock in the given instance's app and store it under that instance", async () => {
+    class MockTray {
+      setImage() {}
+    }
+    const instanceExecute = vi.fn(makeClassExecute({ Tray: MockTray }));
+    const instance = { electron: { execute: instanceExecute } } as unknown as WebdriverIO.Browser;
+
+    await createClassMock('Tray', instance);
+
+    expect(instanceExecute).toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockStore.getMocks(instance).map(([name]) => name)).toEqual([
+      'electron.Tray.setImage',
+      'electron.Tray.__constructor',
+    ]);
+    expect(mockStore.getMocks(globalThis.browser)).toEqual([]);
   });
 
   it('should return electron.ClassName from getMockName', async () => {
