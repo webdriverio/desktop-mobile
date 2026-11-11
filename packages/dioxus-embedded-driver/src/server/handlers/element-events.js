@@ -562,28 +562,25 @@ function wdioContains(node, el) {
   return false;
 }
 
-// Element Clear (W3C): returns 'not editable', 'empty' (leaving the element alone) or 'cleared'.
-// Clearing fires `change` only if the value differs from its last committed one, and no `input`,
-// as in chromedriver.
+// Element Clear (W3C): returns 'not editable', 'empty' (leaving an empty field alone) or 'cleared'.
+// As in chromedriver, clearing a field fires `change` and no `input`, and an empty contenteditable
+// is still focused and blurred.
 function wdioClearElement(el) {
   const field = el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && WDIO_CLEARABLE_INPUT_TYPES.includes(el.type));
   if (field ? el.readOnly || el.matches(':disabled') : !el.isContentEditable) {
     return 'not editable';
   }
-  if (field ? el.value === '' : el.innerHTML === '') {
+  if (field && el.value === '') {
     return 'empty';
   }
   el.focus();
-  const record = wdioTakePendingChange(el);
-  const committedValue = record ? record.value : el.value;
+  wdioTakePendingChange(el);
   if (field) {
     const prototype = el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
     Object.getOwnPropertyDescriptor(prototype, 'value').set.call(el, '');
+    el.dispatchEvent(new Event('change', { bubbles: true }));
   } else {
     el.innerHTML = '';
-  }
-  if (field && el.value !== committedValue) {
-    el.dispatchEvent(new Event('change', { bubbles: true }));
   }
   el.blur();
   return 'cleared';
