@@ -3,22 +3,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { createClassMock } from '../src/classMock.js';
 import mockStore from '../src/mockStore.js';
 
-let mockFn: Mock;
 let mockExecute: Mock;
-
-vi.doMock('@wdio/native-spy', () => ({
-  fn: (_impl: unknown, options?: { original?: (...args: unknown[]) => unknown }) => {
-    if (options?.original) {
-      const originalFn = options.original;
-      mockFn.mockRestore = vi.fn(function () {
-        mockFn.mockClear();
-        mockFn.mockImplementation(originalFn);
-        return mockFn;
-      }) as unknown as typeof mockFn.mockRestore;
-    }
-    return mockFn;
-  },
-}));
 
 function makeClassExecute(electron: Record<string, unknown>) {
   (globalThis as Record<string, unknown>).electron = electron;
@@ -26,7 +11,6 @@ function makeClassExecute(electron: Record<string, unknown>) {
 }
 
 beforeEach(() => {
-  mockFn = vi.fn();
   mockExecute = vi.fn();
   globalThis.browser = {
     electron: {
