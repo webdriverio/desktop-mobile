@@ -6,15 +6,21 @@ v2 covers `@wdio/dioxus-service`, `@wdio/dioxus-bridge` and the `wdio-dioxus`, `
 
 ## What's New in v2
 
-For the full list of changes, see the [v2.0.0 release notes](../release-notes/v2.0.0.md). New features, such as support for WebdriverIO v10 and `mock.withImplementation()`, are additive. The sections below cover what you may have to change.
+For the full list of changes, see the [v2.0.0 release notes](../release-notes/v2.0.0.md). New features are additive. The sections below cover what you may have to change.
+
+### WebdriverIO v10
+
+v2 runs on WebdriverIO v10 as well as v9. Moving to v10 is optional. If you do, follow WebdriverIO's [v9 → v10 migration guide](https://webdriver.io/docs/v10-migration) for the changes in your own tests, such as strict `$`, the removed `multiremotebrowser` global and `executeAsync`, and Mocha 12.
+
+On Linux, the v10 testrunner starts a display server itself, Weston if it's installed and Xvfb otherwise, so no `xvfb-run` wrapper is needed. The service is tested on both and needs no setting. An app with X11-only dependencies sets `displayServer: 'xvfb'`. Local runs on a Linux desktop now show the app instead of a hidden Xvfb. On WebdriverIO v9, keep wrapping the run in `xvfb-run`. See [Linux Without a Display](../quick-start.md#linux-without-a-display).
 
 ## Breaking Changes
 
 ### Requirements
 
-#### WebdriverIO v9 and v10
+#### WebdriverIO 9.33.0+
 
-v2 supports WebdriverIO v9 and v10, from 9.33.0 and 10.2.0 (`^9.33.0 || ^10.2.0`), the first releases with the Node.js floors below. If you move to v10 at the same time, follow WebdriverIO's [v9 → v10 migration guide](https://webdriver.io/docs/v10-migration) for the changes in your own tests, such as strict `$`, the removed `multiremotebrowser` global and `executeAsync`, and Mocha 12.
+v2 needs WebdriverIO 9.33.0+ on v9, or 10.2.0+ on v10 (`^9.33.0 || ^10.2.0`), the first releases with the Node.js floors below.
 
 #### Node.js
 
@@ -29,10 +35,6 @@ v2 needs Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+). Node.js 23.x and
 - **pnpm with hoisting turned off, or Yarn Plug'n'Play:** these don't let a package see what it hasn't declared, so list `webdriverio`, `@wdio/types` and `@wdio/globals` as direct dependencies, even in testrunner mode.
 
 They're optional rather than required because npm and pnpm install a missing required peer at the newest version in range, so a project even one release behind got a second copy of each package.
-
-#### Linux display
-
-On WebdriverIO v10, WebdriverIO starts a display server itself, Weston if it's installed and Xvfb otherwise, so no `xvfb-run` wrapper is needed. The service is tested on both and needs no setting. An app with X11-only dependencies sets `displayServer: 'xvfb'`. Local runs on a Linux desktop now show the app instead of a hidden Xvfb. On WebdriverIO v9, keep wrapping the run in `xvfb-run`. See [Linux Without a Display](../quick-start.md#linux-without-a-display).
 
 ### Rust crates
 
@@ -241,16 +243,9 @@ Page and element screenshots fail with `unsupported operation`, where they retur
 
 #### Clear, Send Keys and Click
 
-- **Send Keys** (`setValue()`, `addValue()`) no longer fires `change` while the field keeps focus. The field fires it when focus leaves, if its value changed, or when Enter commits it. A test that waits for `change` right after `setValue()` must move focus first, with `el.click()` on another element or `browser.keys(Key.Tab)`, or press Enter. Pointer actions (`browser.action()`) don't move focus in this driver. Send Keys refuses an element that can't take focus with `element not interactable`. A date, colour, range or similar input gets its value at once, with `input` and `change`, and an invalid value fails with `invalid argument`.
-- **Clear** (`clearValue()`) focuses the field, clears it, fires `change` if the value differs from its last committed one, and leaves the field blurred. As in chromedriver, it fires no `input` event ([#1094](https://github.com/webdriverio/desktop-mobile/pull/1094)). It refuses a disabled or read-only field, and anything that isn't an editable field or contenteditable, such as a checkbox or `<select>`, with `invalid element state`.
+- **Send Keys** (`setValue()`, `addValue()`) no longer fires `change` while the field keeps focus. The field fires it when focus leaves, before `blur` and before any `blur` or `focusout` listener the page adds, if its value changed, or when Enter commits it. A test that waits for `change` right after `setValue()` must move focus first, with `el.click()` on another element or `browser.keys(Key.Tab)`, or press Enter. Pointer actions (`browser.action()`) don't move focus in this driver. Send Keys refuses an element that can't take focus with `element not interactable`. A date, colour, range or similar input gets its value at once, with `input` and `change`, and an invalid value fails with `invalid argument`.
+- **Clear** (`clearValue()`) focuses the field, clears it, fires `change` if the value differs from its last committed one, and leaves the field blurred. As in chromedriver, it fires no `input` event. It refuses a disabled or read-only field, and anything that isn't an editable field or contenteditable, such as a checkbox or `<select>`, with `invalid element state`.
 - **Click** (`el.click()` with no options) fires `pointerdown`, `mousedown`, `pointerup` and `mouseup` before `click`, as a user's click does, so the app's pointer and mouse handlers run. Focus moves as `mousedown`'s default action, so clicking text, the body or a field's `<label>` fires the field's `change` and `blur`. The `click` has `isPrimary: false`, as Chrome's does.
-
-#### When `change` fires
-
-- A field edited by `browser.keys()` owes a `change` too, which fires when focus leaves it, before `blur`, if its value changed.
-- When a `keydown` handler moves focus, a key types or deletes in the newly focused element.
-- Element Send Keys leaves a `change` owed only when it edits the field, so a field it focused but didn't edit no longer fires `change` after a script changes the value.
-- The `change` a field owes fires before any `blur` or `focusout` listener the page adds, capture listeners on `window` and `document` included, as in Chrome.
 
 #### Key codes and Shift
 
@@ -260,11 +255,11 @@ Key actions (`browser.keys()`, `browser.action('key')`) send the browser's `keyC
 - `Key.Return` is `code: 'NumpadEnter'` (was `'Enter'`). `Key.Enter` keeps `code: 'Enter'`.
 - Special keys the driver didn't map before, such as PageUp and the numpad keys, arrive as named keys instead of their code points.
 - A newline or `\b` in `browser.keys()` is the Enter or Backspace key, so a newline commits an input's `change`. A carriage return is skipped.
-- With Shift held, key actions and Send Keys send and type the shifted character: `browser.keys([Key.Shift, 'a', '1'])` sends `key: 'A'` and `'!'` (was `'a'` and `'1'`), and `addValue(Key.Shift + 'abc')` types `ABC` (was `abc`). `code` and `keyCode` stay the key's.
+- With Shift held, key actions and Send Keys send and type the shifted character: `browser.keys([Key.Shift, 'a', '1'])` sends `key: 'A'` and `'!'` (was `'a'` and `'1'`), and `addValue(Key.Shift + 'abc')` types `ABC`. `code` and `keyCode` stay the key's.
 
 #### Key actions type text
 
-Key actions type and delete text in the focused field and fire `input`, as in Chrome. Before, the field kept its value. Enter breaks the line in a textarea or contenteditable, Control+A or Meta+A selects all, and the arrow keys change the checked radio button. A test that pressed keys in a field and expected its value to stay the same now sees the typed text.
+Key actions type and delete text in the focused field and fire `input`, as in Chrome. Before, the field kept its value. The field fires `change` when focus leaves it, as after Send Keys, and when a `keydown` handler moves focus, a key types or deletes in the newly focused element. Enter breaks the line in a textarea or contenteditable, Control+A or Meta+A selects all, and the arrow keys change the checked radio button. A test that pressed keys in a field and expected its value to stay the same now sees the typed text.
 
 #### Send Keys presses special keys
 
