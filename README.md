@@ -58,6 +58,13 @@
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | [![@wdio/electrobun-service](https://img.shields.io/badge/@wdio-electrobun--service-ffffff?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![version](https://img.shields.io/npm/v/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | macOS / Windows / Linux | [![downloads](https://img.shields.io/npm/dw/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) |
 
+## Requirements
+
+- **WebdriverIO:** 9.33.0+ or 10.2.0+. The services' peer range is `^9.33.0 || ^10.2.0`.
+- **Node.js:** 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+). Node.js 23 and 25 aren't supported.
+
+These are what you need to run the services. To work on this repo, see [Development](#development).
+
 ## Planned Support
 
 - **Mobile** - Shared Appium base for any native mobile app (plain native, NativeScript, MAUI)
@@ -79,6 +86,8 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 ## Development
 
 ### Requirements
+
+To contribute, you need:
 
 - Node.js 24 LTS
 - pnpm 12
@@ -125,7 +134,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Maintenance Policy
 
-> **Note:** This repository does not maintain LTS or backport branches. Only the latest version on `main` receives updates. See [MAINTENANCE.md](./MAINTENANCE.md) for details.
+The current majors support WebdriverIO v9 and v10 until v9 leaves maintenance. There are no maintenance branches: a critical or security fix for the previous major is backported only on request. See [MAINTENANCE.md](./MAINTENANCE.md).
 
 ## Community & Support
 

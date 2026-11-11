@@ -14,6 +14,8 @@ Please be respectful and constructive in all interactions. We aim to create a we
 - pnpm 12
 - Git
 
+Node.js 24 LTS is the contributor toolchain. The published packages run on Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+), as their `engines` field says.
+
 For Tauri and Dioxus contributions, you also need:
 
 - Rust
@@ -351,7 +353,7 @@ When contributing to shared utilities:
 
 ## Maintenance Policy
 
-This repository does not maintain LTS or backport branches. Only the latest version on `main` receives updates. For details, see [MAINTENANCE.md](./MAINTENANCE.md).
+There are no maintenance branches. Changes target `main`. A critical or security fix for the previous major is backported only on request, from its last tag. See [MAINTENANCE.md](./MAINTENANCE.md).
 
 ## Release Process
 
