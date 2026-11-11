@@ -1,6 +1,6 @@
 import { browser, expect } from '@wdio/globals';
 import '@wdio/native-types';
-import { createDeeplinkHelpers } from '../../lib/deeplink.js';
+import { createDeeplinkHelpers, tauriDeeplinkEmitsInApp } from '../../lib/deeplink.js';
 
 declare global {
   var receivedDeeplinks: string[];
@@ -10,9 +10,7 @@ declare global {
 
 const { clearDeeplinkState, waitForDeeplink, waitForDeeplinkStability } = createDeeplinkHelpers(() => browser.tauri);
 
-const provider = process.env.DRIVER_PROVIDER;
-// These providers emit the deep-link event in the app; the others open the URL through the OS.
-const emitsInApp = provider === 'embedded' || (provider === 'crabnebula' && process.platform === 'darwin');
+const emitsInApp = tauriDeeplinkEmitsInApp();
 
 describe('Deeplink Testing (browser.tauri.triggerDeeplink)', () => {
   beforeEach(async () => {
@@ -60,7 +58,8 @@ describe('Deeplink Testing (browser.tauri.triggerDeeplink)', () => {
     });
 
     it("should run the app's on_open_url handler on the main thread", async function () {
-      // A real deep link runs handlers on other threads, such as the single-instance plugin's D-Bus thread on Linux.
+      // Covers the emit route #857 changed. On the OS route, the handler's thread depends on the platform and the
+      // single-instance plugin.
       if (!emitsInApp) {
         this.skip();
       }
