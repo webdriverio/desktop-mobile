@@ -1,10 +1,12 @@
 # Log Forwarding
 
-Capture and forward logs from your Dioxus application to WebdriverIO's logger system.
+Capture your Dioxus app's backend and frontend logs during a test run.
 
 ## Overview
 
-The Dioxus service can capture and forward logs from both the Rust backend and the frontend webview console to WebdriverIO's logger system. This allows you to see Dioxus application logs seamlessly integrated with your test output.
+The service starts your app, so it reads everything the app writes to stdout and stderr. Frontend logs reach it the same way: the bridge that `wdio_dioxus::install(config)` adds wraps the webview's `console.*` methods and has the app print each call to stdout with a `[WDIO-FRONTEND]` marker. The service sorts each line into backend or frontend, filters it by level, and writes it to a log file.
+
+Captured lines go to a `wdio-<timestamp>.log` file in WebdriverIO's `outputDir`, or in `logs/` in the working directory when `outputDir` isn't set.
 
 ## Enabling Log Forwarding
 
@@ -49,15 +51,20 @@ Only logs at the configured level and above will be captured. For example, with 
 
 ## Log Format
 
-Captured logs are formatted with context tags:
+Each line is prefixed with its source and the instance it came from:
 
-- Backend logs: `[Dioxus:Backend] message`
-- Frontend logs: `[Dioxus:Frontend] message`
-- Multiremote logs: `[Dioxus:Backend:instanceId] message` / `[Dioxus:Frontend:instanceId] message`
+- Backend logs: `[Dioxus:Backend:<instance>] message`
+- Frontend logs: `[Dioxus:Frontend:<instance>] message`
+
+`<instance>` is the capability's index, so a single session's lines start with `[Dioxus:Backend:0]` and `[Dioxus:Frontend:0]`. In multiremote, it's the instance's name, such as `browserA`.
 
 ## Backend Log Capture
 
-Backend log capture reads Rust logs from the Dioxus application process. These logs are generated using the Rust `log` crate:
+Every line the app writes to stdout or stderr that doesn't start with `[WDIO-FRONTEND]` is a backend log. That includes Rust logs, `println!` output, and the logs of crates the app uses, such as the embedded driver's own. Nothing filters them by origin; only the log level does.
+
+The service takes a line's level from the first `TRACE`, `DEBUG`, `INFO`, `WARN` (or `WARNING`) or `ERROR` token in it, in any case. A line without one is `info`.
+
+For example, with the Rust `log` crate:
 
 ```rust
 // In your Dioxus app (add log crate to Cargo.toml)
@@ -74,13 +81,11 @@ dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version (the 
 log = "0.4"
 ```
 
-> **Note:** The `log` crate is a no-op façade until a concrete backend registers itself as the global logger. During WDIO test runs, `wdio-dioxus-bridge` installs its own subscriber automatically. For non-WDIO runs (development, production), add a backend such as `tracing-subscriber` or `env_logger` so your `log::*!()` calls produce output.
-
-The service automatically filters driver-level logs and only captures logs from your Dioxus application.
+> **Note:** The `log` crate prints nothing until the app installs a logger. Neither the bridge nor the service installs one, so add a logger that writes to stdout or stderr, such as `tracing-subscriber` or `env_logger`. Its filter decides which records reach the service at all.
 
 ## Frontend Log Capture
 
-Frontend log capture uses the WebDriver `getLogs` API to retrieve console logs from the webview:
+The bridge wraps `console.log`, `console.info`, `console.warn`, `console.error` and `console.debug` in the webview. Each call still reaches the original method, and is also sent to the app, which prints it to stdout as `[WDIO-FRONTEND][<LEVEL>] message`. The service strips that marker and logs the message as a frontend log.
 
 ```javascript
 // In your Dioxus frontend (JavaScript/TypeScript)
@@ -89,7 +94,9 @@ console.warn('This is a warning');
 console.error('This is an error');
 ```
 
-Frontend logs are captured periodically and before each WebDriver command.
+`console.log` and `console.info` are `info`; `console.warn`, `console.error` and `console.debug` keep their own level. Other console methods, such as `console.trace`, aren't forwarded. Arguments are joined with spaces, and non-string arguments are converted with `JSON.stringify`.
+
+Frontend capture needs the bridge, and only sees calls made after it loads.
 
 ## Independent Configuration
 
@@ -107,20 +114,24 @@ services: [
 
 ## Multiremote Support
 
-In multiremote scenarios, logs are captured per instance with instance IDs in the log context:
+In multiremote, each instance's lines carry the instance's name:
 
 ```typescript
 capabilities: {
   browserA: {
-    browserName: 'dioxus',
-    'dioxus:options': {
-      application: './target/debug/my_app',
+    capabilities: {
+      browserName: 'dioxus',
+      'dioxus:options': {
+        application: './target/debug/my_app',
+      },
     },
   },
   browserB: {
-    browserName: 'dioxus',
-    'dioxus:options': {
-      application: './target/debug/my_app',
+    capabilities: {
+      browserName: 'dioxus',
+      'dioxus:options': {
+        application: './target/debug/my_app',
+      },
     },
   },
 },
@@ -140,10 +151,9 @@ Logs will appear as:
 
 ## Performance Considerations
 
-- Log capture is optional and disabled by default to avoid overhead.
-- Frontend log capture uses periodic polling (every 1 second) which has minimal performance impact.
-- Backend log parsing is efficient and non-blocking.
-- Log level filtering reduces the number of logs processed.
+- Log capture is disabled by default.
+- With `captureFrontendLogs` off, the bridge still forwards each console call to the app, which prints it; the service drops the line.
+- A noisy app logger fills the log file. Raise the level in the app's logger, or `backendLogLevel`, to cut it down.
 
 ## Troubleshooting
 
@@ -151,8 +161,8 @@ Logs will appear as:
 
 - Ensure `captureBackendLogs` or `captureFrontendLogs` is set to `true`.
 - Check that your log level is appropriate (logs below the configured level won't appear).
-- Verify logs are being written to stdout (backend) or console (frontend).
-- For backend logs: ensure the `log` crate is properly initialized in your Rust app.
+- Check that the app writes backend logs to stdout or stderr, and that its logger's filter lets them through.
+- Look in the log file, not the terminal: captured lines go to `outputDir`, or `logs/` in the working directory.
 
 ### Too many logs
 
@@ -161,9 +171,9 @@ Logs will appear as:
 
 ### Frontend logs not captured
 
-- Some WebDriver implementations may not support the `getLogs` API.
-- The service will silently fail if `getLogs` is not supported.
-- Backend logs will still work in this case.
+- Check that the app calls `wdio_dioxus::install(config)`. Without the bridge, console calls aren't forwarded.
+- Calls made before the bridge loads aren't captured.
+- Only `console.log`, `info`, `warn`, `error` and `debug` are forwarded.
 
 ## See Also
 

@@ -35,6 +35,12 @@ Or with pnpm:
 pnpm add -D @wdio/tauri-service
 ```
 
+The service supports WebdriverIO 9.33.0+ and 10.2.0+. To use it without the test runner ([standalone mode](./docs/api-reference.md#startwdiosessioncapabilities-globaloptions)), also install `webdriverio` and `@wdio/globals`:
+
+```bash
+npm install --save-dev webdriverio @wdio/globals
+```
+
 ## Quick Start
 
 Get started in minutes with the [Quick Start Guide](./docs/quick-start.md).

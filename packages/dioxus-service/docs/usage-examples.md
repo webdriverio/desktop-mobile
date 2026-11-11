@@ -314,10 +314,14 @@ describe('Multiremote — Multiple App Instances', () => {
 
 ## Standalone Session
 
-Use `startWdioSession` to manage a session outside of the WebdriverIO test runner:
+Use `startWdioSession` to manage a session outside of the WebdriverIO test runner. Without the test runner, install `webdriverio` (9.33.0+ or 10.2.0+) next to the service:
+
+```bash
+npm install --save-dev @wdio/dioxus-service webdriverio
+```
 
 ```typescript
-import { startWdioSession } from '@wdio/dioxus-service';
+import { cleanupWdioSession, startWdioSession } from '@wdio/dioxus-service';
 
 const browser = await startWdioSession({
   browserName: 'dioxus',
@@ -329,8 +333,10 @@ const browser = await startWdioSession({
 const heading = await browser.$('h1');
 console.log(await heading.getText());
 
-await browser.deleteSession();
+await cleanupWdioSession(browser);
 ```
+
+End the session with `cleanupWdioSession(browser)`. `browser.deleteSession()` skips the service's cleanup and doesn't stop what the launcher started.
 
 ## Common Testing Patterns
 

@@ -6,7 +6,7 @@ Connects a Dioxus desktop app to [`@wdio/dioxus-service`](https://www.npmjs.com/
 
 ```toml
 [dependencies]
-wdio-dioxus = "1"
+wdio-dioxus = "2"
 ```
 
 ```rust,ignore

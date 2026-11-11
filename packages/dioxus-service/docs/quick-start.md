@@ -71,7 +71,7 @@ edition = "2021"
 
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version (wdio-dioxus tracks the latest release)
-wdio-dioxus = "1"
+wdio-dioxus = "2"
 ```
 
 Edit `src/main.rs`:
@@ -180,9 +180,8 @@ Create `test/specs/example.spec.ts`:
 ```typescript
 describe('My Dioxus App', () => {
   it('should display hello world', async () => {
-    await browser.pause(500);
-
     const heading = await browser.$('h1');
+    await heading.waitForDisplayed();
     expect(await heading.getText()).toBe('Hello, Dioxus!');
   });
 
@@ -239,7 +238,7 @@ npx wdio run wdio.conf.ts --logLevel debug
 1. Add to `[dependencies]` in `Cargo.toml`:
 
    ```toml
-   wdio-dioxus = "1"
+   wdio-dioxus = "2"
    ```
 
 2. Call `wdio_dioxus::install(config)` in `main.rs` inside a `#[cfg(debug_assertions)]` block. If your app sets its own `with_on_window` callback, call `wdio_dioxus::on_window` from it (see [App Setup](./app-setup.md#apps-with-their-own-window-callback)).

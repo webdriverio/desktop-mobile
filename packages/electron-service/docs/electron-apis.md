@@ -29,7 +29,7 @@ await browser.electron.execute(
 
 ...which results in the application displaying the following alert:
 
-![Execute Demo](../.github/assets/execute-demo.png "Execute Demo")
+![Execute Demo](https://raw.githubusercontent.com/webdriverio-community/wdio-electron-service/49d03fbd559a67c9c1ed056b5f8175832684952d/.github/assets/execute-demo.png "Execute Demo")
 
 **Note:** The first argument of the function is always the default export of the `electron` package that contains the [Electron API](https://www.electronjs.org/docs/latest/api/app).
 

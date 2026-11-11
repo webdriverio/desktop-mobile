@@ -109,6 +109,9 @@ supported. The service adds `wdio:reactNativeServiceOptions`:
 
 ```ts
 interface ReactNativeServiceOptions {
+  // Defaults to the capability's platformName; set it only if the capability doesn't
+  platform?: 'Android' | 'iOS';
+
   // Metro inspector-proxy connection
   metroHost?: string; // default: 'localhost'
   metroPort?: number; // default: 8081
@@ -138,8 +141,13 @@ interface ReactNativeServiceOptions {
   clearMocks?: boolean; // clear mock call history before each test
   resetMocks?: boolean; // reset mock implementations before each test
   restoreMocks?: boolean; // restore originals before each test
+  clearMocksPrefix?: string; // limit clearMocks to the mocks under a path
+  resetMocksPrefix?: string; // limit resetMocks to the mocks under a path
+  restoreMocksPrefix?: string; // limit restoreMocks to the mocks under a path
 }
 ```
+
+A prefix covers the path and everything under it: `'nativeModuleProxy'` matches `nativeModuleProxy.Clipboard.getString`, but not `nativeModuleProxy2.foo`.
 
 ## Zero-config setup automation
 

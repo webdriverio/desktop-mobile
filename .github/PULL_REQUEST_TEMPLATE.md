@@ -56,4 +56,4 @@
 
 ---
 
-**Note:** This repository does not backport changes to older versions. All changes target the current `main` branch.
+**Note:** All changes target `main`. There are no maintenance branches; see [MAINTENANCE.md](https://github.com/webdriverio/desktop-mobile/blob/main/MAINTENANCE.md).

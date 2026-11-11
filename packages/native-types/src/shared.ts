@@ -100,22 +100,21 @@ export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 // ============================================================================
 
 /**
- * Driver provider configuration - shared between Electron, Tauri, and Dioxus services
+ * Driver provider configuration - shared between the Tauri and Dioxus services
  */
 export interface DriverProviderConfig {
   /**
    * Driver provider to use for WebDriver communication
-   * - 'external': Use an external driver process (cargo-installed tauri-driver,
-   *   electron-chromedriver, or wdio-dioxus-driver)
+   * - 'embedded': Use the WebDriver server embedded in the app (no external driver needed)
+   * - 'external': Use an external driver process (Tauri: cargo-installed tauri-driver; not yet available for Dioxus)
    * - 'crabnebula': Use @crabnebula/tauri-driver from npm (Tauri only, enables macOS support)
-   * - 'embedded': Use embedded WebDriver server via plugin (no external driver needed)
-   * @default 'external'
+   * @default 'embedded'
    */
   driverProvider?: 'external' | 'crabnebula' | 'embedded';
   /**
-   * Port for embedded WebDriver server (when driverProvider is 'embedded')
-   * Can be overridden via environment variable (TAURI_WEBDRIVER_PORT or WDIO_EMBEDDED_PORT)
-   * @default 4445
+   * Port for the embedded WebDriver server (when driverProvider is 'embedded').
+   * When unset, Tauri reads `TAURI_WEBDRIVER_PORT` and Dioxus reads `WDIO_EMBEDDED_PORT` from the environment.
+   * @default 4445 (Tauri), 4444 (Dioxus)
    */
   embeddedPort?: number;
 }

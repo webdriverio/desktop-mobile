@@ -34,7 +34,7 @@ CodeQL raised `actions/artifact-poisoning` alerts against debug log steps and ar
 ## Custom Download Action
 
 The analysis relies on the custom `download-archive` action located at:
-[`.github/workflows/actions/download-archive/action.yml`](../../workflows/actions/download-archive/action.yml)
+[`.github/workflows/actions/download-archive/action.yml`](../workflows/actions/download-archive/action.yml)
 
 This action implements the safeguards described below.
 
@@ -54,7 +54,7 @@ The concern: if a malicious artifact were downloaded and extracted to the worksp
 
 ### Why This Is A False Positive
 
-The `download-archive` action ([`.github/workflows/actions/download-archive/action.yml`](../../workflows/actions/download-archive/action.yml)) has strict safeguards:
+The `download-archive` action ([`.github/workflows/actions/download-archive/action.yml`](../workflows/actions/download-archive/action.yml)) has strict safeguards:
 
 #### 1. Extraction to Temporary Directory
 

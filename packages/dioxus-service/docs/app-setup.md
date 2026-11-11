@@ -11,7 +11,7 @@ When the app runs any other way, `install()` does nothing.
 
 Dioxus has no plugin system like Tauri's, so there are no plugins to register and no capability permissions to grant. `install()` wires everything into the Dioxus `desktop::Config`, and the bridge talks to the service over its own `wdio://` custom protocol on the webview.
 
-> **Upgrading from 1.0?** Apps that call `wdio_dioxus_embedded_driver::install(config)` keep working. To switch, replace the `wdio-dioxus-embedded-driver` dependency with `wdio-dioxus = "1"`, and the call with `wdio_dioxus::install(config)`. `install_with_commands` and `automation` work the same way. If your own `with_on_window` callback calls `window_state::register_window`, call `wdio_dioxus::on_window` instead (see [Apps With Their Own Window Callback](#apps-with-their-own-window-callback)).
+> **Upgrading from 1.0?** Apps that call `wdio_dioxus_embedded_driver::install(config)` keep working. To switch, replace the `wdio-dioxus-embedded-driver` dependency with `wdio-dioxus = "2"`, and the call with `wdio_dioxus::install(config)`. `install_with_commands` and `automation` work the same way. If your own `with_on_window` callback calls `window_state::register_window`, call `wdio_dioxus::on_window` instead (see [Apps With Their Own Window Callback](#apps-with-their-own-window-callback)).
 
 ## What `install()` Provides
 
@@ -37,7 +37,7 @@ edition = "2021"
 
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version (wdio-dioxus tracks the latest release)
-wdio-dioxus = "1"
+wdio-dioxus = "2"
 ```
 
 > **Why `[dependencies]` and not `[dev-dependencies]`?**
@@ -197,7 +197,7 @@ If you want additional isolation, you can use a Cargo feature flag:
 wdio = ["dep:wdio-dioxus"]
 
 [dependencies]
-wdio-dioxus = { version = "1", optional = true }
+wdio-dioxus = { version = "2", optional = true }
 ```
 
 ```rust

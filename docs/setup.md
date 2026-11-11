@@ -6,7 +6,7 @@ This guide will help you set up the WebdriverIO Desktop & Mobile monorepo for de
 
 Before you begin, ensure you have the following installed:
 
-- **Node.js**: Version 24 LTS (contributor toolchain — end-user Node range is defined per-package via `engines`)
+- **Node.js**: Version 24 LTS. This is the contributor toolchain. The published packages run on Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+), as their `engines` field says.
 
   ```bash
   node --version  # Should be v24.x

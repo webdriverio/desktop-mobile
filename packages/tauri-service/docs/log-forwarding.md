@@ -51,17 +51,27 @@ Both backend and frontend log capture support the following log levels (in order
 
 Only logs at the configured level and above will be captured. For example, with `backendLogLevel: 'info'`, only `info`, `warn`, and `error` logs will be captured.
 
+## Where Logs Go
+
+The service reads the app's stdout and stderr: from the app itself with the `embedded` provider, and through tauri-driver or CrabNebula's backend with the others. It writes each captured line to a log file, `wdio-<timestamp>.log`:
+
+- With the test runner, in WebdriverIO's `outputDir`, or `logs/` in the working directory if that isn't set.
+- In standalone mode, in [`logDir`](./configuration.md#logdir-string-optional), or `logs/` in the working directory.
+
+If the file can't be opened, the lines go to WebdriverIO's logger as `tauri-service` instead.
+
 ## Log Format
 
-Captured logs are formatted with context tags:
+Each line starts with its source, `[Tauri:Backend]` or `[Tauri:Frontend]`, and the instance it came from:
 
-- Backend logs: `[Tauri:Backend] message`
-- Frontend logs: `[Tauri:Frontend] message`
-- Multiremote logs: `[Tauri:Backend:instanceId] message` or `[Tauri:Frontend:instanceId] message`
+- In multiremote, the instance's name: `[Tauri:Backend:browserA]`.
+- Otherwise, with the `embedded` provider, the capability's index: `[Tauri:Backend:0]`.
+- With a tauri-driver per worker, the worker's ID.
+- A tauri-driver shared by every capability adds no instance: `[Tauri:Backend]`.
 
 ## Backend Log Capture
 
-Backend log capture reads Rust logs from the Tauri application's stdout. These logs are generated using Rust's `log` crate:
+Every line the app writes to stdout or stderr counts as a backend log unless it's a frontend log (see below). For example, from Rust's `log` crate:
 
 ```rust
 // In your Tauri app
@@ -70,11 +80,13 @@ log::warn!("This is a warning");
 log::error!("This is an error");
 ```
 
-The service automatically filters out tauri-driver logs and only captures logs from your Tauri application.
+The level is read from the start of the line, where Rust's `log` and `tracing` put it. A line without one counts as `info`.
+
+Lines from tauri-driver and the native driver aren't app logs. The service drops them from capture and logs them at the service's `logLevel` instead.
 
 ## Frontend Log Capture
 
-Frontend log capture uses WebDriver's `getLogs` API to retrieve console logs from the webview:
+The frontend plugin, `@wdio/tauri-plugin`, wraps `console.log`, `console.debug`, `console.info`, `console.warn`, `console.error` and `console.trace` when your frontend imports it. Each call still reaches the console, and is also sent to `tauri-plugin-wdio`'s `log_frontend` command, which prints it to the app's stderr as `[WDIO-FRONTEND][LEVEL] message`. The service reads those lines as frontend logs.
 
 ```javascript
 // In your Tauri app frontend
@@ -83,7 +95,9 @@ console.warn('This is a warning');
 console.error('This is an error');
 ```
 
-Frontend logs are captured periodically (every second) and before each WebDriver command to ensure all logs are captured.
+`console.log` and `console.trace` are `trace` level, so the default `frontendLogLevel`, `'info'`, drops them. Set `frontendLogLevel: 'trace'` to capture them.
+
+If the app has `tauri-plugin-log`'s JavaScript API (`window.__TAURI__.log`), the frontend plugin logs through it instead of `log_frontend`. The service sees those logs only if `tauri-plugin-log` writes to stdout or stderr, and counts a line as a frontend log only if it contains `[frontend]`.
 
 ## Independent Configuration
 
@@ -107,15 +121,19 @@ In multiremote scenarios, logs are captured per instance with instance IDs in th
 ```typescript
 capabilities: {
   browserA: {
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './path/to/app',
+    capabilities: {
+      browserName: 'tauri',
+      'tauri:options': {
+        application: './path/to/app',
+      },
     },
   },
   browserB: {
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './path/to/app',
+    capabilities: {
+      browserName: 'tauri',
+      'tauri:options': {
+        application: './path/to/app',
+      },
     },
   },
 },
@@ -135,10 +153,9 @@ Logs will appear as:
 
 ## Performance Considerations
 
-- Log capture is optional and disabled by default to avoid overhead
-- Frontend log capture uses periodic polling (every 1 second) which has minimal performance impact
-- Backend log parsing is efficient and non-blocking
-- Log level filtering reduces the number of logs processed
+- Log capture is off by default.
+- Every frontend console call makes an IPC call to the app, whether or not capture is on.
+- Log level filtering reduces the number of lines written.
 
 ## Troubleshooting
 
@@ -146,7 +163,7 @@ Logs will appear as:
 
 - Ensure `captureBackendLogs` or `captureFrontendLogs` is set to `true`
 - Check that your log level is appropriate (logs below the configured level won't appear)
-- Verify logs are being written to stdout (backend) or console (frontend)
+- Look in the log file, not the terminal (see [Where Logs Go](#where-logs-go))
 
 ### Too many logs
 
@@ -155,9 +172,9 @@ Logs will appear as:
 
 ### Frontend logs not captured
 
-- Some WebDriver implementations may not support `getLogs` API
-- The service will silently fail if `getLogs` is not supported
-- Backend logs will still work in this case
+- Check that the frontend imports `@wdio/tauri-plugin` and the app registers `tauri-plugin-wdio` with the `wdio:default` permission.
+- Check the level: `console.log` is `trace`, below the default `frontendLogLevel`.
+- In browser mode there's no app process, so nothing is captured.
 
 ## See Also
 
