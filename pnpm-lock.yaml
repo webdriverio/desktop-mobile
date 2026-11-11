@@ -224,8 +224,8 @@ importers:
         specifier: ^22.0.1
         version: 22.0.1
       '@releasekit/release':
-        specifier: ^0.43.0
-        version: 0.43.0(conventional-commits-parser@7.1.4)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+        specifier: ^0.44.0
+        version: 0.44.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -1788,8 +1788,8 @@ packages:
     resolution: {integrity: sha512-cUD0PT0YX+rImRhfn7BfMRduP/tX/Zqt/N0dHlAyn2RlcJssCb5KsCJkhln61eh9vuJDkH8wKn3L8zJzzWXPFg==}
     engines: {node: '>=18'}
 
-  '@anthropic-ai/sdk@1.5.0':
-    resolution: {integrity: sha512-AqB4Irlv4TLzTqsBCSpVyk5BLaPPfsTt5wUEju6X5a273nBsL143EM+4hxj67F9e0HpBlzdwUhVIPYM9OxD2oQ==}
+  '@anthropic-ai/sdk@1.6.0':
+    resolution: {integrity: sha512-XqiO/46n8S6So8jQ/6/uNCkHntyW6QHHs1gZ+hlwTx1fWDr929g4VmwIXfdMVk7SuBWNdQvAlwyi1G3t6SEIuQ==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -2024,18 +2024,6 @@ packages:
   '@colors/colors@1.6.1':
     resolution: {integrity: sha512-dTmUJzXSuayBK+hZydEaXd2mhx61qWQwkwaBBY6LyEOVx/L9aQU5ac8eFNEsd9nrD1+zb9zvDCphLSe8g1F4Qw==}
     engines: {node: '>=0.1.90'}
-
-  '@conventional-changelog/git-client@2.7.0':
-    resolution: {integrity: sha512-j7A8/LBEQ+3rugMzPXoKYzyUPpw/0CBQCyvtTR7Lmu4olG4yRC/Tfkq79Mr3yuPs0SUitlO2HwGP3gitMJnRFw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      conventional-commits-filter: ^5.0.0
-      conventional-commits-parser: ^6.4.0
-    peerDependenciesMeta:
-      conventional-commits-filter:
-        optional: true
-      conventional-commits-parser:
-        optional: true
 
   '@conventional-changelog/git-client@3.2.0':
     resolution: {integrity: sha512-sD/E0vzpkoDz/dqM1Hhv0ihC4KBw6RXjefeO8SG1XrX+wGkMxe1pKeedkKDPCtr2JjuhbuS9aJNgOvnT8hbeBw==}
@@ -2787,8 +2775,8 @@ packages:
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
 
-  '@isaacs/nonrecursive-glob-match@1.0.3':
-    resolution: {integrity: sha512-SI7kyKHq4XXDRozw+r9GlRZkia1ZkFrpLW98r2IC2Bpr8YkFGE3fvjzmxCG0x78A++69HmDNrDvSMYBZmHGpKA==}
+  '@isaacs/nonrecursive-glob-match@1.1.0':
+    resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
 
   '@jest/diff-sequences@30.5.0':
     resolution: {integrity: sha512-OsqBjHXCn8cadasoAZBP6nWYvMsRhpMzGXTpxJ5aO04NlbdhIz+FVe3q49l0AwVhsz/cEmIpBes6gAFl1/dWQg==}
@@ -2985,23 +2973,23 @@ packages:
       yauzl:
         optional: true
 
-  '@releasekit/notes@0.43.0':
-    resolution: {integrity: sha512-f6PWE8efIyFzb4gcybfwqIjAZJ/qtL/1j8+6THEWLr5VkAaXnD7FIjNVOAsTA7dymEQGHMrRr7mJTXiuMIb64g==}
+  '@releasekit/notes@0.44.0':
+    resolution: {integrity: sha512-OyDU6+KsZDSIjvPrn0RlxfvsoBdtP3cpw/4TVA92NEJ28qcWiTuc2A2Gn8ATKeoe4A7SETVXPzjZ8myATkg4eg==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/publish@0.43.0':
-    resolution: {integrity: sha512-KSQnr3cpTST2zo3ejffaexw4+9sR6KxMRupp9fvS9NzYjoxs80OilaGTqSLlzSxA0028cyayQT8l3FHBlQbONQ==}
+  '@releasekit/publish@0.44.0':
+    resolution: {integrity: sha512-dqyTEaLampbxBlAsmDXpFyzl6KmdP5kTJltcoOjqO5fTKTYGz3xmpKobVrsek39oJMp5ELmvXH8ZJpLBlUUI6A==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/release@0.43.0':
-    resolution: {integrity: sha512-a18V40tXfd7GtwvSY5OvRQHozL9aWSYkvyJmGeyZ+NjuB7krb0d9ZCPewlbMzFj1FnusFMZtUoCuiQwbDl/vKw==}
+  '@releasekit/release@0.44.0':
+    resolution: {integrity: sha512-GeLGkY5JVJ0yf+mtexGp4fOLvN9wSqQ+a1VlbTRIC94DrBlcWWclwIY/qHUO9YdO/DqMfsJTlMtiMz2ZKRwwtQ==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/version@0.43.0':
-    resolution: {integrity: sha512-9j9SX8PlMULOr2o9Ysst53QKjIOiX74Kt06GwmxkFAV8kEVAz3yCVoMBrdg8QO7UY5qcK7UYGlxSaMT2S4pxtQ==}
+  '@releasekit/version@0.44.0':
+    resolution: {integrity: sha512-X9dMixXdL1/+271IwwAzlr7BTC84xtTqvaHvcBOnkk+Go7PXAqw3M5ymUDC2bhl+PN7yOdS6ua6+1SFE4RLa6g==}
     engines: {node: '>=22.12'}
     hasBin: true
 
@@ -3287,17 +3275,9 @@ packages:
     peerDependencies:
       ajv: ^7.0.0 || ^8.0.0
 
-  '@simple-libs/child-process-utils@1.0.2':
-    resolution: {integrity: sha512-/4R8QKnd/8agJynkNdJmNw2MBxuFTRcNFnE5Sg/G+jkSsV8/UBgULMzhizWWW42p8L5H7flImV2ATi79Ove2Tw==}
-    engines: {node: '>=18'}
-
   '@simple-libs/child-process-utils@2.0.0':
     resolution: {integrity: sha512-dvNoRKLijXnD0XoJAz94pbNuB5GQgDr55UhpSPhffDkTT0Cmcqh9jSCOtwfT2d4H6MI9E7c4SgtMuJXZ6F3c6A==}
     engines: {node: '>=22'}
-
-  '@simple-libs/stream-utils@1.2.0':
-    resolution: {integrity: sha512-KxXvfapcixpz6rVEB6HPjOUZT22yN6v0vI0urQSk1L8MlEWPDFCZkhw2xmkyoTGYeFw7tWTZd7e3lVzRZRN/EA==}
-    engines: {node: '>=18'}
 
   '@simple-libs/stream-utils@2.0.0':
     resolution: {integrity: sha512-fCTuZK4QBa+39Oz9l4OGfJfz+GpwCp3AqO7Zch3to99xHPgstVsRFpeQ8LNd2o1Gv8raL2mCFwiaHh7bFSp5DQ==}
@@ -3492,10 +3472,6 @@ packages:
 
   '@types/keyv@3.1.4':
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
-
-  '@types/minimatch@6.0.0':
-    resolution: {integrity: sha512-zmPitbQ8+6zNutpwgcQuLcsEpn/Cj54Kbn7L5pX0Os5kdWplB7xPgEh/g+SWOB/qmows2gpuCaPyduq8ZZRnxA==}
-    deprecated: This is a stub types definition. minimatch provides its own type definitions, so you do not need this installed.
 
   '@types/mocha@10.0.10':
     resolution: {integrity: sha512-xPyYSz1cMPnJQhl0CLMH68j3gprKZaTjG3s5Vi+fDgx+uhG9NOXwbVt52eFS8ECyXhyKcjDLCBEqBExKuiZb7Q==}
@@ -3874,8 +3850,8 @@ packages:
     peerDependencies:
       appium: ^3.0.0-rc.2
 
-  appium-chromedriver@9.2.1:
-    resolution: {integrity: sha512-NIkivu2JL5w8t9k4nNepyRODtDSnzrYpJnG3BgbusMlcNVzk6WIlTIFjXncmCQpipQ4A2EQc2kKjrz0ZtQYkvQ==}
+  appium-chromedriver@9.2.2:
+    resolution: {integrity: sha512-SctYlgZ95bKaiofLzDORNKa/xKjx7cIRgdvO/UNLXrXFlQWYMjho9Axrvkgs3wNaYGsPpO5UJyYU7BuoraS6cw==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
 
   appium-flutter-driver@4.1.0:
@@ -4022,6 +3998,10 @@ packages:
 
   asyncbox@6.5.0:
     resolution: {integrity: sha512-of3Ikvrq0hR/yhgyo+Fix7j8gpa6t1WGmqIO93Pzw1CQn1dEV3EkQo463amP75oTLc3dmJtFAFRRCcMGfTfQew==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
+
+  asyncbox@6.6.0:
+    resolution: {integrity: sha512-sl3oWB7x196p2Rc1WZa6YgzWZp24vwIGj8+P8e1BICskW55gH/iePMflsVe+jyn8Dle5wrTg+GL5/nS7SaYFUQ==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
 
   asynckit@0.4.0:
@@ -4239,8 +4219,8 @@ packages:
     resolution: {integrity: sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==}
     engines: {node: '>= 0.4'}
 
-  caniuse-lite@1.0.30001820:
-    resolution: {integrity: sha512-gfWD6MxqVCqAOwmODfZf7DchWvlrA+SRdNX7ceLfg3xRqe5ssjjpF7EgslC/0tiLiNTajdaNN/q8c/5u/7Gz8w==}
+  caniuse-lite@1.0.30001823:
+    resolution: {integrity: sha512-TQ5s/djDjNk1axreUW+4rULH+BmdCMLiJkhaXnO5wqivG7tITkSUj4ItIdzqdZHKaXcHAV8dhH3JxOM7/7bwqw==}
 
   chai@6.3.0:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
@@ -4844,8 +4824,8 @@ packages:
     resolution: {integrity: sha512-j6vWzfrGVfyXxge+O0x5sh6cvxAog0a/4Rdd2K36zCMV5eJ+/+tOAngRO8cODMNWbVRdVlmGZQL2YS3yR8bIUA==}
     engines: {node: '>= 0.4'}
 
-  es-toolkit@1.53.1:
-    resolution: {integrity: sha512-VhMc6IXmexu8iYFfL2aaAww6IvJTdHlqBLruLoEUs33YD4IcP5DdZcLOybMsMmmLsiy1c8PsiLsrM0DdIuuRUA==}
+  es-toolkit@1.53.2:
+    resolution: {integrity: sha512-iUqZ+NlwH4jUgRmXZUxFBsV/9762TQEa1O4IXLFBmDEjVHScBytKuseX23I0+v9ShZ5MYxEx6WKNzm6IPnex8g==}
 
   es6-error@4.1.1:
     resolution: {integrity: sha512-Um/+FxMr9CISWh0bi5Zv0iOD+4cFh5qLeks1qhAopKVAJw3drgKbKySikp7wGhDL0HPeaja0P5ULZrxLkniUVg==}
@@ -5224,12 +5204,6 @@ packages:
     resolution: {integrity: sha512-kVCxPF3vQM/N0B1PmoqVUqgHP+EeVjmZSQn+1oCRPxd2P21P2F19lIgbR3HBosbB1PUhOAoctJnfEn2GbN2eZA==}
     engines: {node: '>=18'}
 
-  git-semver-tags@8.0.1:
-    resolution: {integrity: sha512-zMbamckSNdlT4U48IMFa2Cn6FTzM+2yF6/gEmStPJI8PiLxd/bT6dw10+mc6u5Qe4fhrc/y9nU290FWjQhAV7g==}
-    engines: {node: '>=18'}
-    deprecated: Deprecated and no longer maintained. Use @conventional-changelog/git-client instead.
-    hasBin: true
-
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
     engines: {node: '>= 6'}
@@ -5242,8 +5216,12 @@ packages:
     resolution: {integrity: sha512-Wjlyrolmm8uDpm/ogGyXZXb1Z+Ca2B8NbJwqBVg0axK9GbBeoS7yGV6vjXnYdGm6X53iehEuxxbyiKp8QmN4Vw==}
     engines: {node: 18 || 20 || >=22}
 
-  glob@14.0.3:
-    resolution: {integrity: sha512-A1vjIwC3qpdCso45Iw127gnp7sPhqgY8lUQhDrArIs+GbmfaaVPFuoyy7WyLT9EPZCRZ7j7aLdwUhQmHWesEow==}
+  glob@13.0.7:
+    resolution: {integrity: sha512-wfsFgXQ8A3SEI9XGf7Nl3Y9l7ffSrGh7SUCT7vU/2CzYPep9kjxAn1S40F9OPKxAMGCVl7HtNlJhrCJUeUq83g==}
+    engines: {node: 18 || 20 || >=22}
+
+  glob@14.0.4:
+    resolution: {integrity: sha512-mMiwNKoJZ4HAIRVJxotO6LsNRReA30gQwP9E2/p94tfLv+jygCNpKDjhhSL6OLY6LE371EZm5EAf7RpYuUqlsw==}
     engines: {node: 18 || 20 || >=22}
 
   glob@7.2.3:
@@ -5403,8 +5381,8 @@ packages:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
     engines: {node: '>= 4'}
 
-  image-size@2.0.4:
-    resolution: {integrity: sha512-QRUkFFsRV/6fuESxb9Vkq+a0LkSrgKXuc2NEqfikiXxxN/G3tjWt5EVUlMaImRBZRZK/jRBEbYvpPYZL8t08Zw==}
+  image-size@2.1.0:
+    resolution: {integrity: sha512-6Dbisa46RsgeAh3TMSFL2i8+uIFG+/LRmz6Q2oscSJJvXo1sOw3EgNO4M8jPl1P+gR1atJLDPrpclX4IHz63sA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -5926,10 +5904,6 @@ packages:
     resolution: {integrity: sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ==}
     engines: {node: '>= 0.8'}
 
-  meow@13.2.0:
-    resolution: {integrity: sha512-pxQJQzB6djGPXh08dacEloMFopsOqGVRKFPYvPOt9XDZ1HasbgDZA74CJGreSU4G3Ak7EFJGoiH2auq+yXISgA==}
-    engines: {node: '>=18'}
-
   merge-descriptors@2.0.0:
     resolution: {integrity: sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g==}
     engines: {node: '>=18'}
@@ -5997,8 +5971,8 @@ packages:
     resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
     engines: {node: 18 || 20 || >=22}
 
-  minimatch@11.0.4:
-    resolution: {integrity: sha512-/UJ1dEoVQTjPNDh6SGlUo+ueLMmoHTas4q+8yaAR/5t6nLAIiBDJtoYUh20IYleix7ehiQkgczb84PE3uzHkxg==}
+  minimatch@11.0.5:
+    resolution: {integrity: sha512-snPlVppFcYWfLLFQGhDxUyBcHNtMlWmn3jtj7pEaO+DP8pqL0IvAzXhMYmn1z9ASNtgmwLBdFxSf4tMUB0OTKA==}
     engines: {node: 20 || >=22}
 
   minimatch@3.1.5:
@@ -6191,8 +6165,8 @@ packages:
     resolution: {integrity: sha512-VXJjc87FScF88uafS3JllDgvAm+c/Slfz06lorj2uAY34rlUu0Nt+v8wreiImcrgAjjIHp1rXpTDlLOGw29WwQ==}
     engines: {node: '>=18'}
 
-  openai@7.50.0:
-    resolution: {integrity: sha512-VFBqvO4pL3sXY1y3L1qo+9yUkE+sHOov044/mWAHThG+XUgUrMmQsigwY0ONfYBzLE7Rx4222mM6I+CTNw+Gsw==}
+  openai@7.53.0:
+    resolution: {integrity: sha512-PXiIZraFYMb2QYgTtWqDA16Oszj4fWRZNn7qLIAddmiJxM5uQPWBFaxp9O8MhLfTUOQ+iQsnFSRJhLPecsGovQ==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
@@ -7097,8 +7071,8 @@ packages:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
 
-  tough-cookie@6.0.2:
-    resolution: {integrity: sha512-exgYmnmL/sJpR3upZfXG5PoatXQii55xAiXGXzY+sROLZ/Y+SLcp9PgJNI9Vz37HpQ74WvDcLT8eqm+kV3FzrA==}
+  tough-cookie@6.1.0:
+    resolution: {integrity: sha512-FTxc8u8Kl2tz0Lat1u8ksvcy8bwHRyEMawwTWybo51JqaC6O7SvfuhAKg+Ld6VqyIe2QRJBzY9HA7y2WyFRT2w==}
     engines: {node: '>=16'}
 
   tr46@7.0.0:
@@ -7180,8 +7154,8 @@ packages:
   undici-types@7.24.6:
     resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
 
-  undici-types@8.12.3:
-    resolution: {integrity: sha512-EXE4ydL3S76dFb27UFjNVZHTyv/TLdATj/KUe29ptdcg6qXL48J2tZ3126E5kICj5jn781OR+XlVH1N6Mz8jbA==}
+  undici-types@8.12.4:
+    resolution: {integrity: sha512-GNCQH3MbVGB8OAVAoTiLH8pu4wx5Ni3DWKpnBzGj3WDsi8EwmK0aOVBooNEt+g5YL1eHPxcS9XUTouwFU6j1kQ==}
 
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
@@ -7190,12 +7164,12 @@ packages:
     resolution: {integrity: sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==}
     engines: {node: '>=18.17'}
 
-  undici@7.30.1:
-    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
+  undici@7.30.2:
+    resolution: {integrity: sha512-mLyPQnHwUxaM/rideoK/+KL8DaAJLRl4aBCfmX444aCSLnIaomqPLtNRe2jdCYcsk5wZzXrDIQC8ZeYNRAYyIA==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.12.3:
-    resolution: {integrity: sha512-+fdndUTwBP86cVjihTp21hZHo7d6oj1c/47XPA3lL8mM0XHs+C4EkcjmgRsFnFk2f/UONGDy9ItBItmXsLOQHw==}
+  undici@8.12.4:
+    resolution: {integrity: sha512-8Mx+uNKKER2bA4AdtedkqRbwUCIJFr2nJckXRe5yrDqzePqwLP7VNcctN8/XdmDSbF7mS+jJKIszlL+vbam1VA==}
     engines: {node: '>=22.19.0'}
 
   unicorn-magic@0.3.0:
@@ -7593,7 +7567,7 @@ snapshots:
       ansi-styles: 6.2.3
       is-fullwidth-code-point: 5.1.0
 
-  '@anthropic-ai/sdk@1.5.0(zod@4.6.7)':
+  '@anthropic-ai/sdk@1.6.0(zod@4.6.7)':
     dependencies:
       '@opentelemetry/api': 1.10.0
       json-schema-to-ts: 3.1.1
@@ -7909,15 +7883,6 @@ snapshots:
 
   '@colors/colors@1.6.1': {}
 
-  '@conventional-changelog/git-client@2.7.0(conventional-commits-filter@6.0.1)(conventional-commits-parser@7.1.4)':
-    dependencies:
-      '@simple-libs/child-process-utils': 1.0.2
-      '@simple-libs/stream-utils': 1.2.0
-      semver: 7.8.6
-    optionalDependencies:
-      conventional-commits-filter: 6.0.1
-      conventional-commits-parser: 7.1.4
-
   '@conventional-changelog/git-client@3.2.0(conventional-commits-filter@6.0.1)(conventional-commits-parser@7.1.4)':
     dependencies:
       '@simple-libs/child-process-utils': 2.0.0
@@ -8117,7 +8082,7 @@ snapshots:
 
   '@electron/asar@4.3.1':
     dependencies:
-      glob: 13.0.6
+      glob: 13.0.7
       minimatch: 10.2.6
 
   '@electron/fuses@1.8.0':
@@ -8151,7 +8116,7 @@ snapshots:
       semver: 7.8.6
       sumchecker: 3.0.1(supports-color@8.1.1)
     optionalDependencies:
-      undici: 7.30.1
+      undici: 7.30.2
     transitivePeerDependencies:
       - supports-color
 
@@ -8643,7 +8608,7 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
-  '@isaacs/nonrecursive-glob-match@1.0.3': {}
+  '@isaacs/nonrecursive-glob-match@1.1.0': {}
 
   '@jest/diff-sequences@30.5.0': {}
 
@@ -8870,9 +8835,9 @@ snapshots:
     optionalDependencies:
       yauzl: 3.4.0
 
-  '@releasekit/notes@0.43.0(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/notes@0.44.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
-      '@anthropic-ai/sdk': 1.5.0(zod@4.6.7)
+      '@anthropic-ai/sdk': 1.6.0(zod@4.6.7)
       '@octokit/rest': 22.0.1
       chalk: 6.0.1
       commander: 15.1.0
@@ -8880,8 +8845,8 @@ snapshots:
       handlebars: 4.7.10
       jsonc-parser: 3.3.1
       liquidjs: 10.30.1
-      minimatch: 10.2.6
-      openai: 7.50.0(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.6.7)
+      minimatch: 11.0.5
+      openai: 7.53.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.6.7)
       smol-toml: 1.9.1
       yaml: 2.9.1
       zod: 4.6.7
@@ -8893,30 +8858,30 @@ snapshots:
       - undici
       - ws
 
-  '@releasekit/publish@0.43.0':
+  '@releasekit/publish@0.44.0':
     dependencies:
       chalk: 6.0.1
       commander: 15.1.0
       jsonc-parser: 3.3.1
-      minimatch: 10.2.6
+      minimatch: 11.0.5
       semver: 7.8.6
       smol-toml: 1.9.1
       yaml: 2.9.1
       zod: 4.6.7
 
-  '@releasekit/release@0.43.0(conventional-commits-parser@7.1.4)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/release@0.44.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@octokit/rest': 22.0.1
-      '@releasekit/notes': 0.43.0(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
-      '@releasekit/publish': 0.43.0
-      '@releasekit/version': 0.43.0(conventional-commits-parser@7.1.4)
+      '@releasekit/notes': 0.44.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      '@releasekit/publish': 0.44.0
+      '@releasekit/version': 0.44.0
       chalk: 6.0.1
       commander: 15.1.0
       conventional-changelog-angular: 9.4.0
       conventional-changelog-conventionalcommits: 10.4.1
       jsonc-parser: 3.3.1
-      minimatch: 10.2.6
+      minimatch: 11.0.5
       semver: 7.8.6
       smol-toml: 1.9.1
       yaml: 2.9.1
@@ -8925,15 +8890,13 @@ snapshots:
       - '@aws-sdk/credential-provider-node'
       - '@smithy/hash-node'
       - '@smithy/signature-v4'
-      - conventional-commits-parser
       - google-auth-library
       - undici
       - ws
 
-  '@releasekit/version@0.43.0(conventional-commits-parser@7.1.4)':
+  '@releasekit/version@0.44.0':
     dependencies:
       '@manypkg/get-packages': 3.1.0
-      '@types/minimatch': 6.0.0
       chalk: 6.0.1
       commander: 15.1.0
       conventional-changelog-angular: 9.4.0
@@ -8941,15 +8904,12 @@ snapshots:
       conventional-commits-filter: 6.0.1
       conventional-recommended-bump: 12.1.1
       figlet: 1.12.0
-      git-semver-tags: 8.0.1(conventional-commits-filter@6.0.1)(conventional-commits-parser@7.1.4)
       jsonc-parser: 3.3.1
-      minimatch: 10.2.6
+      minimatch: 11.0.5
       semver: 7.8.6
       smol-toml: 1.9.1
       yaml: 2.9.1
       zod: 4.6.7
-    transitivePeerDependencies:
-      - conventional-commits-parser
 
   '@rolldown/binding-android-arm-eabi@1.2.16':
     optional: true
@@ -9110,15 +9070,9 @@ snapshots:
       ajv: 8.20.0
       kleur: 4.1.5
 
-  '@simple-libs/child-process-utils@1.0.2':
-    dependencies:
-      '@simple-libs/stream-utils': 1.2.0
-
   '@simple-libs/child-process-utils@2.0.0':
     dependencies:
       '@simple-libs/stream-utils': 2.0.0
-
-  '@simple-libs/stream-utils@1.2.0': {}
 
   '@simple-libs/stream-utils@2.0.0': {}
 
@@ -9271,10 +9225,6 @@ snapshots:
   '@types/keyv@3.1.4':
     dependencies:
       '@types/node': 26.6.6
-
-  '@types/minimatch@6.0.0':
-    dependencies:
-      minimatch: 10.2.6
 
   '@types/mocha@10.0.10': {}
 
@@ -9495,7 +9445,7 @@ snapshots:
       lodash.flattendeep: 4.4.0
       lodash.pickby: 4.6.0
       lodash.union: 4.6.0
-      minimatch: 11.0.4
+      minimatch: 11.0.5
       read-package-up: 12.0.0
       tsx: 4.23.15
       webdriverio: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -9523,7 +9473,7 @@ snapshots:
       '@wdio/types': 10.2.0
       '@wdio/utils': 10.2.0(supports-color@8.1.1)(yauzl@3.4.0)
       deepmerge-ts: 8.0.2
-      glob: 14.0.3
+      glob: 14.0.4
       import-meta-resolve: 4.2.0
       jiti: 2.7.0
     transitivePeerDependencies:
@@ -9652,7 +9602,7 @@ snapshots:
       '@wdio/utils': 10.2.0(supports-color@8.1.1)(yauzl@3.4.0)
       acorn: 8.19.0
       get-port: 7.2.0
-      image-size: 2.0.4
+      image-size: 2.1.0
       picomatch: 4.0.7
       semver: 7.8.6
       webdriverio: 10.2.0(bare-buffer@3.7.1)(bufferutil@4.1.0)(puppeteer-core@25.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)(yauzl@3.4.0)
@@ -9843,7 +9793,7 @@ snapshots:
   appium-adb@16.3.1(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       '@appium/support': 7.2.9(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       ini: 6.0.0
       lru-cache: 11.5.3
       semver: 7.8.6
@@ -9861,8 +9811,8 @@ snapshots:
       '@appium/support': 7.2.9(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       appium: 3.9.0(@types/node@26.6.6)(bare-buffer@3.7.1)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       appium-adb: 16.3.1(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-chromedriver: 9.2.1(@appium/logger@2.0.12)(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      asyncbox: 6.5.0
+      appium-chromedriver: 9.2.2(@appium/logger@2.0.12)(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      asyncbox: 6.6.0
       axios: 1.21.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       dayjs: 1.11.23
       io.appium.settings: 8.5.3(appium-adb@16.3.1(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
@@ -9882,14 +9832,13 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  appium-chromedriver@9.2.1(@appium/logger@2.0.12)(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-chromedriver@9.2.2(@appium/logger@2.0.12)(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       '@appium/base-driver': 10.8.2(@appium/logger@2.0.12)(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@appium/support': 7.2.9(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@xmldom/xmldom': 0.9.12
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       axios: 1.21.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      compare-versions: 6.1.1
       semver: 7.8.6
       teen_process: 4.2.1
       xpath: 0.0.36
@@ -9910,7 +9859,7 @@ snapshots:
       appium-ios-device: 3.1.26(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       appium-uiautomator2-driver: 8.7.3(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bare-buffer@3.7.1)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       appium-xcuitest-driver: 11.17.7(@appium/logger@2.0.12)(@types/node@26.6.6)(appium@3.9.0(@types/node@26.6.6)(bare-buffer@3.7.1)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bare-buffer@3.7.1)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       bluebird: 3.7.2
       lodash: 4.18.1
       portscanner: 2.2.0
@@ -9931,7 +9880,7 @@ snapshots:
   appium-ios-device@3.1.26(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       '@appium/support': 7.2.9(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       axios: 1.21.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       bplist-creator: 0.3.0
       bplist-parser: 0.3.2
@@ -9950,10 +9899,10 @@ snapshots:
       '@appium/support': 7.2.9(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@xmldom/xmldom': 0.9.12
       appium-ios-tuntap: 2.2.6(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       axios: 1.21.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       commander: 14.0.3
-      minimatch: 11.0.4
+      minimatch: 11.0.5
       node-devicectl: 2.2.2
       path-to-regexp: 8.4.2
     transitivePeerDependencies:
@@ -9971,7 +9920,7 @@ snapshots:
       '@xmldom/xmldom': 0.9.12
       appium-xcode: 6.2.6(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       node-simctl: 8.2.9
       semver: 7.8.6
       teen_process: 4.2.1
@@ -10003,8 +9952,8 @@ snapshots:
       '@appium/support': 7.2.9(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       appium-ios-device: 3.1.26(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
-      asyncbox: 6.5.0
-      glob: 13.0.6
+      asyncbox: 6.6.0
+      glob: 13.0.7
       teen_process: 4.2.1
     optionalDependencies:
       appium-ios-remotexpc: 5.28.8(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -10032,7 +9981,7 @@ snapshots:
       '@appium/support': 7.2.9(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       appium-ios-simulator: 8.2.8(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       axios: 1.21.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       teen_process: 4.2.1
     transitivePeerDependencies:
@@ -10047,7 +9996,7 @@ snapshots:
   appium-xcode@6.2.6(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       '@appium/support': 7.2.9(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       semver: 7.8.6
       teen_process: 4.2.1
     transitivePeerDependencies:
@@ -10070,7 +10019,7 @@ snapshots:
       appium-webdriveragent: 15.1.6(@appium/logger@2.0.12)(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       appium-xcode: 6.2.6(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       axios: 1.21.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       commander: 14.0.3
       dayjs: 1.11.23
@@ -10193,6 +10142,10 @@ snapshots:
   async@3.2.6: {}
 
   asyncbox@6.5.0:
+    dependencies:
+      p-limit: 7.3.3
+
+  asyncbox@6.6.0:
     dependencies:
       p-limit: 7.3.3
 
@@ -10345,7 +10298,7 @@ snapshots:
   browserslist@4.29.5:
     dependencies:
       baseline-browser-mapping: 2.11.35
-      caniuse-lite: 1.0.30001820
+      caniuse-lite: 1.0.30001823
       electron-to-chromium: 1.5.478
       node-releases: 2.0.63
       update-browserslist-db: 1.3.4(browserslist@4.29.5)
@@ -10402,7 +10355,7 @@ snapshots:
   bun-types@1.4.4:
     dependencies:
       '@types/node': 26.6.6
-      undici-types: 8.12.3
+      undici-types: 8.12.4
 
   bytes@3.1.2: {}
 
@@ -10440,7 +10393,7 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       get-intrinsic: 1.3.0
 
-  caniuse-lite@1.0.30001820: {}
+  caniuse-lite@1.0.30001823: {}
 
   chai@6.3.0: {}
 
@@ -10477,7 +10430,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.30.1
+      undici: 7.30.2
       whatwg-mimetype: 4.0.0
 
   chokidar@5.0.0:
@@ -10863,7 +10816,7 @@ snapshots:
       '@wdio/logger': 10.2.0
       '@zip.js/zip.js': 2.24.0
       decamelize: 6.0.1
-      undici: 8.12.3
+      undici: 8.12.4
 
   ee-first@1.1.1: {}
 
@@ -11057,7 +11010,7 @@ snapshots:
       has-tostringtag: 1.0.2
       hasown: 2.0.4
 
-  es-toolkit@1.53.1: {}
+  es-toolkit@1.53.2: {}
 
   es6-error@4.1.1:
     optional: true
@@ -11482,7 +11435,7 @@ snapshots:
       '@zip.js/zip.js': 2.24.0
       decamelize: 6.0.1
       modern-tar: 0.8.6
-      undici: 8.12.3
+      undici: 8.12.4
 
   gensync@1.0.0-beta.2: {}
 
@@ -11525,14 +11478,6 @@ snapshots:
       '@sec-ant/readable-stream': 0.4.1
       is-stream: 4.0.1
 
-  git-semver-tags@8.0.1(conventional-commits-filter@6.0.1)(conventional-commits-parser@7.1.4):
-    dependencies:
-      '@conventional-changelog/git-client': 2.7.0(conventional-commits-filter@6.0.1)(conventional-commits-parser@7.1.4)
-      meow: 13.2.0
-    transitivePeerDependencies:
-      - conventional-commits-filter
-      - conventional-commits-parser
-
   glob-parent@5.1.2:
     dependencies:
       is-glob: 4.0.3
@@ -11547,9 +11492,15 @@ snapshots:
       minipass: 7.1.3
       path-scurry: 2.0.2
 
-  glob@14.0.3:
+  glob@13.0.7:
     dependencies:
-      minimatch: 11.0.4
+      minimatch: 10.2.6
+      minipass: 7.1.3
+      path-scurry: 2.0.2
+
+  glob@14.0.4:
+    dependencies:
+      minimatch: 11.0.5
       minipass: 7.1.3
       path-scurry: 3.0.0
 
@@ -11753,7 +11704,7 @@ snapshots:
 
   ignore@5.3.2: {}
 
-  image-size@2.0.4: {}
+  image-size@2.1.0: {}
 
   immediate@3.0.6: {}
 
@@ -11785,7 +11736,7 @@ snapshots:
       cli-cursor: 4.0.0
       cli-truncate: 6.2.0
       code-excerpt: 4.0.0
-      es-toolkit: 1.53.1
+      es-toolkit: 1.53.2
       indent-string: 5.0.0
       is-in-ci: 2.0.0
       patch-console: 2.0.0
@@ -11823,7 +11774,7 @@ snapshots:
     dependencies:
       '@appium/logger': 2.0.12
       appium-adb: 16.3.1(@types/node@26.6.6)(bare-buffer@3.7.1)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       semver: 7.8.6
       teen_process: 4.2.1
 
@@ -11998,8 +11949,8 @@ snapshots:
       parse5: 8.1.0
       parse5-parser-stream: 8.1.0
       saxes: 6.0.0
-      tough-cookie: 6.0.2
-      undici: 8.12.3
+      tough-cookie: 6.1.0
+      undici: 8.12.4
       w3c-xmlserializer: 6.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
@@ -12257,8 +12208,6 @@ snapshots:
 
   media-typer@1.1.1: {}
 
-  meow@13.2.0: {}
-
   merge-descriptors@2.0.0: {}
 
   merge-stream@2.0.0: {}
@@ -12310,9 +12259,9 @@ snapshots:
     dependencies:
       brace-expansion: 5.0.12
 
-  minimatch@11.0.4:
+  minimatch@11.0.5:
     dependencies:
-      '@isaacs/nonrecursive-glob-match': 1.0.3
+      '@isaacs/nonrecursive-glob-match': 1.1.0
       brace-expansion: 5.0.12
 
   minimatch@3.1.5:
@@ -12348,7 +12297,7 @@ snapshots:
       debug: 4.4.3(supports-color@8.1.1)
       diff: 9.0.0
       find-up-simple: 1.0.1
-      glob: 13.0.6
+      glob: 13.0.7
       is-path-inside: 4.0.0
       is-unicode-supported: 0.1.0
       js-yaml: 5.5.0
@@ -12441,7 +12390,7 @@ snapshots:
   node-simctl@8.2.9:
     dependencies:
       '@appium/logger': 2.0.12
-      asyncbox: 6.5.0
+      asyncbox: 6.6.0
       rimraf: 6.1.4
       semver: 7.8.6
       teen_process: 4.2.1
@@ -12518,9 +12467,9 @@ snapshots:
     dependencies:
       mimic-function: 5.0.1
 
-  openai@7.50.0(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.6.7):
+  openai@7.53.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.6.7):
     optionalDependencies:
-      undici: 8.12.3
+      undici: 8.12.4
       ws: 8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       zod: 4.6.7
 
@@ -12941,7 +12890,7 @@ snapshots:
 
   rimraf@6.1.4:
     dependencies:
-      glob: 14.0.3
+      glob: 14.0.4
       package-json-from-dist: 1.0.1
 
   roarr@2.15.4:
@@ -13508,7 +13457,7 @@ snapshots:
 
   toidentifier@1.0.1: {}
 
-  tough-cookie@6.0.2:
+  tough-cookie@6.1.0:
     dependencies:
       tldts: 7.4.19
 
@@ -13579,15 +13528,15 @@ snapshots:
 
   undici-types@7.24.6: {}
 
-  undici-types@8.12.3: {}
+  undici-types@8.12.4: {}
 
   undici-types@8.9.0: {}
 
   undici@6.29.1: {}
 
-  undici@7.30.1: {}
+  undici@7.30.2: {}
 
-  undici@8.12.3: {}
+  undici@8.12.4: {}
 
   unicorn-magic@0.3.0: {}
 
@@ -13740,7 +13689,7 @@ snapshots:
       '@wdio/utils': 10.2.0(supports-color@8.1.1)(yauzl@3.4.0)
       deepmerge-ts: 8.0.2
       https-proxy-agent: 9.1.0(supports-color@8.1.1)
-      undici: 8.12.3
+      undici: 8.12.4
       ws: 8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bufferutil
