@@ -76,3 +76,12 @@ export function createDeeplinkHelpers(
     clearDeeplinkState,
   };
 }
+
+/**
+ * Whether Tauri's `triggerDeeplink()` emits the deep-link event in the app, rather than opening the URL through
+ * the OS. Mirrors the route choice in tauri-service's `triggerDeeplink.ts`; the configs treat an unset
+ * `DRIVER_PROVIDER` as `'external'`.
+ */
+export function tauriDeeplinkEmitsInApp(provider = process.env.DRIVER_PROVIDER ?? 'external'): boolean {
+  return provider === 'embedded' || (provider === 'crabnebula' && process.platform === 'darwin');
+}
