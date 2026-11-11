@@ -1187,15 +1187,25 @@ describe('wdioClearElement', () => {
     expect(log).toEqual([]);
   });
 
-  it('should focus, empty the field with input and change, then blur', () => {
+  it('should focus, empty the field with change and no input, then blur, as chromedriver does', () => {
     expect(events.wdioClearElement($('#a'))).toBe('cleared');
-    expect(log).toEqual(['focus a=old', 'input a=', 'change a=', 'blur a=']);
+    expect(log).toEqual(['focus a=old', 'change a=', 'blur a=']);
+  });
+
+  it('should empty a contenteditable with no input or change, then blur it, as chromedriver does', () => {
+    // jsdom has no isContentEditable, and focuses a div only with a tabindex.
+    render('<div id="ed" contenteditable="true" tabindex="0">old</div>');
+    Object.defineProperty($('#ed'), 'isContentEditable', { value: true });
+    expect(events.wdioClearElement($('#ed'))).toBe('cleared');
+    expect($('#ed').textContent).toBe('');
+    expect(log).toEqual(['focus ed', 'blur ed']);
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('should compare against the value from before Send Keys edited the field', () => {
     type($('#empty'), 'x');
     events.wdioClearElement($('#empty'));
-    expect(log).toEqual(['input empty=', 'blur empty=']);
+    expect(log).toEqual(['blur empty=']);
   });
 
   it('should fire the change another field owes before that field blurs', () => {

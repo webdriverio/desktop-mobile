@@ -563,7 +563,8 @@ function wdioContains(node, el) {
 }
 
 // Element Clear (W3C): returns 'not editable', 'empty' (leaving the element alone) or 'cleared'.
-// Clearing fires `change` only if the value differs from its last committed one.
+// Clearing fires `change` only if the value differs from its last committed one, and no `input`,
+// as in chromedriver.
 function wdioClearElement(el) {
   const field = el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && WDIO_CLEARABLE_INPUT_TYPES.includes(el.type));
   if (field ? el.readOnly || el.matches(':disabled') : !el.isContentEditable) {
@@ -581,9 +582,6 @@ function wdioClearElement(el) {
   } else {
     el.innerHTML = '';
   }
-  el.dispatchEvent(
-    new InputEvent('input', { bubbles: true, cancelable: true, composed: true, inputType: 'deleteContentBackward' }),
-  );
   if (field && el.value !== committedValue) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
