@@ -1,118 +1,45 @@
 # Maintenance Policy
 
-This document describes the maintenance and support policy for the WebdriverIO Desktop & Mobile Testing monorepo.
+How long each package and WebdriverIO version is supported in this monorepo.
 
-## No LTS / Backporting
+## Supported Versions
 
-This repository **does not maintain LTS or backport branches**. Each service receives updates only while on the `main` branch.
+Each package's latest major gets new features and fixes. Releases come from `main`.
 
-### What This Means
+### WebdriverIO
 
-- ✅ **Latest versions on `main` receive all updates** - New features, bug fixes, and improvements
-- ❌ **No backporting fixes to older major versions** - Once a new major version is released, the previous major version receives no further updates
-- 📌 **Pin specific versions for stability** - Use exact versions in `package.json` if you need to avoid breaking changes
-- 🔒 **Security fixes evaluated case-by-case** - Critical security issues may be considered for older versions at maintainer discretion
+The current majors support WebdriverIO v9 (9.33.0+) and v10 (10.2.0+); their peer range is `^9.33.0 || ^10.2.0`. They support v9 until it leaves maintenance. WebdriverIO's [LTS](https://webdriver.io/versions) "typically guarantees that critical bugs will be fixed for a total of 12 months". The next major after that drops v9.
 
-### Why This Approach
+### Node.js
 
-**Multi-service monorepo complexity:**
+The packages need Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+), as their `engines` field says. Node.js 23 and 25 aren't supported. The range matches WebdriverIO's, and changes only in a major.
 
-- Different services at different maturity levels (Electron v10, Tauri v1)
-- Services evolve at different paces with different release cycles
-- Backporting across multiple services would be complex and error-prone
+### Previous Majors
 
-**Resource optimization:**
+There are no maintenance branches. A critical or security fix for the previous major is backported only on request, and is released from that major's last tag. Open an issue to request one.
 
-- Focuses maintainer effort on moving forward rather than maintaining multiple versions
-- Reduces testing and release overhead
-- Allows faster iteration and innovation
+### Pre-releases and 0.x Packages
 
-**Aligns with project goals:**
+Packages on the `next` dist-tag (`-next.N` versions) and 0.x packages can change faster. In a 0.x package, a breaking change makes a minor release.
 
-- Agile development approach
-- Rapid integration of new features
-- Community-driven with limited maintainer bandwidth
+## Releases
 
-### Comparison with Parent Project
+Releases are versioned from conventional commits on `main`:
 
-The parent [WebdriverIO project](https://github.com/webdriverio/webdriverio) **does support LTS and backporting**:
+- **Patch:** bug fixes
+- **Minor:** new features
+- **Major:** breaking changes, such as dropping a WebdriverIO or Node.js version
 
-- Maintains 2 major versions simultaneously
-- Uses `backport-requested` labels for cherry-picking fixes
-- Has dedicated maintenance branches (e.g., `v8.x`)
+Each major has release notes under its package's `docs/release-notes/` that list the breaking changes and how to migrate.
 
-This difference is intentional and reflects:
+To pin a version, use an exact version (no `^` or `~`) in your `package.json`.
 
-- WebdriverIO core has larger team and user base
-- desktop-mobile services are newer with smaller adoption
-- Different resource availability
+## Security
 
-## Version Support Matrix
+Report vulnerabilities privately, as [SECURITY.md](./SECURITY.md) describes.
 
-| Package                | Status      | Supported |
-| ---------------------- | ----------- | --------- |
-| @wdio/electron-service | Pre-release | ✅ Active |
-| @wdio/tauri-service    | Pre-release | ✅ Active |
-| @wdio/native-utils     | Stable      | ✅ Active |
-| @wdio/native-types     | Stable      | ✅ Active |
-| @wdio/tauri-plugin     | Pre-release | ✅ Active |
+## Questions
 
-Check npm or each package's `package.json` for current version numbers.
-
-**Legend:**
-
-- ✅ Active - Receives all updates
-- ⚠️ Security Only - Only critical security fixes (none currently)
-- ❌ Unsupported - No longer maintained
-
-### WebdriverIO Versions
-
-Each service supports the current WebdriverIO major and the previous one, as its `webdriverio` peer range shows. When a new WebdriverIO major ships, the services' next major release moves their support up: it adds the new major and drops the oldest.
-
-## Best Practices for Users
-
-### Pin Versions for Stability
-
-If you need stability and want to avoid breaking changes, use exact versions (no `^` or `~`) in your `package.json` to prevent automatic updates.
-
-### Stay Updated
-
-For the latest features and fixes, use the `^` range prefix to allow compatible updates.
-
-### Monitor Releases
-
-- Watch the [CHANGELOG.md](./CHANGELOG.md) for updates
-- Subscribe to [GitHub releases](https://github.com/webdriverio/desktop-mobile/releases)
-- Check for breaking changes before upgrading major versions
-
-## Release Cadence
-
-- **Patch releases** - As needed for bug fixes
-- **Minor releases** - When new features are added
-- **Major releases** - Annually or when breaking changes accumulate
-
-Pre-release packages (`-next.X`) may have more frequent updates during active development.
-
-## Security Policy
-
-While we don't backport general fixes, **security vulnerabilities are treated differently**:
-
-1. Critical security issues in current versions are fixed immediately
-2. Security issues in previous major versions are evaluated case-by-case
-3. If feasible and impact is severe, security patches may be backported
-
-To report security vulnerabilities, contact the maintainers privately (not via public issues).
-
-## Migration Support
-
-When major versions are released, we provide:
-
-- **Migration guides** - Documentation of breaking changes
-- **Deprecation warnings** - Advanced notice in previous versions when possible
-- **Community support** - Help via Discord and Discussions
-
-## Questions?
-
-- See [CONTRIBUTING.md](./CONTRIBUTING.md) for general contribution guidelines
-- Ask in [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
-- Join [WebdriverIO Discord](https://discord.webdriver.io)
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
+- [WebdriverIO Discord](https://discord.webdriver.io)
