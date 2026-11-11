@@ -10,6 +10,10 @@ declare global {
 
 const { clearDeeplinkState, waitForDeeplink, waitForDeeplinkStability } = createDeeplinkHelpers(() => browser.tauri);
 
+const provider = process.env.DRIVER_PROVIDER;
+// These providers emit the deep-link event in the app; the others open the URL through the OS.
+const emitsInApp = provider === 'embedded' || (provider === 'crabnebula' && process.platform === 'darwin');
+
 describe('Deeplink Testing (browser.tauri.triggerDeeplink)', () => {
   beforeEach(async () => {
     await clearDeeplinkState();
@@ -53,6 +57,22 @@ describe('Deeplink Testing (browser.tauri.triggerDeeplink)', () => {
         },
         { timeout: 30000, timeoutMsg: 'onOpenUrl did not receive the deeplink within 30 seconds' },
       );
+    });
+
+    it("should run the app's on_open_url handler on the main thread", async function () {
+      // A real deep link runs handlers on other threads, such as the single-instance plugin's D-Bus thread on Linux.
+      if (!emitsInApp) {
+        this.skip();
+      }
+      const url = 'testapp://main-thread/check';
+      await browser.tauri.triggerDeeplink(url);
+      await waitForDeeplink(1, 'App did not receive the deeplink');
+
+      const onMainThread = await browser.tauri.execute(
+        ({ core }, url) => core.invoke('open_url_ran_on_main_thread', { url }),
+        url,
+      );
+      expect(onMainThread).toBe(true);
     });
   });
 
