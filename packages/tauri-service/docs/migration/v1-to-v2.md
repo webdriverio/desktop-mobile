@@ -260,9 +260,9 @@ These changes are in `tauri-plugin-wdio-webdriver`, so they apply to the `embedd
 
 Clear and Send Keys no longer fire `change` while the field keeps focus. It fires when focus leaves the field, before `blur`, or when Enter commits an input. A test that waits for `change` right after `setValue()` or `addValue()` must move focus first, with `el.click()` on another element or `browser.keys(Key.Tab)`. Pointer actions don't move focus in this driver, so `browser.action()`, `doubleClick()`, and `click()` with `x`, `y` or `button` don't fire it.
 
-#### Clear blurs the field and refuses non-editable elements
+#### Clear blurs the field, fires no `input` and refuses non-editable elements
 
-Clear leaves the field blurred, as W3C specifies. It refuses a disabled or read-only field, or an element that isn't a text field or contenteditable, such as a checkbox or a `<select>`, with `invalid element state`, as chromedriver does. That includes a web component's host element that delegates focus to an input inside it: target the inner input instead.
+Clear leaves the field blurred, as W3C specifies, and fires no `input` event, as chromedriver doesn't. After `clearValue()` alone, an app that updates its state only on `input`, such as Vue's `v-model`, doesn't see the field emptied; `setValue()` with a non-empty value still fires `input` as it types ([#1094](https://github.com/webdriverio/desktop-mobile/pull/1094)). It refuses a disabled or read-only field, or an element that isn't a text field or contenteditable, such as a checkbox or a `<select>`, with `invalid element state`, as chromedriver does. That includes a web component's host element that delegates focus to an input inside it: target the inner input instead.
 
 #### Key codes, newlines and Backspace
 
