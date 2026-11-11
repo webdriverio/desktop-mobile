@@ -76,8 +76,8 @@ function expectAtCentre(events: ProbedEvent[]) {
 }
 
 // A field that logs input, change and blur with its value, next to a button to move focus to.
-async function fillChangeScratch(initialValue = '', { inShadowHost = false } = {}) {
-  const field = `<input id="fresh-field" value="${initialValue}">`;
+async function fillChangeScratch(initialValue = '', { inShadowHost = false, type = 'text' } = {}) {
+  const field = `<input id="fresh-field" type="${type}" value="${initialValue}">`;
   await browser.execute(
     `var scratch = document.querySelector("#change-scratch") || (function () {
       var div = document.createElement("div");
@@ -154,6 +154,16 @@ describe('Dioxus element events (embedded)', () => {
     await browser.keys(['y', Key.Enter]);
     await browser.$('#fresh-other').click();
     expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x', 'input xy', 'change xy', 'blur xy']);
+  });
+
+  it('should drop letters typed into a number input, firing input only for the digits, as Chrome does', async () => {
+    await fillChangeScratch('12', { type: 'number' });
+    const field = browser.$('#fresh-field');
+    await field.click();
+    await browser.keys(['a', '3']);
+    await field.addValue('x4');
+    expect(await field.getValue()).toBe('1234');
+    expect(await fieldEvents()).toEqual(['input 123', 'input 1234']);
   });
 
   it('should type and delete in the field a keydown handler moves focus to, as Chrome does', async () => {
