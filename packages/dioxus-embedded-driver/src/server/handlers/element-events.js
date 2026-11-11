@@ -563,10 +563,7 @@ function wdioContains(node, el) {
 }
 
 // Element Clear (W3C): returns 'not editable', 'empty' (leaving an empty field alone) or 'cleared'.
-// As in chromedriver: clearing a field that had a value fires `change`, and nothing fires `input`;
-// an empty contenteditable, or a number input showing text it can't parse, is still cleared; and
-// focus leaves whatever holds it, even when the element can't take focus or a `change` handler
-// moved it, ending on the body.
+// The events and focus moves match chromedriver's Clear, not a user's edit.
 function wdioClearElement(el) {
   const field = el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && WDIO_CLEARABLE_INPUT_TYPES.includes(el.type));
   if (field ? el.readOnly || el.matches(':disabled') : !el.isContentEditable) {
@@ -576,8 +573,9 @@ function wdioClearElement(el) {
     return 'empty';
   }
   el.focus();
-  if (wdioDeepActiveElement() !== el) {
-    wdioDeepActiveElement().blur();
+  const active = wdioDeepActiveElement();
+  if (active !== el) {
+    active.blur();
   }
   wdioTakePendingChange(el);
   if (field) {
