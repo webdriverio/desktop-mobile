@@ -66,7 +66,7 @@
     "@wdio/bundler": "workspace:*",
     "@wdio/globals": "catalog:default",
     "@wdio/types": "catalog:default",
-    "recast": "^0.24.0",
+    "recast": "^0.24.3",
     "shx": "^0.4.0",
     "terser": "^5.51.2",
     "typescript": "^6.0.3",
