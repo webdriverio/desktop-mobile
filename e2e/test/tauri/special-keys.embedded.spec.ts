@@ -432,7 +432,7 @@ describe('special keys (embedded)', () => {
 
   it('should owe no change when a keydown handler cancels the key Send Keys presses, as Chrome does', async () => {
     await fillChangeScratch({ initialValue: 'old' });
-    await fillScratch(
+    await browser.execute(
       'document.querySelector("#fresh-field").addEventListener("keydown", function (ev) { ev.preventDefault(); });',
     );
     await browser.$('#fresh-field').addValue(Key.Backspace);

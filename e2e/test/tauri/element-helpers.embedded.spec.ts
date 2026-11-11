@@ -22,6 +22,7 @@ describe('element helpers (embedded)', () => {
     await browser.waitUntil(
       async () =>
         (await browser.execute('return !window.__beforeReload && document.readyState === "complete"')) === true,
+      { timeoutMsg: 'The reloaded page never finished loading' },
     );
     expect(await browser.execute('return typeof window.__wdio_element_events')).toBe('object');
   });
