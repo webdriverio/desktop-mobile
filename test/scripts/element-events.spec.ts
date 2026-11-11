@@ -1187,15 +1187,61 @@ describe('wdioClearElement', () => {
     expect(log).toEqual([]);
   });
 
-  it('should focus, empty the field with input and change, then blur', () => {
+  it('should focus, empty the field with change and no input, then blur, as chromedriver does', () => {
     expect(events.wdioClearElement($('#a'))).toBe('cleared');
-    expect(log).toEqual(['focus a=old', 'input a=', 'change a=', 'blur a=']);
+    expect(log).toEqual(['focus a=old', 'change a=', 'blur a=']);
   });
 
-  it('should compare against the value from before Send Keys edited the field', () => {
+  // jsdom has no isContentEditable, and focuses a div only with a tabindex.
+  function renderEditor(html: string) {
+    render(html);
+    Object.defineProperty($('#ed'), 'isContentEditable', { value: true });
+  }
+
+  it('should empty a contenteditable with no input or change, then blur it, as chromedriver does', () => {
+    renderEditor('<div id="ed" contenteditable="true" tabindex="0">old</div>');
+    expect(events.wdioClearElement($('#ed'))).toBe('cleared');
+    expect($('#ed').textContent).toBe('');
+    expect(log).toEqual(['focus ed', 'blur ed']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('should focus and blur an empty contenteditable, firing the change another field owes, as chromedriver does', () => {
+    renderEditor('<input id="f"><div id="ed" contenteditable="true" tabindex="0"></div>');
+    type($('#f'), 'x');
+    expect(events.wdioClearElement($('#ed'))).toBe('cleared');
+    expect(log).toEqual(['change f=x', 'blur f=x', 'focus ed', 'blur ed']);
+  });
+
+  it('should take focus off another field when the element to clear cannot take it, as chromedriver does', () => {
+    renderEditor('<input id="f"><div id="ed" contenteditable="true"><p id="p">text</p></div>');
+    Object.defineProperty($('#p'), 'isContentEditable', { value: true });
+    type($('#f'), 'x');
+    expect(events.wdioClearElement($('#p'))).toBe('cleared');
+    expect($('#p').textContent).toBe('');
+    expect(log).toEqual(['change f=x', 'blur f=x']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("should blur the element a field's change handler moves focus to, as chromedriver does", () => {
+    render('<input id="a" value="old"><input id="next">');
+    $('#a').addEventListener('change', () => $('#next').focus());
+    events.wdioClearElement($('#a'));
+    expect(log).toEqual(['focus a=old', 'change a=', 'blur a=', 'focus next=', 'blur next=']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('should clear a number input showing text it cannot parse, with no change, as chromedriver does', () => {
+    render('<input id="num" type="number">');
+    Object.defineProperty($('#num'), 'validity', { value: { badInput: true } });
+    expect(events.wdioClearElement($('#num'))).toBe('cleared');
+    expect(log).toEqual(['focus num=', 'blur num=']);
+  });
+
+  it('should fire change when clearing a value Send Keys typed, as chromedriver does', () => {
     type($('#empty'), 'x');
     events.wdioClearElement($('#empty'));
-    expect(log).toEqual(['input empty=', 'blur empty=']);
+    expect(log).toEqual(['change empty=', 'blur empty=']);
   });
 
   it('should fire the change another field owes before that field blurs', () => {
