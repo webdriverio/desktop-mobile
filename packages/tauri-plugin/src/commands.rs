@@ -554,6 +554,7 @@ mod tests {
 
   use tauri::Listener;
 
+  // The mock runtime runs main-thread tasks inline, so the thread is checked in E2E, not here.
   #[test]
   fn emit_deep_link_emits_the_url_as_a_new_url_event() {
     let app = tauri::test::mock_app();
