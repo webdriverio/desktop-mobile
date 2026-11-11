@@ -22,7 +22,7 @@ v2 needs Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+). Node.js 23.x and
 
 #### WebdriverIO packages are optional peers
 
-`webdriverio`, `@wdio/types` and `@wdio/logger` are now optional peers, where the service used to bring its own copies. They need WebdriverIO 9.33.0+ or 10.2.0+.
+`webdriverio` and `@wdio/types` are now optional peers, where the service used to bring its own copies. They need WebdriverIO 9.33.0+ or 10.2.0+.
 
 - **Testrunner mode:** nothing new to install. `@wdio/cli` and `@wdio/local-runner` provide them, and the service uses those copies.
 - **Standalone mode** (no testrunner): install `webdriverio` next to the service. The service's own dependencies used to bring it.
