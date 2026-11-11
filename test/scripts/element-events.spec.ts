@@ -1214,10 +1214,8 @@ describe('wdioClearElement', () => {
   });
 
   it('should take focus off another field when the element to clear cannot take it, as chromedriver does', () => {
-    render('<input id="f"><div id="ed" contenteditable="true"><p id="p">text</p></div>');
-    for (const id of ['ed', 'p']) {
-      Object.defineProperty($(`#${id}`), 'isContentEditable', { value: true });
-    }
+    renderEditor('<input id="f"><div id="ed" contenteditable="true"><p id="p">text</p></div>');
+    Object.defineProperty($('#p'), 'isContentEditable', { value: true });
     type($('#f'), 'x');
     expect(events.wdioClearElement($('#p'))).toBe('cleared');
     expect($('#p').textContent).toBe('');
