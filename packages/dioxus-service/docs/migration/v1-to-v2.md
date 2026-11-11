@@ -24,7 +24,7 @@ v2 needs WebdriverIO 9.33.0+ on v9, or 10.2.0+ on v10 (`^9.33.0 || ^10.2.0`), th
 
 #### Node.js
 
-v2 needs Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+). Node.js 23.x and 25.x aren't supported. Older versions trust the compromised eMudhra intermediate CAs. This applies to both npm packages, `@wdio/dioxus-bridge` included.
+v2 needs Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+). Node.js 23.x and 25.x aren't supported. Older versions trust the compromised eMudhra intermediate CAs. They match WebdriverIO 10's range: the services follow WebdriverIO's Node.js support. WebdriverIO 9 also allows Node.js 18 and 20, so a v9 project on either needs to move to 22, 24 or 26. This applies to both npm packages, `@wdio/dioxus-bridge` included.
 
 #### WebdriverIO packages are optional peers
 
