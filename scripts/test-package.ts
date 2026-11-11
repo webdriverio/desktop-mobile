@@ -92,7 +92,9 @@ function log(message: string) {
   console.log(`🔧 ${message}`);
 }
 
-function execCommand(command: string, cwd: string, description: string) {
+function execCommand(command: string, cwd: string, description: string): void;
+function execCommand(command: string, cwd: string, description: string, options: { capture: true }): string;
+function execCommand(command: string, cwd: string, description: string, options?: { capture: true }): string | void {
   log(`${description}...`);
 
   // On Windows, pnpm sometimes exits non-zero in the sandbox without printing an error, so retry it once.
@@ -102,19 +104,20 @@ function execCommand(command: string, cwd: string, description: string) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const startedAt = Date.now();
     try {
-      execSync(command, {
+      const output = execSync(command, {
         cwd: normalize(cwd),
-        stdio: 'inherit',
+        stdio: options?.capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
         encoding: 'utf-8',
         shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
         timeout: COMMAND_TIMEOUT_MS,
         killSignal: 'SIGKILL',
+        maxBuffer: 256 * 1024 * 1024,
       });
       if (attempt > 1) {
         log(`(retry ${attempt - 1} succeeded)`);
       }
       log(`✅ ${description} completed`);
-      return;
+      return options?.capture ? output : undefined;
     } catch (error) {
       // Retrying a hang just spends the budget twice, so a timeout is terminal.
       if (Date.now() - startedAt >= COMMAND_TIMEOUT_MS) {
@@ -649,11 +652,12 @@ async function testExample(
     execCommand('pnpm install', packageDir, `Installing dependencies for ${packageName}`);
 
     const tree = JSON.parse(
-      execSync(`pnpm ls ${SINGLE_COPY_PACKAGES.join(' ')} --depth Infinity --json`, {
-        cwd: packageDir,
-        encoding: 'utf-8',
-        maxBuffer: 256 * 1024 * 1024,
-      }),
+      execCommand(
+        `pnpm ls ${SINGLE_COPY_PACKAGES.join(' ')} --depth Infinity --json`,
+        packageDir,
+        `Listing the WebdriverIO packages installed for ${packageName}`,
+        { capture: true },
+      ),
     );
     const duplicates = multipleVersionsInTree(tree, SINGLE_COPY_PACKAGES);
     if (Object.keys(duplicates).length > 0) {
