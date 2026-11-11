@@ -10,6 +10,7 @@
     "permissions": [
       "core:default",
       "core:window:default",
+      "core:window:allow-show",
       "core:event:default",
       "deep-link:default",
       "wdio:default",
