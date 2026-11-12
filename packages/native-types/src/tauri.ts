@@ -9,8 +9,10 @@ import type {
   LogLevel,
   MockOverride,
   MockResult,
+  PerInstance,
   RequestedMultiremoteCapabilities,
   Result,
+  ServiceApiTarget,
   ServiceMockContext,
 } from './shared.js';
 
@@ -110,9 +112,10 @@ export interface TauriExecuteOptions {
 /**
  * Tauri Service API interface for browser object
  */
-export interface TauriServiceAPI {
+export interface TauriServiceAPI<Target extends ServiceApiTarget = 'instance'> {
   /**
    * Execute JavaScript code with per-call options and arguments.
+   * On the multiremote root, runs the script in every instance and resolves with their results, in instance order.
    *
    * @example
    * ```js
@@ -127,10 +130,11 @@ export interface TauriServiceAPI {
     script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     options: TauriExecuteOptions,
     ...args: InnerArguments
-  ): Promise<Awaited<ReturnValue>>;
+  ): Promise<PerInstance<Awaited<ReturnValue>, Target>>;
 
   /**
    * Execute JavaScript code in the Tauri frontend context.
+   * On the multiremote root, runs the script in every instance and resolves with their results, in instance order.
    *
    * @example
    * ```js
@@ -143,7 +147,7 @@ export interface TauriServiceAPI {
   execute<ReturnValue, InnerArguments extends unknown[]>(
     script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     ...args: InnerArguments
-  ): Promise<Awaited<ReturnValue>>;
+  ): Promise<PerInstance<Awaited<ReturnValue>, Target>>;
 
   /**
    * Check if a value is a Tauri mock function or if a command is mocked.
@@ -462,7 +466,7 @@ type TauriServiceCustomCapability = {
 /**
  * Browser extension for Tauri service
  */
-export interface TauriBrowserExtension extends BrowserBase {
+export interface TauriBrowserExtension<Target extends ServiceApiTarget = 'instance'> extends BrowserBase {
   /**
    * Access the WebdriverIO Tauri Service API.
    *
@@ -477,7 +481,7 @@ export interface TauriBrowserExtension extends BrowserBase {
    * - {@link TauriServiceAPI.switchWindow `browser.tauri.switchWindow`} - Switch WebDriver focus to another window
    * - {@link TauriServiceAPI.triggerDeeplink `browser.tauri.triggerDeeplink`} - Trigger a deeplink for testing protocol handlers
    */
-  tauri: TauriServiceAPI;
+  tauri: TauriServiceAPI<Target>;
 }
 
 // Re-export the custom capability for external use

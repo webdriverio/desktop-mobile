@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { ElectronServiceGlobalOptions } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, isMultiremote } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -243,7 +243,8 @@ export async function triggerDeeplink(this: ServiceContext, url: string): Promis
 
   // Auto-detect user data directory if not already configured
   // Critical for Windows/Linux: ensures second instance matches the test instance via single-instance lock
-  if (!userDataDir && this.browser) {
+  // Only an instance gets here: the multiremote root's triggerDeeplink calls each instance's
+  if (!userDataDir && this.browser && !isMultiremote(this.browser)) {
     try {
       log.debug('Fetching user data directory from running app...');
       userDataDir = await this.browser.electron.execute((electron: typeof import('electron')) => {
