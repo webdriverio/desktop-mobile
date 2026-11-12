@@ -8,6 +8,8 @@ import type {
   LogLevel,
   MockOverride,
   MockResult,
+  PerInstance,
+  ServiceApiTarget,
   ServiceMockContext,
 } from './shared.js';
 
@@ -92,8 +94,12 @@ export interface DioxusMock<TArgs extends unknown[] = unknown[], TReturns = unkn
  * execute options land in a later PR. `emitEvent` is deferred to v1.1 —
  * Dioxus has no native event bus.
  */
-export interface DioxusServiceAPI {
-  execute<R, A extends unknown[]>(script: string | ((dx: DioxusAPIs, ...a: A) => R), ...args: A): Promise<Awaited<R>>;
+export interface DioxusServiceAPI<Target extends ServiceApiTarget = 'instance'> {
+  /** On the multiremote root, runs the script in every instance and resolves with their results, in instance order. */
+  execute<R, A extends unknown[]>(
+    script: string | ((dx: DioxusAPIs, ...a: A) => R),
+    ...args: A
+  ): Promise<PerInstance<Awaited<R>, Target>>;
 
   mock(command: string): Promise<DioxusMock>;
   isMockFunction(target: string): boolean;
@@ -191,7 +197,7 @@ export interface DioxusCapabilities {
 /**
  * Browser extension for Dioxus service
  */
-export interface DioxusBrowserExtension extends BrowserBase {
+export interface DioxusBrowserExtension<Target extends ServiceApiTarget = 'instance'> extends BrowserBase {
   /**
    * Access the WebdriverIO Dioxus Service API.
    *
@@ -205,7 +211,7 @@ export interface DioxusBrowserExtension extends BrowserBase {
    * - {@link DioxusServiceAPI.switchWindow `browser.dioxus.switchWindow`} - Switch WebDriver focus to another window
    * - {@link DioxusServiceAPI.triggerDeeplink `browser.dioxus.triggerDeeplink`} - Trigger a deeplink for testing protocol handlers
    */
-  dioxus: DioxusServiceAPI;
+  dioxus: DioxusServiceAPI<Target>;
 }
 
 declare global {

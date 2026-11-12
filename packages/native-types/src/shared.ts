@@ -34,6 +34,15 @@ type RequestedMultiremoteCapabilities = Exclude<Capabilities.TestrunnerCapabilit
 
 export type { BaseWithExecute, BrowserBase, ElementBase, RequestedMultiremoteCapabilities, SelectorsBase };
 
+/** The browser a service API is on: a single session or one multiremote instance, or the multiremote root. */
+export type ServiceApiTarget = 'instance' | 'root';
+
+/**
+ * What a method that runs in every instance on the multiremote root resolves with:
+ * `T` on an instance, and one `T` per instance, in instance order, on the root.
+ */
+export type PerInstance<T, Target extends ServiceApiTarget> = Target extends 'root' ? T[] : T;
+
 // ============================================================================
 // Shared Mock Infrastructure
 // ============================================================================

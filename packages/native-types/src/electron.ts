@@ -16,7 +16,9 @@ import type {
   BrowserBase,
   LogLevel,
   MockOverride,
+  PerInstance,
   RequestedMultiremoteCapabilities,
+  ServiceApiTarget,
   ServiceMockContext,
 } from './shared.js';
 
@@ -26,7 +28,7 @@ import type {
 
 export type ElectronApiFn = ElectronType[ElectronInterface][keyof ElectronType[ElectronInterface]];
 
-export interface ElectronServiceAPI {
+export interface ElectronServiceAPI<Target extends ServiceApiTarget = 'instance'> {
   /**
    * The window handle of the Electron window.
    */
@@ -60,6 +62,7 @@ export interface ElectronServiceAPI {
   mockAll: <Interface extends ElectronInterface>(apiName: Interface) => Promise<Record<string, ElectronMock>>;
   /**
    * Execute a function within the Electron main process.
+   * On the multiremote root, runs it in every instance and resolves with their results, in instance order.
    *
    * @param script function to execute
    * @param args function arguments
@@ -67,7 +70,7 @@ export interface ElectronServiceAPI {
   execute<ReturnValue, InnerArguments extends unknown[]>(
     script: string | ((electron: typeof Electron, ...innerArgs: InnerArguments) => ReturnValue),
     ...args: InnerArguments
-  ): Promise<Awaited<ReturnValue>>;
+  ): Promise<PerInstance<Awaited<ReturnValue>, Target>>;
   /**
    * Clear mocked Electron API function(s).
    *
@@ -539,7 +542,7 @@ export type WdioElectronConfig = Omit<Options.Testrunner, 'capabilities'> & {
 /**
  * Browser extension for Electron service
  */
-export interface ElectronBrowserExtension extends BrowserBase {
+export interface ElectronBrowserExtension<Target extends ServiceApiTarget = 'instance'> extends BrowserBase {
   /**
    * Access the WebdriverIO Electron Service API.
    *
@@ -554,7 +557,7 @@ export interface ElectronBrowserExtension extends BrowserBase {
    * - {@link ElectronServiceAPI.emitEvent `browser.electron.emitEvent`} - Emit a main → renderer IPC event to ipcRenderer.on listeners
    * - {@link ElectronServiceAPI.windowHandle `browser.electron.windowHandle`} - Get the current window handle
    */
-  electron: ElectronServiceAPI;
+  electron: ElectronServiceAPI<Target>;
 }
 
 // Re-export types needed for global declarations

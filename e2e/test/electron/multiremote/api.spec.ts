@@ -1,5 +1,5 @@
-import { browser } from '@wdio/electron-service';
 import { expect, multiRemoteBrowser } from '@wdio/globals';
+import '@wdio/native-types';
 import type * as Electron from 'electron';
 
 // Helper function to get the expected app name from globalThis
@@ -17,7 +17,7 @@ const isBinary = process.env.BINARY !== 'false';
 
 describe('Electron APIs using Multiremote', () => {
   it('should retrieve app metadata through the electron API', async () => {
-    const appName = await browser.electron.execute((electron: typeof Electron) => electron.app.getName());
+    const appName = await multiRemoteBrowser.electron.execute((electron: typeof Electron) => electron.app.getName());
     const expectedName = getExpectedAppName();
 
     if (isBinary) {
@@ -30,7 +30,9 @@ describe('Electron APIs using Multiremote', () => {
       expect(appName).toStrictEqual(['Electron', 'Electron']);
     }
 
-    const appVersion = await browser.electron.execute((electron: typeof Electron) => electron.app.getVersion());
+    const appVersion = await multiRemoteBrowser.electron.execute((electron: typeof Electron) =>
+      electron.app.getVersion(),
+    );
 
     if (isBinary) {
       // In binary mode, both browsers should have the same version, and it should match a semantic version pattern
@@ -38,7 +40,9 @@ describe('Electron APIs using Multiremote', () => {
       expect(appVersion[0]).toMatch(/^\d+\.\d+\.\d+/); // Should be a semantic version
     } else {
       // In script mode, the app version should match the Electron version
-      const electronVersion = await browser.electron.execute((_electron: typeof Electron) => process.versions.electron);
+      const electronVersion = await multiRemoteBrowser.electron.execute(
+        (_electron: typeof Electron) => process.versions.electron,
+      );
       expect(appVersion).toStrictEqual([electronVersion[0], electronVersion[0]]);
     }
   });
