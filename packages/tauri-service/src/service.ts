@@ -700,8 +700,8 @@ const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateSchedule
  * one browser.execute() per registered mock. At most two batches run at any moment
  * (current + one queued); callers arriving while a batch runs share the queued slot,
  * so N interactions produce <= 2 batches instead of N. Each batch syncs inner (browser)
- * mock state to outer (test) mocks. On Windows, updates within a batch run sequentially
- * to avoid saturating WebView2 with concurrent ExecuteScript calls. Each update is
+ * mock state to outer (test) mocks. Updates within a batch run one at a time on every
+ * runner platform, because the app may be on Windows when the runner isn't. Each update is
  * retried once (after 50 ms) before failing hard — silent swallow of mock-update errors
  * leads to empty mock.calls assertions, which is harder to diagnose than an AggregateError.
  */
@@ -771,34 +771,19 @@ class MockUpdateScheduler {
       }
     };
 
-    if (process.platform === 'win32') {
-      const errors: Array<{ mockId: string; error: unknown }> = [];
-      for (const [mockId, mockInstance] of mocks) {
-        try {
-          await tryUpdate(mockId, mockInstance);
-        } catch (error) {
-          errors.push({ mockId, error });
-        }
+    const errors: Array<{ mockId: string; error: unknown }> = [];
+    for (const [mockId, mockInstance] of mocks) {
+      try {
+        await tryUpdate(mockId, mockInstance);
+      } catch (error) {
+        errors.push({ mockId, error });
       }
-      if (errors.length > 0) {
-        throw new AggregateError(
-          errors.map((e) => e.error),
-          `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
-        );
-      }
-    } else {
-      const results = await Promise.allSettled(mocks.map(([mockId, mockInstance]) => tryUpdate(mockId, mockInstance)));
-      const failures = results
-        .map((result, i) => ({ result, mockId: mocks[i][0] }))
-        .filter(
-          (entry): entry is { result: PromiseRejectedResult; mockId: string } => entry.result.status === 'rejected',
-        );
-      if (failures.length > 0) {
-        throw new AggregateError(
-          failures.map((f) => f.result.reason),
-          `Mock updates failed for: ${failures.map((f) => f.mockId).join(', ')}`,
-        );
-      }
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(
+        errors.map((e) => e.error),
+        `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
+      );
     }
   }
 }
