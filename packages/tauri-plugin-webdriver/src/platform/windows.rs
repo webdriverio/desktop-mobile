@@ -13,10 +13,10 @@ use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
   ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Controller,
   ICoreWebView2Environment6, ICoreWebView2ExecuteScriptCompletedHandler,
-  ICoreWebView2PrintToPdfCompletedHandler, ICoreWebView2ScriptDialogOpeningEventHandler,
-  ICoreWebView2WebMessageReceivedEventHandler, ICoreWebView2_7,
-  COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE,
-  COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT,
+  ICoreWebView2ExecuteScriptWithResultCompletedHandler, ICoreWebView2PrintToPdfCompletedHandler,
+  ICoreWebView2ScriptDialogOpeningEventHandler, ICoreWebView2WebMessageReceivedEventHandler,
+  ICoreWebView2_21, ICoreWebView2_7, COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,
+  COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE, COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT,
 };
 use windows::core::{Interface, HSTRING, PCWSTR};
 use windows::Win32::Foundation::HGLOBAL;
@@ -154,11 +154,21 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
       move |webview| unsafe {
         if let Ok(webview2) = core_webview2(&webview) {
           let script_hstring = HSTRING::from(&script_owned);
+          let script_pcwstr = PCWSTR(script_hstring.as_ptr());
 
-          let handler: ICoreWebView2ExecuteScriptCompletedHandler =
-            ExecuteScriptHandler::new(tx.clone()).into();
+          let call = if let Ok(webview21) = webview2.cast::<ICoreWebView2_21>() {
+            let handler: ICoreWebView2ExecuteScriptWithResultCompletedHandler =
+              ExecuteScriptWithResultHandler::new(tx.clone()).into();
+            webview21.ExecuteScriptWithResult(script_pcwstr, &handler)
+          } else {
+            // Runtimes older than 1.0.2210 lack ExecuteScriptWithResult. ExecuteScript reports a
+            // thrown exception as a successful null.
+            let handler: ICoreWebView2ExecuteScriptCompletedHandler =
+              ExecuteScriptHandler::new(tx.clone()).into();
+            webview2.ExecuteScript(script_pcwstr, &handler)
+          };
 
-          if let Err(e) = webview2.ExecuteScript(PCWSTR(script_hstring.as_ptr()), &handler) {
+          if let Err(e) = call {
             tracing::error!("ExecuteScript call failed for script '{}...': {e:?}", script_preview);
             if let Ok(mut guard) = tx.lock() {
               if let Some(tx) = guard.take() {
@@ -697,25 +707,50 @@ mod handlers {
   #![allow(clippy::inline_always, clippy::ref_as_ptr)]
 
   use serde_json::Value;
+  use webview2_com::take_pwstr;
   use webview2_com::Microsoft::Web::WebView2::Win32::{
     ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler,
     ICoreWebView2CapturePreviewCompletedHandler_Impl, ICoreWebView2Deferral,
     ICoreWebView2ExecuteScriptCompletedHandler, ICoreWebView2ExecuteScriptCompletedHandler_Impl,
+    ICoreWebView2ExecuteScriptResult, ICoreWebView2ExecuteScriptWithResultCompletedHandler,
+    ICoreWebView2ExecuteScriptWithResultCompletedHandler_Impl,
     ICoreWebView2PrintToPdfCompletedHandler, ICoreWebView2PrintToPdfCompletedHandler_Impl,
     ICoreWebView2ScriptDialogOpeningEventArgs, ICoreWebView2ScriptDialogOpeningEventHandler,
-    ICoreWebView2ScriptDialogOpeningEventHandler_Impl, ICoreWebView2WebMessageReceivedEventArgs,
-    ICoreWebView2WebMessageReceivedEventHandler, ICoreWebView2WebMessageReceivedEventHandler_Impl,
-    COREWEBVIEW2_SCRIPT_DIALOG_KIND_ALERT, COREWEBVIEW2_SCRIPT_DIALOG_KIND_CONFIRM,
-    COREWEBVIEW2_SCRIPT_DIALOG_KIND_PROMPT,
+    ICoreWebView2ScriptDialogOpeningEventHandler_Impl, ICoreWebView2ScriptException,
+    ICoreWebView2WebMessageReceivedEventArgs, ICoreWebView2WebMessageReceivedEventHandler,
+    ICoreWebView2WebMessageReceivedEventHandler_Impl, COREWEBVIEW2_SCRIPT_DIALOG_KIND_ALERT,
+    COREWEBVIEW2_SCRIPT_DIALOG_KIND_CONFIRM, COREWEBVIEW2_SCRIPT_DIALOG_KIND_PROMPT,
   };
-  use windows::core::{implement, Interface};
+  use windows::core::{implement, Interface, PWSTR};
 
   use super::{
     AlertState, AlertType, AsyncScriptState, CaptureResultSender, PendingAlert, PrintResultSender,
-    ScriptResultSender, SendableComPtr, HANDLER_NAME,
+    ScriptResultSender, SendableComPtr, BOOL, HANDLER_NAME,
   };
   use crate::platform::alert_state::AlertResponse;
   use std::sync::Arc;
+
+  fn parse_script_json(json_str: String) -> Value {
+    serde_json::from_str(&json_str).unwrap_or(Value::String(json_str))
+  }
+
+  fn send_script_result(tx: &ScriptResultSender, response: Result<Value, String>) {
+    if let Ok(mut guard) = tx.lock() {
+      if let Some(tx) = guard.take() {
+        let _ = tx.send(response);
+      }
+    }
+  }
+
+  /// Reads a string that WebView2 allocated for the caller, and frees it.
+  unsafe fn take_string(
+    get: impl FnOnce(*mut PWSTR) -> windows::core::Result<()>,
+  ) -> Option<String> {
+    let mut ptr = PWSTR::null();
+    let read = get(&raw mut ptr);
+    let text = take_pwstr(ptr);
+    read.ok().map(|()| text)
+  }
 
   #[implement(ICoreWebView2ExecuteScriptCompletedHandler)]
   pub struct ExecuteScriptHandler {
@@ -738,19 +773,67 @@ mod handlers {
         Err(format!("Script execution failed: {errorcode:?}"))
       } else {
         let json_str = unsafe { resultobjectasjson.to_string().unwrap_or_default() };
-        match serde_json::from_str(&json_str) {
-          Ok(value) => Ok(value),
-          Err(_) => Ok(Value::String(json_str)),
-        }
+        Ok(parse_script_json(json_str))
       };
 
-      if let Ok(mut guard) = self.tx.lock() {
-        if let Some(tx) = guard.take() {
-          let _ = tx.send(response);
-        }
-      }
+      send_script_result(&self.tx, response);
       Ok(())
     }
+  }
+
+  #[implement(ICoreWebView2ExecuteScriptWithResultCompletedHandler)]
+  pub struct ExecuteScriptWithResultHandler {
+    pub tx: ScriptResultSender,
+  }
+
+  impl ExecuteScriptWithResultHandler {
+    pub fn new(tx: ScriptResultSender) -> Self {
+      Self { tx }
+    }
+  }
+
+  impl ICoreWebView2ExecuteScriptWithResultCompletedHandler_Impl
+    for ExecuteScriptWithResultHandler_Impl
+  {
+    fn Invoke(
+      &self,
+      errorcode: windows::core::HRESULT,
+      result: windows::core::Ref<'_, ICoreWebView2ExecuteScriptResult>,
+    ) -> windows::core::Result<()> {
+      let response = if errorcode.is_err() {
+        Err(format!("Script execution failed: {errorcode:?}"))
+      } else if let Some(result) = result.as_ref() {
+        unsafe { read_script_result(result) }
+      } else {
+        Err("Script execution returned no result".to_string())
+      };
+
+      send_script_result(&self.tx, response);
+      Ok(())
+    }
+  }
+
+  unsafe fn read_script_result(result: &ICoreWebView2ExecuteScriptResult) -> Result<Value, String> {
+    let mut succeeded = BOOL::default();
+    result
+      .Succeeded(&raw mut succeeded)
+      .map_err(|e| format!("Failed to read the script result: {e:?}"))?;
+    if succeeded.as_bool() {
+      return take_string(|ptr| result.ResultAsJson(ptr))
+        .map(parse_script_json)
+        .ok_or_else(|| "Failed to read the script result".to_string());
+    }
+    let exception =
+      result.Exception().map_err(|e| format!("Failed to read the script exception: {e:?}"))?;
+    Err(exception_message(&exception))
+  }
+
+  unsafe fn exception_message(exception: &ICoreWebView2ScriptException) -> String {
+    take_string(|ptr| exception.Message(ptr))
+      .filter(|text| !text.is_empty())
+      .or_else(|| take_string(|ptr| exception.Name(ptr)).filter(|text| !text.is_empty()))
+      .or_else(|| take_string(|ptr| exception.ToJson(ptr)))
+      .unwrap_or_else(|| "Script threw an exception".to_string())
   }
 
   #[implement(ICoreWebView2CapturePreviewCompletedHandler)]
@@ -907,11 +990,9 @@ mod handlers {
         let Some(args_owned) = args.clone() else {
           return Ok(());
         };
-        let mut msg_ptr = windows::core::PWSTR::null();
-        if args_owned.WebMessageAsJson(&raw mut msg_ptr).is_err() {
+        let Some(msg_text) = take_string(|ptr| args_owned.WebMessageAsJson(ptr)) else {
           return Ok(()); // Failed to get message
-        }
-        let msg_text = msg_ptr.to_string().unwrap_or_default();
+        };
 
         // `WebMessageAsJson` returns the message as a JSON value.
         // Since JS sends `JSON.stringify({...})`, the message is a string,
@@ -991,25 +1072,13 @@ mod handlers {
         }
 
         // Get message
-        let mut message_ptr = windows::core::PWSTR::null();
-        if args.Message(&raw mut message_ptr).is_err() {
+        let Some(message) = take_string(|ptr| args.Message(ptr)) else {
           tracing::error!("Failed to get script dialog message");
           return Ok(());
-        }
-        let message = message_ptr.to_string().unwrap_or_default();
+        };
 
         // Get default text for prompts
-        let mut default_text_ptr = windows::core::PWSTR::null();
-        let default_text = if args.DefaultText(&raw mut default_text_ptr).is_ok() {
-          let text = default_text_ptr.to_string().unwrap_or_default();
-          if text.is_empty() {
-            None
-          } else {
-            Some(text)
-          }
-        } else {
-          None
-        };
+        let default_text = take_string(|ptr| args.DefaultText(ptr)).filter(|text| !text.is_empty());
 
         // Map WebView2 dialog kind to our AlertType
         let alert_type = if kind == COREWEBVIEW2_SCRIPT_DIALOG_KIND_ALERT {
@@ -1092,8 +1161,8 @@ mod handlers {
 }
 
 use handlers::{
-  CapturePreviewHandler, ExecuteScriptHandler, ScriptDialogOpeningHandler,
-  WebMessageReceivedHandler,
+  CapturePreviewHandler, ExecuteScriptHandler, ExecuteScriptWithResultHandler,
+  ScriptDialogOpeningHandler, WebMessageReceivedHandler,
 };
 
 // =============================================================================
