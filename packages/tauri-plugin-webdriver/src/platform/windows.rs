@@ -1072,25 +1072,13 @@ mod handlers {
         }
 
         // Get message
-        let mut message_ptr = windows::core::PWSTR::null();
-        if args.Message(&raw mut message_ptr).is_err() {
+        let Some(message) = take_string(|ptr| args.Message(ptr)) else {
           tracing::error!("Failed to get script dialog message");
           return Ok(());
-        }
-        let message = message_ptr.to_string().unwrap_or_default();
+        };
 
         // Get default text for prompts
-        let mut default_text_ptr = windows::core::PWSTR::null();
-        let default_text = if args.DefaultText(&raw mut default_text_ptr).is_ok() {
-          let text = default_text_ptr.to_string().unwrap_or_default();
-          if text.is_empty() {
-            None
-          } else {
-            Some(text)
-          }
-        } else {
-          None
-        };
+        let default_text = take_string(|ptr| args.DefaultText(ptr)).filter(|text| !text.is_empty());
 
         // Map WebView2 dialog kind to our AlertType
         let alert_type = if kind == COREWEBVIEW2_SCRIPT_DIALOG_KIND_ALERT {
