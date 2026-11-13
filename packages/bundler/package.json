@@ -43,7 +43,7 @@
     "commander": "^15.1.0",
     "debug": "^4.4.3",
     "find-up-simple": "^1.0.1",
-    "rollup": "^4.68.0",
+    "rollup": "^4.68.1",
     "rollup-plugin-node-externals": "^9.0.1",
     "typescript": "^6.0.3"
   },

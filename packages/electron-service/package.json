@@ -81,7 +81,7 @@
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
     "puppeteer-core": "^25.16.0",
-    "recast": "^0.24.0",
+    "recast": "^0.24.3",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
