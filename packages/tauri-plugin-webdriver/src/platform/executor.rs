@@ -422,8 +422,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     extract_bool_value(&result)
   }
 
-  /// Find multiple elements and store count
-  /// Returns the number of elements found
+  /// Find multiple elements, store them as {prefix}0, {prefix}1, etc., and return the count.
+  /// Each request needs its own prefix, or a concurrent one can overwrite its elements.
   async fn find_elements(
     &self,
     strategy_js: &str,
@@ -1049,6 +1049,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
   }
 
   /// Find multiple elements within a shadow root
+  /// Returns count of elements found, stores as {prefix}0, {prefix}1, etc.
   async fn find_elements_from_shadow(
     &self,
     shadow_var: &str,

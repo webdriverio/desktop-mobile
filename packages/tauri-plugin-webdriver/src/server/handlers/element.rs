@@ -3,12 +3,44 @@ use std::sync::Arc;
 use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use tauri::Runtime;
+use tokio::sync::RwLock;
+use uuid::Uuid;
 
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
+use crate::webdriver::element::{numbered_js_ref_prefix, ELEMENT_KEY};
 use crate::webdriver::locator::LocatorStrategy;
+use crate::webdriver::SessionManager;
+
+/// Returns a prefix unique to one Find Elements request, and where its script keeps the matches.
+/// The script keeps them under their references' own names, so a concurrent request can't swap them.
+pub(crate) fn new_found_elements_prefix() -> (String, String) {
+  let ref_prefix = Uuid::new_v4().to_string();
+  let js_ref_prefix = numbered_js_ref_prefix(&ref_prefix);
+  (ref_prefix, js_ref_prefix)
+}
+
+/// Stores the `count` matches a Find Elements script kept for `ref_prefix` and returns their
+/// references, which fails if the session has ended.
+pub(crate) async fn store_found_elements(
+  sessions: &RwLock<SessionManager>,
+  session_id: &str,
+  ref_prefix: &str,
+  count: usize,
+) -> Result<Vec<Value>, WebDriverErrorResponse> {
+  let mut sessions = sessions.write().await;
+  let session = sessions.get_mut(session_id)?;
+  Ok(
+    session
+      .elements
+      .store_numbered(ref_prefix, count)
+      .into_iter()
+      .map(|element| json!({ ELEMENT_KEY: element.id }))
+      .collect(),
+  )
+}
 
 #[derive(Debug, Deserialize)]
 pub struct FindElementRequest {
@@ -82,29 +114,9 @@ pub async fn find_all<R: Runtime + 'static>(
   let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
   let strategy_js = strategy.to_selector_js_multiple(&request.value);
 
-  // Use a temporary prefix for the trait method
-  let temp_prefix = "__wd_temp_";
-  let count = executor.find_elements(&strategy_js, temp_prefix).await?;
-
-  // Now store each element with proper references
-  let mut elements = Vec::new();
-  let mut sessions = state.sessions.write().await;
-  let session = sessions.get_mut(&session_id)?;
-
-  for i in 0..count {
-    let element_ref = session.elements.store();
-    let js_var = element_ref.js_ref.clone();
-    let element_id = element_ref.id.clone();
-
-    // Copy from temp storage to element's js_ref
-    let copy_script =
-      format!("(function() {{ window.{js_var} = window['{temp_prefix}{i}'];  return true; }})()");
-    let _ = executor.evaluate_js(&copy_script).await;
-
-    elements.push(json!({
-        "element-6066-11e4-a52e-4f735466cecf": element_id
-    }));
-  }
+  let (ref_prefix, js_ref_prefix) = new_found_elements_prefix();
+  let count = executor.find_elements(&strategy_js, &js_ref_prefix).await?;
+  let elements = store_found_elements(&state.sessions, &session_id, &ref_prefix, count).await?;
 
   Ok(WebDriverResponse::success(elements))
 }
@@ -409,30 +421,10 @@ pub async fn find_all_from_element<R: Runtime + 'static>(
   let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
   let strategy_js = strategy.to_selector_js_from_element(&request.value);
 
-  // Use a temporary prefix for the trait method
-  let temp_prefix = "__wd_temp_";
+  let (ref_prefix, js_ref_prefix) = new_found_elements_prefix();
   let count =
-    executor.find_elements_from_element(&parent_js_var, &strategy_js, temp_prefix).await?;
-
-  // Now store each element with proper references
-  let mut elements = Vec::new();
-  let mut sessions = state.sessions.write().await;
-  let session = sessions.get_mut(&session_id)?;
-
-  for i in 0..count {
-    let element_ref = session.elements.store();
-    let js_var = element_ref.js_ref.clone();
-    let element_id = element_ref.id.clone();
-
-    // Copy from temp storage to element's js_ref
-    let copy_script =
-      format!("(function() {{ window.{js_var} = window['{temp_prefix}{i}'];  return true; }})()");
-    let _ = executor.evaluate_js(&copy_script).await;
-
-    elements.push(json!({
-        "element-6066-11e4-a52e-4f735466cecf": element_id
-    }));
-  }
+    executor.find_elements_from_element(&parent_js_var, &strategy_js, &js_ref_prefix).await?;
+  let elements = store_found_elements(&state.sessions, &session_id, &ref_prefix, count).await?;
 
   Ok(WebDriverResponse::success(elements))
 }
@@ -572,4 +564,45 @@ pub async fn take_screenshot<R: Runtime + 'static>(
   let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
   let screenshot = executor.take_element_screenshot(&js_var).await?;
   Ok(WebDriverResponse::success(screenshot))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn each_find_elements_request_keeps_its_matches_under_its_own_names() {
+    let (first_ref_prefix, first_js_ref_prefix) = new_found_elements_prefix();
+    let (second_ref_prefix, second_js_ref_prefix) = new_found_elements_prefix();
+
+    assert_ne!(first_ref_prefix, second_ref_prefix);
+    assert_ne!(first_js_ref_prefix, second_js_ref_prefix);
+    assert_eq!(first_js_ref_prefix, numbered_js_ref_prefix(&first_ref_prefix));
+  }
+
+  #[tokio::test]
+  async fn stores_the_matches_under_the_names_the_script_kept_them_under() {
+    let sessions = RwLock::new(SessionManager::new());
+    let session_id = sessions.write().await.create("main".to_string()).id.clone();
+    let (ref_prefix, js_ref_prefix) = new_found_elements_prefix();
+
+    let elements = store_found_elements(&sessions, &session_id, &ref_prefix, 2).await.unwrap();
+
+    let sessions = sessions.read().await;
+    let store = &sessions.get(&session_id).unwrap().elements;
+    for (i, element) in elements.iter().enumerate() {
+      let id = element[ELEMENT_KEY].as_str().unwrap();
+      assert_eq!(store.get(id).map(|el| el.js_ref.clone()), Some(format!("{js_ref_prefix}{i}")));
+    }
+    assert_eq!(elements.len(), 2);
+  }
+
+  #[tokio::test]
+  async fn fails_to_store_the_matches_when_the_session_has_ended() {
+    let sessions = RwLock::new(SessionManager::new());
+
+    let error = store_found_elements(&sessions, "gone", "p", 1).await.unwrap_err();
+
+    assert_eq!(error.error, "invalid session id");
+  }
 }
