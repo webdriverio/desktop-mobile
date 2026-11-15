@@ -76,3 +76,7 @@ features = [ "png" ]
 [build-dependencies.tauri-plugin]
 version = "2.5.3"
 features = [ "build" ]
+
+[dev-dependencies.tower]
+version = "0.5"
+features = [ "util" ]

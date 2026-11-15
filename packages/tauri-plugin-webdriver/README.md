@@ -46,7 +46,7 @@ Add it to your `Cargo.toml`:
 tauri-plugin-wdio-webdriver = "1"
 ```
 
-The registration below only runs in debug builds, so release builds never start the server. To leave the crate out of release builds entirely, use a feature flag, and gate the registration on `#[cfg(feature = "webdriver")]` instead:
+The registration below only runs in debug builds, so release builds never start the server. Even in a debug build, `init()` starts it only when the app is launched with `TAURI_WEBDRIVER_PORT` set, as `@wdio/tauri-service` does, so `tauri dev` and a debug build opened on its own don't open a port. To leave the crate out of release builds entirely, use a feature flag, and gate the registration on `#[cfg(feature = "webdriver")]` instead:
 
 ```toml
 [features]
@@ -100,7 +100,7 @@ export const config = {
 };
 ```
 
-The service spawns your Tauri app with `TAURI_WEBDRIVER_PORT` set, the plugin starts the WebDriver server on that port, and WebdriverIO connects directly — no external driver process needed.
+The service spawns your Tauri app with `TAURI_WEBDRIVER_PORT` set, the plugin starts the WebDriver server on that port, and WebdriverIO connects directly — no external driver process needed. Without `TAURI_WEBDRIVER_PORT`, the plugin doesn't start the server.
 
 ### 3. Add permissions
 
@@ -119,11 +119,11 @@ Add to your `src-tauri/capabilities/default.json`:
 The plugin also works with any W3C WebDriver client independently of `@wdio/tauri-service`:
 
 ```bash
-# Start your app with the WebDriver port configured
+# The server starts only when TAURI_WEBDRIVER_PORT is set
 TAURI_WEBDRIVER_PORT=4445 cargo tauri dev
 ```
 
-Then connect with any client:
+Then connect with any client, through `127.0.0.1` or `localhost` (see [Security](#security)):
 
 ```javascript
 // WebdriverIO
@@ -144,27 +144,35 @@ driver = webdriver.Remote(
 
 ## Configuration
 
-The WebDriver server runs on port `4445` by default, bound to `127.0.0.1`.
-
-### Custom Port
-
-**1. Environment variable** (used by `@wdio/tauri-service` automatically):
+`init()` starts the WebDriver server only when `TAURI_WEBDRIVER_PORT` is set to a port. `@wdio/tauri-service` sets it when it launches the app; if you connect to the plugin yourself, set it when you start the app:
 
 ```bash
 TAURI_WEBDRIVER_PORT=9515 cargo tauri dev
 ```
 
-**2. Programmatically:**
+If `TAURI_WEBDRIVER_PORT` isn't set, or isn't a valid port, the plugin logs why and does nothing.
+
+### Fixed port
+
+`init_with_port(port)` starts the server on that port whenever the app runs, and ignores `TAURI_WEBDRIVER_PORT`:
 
 ```rust
 #[cfg(debug_assertions)]
 let builder = builder.plugin(tauri_plugin_wdio_webdriver::init_with_port(9515));
 ```
 
-Port resolution order:
+This opens the port in every debug run, so gate the registration yourself if the app should open it only under test. With `@wdio/tauri-service`, use `init()`: the service picks the port and passes it in `TAURI_WEBDRIVER_PORT`.
 
-1. `init_with_port(port)` — uses the specified port (ignores env var)
-2. `init()` — checks `TAURI_WEBDRIVER_PORT` env var, falls back to 4445
+## Security
+
+The server binds `127.0.0.1` and refuses, with a `403` and a WebDriver error:
+
+- a request whose `Host` header isn't `127.0.0.1:<port>`, `localhost:<port>` or `[::1]:<port>`, which stops a web page from reaching the server through DNS rebinding;
+- a request with an `Origin` header. Browsers send one, and WebDriver clients don't.
+
+So connect through `127.0.0.1` or `localhost`, not through another host name that resolves to it.
+
+Any local process can still connect while the server runs, so start the app with `TAURI_WEBDRIVER_PORT` only for tests.
 
 ## W3C WebDriver Endpoints
 
