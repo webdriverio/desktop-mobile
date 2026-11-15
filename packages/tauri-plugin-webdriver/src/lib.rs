@@ -15,28 +15,47 @@ mod webdriver;
 
 pub use error::{Error, Result};
 
-/// Default port for the `WebDriver` HTTP server
-pub const DEFAULT_PORT: u16 = 4445;
-
-/// Environment variable name for configuring the port
+/// Environment variable that starts the server and sets its port
 pub const PORT_ENV_VAR: &str = "TAURI_WEBDRIVER_PORT";
 
-/// Initializes the plugin with default settings.
+/// Initializes the plugin, starting the `WebDriver` server only when `TAURI_WEBDRIVER_PORT` is set
+/// to a valid port.
 ///
-/// The port is determined in the following order:
-/// 1. `TAURI_WEBDRIVER_PORT` environment variable (if set and valid)
-/// 2. Default port (4445)
+/// `@wdio/tauri-service` sets it when it launches the app. Without it the plugin does nothing, so a
+/// debug build run outside the tests opens no port.
 #[must_use]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
-  let port =
-    std::env::var(PORT_ENV_VAR).ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT);
-
-  init_with_port(port)
+  match std::env::var(PORT_ENV_VAR) {
+    Ok(value) => match requested_port(&value) {
+      Some(port) => init_with_port(port),
+      None => not_started(Some(value)),
+    },
+    Err(_) => not_started(None),
+  }
 }
 
-/// Initializes the plugin with a custom port.
+fn requested_port(value: &str) -> Option<u16> {
+  value.parse::<std::num::NonZeroU16>().ok().map(std::num::NonZeroU16::get)
+}
+
+fn not_started<R: Runtime>(invalid_value: Option<String>) -> TauriPlugin<R> {
+  Builder::new("wdio-webdriver")
+    .setup(move |_app, _api| {
+      match &invalid_value {
+        Some(value) => tracing::warn!(
+          "{PORT_ENV_VAR}={value:?} is not a valid port; WebDriver server not started"
+        ),
+        None => tracing::debug!("{PORT_ENV_VAR} is not set; WebDriver server not started"),
+      }
+      Ok(())
+    })
+    .build()
+}
+
+/// Initializes the plugin and starts the `WebDriver` server on `port` whenever the app runs.
 ///
-/// This ignores the `TAURI_WEBDRIVER_PORT` environment variable.
+/// This ignores `TAURI_WEBDRIVER_PORT`, so gate the call yourself if the app should open the port
+/// only under test.
 #[cfg(desktop)]
 #[must_use]
 pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
@@ -89,4 +108,22 @@ pub fn init_with_port<R: Runtime>(_port: u16) -> TauriPlugin<R> {
       Ok(())
     })
     .build()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::requested_port;
+
+  #[test]
+  fn accepts_a_valid_port() {
+    assert_eq!(requested_port("4445"), Some(4445));
+    assert_eq!(requested_port("65535"), Some(65535));
+  }
+
+  #[test]
+  fn rejects_an_invalid_port() {
+    for value in ["", "0", "65536", "-1", "port", " 4445"] {
+      assert_eq!(requested_port(value), None, "{value:?}");
+    }
+  }
 }
