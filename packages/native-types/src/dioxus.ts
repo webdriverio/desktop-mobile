@@ -110,8 +110,11 @@ export interface DioxusServiceAPI<Target extends ServiceApiTarget = 'instance'> 
 
   /** Switch the WebDriver session to the window labelled `label`. */
   switchWindow(label: string): Promise<void>;
-  /** List all live window labels in registration order. */
-  listWindows(): Promise<string[]>;
+  /**
+   * List all live window labels in registration order.
+   * On the multiremote root, resolves with one list per instance, in instance order.
+   */
+  listWindows(): Promise<PerInstance<string[], Target>>;
   /**
    * Trigger a deeplink (custom-protocol URL) at the OS level so the Dioxus
    * app's registered protocol handler receives it. Use for testing the

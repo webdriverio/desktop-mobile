@@ -35,8 +35,18 @@ export async function instanceExecuteResolvesOnce(instance: Instance, options: T
   expectTrue<Equal<typeof electrobun, number>>();
 }
 
+// The root lists every instance's windows, one list per instance
+expectTrue<Equal<Awaited<ReturnType<Root['tauri']['listWindows']>>, string[][]>>();
+expectTrue<Equal<Awaited<ReturnType<Root['dioxus']['listWindows']>>, string[][]>>();
+expectTrue<Equal<Awaited<ReturnType<Root['electrobun']['listWindows']>>, string[][]>>();
+expectTrue<Equal<Awaited<ReturnType<Instance['tauri']['listWindows']>>, string[]>>();
+expectTrue<Equal<Awaited<ReturnType<Instance['dioxus']['listWindows']>>, string[]>>();
+expectTrue<Equal<Awaited<ReturnType<Instance['electrobun']['listWindows']>>, string[]>>();
+
+type PerInstanceMethods = 'execute' | 'listWindows';
+
 // Every other method has the same type on the root as on an instance
-expectTrue<Equal<Omit<Root['tauri'], 'execute'>, Omit<Instance['tauri'], 'execute'>>>();
-expectTrue<Equal<Omit<Root['dioxus'], 'execute'>, Omit<Instance['dioxus'], 'execute'>>>();
+expectTrue<Equal<Omit<Root['tauri'], PerInstanceMethods>, Omit<Instance['tauri'], PerInstanceMethods>>>();
+expectTrue<Equal<Omit<Root['dioxus'], PerInstanceMethods>, Omit<Instance['dioxus'], PerInstanceMethods>>>();
 expectTrue<Equal<Omit<Root['electron'], 'execute'>, Omit<Instance['electron'], 'execute'>>>();
-expectTrue<Equal<Omit<Root['electrobun'], 'execute'>, Omit<Instance['electrobun'], 'execute'>>>();
+expectTrue<Equal<Omit<Root['electrobun'], PerInstanceMethods>, Omit<Instance['electrobun'], PerInstanceMethods>>>();

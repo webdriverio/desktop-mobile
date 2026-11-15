@@ -259,6 +259,7 @@ export interface TauriServiceAPI<Target extends ServiceApiTarget = 'instance'> {
 
   /**
    * Get a list of all available Tauri window labels.
+   * On the multiremote root, lists every instance's windows and resolves with one list per instance, in instance order.
    *
    * @returns Promise that resolves to an array of window label strings
    *
@@ -268,7 +269,7 @@ export interface TauriServiceAPI<Target extends ServiceApiTarget = 'instance'> {
    * console.log(windows); // ['main', 'settings']
    * ```
    */
-  listWindows: () => Promise<string[]>;
+  listWindows: () => Promise<PerInstance<string[], Target>>;
 
   /**
    * Emit a Tauri event from the test process to listeners registered in the frontend
