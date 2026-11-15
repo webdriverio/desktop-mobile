@@ -3,15 +3,15 @@
  * Provides execute and mocking interfaces for testing
  */
 
-import type { InvokeArgs } from '@tauri-apps/api/core';
+import type { InvokeArgs, InvokeOptions } from '@tauri-apps/api/core';
 import * as nativeSpy from '@wdio/native-spy';
 import { hasSemicolonOutsideQuotes, isFunctionSource } from '@wdio/native-utils/script-detect';
 
 // Lazy-load invoke function to support both global Tauri API and dynamic imports
 // This allows the plugin to work both with bundlers (Vite) and without (plain ES modules)
-let _invokeCache: ((cmd: string, args?: InvokeArgs) => Promise<unknown>) | null = null;
+let _invokeCache: ((cmd: string, args?: InvokeArgs, options?: InvokeOptions) => Promise<unknown>) | null = null;
 
-async function getInvoke(): Promise<(cmd: string, args?: InvokeArgs) => Promise<unknown>> {
+async function getInvoke(): Promise<(cmd: string, args?: InvokeArgs, options?: InvokeOptions) => Promise<unknown>> {
   if (_invokeCache) {
     return _invokeCache;
   }
@@ -48,7 +48,7 @@ declare global {
   interface Window {
     __TAURI__?: {
       core?: {
-        invoke?: (cmd: string, args?: InvokeArgs) => Promise<unknown>;
+        invoke?: (cmd: string, args?: InvokeArgs, options?: InvokeOptions) => Promise<unknown>;
       };
       log?: {
         trace?: (message: string) => Promise<void>;
@@ -173,12 +173,12 @@ export async function execute(script: string, options?: ExecuteOptions, argsJson
         __wdio_invoke_real = coreRef.invoke.bind(coreRef);
       }
 
-      const __wdio_invoke = async function(cmd, invokeArgs) {
+      const __wdio_invoke = async function(cmd, invokeArgs, options) {
         const mocks = window.__wdio_mocks__;
         if (mocks && typeof mocks[cmd] === 'function') {
           return mocks[cmd](invokeArgs);
         }
-        return __wdio_invoke_real(cmd, invokeArgs);
+        return __wdio_invoke_real(cmd, invokeArgs, options);
       };
 
       // Plain object — no spreading of window.__TAURI__ to avoid Proxy invariant issues.

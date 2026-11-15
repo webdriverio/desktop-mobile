@@ -236,6 +236,23 @@ describe('wrapScriptForWebDriver', () => {
     expect(window.wdioTauri.execute).not.toHaveBeenCalled();
   });
 
+  it('should forward InvokeOptions to unmocked commands while passing args alone to mocks', async () => {
+    const window = tauriWindow('main', async () => 'ipc');
+
+    const outcome = await runInPage(
+      wrapScriptForWebDriver(
+        'async ({ core }) => [await core.invoke("mocked_cmd", { b: 2 }, { headers: { "x-hdr": "1" } }), await core.invoke("x", { a: 1 }, { headers: { "x-hdr": "2" } })]',
+        [],
+      ),
+      window,
+    );
+
+    expect(outcome).toEqual({ ok: true, value: ['mocked', 'real:x'], undef: false });
+    expect(window.__wdio_mocks__.mocked_cmd).toHaveBeenCalledTimes(1);
+    expect(window.__wdio_mocks__.mocked_cmd).toHaveBeenCalledWith({ b: 2 });
+    expect(window.__wdio_original_core__.invoke).toHaveBeenCalledWith('x', { a: 1 }, { headers: { 'x-hdr': '2' } });
+  });
+
   it('should run a string script in the page', async () => {
     expect(
       await runInPage(

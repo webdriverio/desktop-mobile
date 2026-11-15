@@ -1,3 +1,4 @@
+import vm from 'node:vm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@wdio/native-spy', () => ({
@@ -336,6 +337,30 @@ describe('execute', () => {
     const sent = pluginCalls[0][1].request.script as string;
     expect(sent).not.toContain('__wdio_tauri');
     expect(sent).toContain('async(42)');
+  });
+
+  it('should forward InvokeOptions to unmocked commands while passing args alone to mocks', async () => {
+    await execute(
+      'async ({ core }) => [await core.invoke("mocked_cmd", { b: 2 }, { headers: { "x-hdr": "1" } }), await core.invoke("x", { a: 1 }, { headers: { "x-hdr": "2" } })]',
+    );
+
+    const pluginCalls = originalInvoke.mock.calls.filter((call: unknown[]) => call[0] === 'plugin:wdio|execute');
+    const sent = pluginCalls[0][1].request.script as string;
+
+    const realInvoke = vi.fn(async (cmd: string) => `real:${cmd}`);
+    const mockCmd = vi.fn(async () => 'mocked');
+    const result = await vm.runInNewContext(sent, {
+      window: {
+        __wdio_original_core__: { invoke: realInvoke },
+        __wdio_mocks__: { mocked_cmd: mockCmd },
+      },
+      setTimeout,
+    });
+
+    expect(result).toEqual(['mocked', 'real:x']);
+    expect(mockCmd).toHaveBeenCalledTimes(1);
+    expect(mockCmd).toHaveBeenCalledWith({ b: 2 });
+    expect(realInvoke).toHaveBeenCalledWith('x', { a: 1 }, { headers: { 'x-hdr': '2' } });
   });
 });
 

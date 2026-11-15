@@ -19,6 +19,17 @@ import type {
 // ============================================================================
 
 /**
+ * Options for `core.invoke()` — mirrors `InvokeOptions` from `@tauri-apps/api/core`
+ * without requiring DOM `HeadersInit` or a runtime dependency on `@tauri-apps/api`.
+ */
+export interface TauriInvokeOptions {
+  headers:
+    | Record<string, string>
+    | string[][]
+    | { append(name: string, value: string): void; get(name: string): string | null };
+}
+
+/**
  * The first argument of a `browser.tauri.execute()` script. Its `core.invoke` goes through any mocks
  * set up in that window with `browser.tauri.mock()`.
  */
@@ -27,6 +38,7 @@ export interface TauriAPIs {
     invoke<T = unknown>(
       command: string,
       args?: Record<string, unknown> | number[] | ArrayBuffer | Uint8Array,
+      options?: TauriInvokeOptions,
     ): Promise<T>;
   };
 }
@@ -515,7 +527,7 @@ declare global {
      */
     __TAURI__?: {
       core?: {
-        invoke?: (cmd: string, args?: unknown) => Promise<unknown>;
+        invoke?: (cmd: string, args?: unknown, options?: TauriInvokeOptions) => Promise<unknown>;
       };
       log?: {
         trace?: (message: string) => Promise<void>;

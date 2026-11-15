@@ -38,12 +38,12 @@ var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0
       if (!coreRef?.invoke) throw new Error('Tauri core.invoke not available after 5s timeout. Make sure the page loads @wdio/tauri-plugin and withGlobalTauri is enabled in tauri.conf.json');
       __wdio_invoke_real = coreRef.invoke.bind(coreRef);
     }
-    const __wdio_invoke = async function(cmd, invokeArgs) {
+    const __wdio_invoke = async function(cmd, invokeArgs, options) {
       const mocks = window.__wdio_mocks__;
       if (mocks && typeof mocks[cmd] === 'function') {
         return mocks[cmd](invokeArgs);
       }
-      return __wdio_invoke_real(cmd, invokeArgs);
+      return __wdio_invoke_real(cmd, invokeArgs, options);
     };
     const __wdio_tauri = { core: { invoke: __wdio_invoke } };
     const __result = await (${script}\n)(__wdio_tauri, ...__wdio_args);

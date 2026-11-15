@@ -133,6 +133,7 @@ export type {
   TauriCapabilities,
   TauriEventTarget,
   TauriExecuteOptions,
+  TauriInvokeOptions,
   TauriMock,
   TauriMockInstance,
   TauriResult,
