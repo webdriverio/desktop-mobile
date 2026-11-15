@@ -425,6 +425,13 @@ Each instance's `browser.tauri.mock()` gets its own mock. `clearAllMocks()`, `re
 - `clearMocks`, `resetMocks` and `restoreMocks` set in an instance's `wdio:tauriServiceOptions` now apply to that instance's mocks, where they were ignored. Service-level settings still apply to every instance that doesn't set its own.
 - A `windowLabel` set in an instance's `wdio:tauriServiceOptions` sets that instance's default window, where it was ignored.
 
+#### The root's `execute()` and `listWindows()` resolve with one result per instance
+
+- On the multiremote root, `browser.tauri.execute()` is typed as resolving with an array, one result per instance, in instance order, which is what it resolves with at runtime. It was typed as one result.
+- The root's `browser.tauri.listWindows()` lists every instance's windows and resolves with one list per instance, such as `[['main'], ['main', 'settings']]`. It used to list one app's windows.
+
+Code that read either result as one value must index or iterate it, or call the method on an instance: `browser.getInstance('app1').tauri.listWindows()`. An instance's methods keep their types. In TypeScript, `TauriServiceAPI` takes a `ServiceApiTarget` parameter, `'instance'` by default, so `TauriServiceAPI<'root'>` is the root's API.
+
 #### One `driverProvider` per run
 
 Capabilities or instances that resolve to different `driverProvider` values stop the run with a `SevereServiceError`. Set [`driverProvider`](../configuration.md#driverprovider-embedded--external--crabnebula-optional) once in the service options, or to the same value everywhere. An unset `driverProvider` is `'embedded'`.
