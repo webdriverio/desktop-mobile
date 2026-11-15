@@ -171,6 +171,10 @@ See [`dioxus:options` Fields](../configuration.md#dioxusoptions-fields).
 
 `embeddedPort` is now a preferred port. A busy one is skipped for a free port, each further app prefers the next port up, and the service connects to whichever port it chose. Before, the service used the port without checking it, so an app left over from an earlier run could answer instead. If your tests or tooling assume the app is on exactly `embeddedPort`, don't. See [`embeddedPort`](../configuration.md#embeddedport-number-optional).
 
+#### The embedded driver refuses other hosts and browsers
+
+The embedded driver's server refuses, with a `403`, a request whose `Host` header isn't `127.0.0.1`, `localhost` or `[::1]` on its port, and any request with an `Origin` header, so a web page can't reach it through DNS rebinding. Connect through `127.0.0.1` or `localhost`. The service already does. It still starts only when the service launches the app.
+
 ### Mocking
 
 #### Each multiremote instance has its own mocks

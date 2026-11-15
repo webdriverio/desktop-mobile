@@ -166,6 +166,22 @@ services: [['@wdio/tauri-service', { tauriDriverPort: 4500 }]],
 
 [`embeddedPort`](../configuration.md#embeddedport-number-optional) is now the port the service tries first. A busy port is skipped for a free one, each further app prefers the next port up, and the service connects to whichever port it chose.
 
+#### The embedded WebDriver server starts only when `TAURI_WEBDRIVER_PORT` is set
+
+In v1, `tauri_plugin_wdio_webdriver::init()` started the WebDriver server in every run of a build that registered it, on port 4445 unless `TAURI_WEBDRIVER_PORT` set another. In v2 it starts the server only when the app is launched with `TAURI_WEBDRIVER_PORT` set to a port, so `tauri dev` and a debug build opened on its own no longer open one.
+
+The service sets `TAURI_WEBDRIVER_PORT` when it launches the app, so tests run through `@wdio/tauri-service` need no change. If you connect to the plugin yourself, start the app with it set:
+
+```bash
+TAURI_WEBDRIVER_PORT=4445 cargo tauri dev
+```
+
+`init_with_port(port)` still starts the server whenever the app runs. The `DEFAULT_PORT` constant is removed.
+
+#### The embedded WebDriver server refuses other hosts and browsers
+
+The server refuses, with a `403`, a request whose `Host` header isn't `127.0.0.1`, `localhost` or `[::1]` on its port, and any request with an `Origin` header, so a web page can't reach it through DNS rebinding. Connect through `127.0.0.1` or `localhost`. The service already does.
+
 #### A failing `onPrepare` or `onWorkerStart` stops the run
 
 A launcher failure, such as an app binary that isn't found or a driver that doesn't start, now stops the run, where WebdriverIO used to log it and carry on.
