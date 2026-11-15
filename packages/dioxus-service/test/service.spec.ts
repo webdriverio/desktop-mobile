@@ -317,6 +317,32 @@ describe('DioxusWorkerService', () => {
       await expect(dioxusOf(fakes.root).execute(() => 'a')).resolves.toEqual(['a', undefined]);
     });
 
+    it("should resolve with each instance's window labels from listWindows on the root, in instance order", async () => {
+      const { fakes, dioxusOf } = await setUp();
+      vi.mocked(fakes.browserA.execute).mockResolvedValueOnce({ __wdio_value__: ['main'] });
+      vi.mocked(fakes.browserB.execute).mockResolvedValueOnce({ __wdio_value__: ['main', 'window-1'] });
+
+      await expect(dioxusOf(fakes.root).listWindows()).resolves.toEqual([['main'], ['main', 'window-1']]);
+      expect(fakes.root.execute).not.toHaveBeenCalled();
+    });
+
+    it('should switch every instance from switchWindow on the root', async () => {
+      const { fakes, dioxusOf } = await setUp();
+      for (const instance of [fakes.browserA, fakes.browserB]) {
+        vi.mocked(instance.execute).mockResolvedValueOnce({ __wdio_value__: ['main', 'window-1'] });
+        Object.assign(instance, {
+          getWindowHandle: vi.fn().mockResolvedValue('main'),
+          getWindowHandles: vi.fn().mockResolvedValue(['main', 'window-1']),
+        });
+      }
+
+      await dioxusOf(fakes.root).switchWindow('window-1');
+
+      for (const instance of [fakes.browserA, fakes.browserB]) {
+        expect(instance.getWindowHandles).toHaveBeenCalledOnce();
+      }
+    });
+
     it("should run the configured ops on every instance's mocks before each test", async () => {
       const { service, mocks } = await setUp({ restoreMocks: true });
 

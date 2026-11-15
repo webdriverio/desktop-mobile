@@ -177,8 +177,20 @@ export default class DioxusWorkerService {
         }
         return isMockFunction(commandOrFn);
       }) as DioxusServiceAPI['isMockFunction'],
-      switchWindow: (label: string) => switchWindowByLabel(browser, label),
-      listWindows: () => listWindowLabels(browser),
+      switchWindow: async (label: string) => {
+        if (!isMultiremote(browser)) {
+          return switchWindowByLabel(browser, label);
+        }
+        await Promise.all(instancesOf(browser).map((instance) => switchWindowByLabel(instance, label)));
+      },
+      listWindows: async () => {
+        if (!isMultiremote(browser)) {
+          return listWindowLabels(browser);
+        }
+        return (await Promise.all(
+          instancesOf(browser).map((instance) => listWindowLabels(instance)),
+        )) as unknown as string[];
+      },
       triggerDeeplink: async (url: string) => {
         if (this.browserMode) {
           throw new Error('browser.dioxus.triggerDeeplink() is not supported in browser mode.');
@@ -269,6 +281,11 @@ export default class DioxusWorkerService {
       log.warn('Failed to clear stale mocks at session start:', err);
     }
   }
+}
+
+function instancesOf(root: WebdriverIO.Browser): WebdriverIO.Browser[] {
+  const mrBrowser = root as unknown as WebdriverIO.MultiRemoteBrowser;
+  return mrBrowser.instances.map((name) => requireInstance(mrBrowser, name));
 }
 
 // A multiremote root's commands reach every instance, so it sees every instance's mocks.
