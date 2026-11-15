@@ -237,6 +237,13 @@ With the embedded driver, `browser.execute()` and `browser.dioxus.execute()` ret
 
 `browser.dioxus.execute()` resolves to the script's awaited return type, so a script that returns `invoke(...)` is no longer typed `Promise<Promise<unknown>>`. `invoke` takes the result type as a generic: `invoke<Metrics>('get_metrics')`. Remove any casts that worked around the old type.
 
+#### The root's `execute()` and `listWindows()` resolve with one result per instance
+
+- On the multiremote root, `browser.dioxus.execute()` is typed as resolving with an array, one result per instance, in instance order, which is what it resolves with at runtime. It was typed as one result.
+- The root's `browser.dioxus.listWindows()` lists every instance's windows and resolves with one list per instance, such as `[['main'], ['main', 'window-1']]`, and the root's `switchWindow()` switches every instance. Both used to throw.
+
+Code that read the root's `execute()` result as one value must index or iterate it, or call it on an instance: `browser.getInstance('app1').dioxus.execute(...)`. An instance's methods keep their types. In TypeScript, `DioxusServiceAPI` takes a `ServiceApiTarget` parameter, `'instance'` by default, so `DioxusServiceAPI<'root'>` is the root's API.
+
 ### Embedded driver behaviour
 
 These changes are in `wdio-dioxus-embedded-driver`, the default provider. The driver's [Keyboard Events](https://github.com/webdriverio/desktop-mobile/blob/wdio-dioxus-embedded-driver@v2.0.0/packages/dioxus-embedded-driver/README.md#keyboard-events) section describes the result.
