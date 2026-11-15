@@ -5,7 +5,9 @@ use axum::Json;
 use serde_json::json;
 use tauri::Runtime;
 
-use crate::server::handlers::element::FindElementRequest;
+use crate::server::handlers::element::{
+  new_found_elements_prefix, store_found_elements, FindElementRequest,
+};
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::locator::LocatorStrategy;
@@ -114,29 +116,10 @@ pub async fn find_elements_in_shadow<R: Runtime + 'static>(
   let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
   let strategy_js = strategy.to_selector_js_from_shadow(&request.value);
 
-  // Use a temporary prefix for the trait method
-  let temp_prefix = "__wd_temp_";
-  let count = executor.find_elements_from_shadow(&shadow_js_var, &strategy_js, temp_prefix).await?;
-
-  // Now store each element with proper references
-  let mut elements = Vec::new();
-  let mut sessions = state.sessions.write().await;
-  let session = sessions.get_mut(&session_id)?;
-
-  for i in 0..count {
-    let element_ref = session.elements.store();
-    let js_var = element_ref.js_ref.clone();
-    let element_id = element_ref.id.clone();
-
-    // Copy from temp storage to element's js_ref
-    let copy_script =
-      format!("(function() {{ window.{js_var} = window['{temp_prefix}{i}'];  return true; }})()");
-    let _ = executor.evaluate_js(&copy_script).await;
-
-    elements.push(json!({
-        "element-6066-11e4-a52e-4f735466cecf": element_id
-    }));
-  }
+  let (ref_prefix, js_ref_prefix) = new_found_elements_prefix();
+  let count =
+    executor.find_elements_from_shadow(&shadow_js_var, &strategy_js, &js_ref_prefix).await?;
+  let elements = store_found_elements(&state.sessions, &session_id, &ref_prefix, count).await?;
 
   Ok(WebDriverResponse::success(elements))
 }
