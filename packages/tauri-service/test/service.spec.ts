@@ -1055,7 +1055,7 @@ describe('TauriWorkerService', () => {
       expect(executeCommand).not.toHaveBeenCalled();
     });
 
-    it('should isolate per-mock batch errors while applying healthy mocks in the same window', async () => {
+    it('should apply healthy mocks in a window before retrying and throwing for per-mock batch errors', async () => {
       vi.mocked(executeCommand).mockClear();
       const applyHealthy = vi.fn();
       const applyBroken = vi.fn();
@@ -1075,16 +1075,21 @@ describe('TauriWorkerService', () => {
           } as unknown as TauriMock,
         ],
       ]);
-      vi.mocked(executeCommand).mockResolvedValueOnce({
+      vi.mocked(executeCommand).mockResolvedValue({
         broken: { calls: [], results: [], invocationCallOrder: [], __error: 'circular reference' },
         healthy: { calls: [['ok']], results: [{ type: 'return', value: 1 }], invocationCallOrder: [1] },
       });
       vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
 
-      await (mockBrowser as any).tauri.execute(() => undefined);
+      const err = await (mockBrowser as any).tauri.execute(() => undefined).catch((e: unknown) => e);
 
-      expect(applyBroken).not.toHaveBeenCalled();
       expect(applyHealthy).toHaveBeenCalledWith(expect.objectContaining({ calls: [['ok']] }));
+      expect(applyBroken).not.toHaveBeenCalled();
+      expect(executeCommand).toHaveBeenCalledTimes(2);
+      expect(err).toBeInstanceOf(AggregateError);
+      expect((err as AggregateError).errors[0]).toMatchObject({
+        message: 'Batch read failed for mock "tauri.broken": circular reference',
+      });
     });
 
     it('should retry a failed window batch once and surface AggregateError listing all mock IDs on persistent failure', async () => {
