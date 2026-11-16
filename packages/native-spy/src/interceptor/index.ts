@@ -4,15 +4,15 @@ import type { Framework, FrameworkAdapter, InnerMockMethod, InnerMockSetterMetho
 import type { IpcContext } from './ipcContext.js';
 import type { SerializedHandler } from './serialize.js';
 import { serializeHandler } from './serialize.js';
-import type { MockCallData } from './syncProtocol.js';
-import { parseCallData } from './syncProtocol.js';
+import type { BatchCallDataSlice, BatchCallDataTarget, MockCallData } from './syncProtocol.js';
+import { parseBatchCallData, parseCallData } from './syncProtocol.js';
 import { TauriAdapter } from './tauri.js';
 
 export type { Framework, InnerMockMethod, InnerMockSetterMethod } from './framework.js';
 export type { IpcContext } from './ipcContext.js';
 export type { SerializedHandler } from './serialize.js';
-export type { MockCallData } from './syncProtocol.js';
-export { parseCallData };
+export type { BatchCallDataSlice, BatchCallDataTarget, MockCallData } from './syncProtocol.js';
+export { parseBatchCallData, parseCallData };
 
 export interface InterceptorOptions {
   context?: IpcContext;
@@ -26,6 +26,7 @@ export interface IpcInterceptor {
   buildInnerInvocationScript(mockName: string, method: InnerMockMethod): string;
   buildInnerSetterScript(mockName: string, method: InnerMockSetterMethod, value: unknown): string;
   buildCallDataReadScript(mockName: string): string;
+  buildBatchCallDataReadScript(mocks: readonly (string | BatchCallDataTarget)[]): string;
   buildUnregistrationScript(mockName: string): string;
   buildWithImplementationScript(
     mockName: string,
@@ -33,6 +34,7 @@ export interface IpcInterceptor {
     callbackFn: (...a: unknown[]) => unknown,
   ): string;
   parseCallData(raw: unknown): MockCallData;
+  parseBatchCallData(raw: unknown): Record<string, BatchCallDataSlice>;
   buildContextSeedScript(context: IpcContext): string;
   buildBrowserIpcInjectionScript(): string;
   setContext(partial: IpcContext): IpcContext;
@@ -76,6 +78,10 @@ class IpcInterceptorImpl implements IpcInterceptor {
     return this.adapter.buildCallDataReadScript(mockName);
   }
 
+  buildBatchCallDataReadScript(mocks: readonly (string | BatchCallDataTarget)[]): string {
+    return this.adapter.buildBatchCallDataReadScript(mocks);
+  }
+
   buildUnregistrationScript(mockName: string): string {
     return this.adapter.buildUnregistrationScript(mockName);
   }
@@ -90,6 +96,10 @@ class IpcInterceptorImpl implements IpcInterceptor {
 
   parseCallData(raw: unknown): MockCallData {
     return parseCallData(raw);
+  }
+
+  parseBatchCallData(raw: unknown): Record<string, BatchCallDataSlice> {
+    return parseBatchCallData(raw);
   }
 
   buildContextSeedScript(context: IpcContext): string {

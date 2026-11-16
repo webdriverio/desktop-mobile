@@ -67,7 +67,26 @@ export interface TauriMockInstance extends Omit<Mock, MockOverride> {
   getMockImplementation(): AbstractFn | undefined;
   update(): Promise<TauriMock>;
   __isTauriMock: boolean;
+  /** Descriptor used by the batched mock-update scheduler (internal). */
+  __accessor?: TauriMockReadAccessor;
+  /** Applies already-fetched call data synchronously without I/O (internal). */
+  __applyCalls?: (data: TauriMockApplyData) => void;
   mock: TauriMockContext;
+}
+
+/** Batch-read locator for a Tauri mock in its registration window or browser mode. */
+export type TauriMockReadAccessor =
+  | { kind: 'native'; command: string; windowLabel?: string }
+  | { kind: 'browser'; command: string };
+
+/** Call-data slice accepted by {@link TauriMockInstance.__applyCalls}. */
+export interface TauriMockApplyData {
+  calls: unknown[][];
+  results?: Array<{ type: string; value: unknown }>;
+  invocationCallOrder?: number[];
+  start?: number;
+  unchanged?: boolean;
+  reset?: boolean;
 }
 
 /**

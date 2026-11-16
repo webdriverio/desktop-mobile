@@ -1,9 +1,16 @@
 import type { FrameworkAdapter, InnerMockMethod, InnerMockSetterMethod } from './framework.js';
-import { CALL_DATA_REPLACER, errorReconstructExpr, mockLookupExpr, WDIO_MOCK_SETUP_SCRIPT } from './injection.js';
+import {
+  buildBatchCallDataReadScript,
+  buildSingleCallDataReadScript,
+  errorReconstructExpr,
+  mockLookupExpr,
+  WDIO_MOCK_SETUP_SCRIPT,
+} from './injection.js';
 import type { IpcContext } from './ipcContext.js';
 import { buildContextSeedScript } from './ipcContext.js';
 import type { SerializedHandler } from './serialize.js';
 import { safeJson } from './serialize.js';
+import type { BatchCallDataTarget } from './syncProtocol.js';
 
 /**
  * Mock interceptor adapter for `@wdio/dioxus-service`.
@@ -30,18 +37,11 @@ export class DioxusAdapter implements FrameworkAdapter {
   }
 
   buildCallDataReadScript(mockName: string): string {
-    const lookup = mockLookupExpr(mockName);
-    return `(_dx) => {
-  const mockObj = ${lookup};
-  if (!mockObj?.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
-  const m = mockObj.mock;
-  const replacer = ${CALL_DATA_REPLACER};
-  return {
-    calls: JSON.parse(JSON.stringify(m.calls || [], replacer)),
-    results: JSON.parse(JSON.stringify(m.results || [], replacer)),
-    invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
-  };
-}`;
+    return buildSingleCallDataReadScript('_dx', mockName);
+  }
+
+  buildBatchCallDataReadScript(mocks: readonly (string | BatchCallDataTarget)[]): string {
+    return buildBatchCallDataReadScript('_dx', mocks);
   }
 
   buildSetImplementationScript(mockName: string, s: SerializedHandler, once = false): string {

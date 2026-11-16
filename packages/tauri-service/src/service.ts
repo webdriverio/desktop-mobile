@@ -1,6 +1,14 @@
 import { forEachInstance, requireInstance } from '@wdio/native-core';
-import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
+import { type BatchCallDataTarget, createIpcInterceptor } from '@wdio/native-spy/interceptor';
+import type {
+  TauriAPIs,
+  TauriEventTarget,
+  TauriExecuteOptions,
+  TauriMock,
+  TauriMockApplyData,
+  TauriMockReadAccessor,
+  TauriServiceAPI,
+} from '@wdio/native-types';
 import {
   createLogger,
   errorMessage,
@@ -22,6 +30,7 @@ import {
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { toElementReferences } from './elementReferences.js';
 import { instanceFailuresError, settleOnEach } from './instanceFailures.js';
+import { getMockOwnerBrowser, isWindowNotFoundError, markMockWindowClosed, runInterceptorScript } from './mock.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
 import { mergeServiceOptions } from './serviceConfig.js';
@@ -696,14 +705,9 @@ function sleep(ms: number): Promise<void> {
 const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
 
 /**
- * Coalesces mock-update round-trips so N concurrent DOM interactions don't each fire
- * one browser.execute() per registered mock. At most two batches run at any moment
- * (current + one queued); callers arriving while a batch runs share the queued slot,
- * so N interactions produce <= 2 batches instead of N. Each batch syncs inner (browser)
- * mock state to outer (test) mocks. On Windows, updates within a batch run sequentially
- * to avoid saturating WebView2 with concurrent ExecuteScript calls. Each update is
- * retried once (after 50 ms) before failing hard — silent swallow of mock-update errors
- * leads to empty mock.calls assertions, which is harder to diagnose than an AggregateError.
+ * Coalesces mock-update round-trips so N concurrent DOM interactions run <= 2
+ * batches instead of N, reading every mock in each (browser, windowLabel) group
+ * in one eval. Lanes stay sequential across all platforms (#1096) and retry once.
  */
 class MockUpdateScheduler {
   #browser: WebdriverIO.Browser;
@@ -758,49 +762,159 @@ class MockUpdateScheduler {
       return;
     }
 
-    const tryUpdate = async (
-      mockId: string,
-      mockInstance: ReturnType<typeof mockStore.getMocks>[0][1],
-    ): Promise<void> => {
+    const lanes = buildUpdateLanes(this.#browser, mocks);
+    const errors: Array<{ label: string; error: unknown }> = [];
+    for (const lane of lanes) {
       try {
-        await mockInstance.update();
-      } catch (firstError) {
-        log.debug(`Mock update failed for ${mockId}, retrying in 50ms:`, firstError);
-        await sleep(50);
-        await mockInstance.update();
-      }
-    };
-
-    if (process.platform === 'win32') {
-      const errors: Array<{ mockId: string; error: unknown }> = [];
-      for (const [mockId, mockInstance] of mocks) {
-        try {
-          await tryUpdate(mockId, mockInstance);
-        } catch (error) {
-          errors.push({ mockId, error });
-        }
-      }
-      if (errors.length > 0) {
-        throw new AggregateError(
-          errors.map((e) => e.error),
-          `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
-        );
-      }
-    } else {
-      const results = await Promise.allSettled(mocks.map(([mockId, mockInstance]) => tryUpdate(mockId, mockInstance)));
-      const failures = results
-        .map((result, i) => ({ result, mockId: mocks[i][0] }))
-        .filter(
-          (entry): entry is { result: PromiseRejectedResult; mockId: string } => entry.result.status === 'rejected',
-        );
-      if (failures.length > 0) {
-        throw new AggregateError(
-          failures.map((f) => f.result.reason),
-          `Mock updates failed for: ${failures.map((f) => f.mockId).join(', ')}`,
-        );
+        await tryUpdateLane(lane);
+      } catch (error) {
+        errors.push({ label: lane.label, error });
       }
     }
+    if (errors.length > 0) {
+      throw new AggregateError(
+        errors.map((e) => e.error),
+        `Mock updates failed for: ${errors.map((e) => e.label).join(', ')}`,
+      );
+    }
   }
+}
+
+interface BatchMockEntry {
+  mockId: string;
+  mock: TauriMock;
+  accessor: TauriMockReadAccessor;
+  applyCalls: (data: TauriMockApplyData) => void;
+}
+
+interface WindowBatchLane {
+  kind: 'native' | 'browser';
+  browser: WebdriverIO.Browser;
+  windowLabel?: string;
+  entries: BatchMockEntry[];
+}
+
+interface UpdateLane {
+  label: string;
+  run: () => Promise<void>;
+}
+
+async function tryUpdateLane(lane: UpdateLane): Promise<void> {
+  try {
+    await lane.run();
+  } catch (firstError) {
+    log.debug(`Mock update failed for ${lane.label}, retrying in 50ms:`, firstError);
+    await sleep(50);
+    await lane.run();
+  }
+}
+
+function buildBatchTargets(entries: BatchMockEntry[]): BatchCallDataTarget[] {
+  return entries.map(({ mock: m, accessor }) => {
+    const calls = m.mock?.calls;
+    if (!Array.isArray(calls)) {
+      return { name: accessor.command };
+    }
+    const since = calls.length;
+    const order = m.mock.invocationCallOrder;
+    const lastCallOrder = since > 0 && Array.isArray(order) && order.length >= since ? order[since - 1] : undefined;
+    return {
+      name: accessor.command,
+      since,
+      ...(lastCallOrder !== undefined ? { lastCallOrder } : {}),
+    };
+  });
+}
+
+async function runBatchLane(lane: WindowBatchLane): Promise<void> {
+  const targets = buildBatchTargets(lane.entries);
+  const script = browserInterceptor.buildBatchCallDataReadScript(targets);
+
+  let raw: unknown;
+  if (lane.kind === 'browser') {
+    raw = await runInterceptorScript<unknown>(lane.browser, script);
+  } else {
+    try {
+      const executeOptions = { windowLabel: lane.windowLabel, __wdioOptions__: true } as TauriExecuteOptions;
+      raw = await execute<unknown, [TauriExecuteOptions]>(lane.browser, script, executeOptions);
+    } catch (error) {
+      if (isWindowNotFoundError(error, lane.windowLabel)) {
+        for (const { mockId, mock: m } of lane.entries) {
+          markMockWindowClosed(m, lane.browser, mockId);
+        }
+        return;
+      }
+      throw error;
+    }
+  }
+
+  const parsed = browserInterceptor.parseBatchCallData(raw);
+  const sliceErrors: Error[] = [];
+  for (const { mockId, accessor, applyCalls } of lane.entries) {
+    const slice = Object.hasOwn(parsed, accessor.command)
+      ? parsed[accessor.command]
+      : { calls: [], results: [], invocationCallOrder: [] };
+    if (slice.__error) {
+      sliceErrors.push(new Error(`Batch read failed for mock "${mockId}": ${slice.__error}`));
+      continue;
+    }
+    applyCalls(slice);
+  }
+  if (sliceErrors.length === 1) {
+    throw sliceErrors[0];
+  }
+  if (sliceErrors.length > 1) {
+    throw new AggregateError(sliceErrors, sliceErrors.map((e) => e.message).join('; '));
+  }
+}
+
+function buildUpdateLanes(rootBrowser: WebdriverIO.Browser, mocks: Array<[string, TauriMock]>): UpdateLane[] {
+  const groupsByBrowser = new Map<WebdriverIO.Browser, Map<string, WindowBatchLane>>();
+  const lanes: UpdateLane[] = [];
+
+  for (const [mockId, mockInstance] of mocks) {
+    const accessor = mockInstance.__accessor;
+    const applyCalls = mockInstance.__applyCalls;
+    if (accessor && typeof applyCalls === 'function') {
+      const targetBrowser = getMockOwnerBrowser(mockInstance) ?? rootBrowser;
+      const windowLabel = accessor.kind === 'native' ? accessor.windowLabel : undefined;
+      const groupKey =
+        accessor.kind === 'browser' ? 'browser' : windowLabel === undefined ? 'native:' : `native:w:${windowLabel}`;
+
+      let browserGroups = groupsByBrowser.get(targetBrowser);
+      if (!browserGroups) {
+        browserGroups = new Map();
+        groupsByBrowser.set(targetBrowser, browserGroups);
+      }
+      let batchLane = browserGroups.get(groupKey);
+      if (!batchLane) {
+        batchLane = {
+          kind: accessor.kind,
+          browser: targetBrowser,
+          windowLabel,
+          entries: [],
+        };
+        browserGroups.set(groupKey, batchLane);
+        const laneRef = batchLane;
+        lanes.push({
+          get label() {
+            return laneRef.entries.map((entry) => entry.mockId).join(', ');
+          },
+          run: () => runBatchLane(laneRef),
+        });
+      }
+      batchLane.entries.push({ mockId, mock: mockInstance, accessor, applyCalls });
+    } else {
+      lanes.push({
+        label: mockId,
+        run: async () => {
+          await mockInstance.update();
+        },
+      });
+    }
+  }
+
+  return lanes;
 }
 
 async function emitTauriEvent(

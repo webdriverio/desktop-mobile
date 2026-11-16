@@ -55,6 +55,15 @@ describe('TauriAdapter', () => {
     });
   });
 
+  describe('buildBatchCallDataReadScript', () => {
+    it('embeds every target mock name', () => {
+      const script = adapter.buildBatchCallDataReadScript(['cmd_a', 'cmd_b']);
+      expect(script.trim()).toMatch(/^\(_tauri\)/);
+      expect(script).toContain('"cmd_a"');
+      expect(script).toContain('"cmd_b"');
+    });
+  });
+
   describe('buildSetImplementationScript', () => {
     it('uses mockImplementation by default', () => {
       const script = adapter.buildSetImplementationScript('cmd', { source: '() => 42' });

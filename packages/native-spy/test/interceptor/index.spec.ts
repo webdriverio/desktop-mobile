@@ -87,6 +87,37 @@ describe('createIpcInterceptor', () => {
         expect(parseCallData({ calls: [[{ __wdioUndefined: true }]] }).calls).toStrictEqual([[undefined]]);
       });
     });
+
+    describe('buildBatchCallDataReadScript & parseBatchCallData', () => {
+      it('should return an empty object script when no mocks are requested', () => {
+        expect(interceptor.buildBatchCallDataReadScript([])).toBe('(_tauri) => ({})');
+      });
+
+      it('should include all requested mock names', () => {
+        const script = interceptor.buildBatchCallDataReadScript(['cmd_a', { name: 'cmd_b', since: 2 }]);
+        expect(script).toContain('"cmd_a"');
+        expect(script).toContain('"cmd_b"');
+      });
+
+      it('should parse unchanged, incremental, and error slices', () => {
+        const parsed = interceptor.parseBatchCallData({
+          a: { unchanged: true },
+          b: {
+            start: 2,
+            calls: [[undefined, { __wdioError: true, message: 'err' }]],
+            results: [{ type: 'return', value: { __wdioUndefined: true } }],
+            invocationCallOrder: [4],
+          },
+          c: { calls: [], results: [], invocationCallOrder: [], __error: 'serialize failed' },
+        });
+        expect(parsed.a).toStrictEqual({ calls: [], results: [], invocationCallOrder: [], unchanged: true });
+        expect(parsed.b.start).toBe(2);
+        expect(parsed.b.calls[0][0]).toBeUndefined();
+        expect(parsed.b.calls[0][1]).toBeInstanceOf(Error);
+        expect(parsed.b.results).toStrictEqual([{ type: 'return', value: undefined }]);
+        expect(parsed.c.__error).toBe('serialize failed');
+      });
+    });
   });
 
   describe('electron', () => {
