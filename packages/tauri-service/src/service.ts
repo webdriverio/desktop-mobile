@@ -849,15 +849,22 @@ async function runBatchLane(lane: WindowBatchLane): Promise<void> {
   }
 
   const parsed = browserInterceptor.parseBatchCallData(raw);
+  const sliceErrors: Error[] = [];
   for (const { mockId, accessor, applyCalls } of lane.entries) {
     const slice = Object.hasOwn(parsed, accessor.command)
       ? parsed[accessor.command]
       : { calls: [], results: [], invocationCallOrder: [] };
     if (slice.__error) {
-      log.warn(`Batch read failed for mock "${mockId}": ${slice.__error}`);
+      sliceErrors.push(new Error(`Batch read failed for mock "${mockId}": ${slice.__error}`));
       continue;
     }
     applyCalls(slice);
+  }
+  if (sliceErrors.length === 1) {
+    throw sliceErrors[0];
+  }
+  if (sliceErrors.length > 1) {
+    throw new AggregateError(sliceErrors, sliceErrors.map((e) => e.message).join('; '));
   }
 }
 
