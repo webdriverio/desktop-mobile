@@ -61,6 +61,95 @@ describe('createMock', () => {
     expect(mock.__isTauriMock).toBe(true);
   });
 
+  it('should expose __accessor and __applyCalls for native and browser-mode mocks', async () => {
+    const nativeBrowser = makeBrowser();
+    mockExecute.mockResolvedValueOnce('popup');
+    const nativeMock = await createMock('read_clipboard', nativeBrowser);
+    expect(nativeMock.__accessor).toStrictEqual({
+      kind: 'native',
+      command: 'read_clipboard',
+      windowLabel: 'popup',
+    });
+    expect(typeof nativeMock.__applyCalls).toBe('function');
+
+    mockExecute.mockResolvedValueOnce(undefined);
+    const unlabelledMock = await createMock('ping', nativeBrowser);
+    expect(unlabelledMock.__accessor).toStrictEqual({
+      kind: 'native',
+      command: 'ping',
+      windowLabel: undefined,
+    });
+
+    const browserMode = {
+      isMultiremote: false,
+      __wdioBrowserMode__: true,
+      execute: vi.fn().mockResolvedValue(undefined),
+    } as unknown as WebdriverIO.Browser;
+    const browserMock = await createMock('greet', browserMode);
+    expect(browserMock.__accessor).toStrictEqual({ kind: 'browser', command: 'greet' });
+    expect(typeof browserMock.__applyCalls).toBe('function');
+  });
+
+  it('should apply incremental, unchanged, reset, and stale batch slices cleanly', async () => {
+    const browser = makeBrowser();
+    mockExecute.mockResolvedValueOnce('main');
+    const mock = await createMock('batch_cmd', browser);
+
+    mock.__applyCalls?.({ unchanged: true, calls: [], results: [], invocationCallOrder: [] });
+    expect(mock.mock.calls).toEqual([]);
+
+    mock.__applyCalls?.({
+      start: 0,
+      calls: [['a']],
+      results: [{ type: 'return', value: 1 }],
+      invocationCallOrder: [10],
+    });
+    expect(mock.mock.calls).toEqual([['a']]);
+
+    mock.__applyCalls?.({
+      start: 1,
+      calls: [['b'], ['c']],
+      results: [
+        { type: 'return', value: 2 },
+        { type: 'return', value: 3 },
+      ],
+      invocationCallOrder: [11, 12],
+    });
+    expect(mock.mock.calls).toEqual([['a'], ['b'], ['c']]);
+    expect(mock.mock.invocationCallOrder).toEqual([10, 11, 12]);
+
+    mock.__applyCalls?.({
+      start: 2,
+      calls: [['c'], ['d']],
+      results: [
+        { type: 'return', value: 3 },
+        { type: 'return', value: 4 },
+      ],
+      invocationCallOrder: [12, 13],
+    });
+    expect(mock.mock.calls).toEqual([['a'], ['b'], ['c'], ['d']]);
+
+    mock.__applyCalls?.({
+      reset: true,
+      start: 0,
+      calls: [['fresh']],
+      results: [{ type: 'return', value: 'ok' }],
+      invocationCallOrder: [20],
+    });
+    expect(mock.mock.calls).toEqual([['fresh']]);
+    expect(mock.mock.invocationCallOrder).toEqual([20]);
+
+    mockExecute.mockResolvedValueOnce(undefined);
+    await mock.mockClear();
+    mock.__applyCalls?.({
+      start: 1,
+      calls: [['stale']],
+      results: [{ type: 'return', value: 'stale' }],
+      invocationCallOrder: [21],
+    });
+    expect(mock.mock.calls).toEqual([]);
+  });
+
   it('should set mock name to tauri.<command>', async () => {
     const browser = makeBrowser();
     const mock = await createMock('platform_info', browser);
