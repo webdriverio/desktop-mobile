@@ -1,5 +1,6 @@
 import type { IpcContext } from './ipcContext.js';
 import type { SerializedHandler } from './serialize.js';
+import type { BatchCallDataTarget } from './syncProtocol.js';
 
 export type Framework = 'tauri' | 'electron' | 'dioxus';
 export type InnerMockMethod = 'mockClear' | 'mockReset' | 'mockReturnThis';
@@ -18,6 +19,7 @@ export interface FrameworkAdapter {
   buildInnerInvocationScript(mockName: string, method: InnerMockMethod): string;
   buildInnerSetterScript(mockName: string, method: InnerMockSetterMethod, value: unknown): string;
   buildCallDataReadScript(mockName: string): string;
+  buildBatchCallDataReadScript(mocks: readonly (string | BatchCallDataTarget)[]): string;
   buildUnregistrationScript(mockName: string): string;
   buildWithImplementationScript(mockName: string, implFnSource: string, callbackFnSource: string): string;
   buildContextSeedScript(context: IpcContext): string;

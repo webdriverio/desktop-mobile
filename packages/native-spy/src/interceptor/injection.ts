@@ -1,3 +1,5 @@
+import type { BatchCallDataTarget } from './syncProtocol.js';
+
 export function mockLookupExpr(mockName: string): string {
   return `window.__wdio_mocks__?.[${JSON.stringify(mockName)}]`;
 }
@@ -8,6 +10,103 @@ export const CALL_DATA_REPLACER = `function(_k, v) {
     if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
     return v;
   }`;
+
+export function buildSingleCallDataReadScript(paramName: string, mockName: string): string {
+  const lookup = mockLookupExpr(mockName);
+  return `(${paramName}) => {
+  const mockObj = ${lookup};
+  if (!mockObj?.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
+  const m = mockObj.mock;
+  const replacer = ${CALL_DATA_REPLACER};
+  return {
+    calls: JSON.parse(JSON.stringify(m.calls || [], replacer)),
+    results: JSON.parse(JSON.stringify(m.results || [], replacer)),
+    invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
+  };
+}`;
+}
+
+export function buildBatchCallDataReadScript(
+  paramName: string,
+  mocks: readonly (string | BatchCallDataTarget)[],
+): string {
+  if (mocks.length === 0) {
+    return `(${paramName}) => ({})`;
+  }
+  const normalized = mocks.map((entry) =>
+    typeof entry === 'string'
+      ? { n: entry }
+      : {
+          n: entry.name,
+          ...(entry.since !== undefined ? { s: entry.since } : {}),
+          ...(entry.lastCallOrder !== undefined ? { o: entry.lastCallOrder } : {}),
+        },
+  );
+  return `(${paramName}) => {
+  const targets = ${JSON.stringify(normalized)};
+  const mocks = window.__wdio_mocks__;
+  const replacer = ${CALL_DATA_REPLACER};
+  const out = {};
+  const setEntry = (name, value) => {
+    Object.defineProperty(out, name, { value, enumerable: true, configurable: true, writable: true });
+  };
+  for (let i = 0; i < targets.length; i++) {
+    const t = targets[i];
+    const name = t.n;
+    try {
+      const mockObj = mocks?.[name];
+      if (!mockObj?.mock) {
+        setEntry(name, t.s === 0 ? { unchanged: true } : { calls: [], results: [], invocationCallOrder: [] });
+        continue;
+      }
+      const m = mockObj.mock;
+      const calls = m.calls || [];
+      const results = m.results || [];
+      const order = m.invocationCallOrder || [];
+      const total = calls.length;
+      const hasOrder = order.length === total;
+      if (t.s !== undefined) {
+        if (total === t.s) {
+          if (total === 0 || t.o === undefined || !hasOrder || order[total - 1] === t.o) {
+            setEntry(name, { unchanged: true });
+            continue;
+          }
+        } else if (total > t.s) {
+          const samePrefix = t.s === 0 || t.o === undefined || !hasOrder || order[t.s - 1] === t.o;
+          if (samePrefix) {
+            setEntry(name, {
+              start: t.s,
+              calls: JSON.parse(JSON.stringify(calls.slice(t.s), replacer)),
+              results: JSON.parse(JSON.stringify(results.slice(t.s), replacer)),
+              invocationCallOrder: JSON.parse(JSON.stringify(order.slice(t.s))),
+            });
+            continue;
+          }
+        }
+      }
+      const reset = t.s !== undefined && t.s > 0 && total >= t.s;
+      const slice = {
+        start: 0,
+        calls: JSON.parse(JSON.stringify(calls, replacer)),
+        results: JSON.parse(JSON.stringify(results, replacer)),
+        invocationCallOrder: JSON.parse(JSON.stringify(order)),
+      };
+      if (reset) {
+        slice.reset = true;
+      }
+      setEntry(name, slice);
+    } catch (e) {
+      setEntry(name, {
+        calls: [],
+        results: [],
+        invocationCallOrder: [],
+        __error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  return out;
+}`;
+}
 
 export function errorReconstructExpr(varName: string): string {
   return `(${varName} && typeof ${varName} === 'object' && ${varName}.__wdioError === true ? new Error(${varName}.message) : ${varName})`;
