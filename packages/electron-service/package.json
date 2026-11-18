@@ -86,7 +86,7 @@
   },
   "devDependencies": {
     "@electron-forge/shared-types": "^8.0.1",
-    "@puppeteer/browsers": "^3.2.6",
+    "@puppeteer/browsers": "^3.2.7",
     "@repo/test-utils": "workspace:*",
     "@types/debug": "^4.1.12",
     "@types/electron-to-chromium": "^1.5.0",
@@ -98,7 +98,7 @@
     "@wdio/types": "catalog:default",
     "@wdio/utils": "catalog:default",
     "builder-util": "^26.16.0",
-    "devtools-protocol": "^0.0.1734725",
+    "devtools-protocol": "^0.0.1744848",
     "electron": "catalog:default",
     "nock": "^15.0.6",
     "shx": "^0.4.0",
