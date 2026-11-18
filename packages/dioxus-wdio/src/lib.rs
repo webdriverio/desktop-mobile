@@ -83,7 +83,10 @@ pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
 /// [`install`], which it replaces, and append this snippet to your head HTML:
 ///
 /// ```ignore
-/// let mut head = r#"<link rel="stylesheet" href="/assets/main.css">"#.to_string();
+/// let mut head = format!(
+///     r#"<link rel="stylesheet" href="{}">"#,
+///     dioxus::prelude::asset!("/assets/main.css"),
+/// );
 /// #[cfg(debug_assertions)]
 /// head.push_str(&wdio_dioxus::custom_head());
 /// config = config.with_custom_head(head);

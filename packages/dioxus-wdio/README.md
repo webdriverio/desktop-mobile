@@ -41,7 +41,10 @@ config = config.with_on_window(|window, dom| {
 `install()` also injects the bridge `<script>` into the page `<head>` with `with_custom_head`. Prefer loading stylesheets and links from components with `document::Stylesheet` or `document::Link`, which don't use `with_custom_head`. If your app must call `with_custom_head`, call it after `install()` and append `wdio_dioxus::custom_head()` (which returns an empty string outside WDIO test runs):
 
 ```rust,ignore
-let mut head = r#"<link rel="stylesheet" href="/assets/main.css">"#.to_string();
+let mut head = format!(
+    r#"<link rel="stylesheet" href="{}">"#,
+    dioxus::prelude::asset!("/assets/main.css"),
+);
 #[cfg(debug_assertions)]
 head.push_str(&wdio_dioxus::custom_head());
 config = config.with_custom_head(head);

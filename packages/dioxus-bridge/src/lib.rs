@@ -58,7 +58,8 @@ pub fn custom_head_with_embedded_port(port: u16) -> String {
 }
 
 /// Like [`custom_head_with_embedded_port`], and also runs `page_js` in its own
-/// `<script>` element before the guest-js module script.
+/// `<script>` element before the guest-js module script, so `page_js` mustn't
+/// contain `</script>`.
 #[must_use]
 pub fn custom_head_with_embedded_port_and_page_js(port: u16, page_js: &str) -> String {
   head(bridge_url(), Some((port, page_js)))

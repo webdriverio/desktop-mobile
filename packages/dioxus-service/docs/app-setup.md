@@ -162,7 +162,10 @@ If your app needs `with_custom_head`, set it after `install()` and append `wdio_
     config = wdio_dioxus::install(config);
 }
 
-let mut head = r#"<link rel="stylesheet" href="/assets/main.css">"#.to_string();
+let mut head = format!(
+    r#"<link rel="stylesheet" href="{}">"#,
+    dioxus::prelude::asset!("/assets/main.css"),
+);
 #[cfg(debug_assertions)]
 head.push_str(&wdio_dioxus::custom_head());
 
