@@ -18,7 +18,7 @@
     "@wdio/native-types": "workspace:*",
     "@wdio/react-native-service": "workspace:*",
     "@wdio/spec-reporter": "^10.2.0",
-    "appium": "^3.9.0",
+    "appium": "^3.9.1",
     "appium-uiautomator2-driver": "^8.7.0",
     "appium-xcuitest-driver": "^12.20.0",
     "typescript": "^6.0.3"
