@@ -280,7 +280,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         let {
           appBinaryPath,
           appEntryPoint,
-          appArgs = ['--no-sandbox'],
+          appArgs = cap['goog:chromeOptions']?.args?.includes('--no-sandbox') ? [] : ['--no-sandbox'],
           apparmorAutoInstall: capApparmorAutoInstall,
           electronBuilderConfig,
         } = Object.assign({}, this.#globalOptions, cap[CUSTOM_CAPABILITY_NAME]);

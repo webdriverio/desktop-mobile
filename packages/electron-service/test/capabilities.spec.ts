@@ -35,19 +35,19 @@ describe('Capabilities Utilities', () => {
       });
     });
 
-    it('should deduplicate arguments when the same flag exists in both existing and app args', () => {
+    it('should preserve repeated flags and positional values when appending app arguments', () => {
       const options = {
-        appArgs: ['--no-sandbox', 'foo=bar'],
+        appArgs: ['--input', 'a.txt', '--output', 'a.txt'],
         appBinaryPath: '/path/to/apps',
       };
       const cap = {
         'goog:chromeOptions': {
           windowTypes: ['app'],
-          args: ['--no-sandbox', '--disable-web-security'],
+          args: ['--input', 'b.txt'],
         },
       };
       expect(getChromeOptions(options, cap)).toStrictEqual({
-        args: ['--no-sandbox', '--disable-web-security', 'foo=bar'],
+        args: ['--input', 'b.txt', '--input', 'a.txt', '--output', 'a.txt'],
         binary: '/path/to/apps',
         windowTypes: ['app'],
       });

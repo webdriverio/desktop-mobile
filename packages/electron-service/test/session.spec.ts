@@ -1,6 +1,7 @@
 import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getChromeOptions } from '../src/capabilities.js';
 import { cleanup, createElectronCapabilities, init } from '../src/session.js';
 
 const browserMock = { mockBrowser: true, sessionId: 'sess-1', deleteSession: vi.fn() };
@@ -322,17 +323,14 @@ describe('Session Management', () => {
       expect(caps['goog:chromeOptions']).toBeUndefined();
     });
 
-    it('should include appArgs in both chromeOptions and serviceOptions', () => {
+    it('should pass each standalone app argument to the launcher exactly once', () => {
+      const appArgs = ['--input', 'a.txt', '--output', 'a.txt'];
       const caps = createElectronCapabilities({
         appBinaryPath: '/path/to/app',
-        appArgs: ['--flag', '--other'],
+        appArgs,
       });
 
-      expect(caps['goog:chromeOptions']).toStrictEqual({
-        binary: '/path/to/app',
-        args: ['--flag', '--other'],
-      });
-      expect(caps['wdio:electronServiceOptions']?.appArgs).toStrictEqual(['--flag', '--other']);
+      expect(getChromeOptions(caps['wdio:electronServiceOptions'] ?? {}, caps).args).toStrictEqual(appArgs);
     });
 
     it('should pass through all service options', () => {

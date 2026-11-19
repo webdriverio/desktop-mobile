@@ -896,6 +896,19 @@ describe('Electron Launch Service', () => {
         });
       });
 
+      it('should skip the default --no-sandbox flag when the capability already includes it', async () => {
+        delete options.appArgs;
+        const capabilities: WebdriverIO.Capabilities[] = [
+          {
+            browserName: 'electron',
+            browserVersion: '26.2.2',
+            'goog:chromeOptions': { args: ['--no-sandbox'] },
+          },
+        ];
+        await instance?.onPrepare({} as never, capabilities);
+        expect(capabilities[0]['goog:chromeOptions']?.args).toEqual(['--no-sandbox']);
+      });
+
       it('should set the expected capabilities when the detected app path exists for a Forge dependency', async () => {
         delete options.appBinaryPath;
         (getBinaryPath as Mock).mockResolvedValueOnce({

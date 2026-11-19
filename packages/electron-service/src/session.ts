@@ -154,7 +154,7 @@ export function createElectronCapabilities(options: ElectronServiceOptions): Ele
   if (options.appBinaryPath) {
     capability['goog:chromeOptions'] = {
       binary: options.appBinaryPath,
-      args: options.appArgs || [],
+      args: [],
     };
   }
 
