@@ -10,7 +10,7 @@ import type { DioxusServiceOptions } from '../types.js';
 const log = createLogger('dioxus-service', 'launcher');
 
 const POLL_INTERVAL_MS = 500;
-const STATUS_TIMEOUT_MS = 5_000;
+const DEFAULT_STATUS_TIMEOUT_MS = 5_000;
 
 /** Environment variable read by `wdio-dioxus-embedded-driver` to set the server port. */
 export const EMBEDDED_PORT_ENV_VAR = 'WDIO_EMBEDDED_PORT';
@@ -27,16 +27,17 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<void> {
+async function pollWebDriverStatus(port: number, timeoutMs: number, statusPollTimeout: number): Promise<void> {
   const statusUrl = `http://127.0.0.1:${port}/status`;
   const deadline = Date.now() + timeoutMs;
   let serverAnswered = false;
 
   log.info(`Polling embedded WebDriver status at ${statusUrl}…`);
 
-  while (Date.now() < deadline) {
+  for (let now = Date.now(); now < deadline; now = Date.now()) {
     try {
-      const response = await fetch(statusUrl, { signal: AbortSignal.timeout(STATUS_TIMEOUT_MS) });
+      const requestTimeout = Math.min(statusPollTimeout, deadline - now);
+      const response = await fetch(statusUrl, { signal: AbortSignal.timeout(requestTimeout) });
       serverAnswered = true;
       if (response.ok) {
         const data = (await response.json()) as { value?: { ready?: boolean } };
@@ -50,7 +51,10 @@ async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<voi
       log.debug('Status poll failed, retrying…');
     }
 
-    await sleep(POLL_INTERVAL_MS);
+    const remaining = deadline - Date.now();
+    if (remaining > 0) {
+      await sleep(Math.min(POLL_INTERVAL_MS, remaining));
+    }
   }
 
   const notReady = `Embedded WebDriver server did not become ready on port ${port} within ${timeoutMs}ms`;
@@ -205,7 +209,8 @@ export async function startEmbeddedDriver(
     child.once('exit', exitHandler);
   });
 
-  const readyPromise = pollWebDriverStatus(port, startTimeout).then(async () => {
+  const statusPollTimeout = options.statusPollTimeout ?? DEFAULT_STATUS_TIMEOUT_MS;
+  const readyPromise = pollWebDriverStatus(port, startTimeout, statusPollTimeout).then(async () => {
     // On Windows, add a small delay after ready to allow WebView2 to fully stabilize
     if (process.platform === 'win32') {
       await sleep(500);

@@ -211,7 +211,7 @@ describe('File panel', () => {
 | `browser.dioxus.switchWindow()`              | Throws — multi-window requires a native Dioxus app   |
 | `browser.dioxus.listWindows()`               | Throws — same reason as `switchWindow()`             |
 | Backend log capture (`captureBackendLogs`)   | Not available — no Rust process                      |
-| Frontend log capture (`captureFrontendLogs`) | Available — Chrome session, standard console capture |
+| Frontend log capture (`captureFrontendLogs`) | Native mode only                                     |
 | `mock.withImplementation()`                  | Its callback's `invoke` answers only mocked commands |
 
 ## Multiremote

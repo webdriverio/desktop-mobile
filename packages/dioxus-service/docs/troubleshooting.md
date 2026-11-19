@@ -142,7 +142,7 @@ services: [
   [
     '@wdio/dioxus-service',
     {
-      statusPollTimeout: 5000, // Default: 2000
+      statusPollTimeout: 10000, // Default: 5000
     },
   ],
 ];

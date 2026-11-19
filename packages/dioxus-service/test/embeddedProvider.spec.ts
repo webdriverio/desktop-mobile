@@ -171,6 +171,22 @@ describe('startEmbeddedDriver', () => {
     expect(info.logHandlers).toBeInstanceOf(Array);
   });
 
+  it.each([
+    { options: {}, expected: 5_000 },
+    { options: { statusPollTimeout: 1_200 }, expected: 1_200 },
+    { options: { statusPollTimeout: 10_000, startTimeout: 250 }, expected: 250 },
+  ])('limits a startup status request to $expected ms', async ({ options, expected }) => {
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ value: { ready: true } }) });
+    vi.stubGlobal('fetch', fetch);
+
+    await startEmbeddedDriver('/app/dioxus-app', 4444, options);
+
+    expect(timeout).toHaveBeenCalledWith(expected);
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:4444/status', { signal: timeout.mock.results[0].value });
+  });
+
   it('passes WDIO_EMBEDDED_PORT to the child process env', async () => {
     vi.stubGlobal(
       'fetch',

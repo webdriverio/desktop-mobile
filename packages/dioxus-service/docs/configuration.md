@@ -79,15 +79,15 @@ embeddedPort: 4445;
 
 ### `statusPollTimeout` (number, optional)
 
-Timeout in milliseconds for the `/status` endpoint poll during embedded WebDriver server startup. Increase this in slow CI environments where a healthy-but-busy server may miss the default deadline.
+Timeout in milliseconds for each `/status` request during embedded WebDriver startup. Each request is also bounded by the remaining `startTimeout` budget.
 
 **Example:**
 
 ```typescript
-statusPollTimeout: 5000;
+statusPollTimeout: 10000;
 ```
 
-**Default:** `2000`
+**Default:** `5000`
 
 ---
 
@@ -139,7 +139,7 @@ captureBackendLogs: true;
 
 ### `captureFrontendLogs` (boolean, optional)
 
-Capture console logs from the frontend (JavaScript/TypeScript in the webview).
+Capture console logs from the native app's webview. This option applies only in native mode.
 
 **Example:**
 

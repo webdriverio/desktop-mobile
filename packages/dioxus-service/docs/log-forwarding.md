@@ -80,7 +80,7 @@ The service automatically filters driver-level logs and only captures logs from 
 
 ## Frontend Log Capture
 
-Frontend log capture uses the WebDriver `getLogs` API to retrieve console logs from the webview:
+In native mode, the Dioxus bridge forwards webview console messages through the app process. The service reads this output when `captureFrontendLogs` is enabled:
 
 ```javascript
 // In your Dioxus frontend (JavaScript/TypeScript)
@@ -89,7 +89,7 @@ console.warn('This is a warning');
 console.error('This is an error');
 ```
 
-Frontend logs are captured periodically and before each WebDriver command.
+Browser mode runs the frontend in Chrome. The service's `captureFrontendLogs` option only captures output from a native Dioxus process.
 
 ## Independent Configuration
 
@@ -141,7 +141,6 @@ Logs will appear as:
 ## Performance Considerations
 
 - Log capture is optional and disabled by default to avoid overhead.
-- Frontend log capture uses periodic polling (every 1 second) which has minimal performance impact.
 - Backend log parsing is efficient and non-blocking.
 - Log level filtering reduces the number of logs processed.
 
@@ -161,9 +160,7 @@ Logs will appear as:
 
 ### Frontend logs not captured
 
-- Some WebDriver implementations may not support the `getLogs` API.
-- The service will silently fail if `getLogs` is not supported.
-- Backend logs will still work in this case.
+- Check that the native app has the [Dioxus bridge installed](./app-setup.md) and that `captureFrontendLogs` is enabled. The bridge emits a `[WDIO-FRONTEND]` marker for forwarded console messages.
 
 ## See Also
 

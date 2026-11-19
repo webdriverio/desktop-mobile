@@ -143,7 +143,7 @@ export interface DioxusServiceOptions extends BaseServiceOptions, DriverProvider
   windowLabel?: string;
   /** Backend log capture toggle. */
   captureBackendLogs?: boolean;
-  /** Frontend log capture toggle. */
+  /** Capture frontend console output from the native app process. */
   captureFrontendLogs?: boolean;
   /** Minimum backend log level (default 'info'). */
   backendLogLevel?: LogLevel;
@@ -151,7 +151,7 @@ export interface DioxusServiceOptions extends BaseServiceOptions, DriverProvider
   frontendLogLevel?: LogLevel;
   /** Overall app startup budget in ms for the embedded WebDriver server (default 60000). */
   startTimeout?: number;
-  /** Embedded server status-poll timeout in ms (default 2000). */
+  /** Timeout in ms for each embedded server startup status request (default 5000). */
   statusPollTimeout?: number;
 }
 
@@ -169,6 +169,8 @@ export interface DioxusServiceGlobalOptions extends BaseServiceGlobalOptions, Dr
   captureFrontendLogs?: boolean;
   /** Timeout for app startup in ms. A capability-level value takes precedence. */
   startTimeout?: number;
+  /** Timeout in ms for each embedded server startup status request (default 5000). */
+  statusPollTimeout?: number;
 }
 
 /**
