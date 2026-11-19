@@ -21,8 +21,8 @@
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import { fn as vitestFn } from '@wdio/native-spy';
 import { parseCallData } from '@wdio/native-spy/interceptor';
-import type { AbstractFn, ElectrobunMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import type { AbstractFn, ElectrobunAPIs, ElectrobunMock } from '@wdio/native-types';
+import { createLogger, runThenSync } from '@wdio/native-utils';
 
 import { evaluateInActiveTarget, jsonLiteral } from './commands/execute.js';
 import { SERVICE_NAME } from './constants.js';
@@ -35,6 +35,7 @@ import {
   buildReturnThisScript,
   buildSetImplementationScript,
   buildSetValueScript,
+  buildWithImplementationScript,
 } from './innerRecorder.js';
 import type { ElectrobunMockStore } from './mockStore.js';
 import type { InnerMockSetterMethod } from './mockTypes.js';
@@ -46,11 +47,15 @@ const log = createLogger(SERVICE_NAME, 'mock');
  * Native and bound functions stringify to `{ [native code] }`, which would land
  * in the page as a SyntaxError — reject them up front with an actionable message.
  */
-function implSource(implFn: AbstractFn, target: string): string {
+function implSource<Args extends unknown[]>(
+  implFn: (...args: Args) => unknown,
+  target: string,
+  method = 'mockImplementation',
+): string {
   const source = implFn.toString();
   if (/\{\s*\[native code\]\s*\}/.test(source)) {
     throw new Error(
-      `browser.electrobun.mock("${target}"): mockImplementation requires a function with serialisable source — ` +
+      `browser.electrobun.mock("${target}"): ${method} requires a function with serialisable source — ` +
         'native or bound functions stringify to "[native code]" and cannot be evaluated in the webview',
     );
   }
@@ -62,7 +67,7 @@ function implSource(implFn: AbstractFn, target: string): string {
     new Function(`return (${source});`);
   } catch {
     throw new Error(
-      `browser.electrobun.mock("${target}"): mockImplementation source is not a valid expression — ` +
+      `browser.electrobun.mock("${target}"): ${method} source is not a valid expression — ` +
         'method shorthands lose the `function` keyword when stringified; pass a function expression or arrow function',
     );
   }
@@ -154,6 +159,18 @@ export async function createMock(
       mockContext,
     );
     return mock;
+  };
+
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (eb: ElectrobunAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
+    const script = buildWithImplementationScript(
+      target,
+      implSource(implFn, target, 'withImplementation'),
+      implSource(callbackFn, target, 'withImplementation'),
+    );
+    return runThenSync(mock, () => evaluateInActiveTarget<Awaited<ReturnValue>>(bridge, script, mockContext));
   };
 
   mock.mockImplementationOnce = async (implFn: AbstractFn) => {

@@ -318,6 +318,88 @@ describe('createMock (Electrobun mocking)', () => {
     });
   });
 
+  describe('withImplementation', () => {
+    it('should await the callback in the webview, sync its calls, and preserve queued and default behavior', async () => {
+      const api = { fetchData: () => 'real' };
+      const { bridge } = makeBridge({ api, __WDIO_ELECTROBUN__: { read: () => api.fetchData() } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      await mock.mockReturnValue('default');
+      await mock.mockReturnValueOnce('queued');
+
+      const result = await mock.withImplementation(
+        () => 'temporary',
+        async ({ read }) => {
+          await Promise.resolve();
+          return (read as () => string)();
+        },
+      );
+
+      expect(result).toBe('temporary');
+      expect(mock.mock.results).toEqual([{ type: 'return', value: 'temporary' }]);
+      expect(api.fetchData()).toBe('queued');
+      expect(api.fetchData()).toBe('default');
+    });
+
+    it('should restore the previous implementation and sync calls when the callback rejects', async () => {
+      const api = { fetchData: () => 'real' };
+      const { bridge } = makeBridge({ api, __WDIO_ELECTROBUN__: { read: () => api.fetchData() } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      await mock.mockImplementation(() => 'original');
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          async ({ read }) => {
+            await Promise.resolve();
+            (read as () => string)();
+            throw new Error('callback failed');
+          },
+        ),
+      ).rejects.toThrow('callback failed');
+
+      expect(mock.mock.results).toEqual([{ type: 'return', value: 'temporary' }]);
+      expect(api.fetchData()).toBe('original');
+    });
+
+    it('should restore only the finished scope when callbacks overlap', async () => {
+      const api = { fetchData: () => 'real' };
+      const first = Promise.withResolvers<void>();
+      const second = Promise.withResolvers<void>();
+      const { bridge } = makeBridge({ api, __WDIO_ELECTROBUN__: { first: first.promise, second: second.promise } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      await mock.mockReturnValue('default');
+
+      const firstCall = mock.withImplementation(
+        () => 'first',
+        ({ first }) => first,
+      );
+      const secondCall = mock.withImplementation(
+        () => 'second',
+        ({ second }) => second,
+      );
+      expect(api.fetchData()).toBe('second');
+      first.resolve();
+      await firstCall;
+      expect(api.fetchData()).toBe('second');
+      second.resolve();
+      await secondCall;
+      expect(api.fetchData()).toBe('default');
+    });
+
+    it('should reject when the target is no longer mocked', async () => {
+      const { bridge } = makeBridge({ api: { fetchData: () => 'real' } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      await mock.mockRestore();
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          () => 'result',
+        ),
+      ).rejects.toThrow('api.fetchData is not mocked in this window');
+    });
+  });
+
   describe('lifecycle', () => {
     it('should clear inner + outer call history on mockClear', async () => {
       const { bridge, window } = makeBridge({ api: { fetchData: () => 1 } });

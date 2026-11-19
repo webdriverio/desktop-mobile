@@ -88,6 +88,23 @@ describe('Electrobun Mocking', () => {
       expect(result).toBe('impl value');
     });
 
+    it('should use the scoped implementation until its webview callback settles', async () => {
+      await defineTarget('readValue');
+      const mock = await browser.electrobun.mock('readValue');
+      await mock.mockReturnValue('default');
+      const result = await mock.withImplementation(
+        () => 'temporary',
+        async () => {
+          await Promise.resolve();
+          return (globalThis as unknown as { readValue(): string }).readValue();
+        },
+      );
+
+      expect(result).toBe('temporary');
+      expect(mock.mock.calls).toHaveLength(1);
+      expect(await callTarget('readValue')).toBe('default');
+    });
+
     it('should use mockReturnValueOnce in sequence', async () => {
       await defineTarget('readValue');
       const mockReadValue = await browser.electrobun.mock('readValue');

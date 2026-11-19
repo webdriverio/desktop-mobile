@@ -119,7 +119,7 @@ DOM nodes and lists in the result:
 | Feature                                                                 | Status                                                                                                                       |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `execute`                                                               | ✅                                                                                                                           |
-| mocking (`mock` + `clear`/`reset`/`restoreAllMocks` + `isMockFunction`) | ✅                                                                                                                           |
+| mocking (`mock`, `withImplementation`, `clear`/`reset`/`restoreAllMocks`, `isMockFunction`) | ✅                                                                                                                           |
 | frontend + backend log capture                                          | ✅ (Linux: frontend via an injected console shim + the driver's stdout; `captureBackendLogs` structured capture is CDP-only) |
 | browser mode (`mode: 'browser'` against a dev server)                   | ✅ (the page runs in plain Chrome without `browser.electrobun`, so the service's `execute` and `mock` aren't available)      |
 | standalone / session mode                                               | ✅                                                                                                                           |

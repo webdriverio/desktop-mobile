@@ -53,6 +53,11 @@ export interface ElectrobunMockInstance extends Omit<Mock, MockOverride> {
   mockReset(): Promise<ElectrobunMock>;
   mockRestore(): Promise<ElectrobunMock>;
   mockReturnThis(): Promise<ElectrobunMock>;
+  /** Run the callback in the webview with a temporary implementation and return its settled result. */
+  withImplementation<ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (eb: ElectrobunAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>>;
   mockName(name: string): ElectrobunMock;
   getMockName(): string;
   getMockImplementation(): AbstractFn | undefined;

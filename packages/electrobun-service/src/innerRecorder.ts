@@ -63,6 +63,7 @@ const SETUP = `
     __ebReg.__createSpy = function() {
       var _defaultImpl;
       var _implQueue = [];
+      var _scopedImpls = [];
       var _defaultReturnValue = NOT_SET;
       var _defaultResolvedValue = NOT_SET;
       var _defaultRejectedValue = NOT_SET;
@@ -74,7 +75,8 @@ const SETUP = `
         var args = Array.prototype.slice.call(arguments);
         _calls.push(args);
         _invocationCallOrder.push(__ebReg.__callId++);
-        var impl = _implQueue.length > 0 ? _implQueue.shift() : _defaultImpl;
+        var scope = _scopedImpls[_scopedImpls.length - 1];
+        var impl = scope ? scope.impl : (_implQueue.length > 0 ? _implQueue.shift() : _defaultImpl);
         if (impl !== null && impl !== undefined && typeof impl === 'object' && impl.__wdioType) {
           if (impl.__wdioType === 'resolve') {
             _results.push({ type: 'return', value: impl.__wdioVal });
@@ -114,6 +116,15 @@ const SETUP = `
       spy.mockImplementation = function(fn) {
         _defaultImpl = fn; _defaultReturnValue = NOT_SET; _defaultResolvedValue = NOT_SET;
         _defaultRejectedValue = NOT_SET; _returnThis = false; return spy;
+      };
+      spy.withImplementation = async function(impl, callback) {
+        var scope = { impl: impl };
+        _scopedImpls.push(scope);
+        try {
+          return await callback(window.__WDIO_ELECTROBUN__ || {});
+        } finally {
+          _scopedImpls.splice(_scopedImpls.indexOf(scope), 1);
+        }
       };
       spy.mockImplementationOnce = function(fn) { _implQueue.push(fn); return spy; };
       spy.mockReturnValue = function(v) {
@@ -227,6 +238,17 @@ export function buildSetImplementationScript(target: string, source: string, onc
     var reg = ${REGISTRY};
     var entry = reg && reg[${key}];
     if (entry && entry.spy) { entry.spy.${method}((${source})); }
+  })()`;
+}
+
+/** Run the callback in the same webview as the recorder, with its implementation temporarily overridden. */
+export function buildWithImplementationScript(target: string, implSource: string, callbackSource: string): string {
+  const key = pathLiteral(target);
+  return `(function() {
+    var reg = ${REGISTRY};
+    var entry = reg && reg[${key}];
+    if (!entry || !entry.spy) { throw new Error(${key} + ' is not mocked in this window'); }
+    return entry.spy.withImplementation((${implSource}), (${callbackSource}));
   })()`;
 }
 
