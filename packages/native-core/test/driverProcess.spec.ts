@@ -45,8 +45,8 @@ async function startWith(driverPath: string, options: { env?: NodeJS.ProcessEnv;
   return vi.mocked(spawn).mock.calls[0] as unknown[];
 }
 
-// Starts on its startup marker, and exits when it's killed or taskkill ends it
-async function startRunning(driverPath: string) {
+// Exits when it is signaled or taskkill ends it.
+function spawnDriver(driverPath: string) {
   const proc = Object.assign(new EventEmitter(), {
     stdout: new PassThrough(),
     stderr: new PassThrough(),
@@ -84,7 +84,13 @@ async function startRunning(driverPath: string) {
     nativePort: 2,
     driverPath,
     startupMarkers: ['ready'],
+    errorMarkers: ['bind failed'],
   });
+  return { driver, proc, started };
+}
+
+async function startRunning(driverPath: string) {
+  const { driver, proc, started } = spawnDriver(driverPath);
   proc.stdout.write('ready\n');
   await started;
   return { driver, proc };
@@ -109,6 +115,16 @@ describe('DriverProcess.start', () => {
   afterEach(() => {
     setPlatform(originalPlatform);
     vi.clearAllMocks();
+  });
+
+  it.each(['linux', 'win32'] as const)('should stop a live driver before rejecting startup on %s', async (platform) => {
+    setPlatform(platform);
+    const { driver, proc, started } = spawnDriver('driver.exe');
+    proc.stderr.write('bind failed\n');
+
+    await expect(started).rejects.toThrow(/bind failed/);
+    expect(proc.exitCode).toBe(0);
+    expect(driver.isRunning()).toBe(false);
   });
 
   it('should start a Windows .exe driver directly, with its arguments as they are', async () => {
@@ -176,19 +192,22 @@ describe('DriverProcess.stop', () => {
     vi.clearAllMocks();
   });
 
-  it("should end a Windows driver's whole process tree when cmd.exe started it", async () => {
-    setPlatform('win32');
-    const { driver, proc } = await startRunning('C:\\app\\node_modules\\.bin\\tauri-driver.cmd');
+  it.each(['C:\\app\\node_modules\\.bin\\tauri-driver.cmd', 'C:\\drivers\\tauri-driver.exe'])(
+    'should stop the Windows process tree for %s',
+    async (driverPath) => {
+      setPlatform('win32');
+      const { driver, proc } = await startRunning(driverPath);
 
-    await driver.stop();
+      await driver.stop();
 
-    expect(spawn).toHaveBeenCalledWith('taskkill', ['/pid', '4321', '/T', '/F'], { stdio: 'ignore' });
-    expect(proc.kill).not.toHaveBeenCalled();
-  });
+      expect(spawn).toHaveBeenCalledWith('taskkill', ['/pid', '4321', '/T', '/F'], { stdio: 'ignore' });
+      expect(proc.kill).not.toHaveBeenCalled();
+    },
+  );
 
-  it('should send SIGTERM to a driver it started directly', async () => {
-    setPlatform('win32');
-    const { driver, proc } = await startRunning('C:\\drivers\\tauri-driver.exe');
+  it('should send SIGTERM to the driver on POSIX', async () => {
+    setPlatform('linux');
+    const { driver, proc } = await startRunning('/usr/bin/tauri-driver');
 
     await driver.stop();
 

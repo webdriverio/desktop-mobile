@@ -25,7 +25,12 @@ import {
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { resolveAppArgs, resolveAppBinaryPath } from './appBinaryResolver.js';
-import { startTestRunnerBackend, stopTestRunnerBackend, waitTestRunnerBackendReady } from './crabnebulaBackend.js';
+import {
+  type StartBackendOptions,
+  startTestRunnerBackend,
+  stopTestRunnerBackend,
+  waitTestRunnerBackendReady,
+} from './crabnebulaBackend.js';
 import { diagnoseTauriEnvironment } from './diagnostics.js';
 import { ensureTauriDriver, findTestRunnerBackend } from './driverManager.js';
 import { DriverPool } from './driverPool.js';
@@ -66,6 +71,17 @@ function stopTheRun(error: unknown, failure: string): Error {
     log.error(failure, cause);
   }
   return severe ? (error as Error) : severeServiceError(error);
+}
+
+async function startReadyBackend(options: StartBackendOptions): Promise<ChildProcess> {
+  const { proc } = await startTestRunnerBackend(options);
+  try {
+    await waitTestRunnerBackendReady('127.0.0.1', options.port, 30000);
+    return proc;
+  } catch (error) {
+    await stopTestRunnerBackend(proc);
+    throw error;
+  }
 }
 
 function dataDirEnv(dataDir: string): NodeJS.ProcessEnv {
@@ -385,8 +401,7 @@ export default class TauriLaunchService {
         const backendPort = mergedOptions.crabnebulaBackendPort ?? 3000;
         // Allocate port to prevent collision with worker backends
         await this.backendPortManager.allocatePortPair(backendPort, backendPort + 1);
-        const { proc } = await startTestRunnerBackend({ port: backendPort, serviceOptions: mergedOptions });
-        await waitTestRunnerBackendReady('127.0.0.1', backendPort, 30000);
+        const proc = await startReadyBackend({ port: backendPort, serviceOptions: mergedOptions });
 
         this.testRunnerBackend = proc;
         sharedBackendPort = backendPort;
@@ -478,13 +493,12 @@ export default class TauriLaunchService {
             const backendPort = backendPorts[i];
             log.debug(`Starting CrabNebula test-runner-backend for ${instanceId} on port ${backendPort}`);
 
-            const { proc } = await startTestRunnerBackend({
+            const proc = await startReadyBackend({
               port: backendPort,
               serviceOptions: instanceOptions,
               env: instanceEnv,
               instanceId,
             });
-            await waitTestRunnerBackendReady(hostname, backendPort, 30000);
 
             this.workerBackends.set(instanceId, { proc, port: backendPort });
             env = backendDriverEnv(instanceEnv, backendPort);
@@ -843,13 +857,13 @@ export default class TauriLaunchService {
           const backendPort = await this.backendPortManager.allocatePort();
           log.debug(`Spawning test-runner-backend for worker ${cid} on port ${backendPort}`);
 
-          const { proc } = await startTestRunnerBackend({
+          const proc = await startReadyBackend({
             port: backendPort,
             serviceOptions: workerOptions,
             env: workerEnv,
             instanceId: cid,
           });
-          await waitTestRunnerBackendReady('127.0.0.1', backendPort, 30000);
+
           this.workerBackends.set(cid, { proc, port: backendPort });
           driverEnv = backendDriverEnv(workerEnv, backendPort);
           log.debug(`Worker ${cid} backend ready on port ${backendPort}`);
@@ -1046,7 +1060,6 @@ export default class TauriLaunchService {
       return;
     }
 
-    const hostname = '127.0.0.1';
     log.info(`Cycling ${configs.length} CrabNebula backend(s) + driver(s) between workers`);
 
     // Stop existing backends and drivers
@@ -1068,13 +1081,12 @@ export default class TauriLaunchService {
     // Restart backends and drivers with the same ports
     for (const config of configs) {
       log.debug(`Restarting backend for ${config.instanceId} on port ${config.backendPort}`);
-      const { proc } = await startTestRunnerBackend({
+      const proc = await startReadyBackend({
         port: config.backendPort,
         serviceOptions: config.options,
         env: config.backendEnv,
         instanceId: config.instanceId,
       });
-      await waitTestRunnerBackendReady(hostname, config.backendPort, 30000);
 
       // Store in the same location it was originally stored
       if (configs.length === 1 && config.instanceId === 'tauri-driver') {

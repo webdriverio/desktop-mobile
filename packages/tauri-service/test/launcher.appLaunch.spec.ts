@@ -71,7 +71,7 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
 import { existsSync } from 'node:fs';
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { SevereServiceError } from 'webdriverio';
-import { startTestRunnerBackend } from '../src/crabnebulaBackend.js';
+import { startTestRunnerBackend, stopTestRunnerBackend, waitTestRunnerBackendReady } from '../src/crabnebulaBackend.js';
 import { ensureTauriDriver } from '../src/driverManager.js';
 import { ensureMsEdgeDriver } from '../src/edgeDriverManager.js';
 import { checkEmbeddedServerAlive, startEmbeddedDriver } from '../src/embeddedProvider.js';
@@ -366,6 +366,34 @@ describe('app env', () => {
         WDIO_936_FLAG: 'service',
       });
     });
+
+    it.each(['shared', 'multiremote', 'worker', 'restart'] as const)(
+      'should stop the new backend if readiness fails during %s startup',
+      async (phase) => {
+        const maxInstances = phase === 'worker' ? 2 : 1;
+        const launcher = createLauncher({ driverProvider: 'crabnebula' }, maxInstances);
+        const config = { maxInstances };
+        const cap = appCap();
+        if (phase === 'worker' || phase === 'restart') {
+          await launcher.onPrepare(config, [cap]);
+        }
+
+        const failedBackend = { pid: 97 } as never;
+        vi.mocked(startTestRunnerBackend).mockResolvedValueOnce({ proc: failedBackend, port: 3000 });
+        vi.mocked(waitTestRunnerBackendReady).mockRejectedValueOnce(new Error('backend startup timed out'));
+        const launch = {
+          shared: () => launcher.onPrepare(config, [cap]),
+          multiremote: () => launcher.onPrepare(config, { a: { capabilities: cap }, b: { capabilities: appCap() } }),
+          worker: () => launcher.onWorkerStart('0-0', cap),
+          restart: () => launcher.onWorkerEnd('0-0'),
+        };
+        const driverCount = driverStarts(launcher).length;
+
+        await expect(launch[phase]()).rejects.toThrow('backend startup timed out');
+        expect(stopTestRunnerBackend).toHaveBeenCalledWith(failedBackend);
+        expect(driverStarts(launcher)).toHaveLength(driverCount);
+      },
+    );
 
     it('should point the shared driver at the backend it started, over a REMOTE_WEBDRIVER_URL in env', async () => {
       const cap = appCap();

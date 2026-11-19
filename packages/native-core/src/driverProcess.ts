@@ -79,7 +79,6 @@ export interface DriverProcessInfo {
  */
 export class DriverProcess {
   private _proc?: ChildProcess;
-  private viaShell = false;
   private streamHandlers: ReadlineInterface[] = [];
   private startupTimeout?: ReturnType<typeof setTimeout>;
   private pollTimer?: ReturnType<typeof setTimeout>;
@@ -143,10 +142,20 @@ export class DriverProcess {
         }
       };
 
-      const safeReject = (err: Error) => {
-        if (!settled) {
-          settled = true;
-          this.cleanupTimeout();
+      const safeReject = async (err: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        this.cleanupTimeout();
+        try {
+          // A spawn error without a PID or an earlier exit leaves no child to stop.
+          if (this._proc?.pid && this.isRunning()) {
+            await this.stop(driverName);
+          }
+        } catch (stopError) {
+          log.warn(`Could not stop ${driverName} after startup failed`, stopError);
+        } finally {
           this.cleanup();
           reject(err);
         }
@@ -158,8 +167,7 @@ export class DriverProcess {
           detached: false,
           env: env ? mergeEnv(process.env, env) : process.env,
         };
-        this.viaShell = needsShell(driverPath);
-        if (this.viaShell) {
+        if (needsShell(driverPath)) {
           // One quoted command line for cmd.exe: spawn's shell mode joins the arguments unquoted
           this._proc = spawn([driverPath, ...args].map(quoteForCmd).join(' '), { ...spawnOptions, shell: true });
         } else {
@@ -396,8 +404,8 @@ export class DriverProcess {
     if (!this._proc) {
       return;
     }
-    if (this.viaShell) {
-      // Killing cmd.exe alone would leave the driver it started running and holding its port
+    if (process.platform === 'win32') {
+      // A driver executable or shell wrapper may have spawned its own driver and app.
       killWindowsProcessTree(this._proc);
     } else {
       this._proc.kill(signal);
