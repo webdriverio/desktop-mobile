@@ -79,6 +79,10 @@
       ]
     },
     "test": {
+      "env": [
+        "RUNNER_OS",
+        "RUNNER_ARCH"
+      ],
       "dependsOn": [
         "^build"
       ],
@@ -87,6 +91,10 @@
       ]
     },
     "test:unit": {
+      "env": [
+        "RUNNER_OS",
+        "RUNNER_ARCH"
+      ],
       "dependsOn": [
         "^build"
       ],
@@ -95,6 +103,10 @@
       ]
     },
     "test:integration": {
+      "env": [
+        "RUNNER_OS",
+        "RUNNER_ARCH"
+      ],
       "dependsOn": [
         "^build"
       ],
@@ -103,6 +115,10 @@
       ]
     },
     "test:coverage": {
+      "env": [
+        "RUNNER_OS",
+        "RUNNER_ARCH"
+      ],
       "dependsOn": [
         "^build"
       ],
