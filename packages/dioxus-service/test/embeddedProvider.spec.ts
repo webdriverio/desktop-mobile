@@ -187,6 +187,27 @@ describe('startEmbeddedDriver', () => {
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:4444/status', { signal: timeout.mock.results[0].value });
   });
 
+  it('limits retries to the remaining startup budget', async ({ onTestFinished }) => {
+    vi.useFakeTimers({ now: 0, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    onTestFinished(() => vi.useRealTimers());
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+        .mockResolvedValue({ ok: true, json: async () => ({ value: { ready: false } }) }),
+    );
+    const result = startEmbeddedDriver('/app/dioxus-app', 4444, { startTimeout: 650, statusPollTimeout: 600 }).catch(
+      (error: Error) => error,
+    );
+
+    await vi.runAllTimersAsync();
+    expect(await result).toEqual(expect.objectContaining({ message: expect.stringContaining('within 650ms') }));
+    expect(timeout.mock.calls).toEqual([[600], [150]]);
+    expect(Date.now()).toBe(650);
+  });
+
   it('passes WDIO_EMBEDDED_PORT to the child process env', async () => {
     vi.stubGlobal(
       'fetch',
