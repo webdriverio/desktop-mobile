@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import { join } from 'node:path';
 import { getLogWriter } from '@wdio/native-core';
@@ -120,7 +121,7 @@ export async function init(
   try {
     await launcher.onPrepare(testRunnerOpts, [capabilities]);
 
-    await launcher.onWorkerStart('standalone', capabilities);
+    await launcher.onWorkerStart(`standalone-${randomUUID()}`, capabilities);
 
     log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, hideSecrets, 2));
 

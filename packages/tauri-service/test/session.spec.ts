@@ -316,6 +316,22 @@ describe('session', () => {
       expect(callOrder).toEqual(['onPrepare', 'onWorkerStart']);
     });
 
+    it('should start concurrent standalone sessions with distinct worker IDs', async () => {
+      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
+        caps.port = 4444;
+      });
+      mockRemote.mockImplementation(async () => createMockBrowser());
+      const caps = createTauriCapabilities('/app', { driverProvider: 'external' });
+
+      const sessions = await Promise.all([init(caps), init(caps)]);
+      try {
+        const workerIds = mockOnWorkerStart.mock.calls.map(([cid]) => cid);
+        expect(new Set(workerIds).size).toBe(2);
+      } finally {
+        await Promise.all(sessions.map(cleanup));
+      }
+    });
+
     it('should strip hostname, port, and browserName from driver capabilities', async () => {
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.hostname = 'localhost';
