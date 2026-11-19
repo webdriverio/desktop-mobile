@@ -12,7 +12,9 @@ if [ -z "$dioxus_version" ]; then
 fi
 
 if command -v cargo-binstall >/dev/null 2>&1; then
-  cargo binstall dioxus-cli --version "$dioxus_version" --no-confirm
+  # A compatible fallback target can still link against a different Homebrew prefix on macOS.
+  host_target=$(rustc -vV | sed -n 's/^host: //p')
+  cargo binstall dioxus-cli --version "$dioxus_version" --targets "$host_target" --no-confirm
 else
   cargo install dioxus-cli --version "$dioxus_version" --locked
 fi

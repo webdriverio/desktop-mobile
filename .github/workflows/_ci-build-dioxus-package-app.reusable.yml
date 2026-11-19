@@ -100,6 +100,8 @@ jobs:
           version: ${{ github.action_ref }}
 
       - name: Install Dioxus CLI
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash scripts/install-dx.sh
         shell: bash
         working-directory: fixtures/package-tests/dioxus-app
