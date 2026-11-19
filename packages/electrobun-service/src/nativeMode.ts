@@ -23,7 +23,7 @@ import { basename, join, relative } from 'node:path';
 import type { Interface as ReadlineInterface } from 'node:readline';
 
 import { createLogCapture } from '@wdio/native-core';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, mergeEnv } from '@wdio/native-utils';
 
 import { SERVICE_NAME } from './constants.js';
 import { needsOwnDisplay, x11Env } from './display.js';
@@ -148,10 +148,7 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
     throw error;
   }
 
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ...options.env,
-  };
+  const env = mergeEnv(process.env, options.env);
 
   // CEF needs an X display. The launcher rejects CEF builds on Linux for now, so this only runs once
   // they're supported (https://github.com/webdriverio/desktop-mobile/issues/320).
@@ -185,8 +182,10 @@ function spawnWebView2App(params: SpawnElectrobunAppParams): ElectrobunAppProces
   // Preserve any caller-supplied WebView2 args, but always keep our remote-debugging port
   // first so it can't be dropped. WebView2 merges switches per-switch, and Electrobun's own
   // hardcoded args target different switches, so they coexist.
-  const callerArgs =
-    options.env?.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS ?? process.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS ?? '';
+  const callerEnv = mergeEnv(process.env, options.env);
+  const callerArgs = Object.entries(callerEnv).find(
+    ([key]) => key.toUpperCase() === 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS',
+  )?.[1];
 
   // Per-instance WebView2 data isolation. Electrobun derives the WebView2 user-data folder
   // from %LOCALAPPDATA%\<identifier>\<channel>\WebView2 and passes it to
@@ -197,12 +196,10 @@ function spawnWebView2App(params: SpawnElectrobunAppParams): ElectrobunAppProces
   // WebView2 root: the WebView2 analog of CEF's root_cache_path single-instance issue; also
   // a prerequisite for multiremote.
   const dataParent = mkdtempSync(join(tmpdir(), 'wdio-electrobun-webview2-'));
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ...options.env,
+  const env = mergeEnv(callerEnv, {
     LOCALAPPDATA: dataParent,
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}${callerArgs ? ` ${callerArgs}` : ''}`,
-  };
+  });
 
   return startAppProcess({
     command: app.binaryPath,

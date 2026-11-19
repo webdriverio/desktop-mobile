@@ -307,16 +307,19 @@ describe('nativeMode', () => {
       expect(writeRemoteDebuggingPortMock).not.toHaveBeenCalled();
     });
 
-    it('should merge user-supplied env over process.env', () => {
+    it('should apply a differently cased CEF app env override on Windows', () => {
+      mockPlatform('win32');
+      vi.stubEnv('WDIO_CEF_FLAG', 'inherited');
       spawnElectrobunApp({
         app: APP,
         appArgs: [],
         port: 9333,
-        options: { env: { MY_FLAG: 'on' } } as ElectrobunServiceOptions,
+        options: { env: { wdio_cef_flag: 'configured' } } as ElectrobunServiceOptions,
       });
 
       const opts = spawnMock.mock.calls[0][2] as { env: NodeJS.ProcessEnv };
-      expect(opts.env.MY_FLAG).toBe('on');
+      expect(opts.env.wdio_cef_flag).toBe('configured');
+      expect(opts.env.WDIO_CEF_FLAG).toBeUndefined();
     });
 
     it('should not wire log capture when captureBackendLogs is off', () => {
@@ -389,18 +392,24 @@ describe('nativeMode', () => {
       expect(writeRemoteDebuggingPortMock).not.toHaveBeenCalled();
     });
 
-    it('keeps the remote-debugging port first and appends caller-supplied WebView2 args', () => {
+    it('keeps the debugging port and appends caller-supplied WebView2 args regardless of case', () => {
       mockPlatform('win32');
+      vi.stubEnv('WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS', '--lang=de');
 
       spawnElectrobunApp({
         app: winApp,
         appArgs: [],
         port: 9444,
-        options: { env: { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--lang=en-GB' } } as ElectrobunServiceOptions,
+        options: {
+          env: { webview2_additional_browser_arguments: '--lang=en-GB', localappdata: 'shared' },
+        } as ElectrobunServiceOptions,
       });
 
       const opts = spawnMock.mock.calls[0][2] as { env: NodeJS.ProcessEnv };
       expect(opts.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS).toBe('--remote-debugging-port=9444 --lang=en-GB');
+      expect(opts.env.webview2_additional_browser_arguments).toBeUndefined();
+      expect(opts.env.localappdata).toBeUndefined();
+      expect(opts.env.LOCALAPPDATA).toBe(USER_HOME);
     });
   });
 

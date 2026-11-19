@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -171,7 +172,9 @@ describe('startEmbeddedDriver', () => {
     expect(info.logHandlers).toBeInstanceOf(Array);
   });
 
-  it('passes WDIO_EMBEDDED_PORT to the child process env', async () => {
+  it('sets the managed port even with a differently cased Windows env override', async ({ onTestFinished }) => {
+    mockPlatform('win32');
+    onTestFinished(restorePlatform);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -180,11 +183,12 @@ describe('startEmbeddedDriver', () => {
       }),
     );
 
-    await startEmbeddedDriver('/app/dioxus-app', 7777, {} as DioxusServiceOptions);
+    await startEmbeddedDriver('/app/dioxus-app', 7777, { env: { wdio_embedded_port: '1234' } } as DioxusServiceOptions);
 
     const calls = vi.mocked(spawn).mock.calls;
     const lastCall = calls[calls.length - 1];
     expect(lastCall[2]?.env?.[EMBEDDED_PORT_ENV_VAR]).toBe('7777');
+    expect(lastCall[2]?.env?.wdio_embedded_port).toBeUndefined();
   });
 });
 

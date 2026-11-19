@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import type { Interface as ReadlineInterface } from 'node:readline';
 import { createLogCapture } from '@wdio/native-core';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, mergeEnv } from '@wdio/native-utils';
 
 import { forwardLog } from '../logForwarder.js';
 import { parseLogLine } from '../logParser.js';
@@ -112,15 +112,13 @@ export async function startEmbeddedDriver(
   instanceId?: string,
 ): Promise<EmbeddedDriverInfo> {
   const appArgs = options.appArgs ?? [];
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ...options.env,
+  const env = mergeEnv(process.env, options.env, {
     [EMBEDDED_PORT_ENV_VAR]: String(port),
     // Tells the app it was launched for testing. Apps check it with
     // `automation::is_requested()`, e.g. to turn off WKWebView background
     // throttling so the bridge's polling loop keeps running on headless macOS CI.
     DIOXUS_WEBVIEW_AUTOMATION: 'true',
-  };
+  });
 
   const child = spawnDioxusApp(appBinaryPath, appArgs, env);
   const logHandlers: ReadlineInterface[] = [];

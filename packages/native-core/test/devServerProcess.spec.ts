@@ -1,3 +1,4 @@
+import type { SpawnOptions } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -61,6 +62,19 @@ describe('DevServerProcess.start', () => {
       'pnpm dev',
       expect.objectContaining({ env: expect.objectContaining({ FOO: 'bar', PATH: process.env.PATH }) }),
     );
+  });
+
+  it('should apply env overrides using the platform-specific variable name casing', async ({ onTestFinished }) => {
+    vi.stubEnv('WDIO_DEV_FLAG', 'inherited');
+    onTestFinished(() => vi.unstubAllEnvs());
+    const spawn = vi.fn((_command: string, _options: SpawnOptions) => fakeProc());
+    const dsp = new DevServerProcess({ spawn: spawn as never, probe: async () => true });
+
+    await dsp.start({ command: 'pnpm dev', url: URL, env: { wdio_dev_flag: 'configured' } });
+
+    const env = spawn.mock.calls[0][1].env;
+    expect(env?.wdio_dev_flag).toBe('configured');
+    expect(env?.WDIO_DEV_FLAG).toBe(process.platform === 'win32' ? undefined : 'inherited');
   });
 
   it('should throw when the server never becomes reachable', async () => {

@@ -6,7 +6,7 @@
 // (`pnpm dev` → vite → esbuild), so teardown kills the process group, not just the direct child.
 
 import { type ChildProcess, spawn as nodeSpawn } from 'node:child_process';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, mergeEnv } from '@wdio/native-utils';
 
 import { killWindowsProcessTree } from './processTree.js';
 
@@ -120,7 +120,7 @@ export class DevServerProcess {
       // Own process group so teardown can kill the tree (see defaultKill).
       detached: !isWindows,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, ...options.env },
+      env: mergeEnv(process.env, options.env),
     });
     this.#proc = proc;
     proc.stdout?.on('data', (d: Buffer) => log.debug(`[dev-server] ${d.toString().trim()}`));
