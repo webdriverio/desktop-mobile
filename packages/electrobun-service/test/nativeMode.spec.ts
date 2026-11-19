@@ -307,21 +307,6 @@ describe('nativeMode', () => {
       expect(writeRemoteDebuggingPortMock).not.toHaveBeenCalled();
     });
 
-    it('should apply a differently cased CEF app env override on Windows', () => {
-      mockPlatform('win32');
-      vi.stubEnv('WDIO_CEF_FLAG', 'inherited');
-      spawnElectrobunApp({
-        app: APP,
-        appArgs: [],
-        port: 9333,
-        options: { env: { wdio_cef_flag: 'configured' } } as ElectrobunServiceOptions,
-      });
-
-      const opts = spawnMock.mock.calls[0][2] as { env: NodeJS.ProcessEnv };
-      expect(opts.env.wdio_cef_flag).toBe('configured');
-      expect(opts.env.WDIO_CEF_FLAG).toBeUndefined();
-    });
-
     it('should not wire log capture when captureBackendLogs is off', () => {
       spawnElectrobunApp({
         app: APP,
@@ -355,6 +340,22 @@ describe('nativeMode', () => {
 
       expect(() => proc.emit('error', new Error('ENOENT'))).not.toThrow();
     });
+  });
+
+  it('should apply a differently cased CEF app env override on Windows', () => {
+    mockPlatform('win32');
+    vi.stubEnv('WDIO_CEF_FLAG', 'inherited');
+    spawnElectrobunApp({
+      app: { ...APP, renderer: 'cef' },
+      appArgs: [],
+      port: 9333,
+      options: { env: { wdio_cef_flag: 'configured' } } as ElectrobunServiceOptions,
+    });
+
+    expect(writeRemoteDebuggingPortMock).toHaveBeenCalled();
+    const opts = spawnMock.mock.calls[0][2] as { env: NodeJS.ProcessEnv };
+    expect(opts.env.wdio_cef_flag).toBe('configured');
+    expect(opts.env.WDIO_CEF_FLAG).toBeUndefined();
   });
 
   // The WebView2 (Windows native renderer) spawn path uses no node:path joins on the binary
