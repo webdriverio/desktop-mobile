@@ -389,8 +389,21 @@ describe('app env', () => {
         };
         const driverCount = driverStarts(launcher).length;
 
-        await expect(launch[phase]()).rejects.toThrow('backend startup timed out');
-        expect(stopTestRunnerBackend).toHaveBeenCalledWith(failedBackend);
+        // Restart first stops the existing healthy backend, then the replacement fails readiness.
+        if (phase === 'restart') {
+          vi.mocked(stopTestRunnerBackend).mockResolvedValueOnce(undefined);
+        }
+        const shutdown = Promise.withResolvers<void>();
+        vi.mocked(stopTestRunnerBackend).mockReturnValueOnce(shutdown.promise);
+        const onFailure = vi.fn();
+        const completion = launch[phase]().catch(onFailure);
+        await vi.waitFor(() => expect(stopTestRunnerBackend).toHaveBeenCalledWith(failedBackend));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(onFailure).not.toHaveBeenCalled();
+
+        shutdown.resolve();
+        await completion;
+        expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({ message: 'backend startup timed out' }));
         expect(driverStarts(launcher)).toHaveLength(driverCount);
       },
     );
