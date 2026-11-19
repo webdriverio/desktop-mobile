@@ -38,7 +38,7 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
-import { appEnv, hideSecrets, mergeServiceOptions } from './serviceConfig.js';
+import { appEnv, hideSecrets, mergeServiceOptions, resolveDriverProvider } from './serviceConfig.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
@@ -116,7 +116,7 @@ function mergeOptions(
 
 function assertSingleDriverProvider(globalOptions: TauriServiceGlobalOptions, capsList: TauriCapabilities[]): void {
   const providers = new Set(
-    capsList.map((cap) => mergeOptions(globalOptions, cap['wdio:tauriServiceOptions']).driverProvider ?? 'embedded'),
+    capsList.map((cap) => resolveDriverProvider(mergeOptions(globalOptions, cap['wdio:tauriServiceOptions']))),
   );
   if (providers.size > 1) {
     throw new SevereServiceError(

@@ -5,7 +5,7 @@ import { createLogger } from '@wdio/native-utils';
 import { throwIfAborted } from './errors.js';
 import { createLogCapture } from './logCapture.js';
 import { signalAndWaitForExit } from './processExit.js';
-import { appEnv, resolveStartTimeout } from './serviceConfig.js';
+import { appEnv, resolveDriverProvider, resolveStartTimeout } from './serviceConfig.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
@@ -243,10 +243,7 @@ export async function checkEmbeddedServerAlive(port: number, timeoutMs: number =
  * Returns true when no driverProvider is configured (embedded is the default)
  */
 export function isEmbeddedProvider(options: TauriServiceOptions): boolean {
-  if (options.driverProvider) {
-    return options.driverProvider === 'embedded';
-  }
-  return true;
+  return resolveDriverProvider(options) === 'embedded';
 }
 
 /**

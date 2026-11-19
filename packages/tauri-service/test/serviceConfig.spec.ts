@@ -1,5 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appEnv, hideSecrets, mergeServiceOptions, resolveStartTimeout } from '../src/serviceConfig.js';
+import {
+  appEnv,
+  hideSecrets,
+  mergeServiceOptions,
+  resolveDriverProvider,
+  resolveStartTimeout,
+} from '../src/serviceConfig.js';
+
+describe('resolveDriverProvider', () => {
+  it('should default to the embedded provider', () => {
+    expect(resolveDriverProvider({})).toBe('embedded');
+  });
+
+  it.each(['embedded', 'external', 'crabnebula'] as const)(
+    'should preserve the configured %s provider',
+    (driverProvider) => {
+      expect(resolveDriverProvider({ driverProvider })).toBe(driverProvider);
+    },
+  );
+});
 
 describe('mergeServiceOptions', () => {
   it('should let capability options override global options', () => {

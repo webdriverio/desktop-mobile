@@ -24,7 +24,7 @@ import { toElementReferences } from './elementReferences.js';
 import { instanceFailuresError, settleOnEach } from './instanceFailures.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
-import { mergeServiceOptions } from './serviceConfig.js';
+import { mergeServiceOptions, resolveDriverProvider } from './serviceConfig.js';
 
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 import {
@@ -81,7 +81,7 @@ export default class TauriWorkerService {
     const launcherOptions = capabilityOptions
       ? merged
       : mergeServiceOptions(options, firstInstance?.capabilities?.['wdio:tauriServiceOptions']);
-    this.driverProvider = launcherOptions.driverProvider ?? 'embedded';
+    this.driverProvider = resolveDriverProvider(launcherOptions);
     this.windowLabel = merged.windowLabel || getDefaultWindowLabel();
     this.mode = launcherOptions.mode;
     // A fallback for an instance whose own capabilities carry no devServerUrl.

@@ -1,9 +1,13 @@
 import type { LogLevel } from '@wdio/native-types';
 import { mergeEnv } from '@wdio/native-utils';
 
-import type { TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
+import type { DriverProvider, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
 export const DEFAULT_LOG_LEVEL: LogLevel = 'info';
+
+export function resolveDriverProvider(options: Pick<TauriServiceOptions, 'driverProvider'>): DriverProvider {
+  return options.driverProvider ?? 'embedded';
+}
 
 // One merge rule for the launcher, worker and standalone session: capability options win unless undefined.
 export function mergeServiceOptions(

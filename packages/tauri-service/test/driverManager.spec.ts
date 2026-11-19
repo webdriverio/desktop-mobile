@@ -315,6 +315,16 @@ describe('ensureTauriDriver', () => {
     restorePlatform();
   });
 
+  it('should skip external driver lookup when the provider defaults to embedded', async () => {
+    const result = await ensureTauriDriver({});
+
+    assert(!result.ok);
+    expect(result.error.message).toContain('embedded provider');
+    expect(existsSync).not.toHaveBeenCalled();
+    expect(execSync).not.toHaveBeenCalled();
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
   describe('crabnebula provider', () => {
     it('should return Ok with custom path when crabnebulaDriverPath exists', async () => {
       vi.mocked(existsSync).mockReturnValue(true);
@@ -356,6 +366,7 @@ describe('ensureTauriDriver', () => {
       vi.mocked(existsSync).mockReturnValue(true);
 
       const result = await ensureTauriDriver({
+        driverProvider: 'external',
         tauriDriverPath: '/custom/tauri-driver',
       });
 
@@ -368,6 +379,7 @@ describe('ensureTauriDriver', () => {
       vi.mocked(existsSync).mockReturnValue(false);
 
       const result = await ensureTauriDriver({
+        driverProvider: 'external',
         tauriDriverPath: '/missing/tauri-driver',
       });
 
@@ -380,7 +392,7 @@ describe('ensureTauriDriver', () => {
       vi.mocked(execSync).mockReturnValue('/usr/local/bin/tauri-driver\n');
       vi.mocked(existsSync).mockReturnValue(true);
 
-      const result = await ensureTauriDriver({});
+      const result = await ensureTauriDriver({ driverProvider: 'external' });
 
       assert(result.ok);
       expect(result.value.method).toBe('found');
@@ -404,7 +416,7 @@ describe('ensureTauriDriver', () => {
       mockProc.stderr.on = vi.fn().mockReturnThis();
       vi.mocked(spawn).mockReturnValue(mockProc);
 
-      const promise = ensureTauriDriver({ autoInstallTauriDriver: true });
+      const promise = ensureTauriDriver({ driverProvider: 'external', autoInstallTauriDriver: true });
 
       setImmediate(() => {
         vi.mocked(existsSync).mockReturnValue(true);
@@ -424,7 +436,7 @@ describe('ensureTauriDriver', () => {
       });
       vi.mocked(existsSync).mockReturnValue(false);
 
-      const result = await ensureTauriDriver({ autoInstallTauriDriver: true });
+      const result = await ensureTauriDriver({ driverProvider: 'external', autoInstallTauriDriver: true });
 
       assert(!result.ok);
       expect(result.error.message).toContain('Rust toolchain (cargo) not found');
@@ -448,7 +460,7 @@ describe('ensureTauriDriver', () => {
       mockProc.stderr.on = vi.fn().mockReturnThis();
       vi.mocked(spawn).mockReturnValue(mockProc);
 
-      const promise = ensureTauriDriver({ autoInstallTauriDriver: true });
+      const promise = ensureTauriDriver({ driverProvider: 'external', autoInstallTauriDriver: true });
 
       setImmediate(() => {
         mockProc.emit('close', 1);
@@ -467,7 +479,7 @@ describe('ensureTauriDriver', () => {
       });
       vi.mocked(existsSync).mockReturnValue(false);
 
-      const result = await ensureTauriDriver({});
+      const result = await ensureTauriDriver({ driverProvider: 'external' });
 
       assert(!result.ok);
       expect(result.error.message).toContain('tauri-driver not found');

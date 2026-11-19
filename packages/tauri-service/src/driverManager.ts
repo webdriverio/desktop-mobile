@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, win32 } from 'node:path';
 import { promisify } from 'node:util';
 import { createLogger, Err, getWebKitWebDriverInstallCommand, Ok, type Result } from '@wdio/native-utils';
+import { resolveDriverProvider } from './serviceConfig.js';
 import type { TauriServiceOptions } from './types.js';
 
 const execAsync = promisify(exec);
@@ -196,7 +197,10 @@ export async function installTauriDriver(): Promise<string> {
  * Supports both tauri-driver (cargo) and CrabNebula (npm) drivers
  */
 export async function ensureTauriDriver(options: TauriServiceOptions): Promise<DriverInstallResult> {
-  const provider = options.driverProvider ?? 'external';
+  const provider = resolveDriverProvider(options);
+  if (provider === 'embedded') {
+    return Err(new Error('The embedded provider runs inside the app and does not use a separate driver binary.'));
+  }
 
   if (provider === 'crabnebula') {
     if (options.crabnebulaDriverPath) {
