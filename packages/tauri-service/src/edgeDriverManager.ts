@@ -288,7 +288,7 @@ export async function findMsEdgeDriver(): Promise<{ path?: string; version?: str
           encoding: 'utf8',
           timeout: 5000,
         });
-        const match = versionOutput.match(/MSEdgeDriver ([\d.]+)/);
+        const match = versionOutput.match(/(?:MSEdgeDriver|Microsoft Edge WebDriver) ([\d.]+)/);
         if (match) {
           log.debug(`Found msedgedriver ${match[1]} at ${driverPath}`);
           return { path: driverPath, version: match[1] };
