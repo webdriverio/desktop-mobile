@@ -183,6 +183,28 @@ describe('Edge Driver Manager', () => {
         version: '149.0.4022.150',
       });
     });
+
+    it('should read the version current drivers print as "Microsoft Edge WebDriver <version> (<hash>)"', async () => {
+      const { exec } = await import('node:child_process');
+      const { existsSync } = await import('node:fs');
+      vi.mocked(exec as any).mockImplementation(((cmd: string, _opts: any, callback: any) => {
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        if (cmd.includes('where msedgedriver')) {
+          callback?.(null, 'C:\\drivers\\msedgedriver.exe\r\n', '');
+        } else {
+          callback?.(null, 'Microsoft Edge WebDriver 157.0.4341.46 (a0c6bd61d7884b3c402a34c67d05100107a9e5e4)\n', '');
+        }
+        return {} as any;
+      }) as any);
+      vi.mocked(existsSync).mockImplementation((path) => path === 'C:\\drivers\\msedgedriver.exe');
+
+      await expect(findMsEdgeDriver()).resolves.toEqual({
+        path: 'C:\\drivers\\msedgedriver.exe',
+        version: '157.0.4341.46',
+      });
+    });
   });
 
   describe('ensureMsEdgeDriver', () => {
