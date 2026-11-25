@@ -10,7 +10,23 @@ function makeClassExecute(electron: Record<string, unknown>) {
   return (fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(electron, ...args);
 }
 
+// As in the app, scripts get the global `electron`, which a class mock replaces with a Proxy.
+function makeAppExecute(electron: Record<string, unknown>) {
+  (globalThis as Record<string, unknown>).electron = electron;
+  return (fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
+    fn((globalThis as Record<string, unknown>).electron, ...args);
+}
+
+function appClass(className: string) {
+  return ((globalThis as Record<string, unknown>).electron as Record<string, new (...args: unknown[]) => unknown>)[
+    className
+  ];
+}
+
 beforeEach(() => {
+  for (const key of ['electron', 'originalApi', '__protoOriginals', '__electronClassMocks']) {
+    delete (globalThis as Record<string, unknown>)[key];
+  }
   mockExecute = vi.fn();
   globalThis.browser = {
     electron: {
@@ -149,6 +165,85 @@ describe('createClassMock()', () => {
 
     expect(instanceExecute).toHaveBeenCalledTimes(3);
     expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it("should set the app's class constructor from the constructor mock", async () => {
+    class MockTray {
+      setImage() {}
+    }
+    mockExecute.mockImplementation(makeAppExecute({ Tray: MockTray }));
+    const mockTray = await createClassMock('Tray');
+
+    await mockTray.__constructor.mockReturnValue({ fake: 'tray' });
+    expect(new (appClass('Tray'))()).toEqual({ fake: 'tray' });
+
+    await mockTray.__constructor.mockImplementation((icon: string) => ({ icon }));
+    expect(new (appClass('Tray'))('icon.png')).toEqual({ icon: 'icon.png' });
+
+    await mockTray.__constructor.mockImplementation(() => {
+      throw new Error('no tray');
+    });
+    expect(() => new (appClass('Tray'))()).toThrow('no tray');
+  });
+
+  it("should run the constructor's implementation in the app only, not when syncing its calls", async () => {
+    class MockTray {
+      setImage() {}
+    }
+    mockExecute.mockImplementation(makeAppExecute({ Tray: MockTray }));
+    const mockTray = await createClassMock('Tray');
+    await mockTray.__constructor.mockImplementation(() => {
+      throw new Error('no tray');
+    });
+    expect(() => new (appClass('Tray'))()).toThrow('no tray');
+
+    await mockTray.__constructor.update();
+
+    expect((mockTray.__constructor as unknown as Mock).mock.calls).toEqual([[]]);
+  });
+
+  it("should run every constructor mock operation in the instance's app", async () => {
+    class MockTray {
+      setImage() {}
+    }
+    const instanceExecute = vi.fn(makeAppExecute({ Tray: MockTray }));
+    const instance = { electron: { execute: instanceExecute } } as unknown as WebdriverIO.Browser;
+    const { __constructor: constructorMock } = await createClassMock('Tray', instance);
+    const operations: Array<[string, () => Promise<unknown>]> = [
+      ['mockImplementation', () => constructorMock.mockImplementation(() => undefined)],
+      ['mockImplementationOnce', () => constructorMock.mockImplementationOnce(() => undefined)],
+      ['mockReturnValue', () => constructorMock.mockReturnValue({})],
+      ['mockReturnValueOnce', () => constructorMock.mockReturnValueOnce({})],
+      ['mockResolvedValue', () => constructorMock.mockResolvedValue({})],
+      ['mockResolvedValueOnce', () => constructorMock.mockResolvedValueOnce({})],
+      ['mockRejectedValue', () => constructorMock.mockRejectedValue(new Error('no tray'))],
+      ['mockRejectedValueOnce', () => constructorMock.mockRejectedValueOnce(new Error('no tray'))],
+      ['mockReturnThis', () => constructorMock.mockReturnThis()],
+      [
+        'withImplementation',
+        () =>
+          constructorMock.withImplementation(
+            () => undefined,
+            () => undefined,
+          ),
+      ],
+      ['mockClear', () => constructorMock.mockClear()],
+      ['mockReset', () => constructorMock.mockReset()],
+      ['mockRestore', () => constructorMock.mockRestore()],
+      ['update', () => constructorMock.update()],
+    ];
+
+    const missedApp: string[] = [];
+    for (const [name, operation] of operations) {
+      instanceExecute.mockClear();
+      await operation();
+      if (instanceExecute.mock.calls.length === 0) {
+        missedApp.push(name);
+      }
+    }
+    expect(missedApp).toEqual([]);
+    expect(mockExecute).not.toHaveBeenCalled();
+    expect((globalThis as Record<string, Record<string, unknown>>).__electronClassMocks.Tray).toBeUndefined();
   });
 
   it('should return electron.ClassName from getMockName', async () => {

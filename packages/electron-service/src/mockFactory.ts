@@ -11,7 +11,21 @@ const log = createLogger('electron-service', 'mock');
 
 export type MockAccessor =
   | { kind: 'api'; apiName: string; funcName: string }
-  | { kind: 'prototype'; className: string; methodName: string };
+  | { kind: 'prototype'; className: string; methodName: string }
+  | { kind: 'constructor'; className: string };
+
+// The keys from `electron` to the inner mock. A class constructor's inner mock is the class itself,
+// which a Proxy on `electron` serves in place of the real one.
+function innerMockPath(accessor: MockAccessor): string[] {
+  switch (accessor.kind) {
+    case 'api':
+      return [accessor.apiName, accessor.funcName];
+    case 'prototype':
+      return [accessor.className, 'prototype', accessor.methodName];
+    case 'constructor':
+      return [accessor.className];
+  }
+}
 
 /**
  * Shape of mock call data delivered to a mock's `__applyCalls()` by the
@@ -76,9 +90,9 @@ export async function restoreElectronFunctionality(
 // ============================================================================
 // Shared mock-method factory
 //
-// Assigns all 12 async mock methods to `mock` using the accessor to address the
-// inner mock inside the Electron process. `update` is intentionally excluded —
-// the two callers use different sync strategies and assign it themselves.
+// Assigns the async mock methods to `mock`, each reaching the inner mock inside the Electron process
+// through the accessor. `update` is left to the callers, which sync calls in different ways. The page
+// scripts are serialized, so each resolves the inner mock's path itself.
 // ============================================================================
 
 interface BuildMockMethodsOpts {
@@ -101,25 +115,19 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
     outerMockImplementationOnce,
     browserToUse,
   } = opts;
+  const path = innerMockPath(accessor);
 
   mock.mockImplementation = async (implFn: AbstractFn) => {
-    await browserToUse.electron.execute<void, [MockAccessor, string, ExecuteOpts]>(
-      (electron, accessor, implStr) => {
-        let innerMock: Mock;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], string, ExecuteOpts]>(
+      (electron, path, implStr) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown>)[key],
+          electron,
+        ) as Mock;
         const impl = new Function(`return ${implStr}`)() as AbstractFn;
         innerMock.mockImplementation(impl);
       },
-      accessor,
+      path,
       implFn.toString(),
       { internal: true },
     );
@@ -128,23 +136,16 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   };
 
   mock.mockImplementationOnce = async (implFn: AbstractFn) => {
-    await browserToUse.electron.execute<void, [MockAccessor, string, ExecuteOpts]>(
-      (electron, accessor, implStr) => {
-        let innerMock: Mock;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], string, ExecuteOpts]>(
+      (electron, path, implStr) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown>)[key],
+          electron,
+        ) as Mock;
         const impl = new Function(`return ${implStr}`)() as AbstractFn;
         innerMock.mockImplementationOnce(impl);
       },
-      accessor,
+      path,
       implFn.toString(),
       { internal: true },
     );
@@ -153,22 +154,15 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   };
 
   mock.mockReturnValue = async (value: unknown) => {
-    await browserToUse.electron.execute<void, [MockAccessor, unknown, ExecuteOpts]>(
-      (electron, accessor, returnValue) => {
-        let innerMock: Mock;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], unknown, ExecuteOpts]>(
+      (electron, path, returnValue) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown>)[key],
+          electron,
+        ) as Mock;
         innerMock.mockReturnValue(returnValue);
       },
-      accessor,
+      path,
       value,
       { internal: true },
     );
@@ -176,22 +170,15 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   };
 
   mock.mockReturnValueOnce = async (value: unknown) => {
-    await browserToUse.electron.execute<void, [MockAccessor, unknown, ExecuteOpts]>(
-      (electron, accessor, returnValue) => {
-        let innerMock: Mock;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], unknown, ExecuteOpts]>(
+      (electron, path, returnValue) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown>)[key],
+          electron,
+        ) as Mock;
         innerMock.mockReturnValueOnce(returnValue);
       },
-      accessor,
+      path,
       value,
       { internal: true },
     );
@@ -199,22 +186,15 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   };
 
   mock.mockResolvedValue = async (value: unknown) => {
-    await browserToUse.electron.execute<void, [MockAccessor, unknown, ExecuteOpts]>(
-      (electron, accessor, resolvedValue) => {
-        let innerMock: Mock;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], unknown, ExecuteOpts]>(
+      (electron, path, resolvedValue) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown>)[key],
+          electron,
+        ) as Mock;
         innerMock.mockResolvedValue(resolvedValue);
       },
-      accessor,
+      path,
       value,
       { internal: true },
     );
@@ -222,22 +202,15 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   };
 
   mock.mockResolvedValueOnce = async (value: unknown) => {
-    await browserToUse.electron.execute<void, [MockAccessor, unknown, ExecuteOpts]>(
-      (electron, accessor, resolvedValue) => {
-        let innerMock: Mock;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], unknown, ExecuteOpts]>(
+      (electron, path, resolvedValue) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown>)[key],
+          electron,
+        ) as Mock;
         innerMock.mockResolvedValueOnce(resolvedValue);
       },
-      accessor,
+      path,
       value,
       { internal: true },
     );
@@ -246,42 +219,28 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
 
   mock.mockRejectedValue = async (value: unknown) => {
     if (value instanceof Error) {
-      await browserToUse.electron.execute<void, [MockAccessor, string, ExecuteOpts]>(
-        (electron, accessor, errMsg) => {
-          let innerMock: Mock;
-          if (accessor.kind === 'api') {
-            innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-              accessor.funcName
-            ];
-          } else {
-            const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-              prototype: Record<string, Mock>;
-            };
-            innerMock = cls.prototype[accessor.methodName];
-          }
+      await browserToUse.electron.execute<void, [string[], string, ExecuteOpts]>(
+        (electron, path, errMsg) => {
+          const innerMock = path.reduce<unknown>(
+            (target, key) => (target as Record<string, unknown>)[key],
+            electron,
+          ) as Mock;
           innerMock.mockRejectedValue(new Error(errMsg));
         },
-        accessor,
+        path,
         value.message,
         { internal: true },
       );
     } else {
-      await browserToUse.electron.execute<void, [MockAccessor, unknown, ExecuteOpts]>(
-        (electron, accessor, rejectedValue) => {
-          let innerMock: Mock;
-          if (accessor.kind === 'api') {
-            innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-              accessor.funcName
-            ];
-          } else {
-            const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-              prototype: Record<string, Mock>;
-            };
-            innerMock = cls.prototype[accessor.methodName];
-          }
+      await browserToUse.electron.execute<void, [string[], unknown, ExecuteOpts]>(
+        (electron, path, rejectedValue) => {
+          const innerMock = path.reduce<unknown>(
+            (target, key) => (target as Record<string, unknown>)[key],
+            electron,
+          ) as Mock;
           innerMock.mockRejectedValue(rejectedValue);
         },
-        accessor,
+        path,
         value,
         { internal: true },
       );
@@ -291,42 +250,28 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
 
   mock.mockRejectedValueOnce = async (value: unknown) => {
     if (value instanceof Error) {
-      await browserToUse.electron.execute<void, [MockAccessor, string, ExecuteOpts]>(
-        (electron, accessor, errMsg) => {
-          let innerMock: Mock;
-          if (accessor.kind === 'api') {
-            innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-              accessor.funcName
-            ];
-          } else {
-            const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-              prototype: Record<string, Mock>;
-            };
-            innerMock = cls.prototype[accessor.methodName];
-          }
+      await browserToUse.electron.execute<void, [string[], string, ExecuteOpts]>(
+        (electron, path, errMsg) => {
+          const innerMock = path.reduce<unknown>(
+            (target, key) => (target as Record<string, unknown>)[key],
+            electron,
+          ) as Mock;
           innerMock.mockRejectedValueOnce(new Error(errMsg));
         },
-        accessor,
+        path,
         value.message,
         { internal: true },
       );
     } else {
-      await browserToUse.electron.execute<void, [MockAccessor, unknown, ExecuteOpts]>(
-        (electron, accessor, rejectedValue) => {
-          let innerMock: Mock;
-          if (accessor.kind === 'api') {
-            innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-              accessor.funcName
-            ];
-          } else {
-            const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-              prototype: Record<string, Mock>;
-            };
-            innerMock = cls.prototype[accessor.methodName];
-          }
+      await browserToUse.electron.execute<void, [string[], unknown, ExecuteOpts]>(
+        (electron, path, rejectedValue) => {
+          const innerMock = path.reduce<unknown>(
+            (target, key) => (target as Record<string, unknown>)[key],
+            electron,
+          ) as Mock;
           innerMock.mockRejectedValueOnce(rejectedValue);
         },
-        accessor,
+        path,
         value,
         { internal: true },
       );
@@ -335,22 +280,15 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   };
 
   mock.mockClear = async () => {
-    await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
-      (electron, accessor) => {
-        let innerMock: Mock | undefined;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as
-            | { prototype: Record<string, Mock> }
-            | undefined;
-          innerMock = cls?.prototype?.[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], ExecuteOpts]>(
+      (electron, path) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown> | undefined)?.[key],
+          electron,
+        ) as Mock | undefined;
         innerMock?.mockClear?.();
       },
-      accessor,
+      path,
       { internal: true },
     );
     outerMockClear();
@@ -359,22 +297,15 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
 
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
-    await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
-      (electron, accessor) => {
-        let innerMock: Mock | undefined;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as
-            | { prototype: Record<string, Mock> }
-            | undefined;
-          innerMock = cls?.prototype?.[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], ExecuteOpts]>(
+      (electron, path) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown> | undefined)?.[key],
+          electron,
+        ) as Mock | undefined;
         innerMock?.mockReset?.();
       },
-      accessor,
+      path,
       { internal: true },
     );
     // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
@@ -391,7 +322,7 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   mock.mockRestore = async () => {
     if (accessor.kind === 'api') {
       await restoreElectronFunctionality(accessor.apiName, accessor.funcName, browserToUse);
-    } else {
+    } else if (accessor.kind === 'prototype') {
       await browserToUse.electron.execute<void, [string, string, ExecuteOpts]>(
         (electron, className, methodName) => {
           const cls = electron[className as keyof typeof electron] as unknown as {
@@ -409,28 +340,34 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
         accessor.methodName,
         { internal: true },
       );
+    } else {
+      await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
+        (_electron, className) => {
+          const classMocks = (globalThis as Record<string, unknown>).__electronClassMocks as
+            | Record<string, unknown>
+            | undefined;
+          if (classMocks) {
+            delete classMocks[className];
+          }
+        },
+        accessor.className,
+        { internal: true },
+      );
     }
     outerMockClear();
     return mock;
   };
 
   mock.mockReturnThis = async () => {
-    await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
-      (electron, accessor) => {
-        let innerMock: Mock;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
-        }
+    await browserToUse.electron.execute<void, [string[], ExecuteOpts]>(
+      (electron, path) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown>)[key],
+          electron,
+        ) as Mock;
         innerMock.mockReturnThis();
       },
-      accessor,
+      path,
       { internal: true },
     );
     return mock;
@@ -442,25 +379,14 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   ): Promise<Awaited<ReturnValue>> => {
     // Unlike the setters, this isn't an internal command, so the callback's errors reject and the
     // mocks sync afterwards.
-    return (await browserToUse.electron.execute<unknown, [MockAccessor, string, string]>(
-      async (electron, accessor, implFnStr, callbackFnStr) => {
-        let innerMock: { withImplementation?: (impl: unknown, cb: () => unknown) => unknown } | undefined;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, unknown>)[
-            accessor.funcName
-          ] as typeof innerMock;
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, unknown>;
-          };
-          innerMock = cls.prototype[accessor.methodName] as typeof innerMock;
-        }
+    return (await browserToUse.electron.execute<unknown, [string[], string, string]>(
+      async (electron, path, implFnStr, callbackFnStr) => {
+        const innerMock = path.reduce<unknown>(
+          (target, key) => (target as Record<string, unknown> | undefined)?.[key],
+          electron,
+        ) as { withImplementation?: (impl: unknown, cb: () => unknown) => unknown } | undefined;
         if (typeof innerMock?.withImplementation !== 'function') {
-          const name =
-            accessor.kind === 'api'
-              ? `${accessor.apiName}.${accessor.funcName}`
-              : `${accessor.className}.${accessor.methodName}`;
-          throw new Error(`${name} is not mocked`);
+          throw new Error(`${path.filter((key) => key !== 'prototype').join('.')} is not mocked`);
         }
         const impl = new Function(`return ${implFnStr}`)() as AbstractFn;
         const callback = new Function(`return ${callbackFnStr}`)() as AbstractFn;
@@ -470,7 +396,7 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
         });
         return result;
       },
-      accessor,
+      path,
       implFn.toString(),
       callbackFn.toString(),
     )) as Awaited<ReturnValue>;

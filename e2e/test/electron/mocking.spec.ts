@@ -1334,6 +1334,37 @@ describe('Electron Mocking', () => {
           expect(mockTray.__constructor).toHaveBeenCalledTimes(2);
         });
 
+        it('should support mockImplementation for constructors', async () => {
+          const mockTray = await browser.electron.mock('Tray');
+
+          await mockTray.__constructor.mockImplementation(() => {
+            throw new Error('Constructor failed');
+          });
+
+          // Caught in the app, so only the app's constructor throwing can produce the message
+          const construct = () =>
+            browser.electron.execute((electron) => {
+              try {
+                new electron.Tray('/path/to/icon.png');
+                return 'constructed';
+              } catch (error) {
+                return (error as Error).message;
+              }
+            });
+          expect(await construct()).toBe('Constructor failed');
+          expect(await construct()).toBe('Constructor failed');
+          expect(mockTray.__constructor).toHaveBeenCalledTimes(2);
+        });
+
+        it('should support mockReturnValue for constructors', async () => {
+          const mockTray = await browser.electron.mock('Tray');
+
+          await mockTray.__constructor.mockReturnValue({ fake: 'tray' });
+
+          const tray = await browser.electron.execute((electron) => new electron.Tray('/path/to/icon.png'));
+          expect(tray).toEqual({ fake: 'tray' });
+        });
+
         it('should support withImplementation for temporary overrides', async () => {
           const mockTray = await browser.electron.mock('Tray');
 
