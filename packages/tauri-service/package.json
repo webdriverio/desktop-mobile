@@ -68,9 +68,9 @@
     "@wdio/types": "catalog:default",
     "recast": "^0.24.0",
     "shx": "^0.4.0",
-    "terser": "^5.51.2",
+    "terser": "^5.51.4",
     "typescript": "^6.0.3",
-    "vitest": "^5.1.0",
+    "vitest": "^5.1.1",
     "webdriverio": "catalog:default"
   },
   "peerDependencies": {

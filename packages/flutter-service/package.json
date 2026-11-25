@@ -58,13 +58,13 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
-    "@vitest/coverage-v8": "^5.1.0",
+    "@vitest/coverage-v8": "^5.1.1",
     "@wdio/bundler": "workspace:*",
     "@wdio/types": "catalog:default",
     "shx": "^0.4.0",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.1.0",
+    "vitest": "^5.1.1",
     "webdriverio": "catalog:default"
   },
   "peerDependencies": {

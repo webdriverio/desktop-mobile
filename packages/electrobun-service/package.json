@@ -62,12 +62,12 @@
     "@repo/test-utils": "workspace:*",
     "@types/debug": "^4.1.12",
     "@types/node": "^26.6.6",
-    "@vitest/coverage-v8": "^5.1.0",
+    "@vitest/coverage-v8": "^5.1.1",
     "@wdio/bundler": "workspace:*",
     "@wdio/types": "catalog:default",
     "shx": "^0.4.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.1.0",
+    "vitest": "^5.1.1",
     "webdriverio": "catalog:default"
   },
   "peerDependencies": {
