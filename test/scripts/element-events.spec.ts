@@ -1171,6 +1171,10 @@ describe('wdioFocusForClick', () => {
 });
 
 describe('wdioClearElement', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() =>
     render(`<input id="a" value="old"><input id="empty"><input id="ro" readonly value="r">
       <input id="dis" disabled value="d"><fieldset disabled><input id="fs" value="f"></fieldset>
@@ -1234,7 +1238,10 @@ describe('wdioClearElement', () => {
   it('should clear a number input showing text it cannot parse, with no change, as chromedriver does', () => {
     render('<input id="num" type="number">');
     Object.defineProperty($('#num'), 'validity', { value: { badInput: true } });
+    const setValue = vi.spyOn(HTMLInputElement.prototype, 'value', 'set');
     expect(events.wdioClearElement($('#num'))).toBe('cleared');
+    expect(setValue).toHaveBeenCalledExactlyOnceWith('');
+    expect(setValue.mock.contexts[0]).toBe($('#num'));
     expect(log).toEqual(['focus num=', 'blur num=']);
   });
 
