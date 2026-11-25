@@ -1235,14 +1235,29 @@ describe('wdioClearElement', () => {
     expect(document.activeElement).toBe(document.body);
   });
 
-  it('should clear a number input showing text it cannot parse, with no change, as chromedriver does', () => {
+  // A number input showing text it can't parse reads '', as an empty one does; jsdom can't show such text.
+  it("should empty a number input that reads '' and leave it focused, with no change, as chromedriver does", () => {
     render('<input id="num" type="number">');
-    Object.defineProperty($('#num'), 'validity', { value: { badInput: true } });
     const setValue = vi.spyOn(HTMLInputElement.prototype, 'value', 'set');
     expect(events.wdioClearElement($('#num'))).toBe('cleared');
     expect(setValue).toHaveBeenCalledExactlyOnceWith('');
     expect(setValue.mock.contexts[0]).toBe($('#num'));
-    expect(log).toEqual(['focus num=', 'blur num=']);
+    expect(log).toEqual(['focus num=']);
+    expect(document.activeElement).toBe($('#num'));
+  });
+
+  it("should fire the change another field owes when clearing a number input that reads '', as chromedriver does", () => {
+    render('<input id="f"><input id="num" type="number">');
+    type($('#f'), 'x');
+    events.wdioClearElement($('#num'));
+    expect(log).toEqual(['change f=x', 'blur f=x', 'focus num=']);
+    expect(document.activeElement).toBe($('#num'));
+  });
+
+  it('should fire change and blur when clearing a number input holding a value, as chromedriver does', () => {
+    render('<input id="num" type="number" value="5">');
+    events.wdioClearElement($('#num'));
+    expect(log).toEqual(['focus num=5', 'change num=', 'blur num=']);
   });
 
   it('should fire change when clearing a value Send Keys typed, as chromedriver does', () => {

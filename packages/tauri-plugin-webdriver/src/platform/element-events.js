@@ -569,7 +569,10 @@ function wdioClearElement(el) {
   if (field ? el.readOnly || el.matches(':disabled') : !el.isContentEditable) {
     return 'not editable';
   }
-  if (field && el.value === '' && !el.validity.badInput) {
+  // A number input showing text it can't parse reads '' too, so chromedriver empties every number
+  // input that reads '' and leaves it focused, firing no change.
+  const emptyNumber = el.tagName === 'INPUT' && el.type === 'number' && el.value === '';
+  if (field && el.value === '' && !emptyNumber) {
     return 'empty';
   }
   el.focus();
@@ -588,7 +591,9 @@ function wdioClearElement(el) {
   } else {
     el.innerHTML = '';
   }
-  wdioDeepActiveElement().blur();
+  if (!emptyNumber) {
+    wdioDeepActiveElement().blur();
+  }
   return 'cleared';
 }
 
