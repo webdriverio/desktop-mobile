@@ -625,7 +625,7 @@ describe('Dioxus element events (embedded)', () => {
   it("should empty a number input showing text it can't parse and leave it focused, with no change, as chromedriver does", async () => {
     await fillChangeScratch();
     await addToScratch('<input id="fresh-number" type="number">');
-    // Send Keys sets a text field's value, which can't leave text a number input can't parse.
+    // Send Keys sets `value`, so only an editing command can leave unparseable text in a number input.
     await browser.execute(
       `var number = document.querySelector("#fresh-number");
       number.focus();

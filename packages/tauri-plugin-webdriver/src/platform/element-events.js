@@ -562,15 +562,15 @@ function wdioContains(node, el) {
   return false;
 }
 
-// Element Clear (W3C): returns 'not editable', 'empty' (leaving an empty field alone) or 'cleared'.
-// The events and focus moves match chromedriver's Clear, not a user's edit.
+// Element Clear, firing events and moving focus as chromedriver does, not as a user's edit would.
+// Returns 'not editable', 'empty' or 'cleared'.
 function wdioClearElement(el) {
   const field = el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && WDIO_CLEARABLE_INPUT_TYPES.includes(el.type));
   if (field ? el.readOnly || el.matches(':disabled') : !el.isContentEditable) {
     return 'not editable';
   }
-  // A number input showing text it can't parse reads '' too, so chromedriver empties every number
-  // input that reads '' and leaves it focused, firing no change.
+  // Unparseable text in a number input reads as '', so chromedriver clears any number input that
+  // reads '', and leaves it focused.
   const emptyNumber = el.tagName === 'INPUT' && el.type === 'number' && el.value === '';
   if (field && el.value === '' && !emptyNumber) {
     return 'empty';
