@@ -1,23 +1,9 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { createClassMock } from '../src/classMock.js';
+import mockStore from '../src/mockStore.js';
 
-let mockFn: Mock;
 let mockExecute: Mock;
-
-vi.doMock('@wdio/native-spy', () => ({
-  fn: (_impl: unknown, options?: { original?: (...args: unknown[]) => unknown }) => {
-    if (options?.original) {
-      const originalFn = options.original;
-      mockFn.mockRestore = vi.fn(function () {
-        mockFn.mockClear();
-        mockFn.mockImplementation(originalFn);
-        return mockFn;
-      }) as unknown as typeof mockFn.mockRestore;
-    }
-    return mockFn;
-  },
-}));
 
 function makeClassExecute(electron: Record<string, unknown>) {
   (globalThis as Record<string, unknown>).electron = electron;
@@ -25,7 +11,6 @@ function makeClassExecute(electron: Record<string, unknown>) {
 }
 
 beforeEach(() => {
-  mockFn = vi.fn();
   mockExecute = vi.fn();
   globalThis.browser = {
     electron: {
@@ -130,6 +115,40 @@ describe('createClassMock()', () => {
 
     expect(mockExecute).toHaveBeenCalledWith(expect.any(Function), 'Tray', 'destroy', { internal: true });
     expect(mockExecute).toHaveBeenCalledWith(expect.any(Function), 'Tray', { internal: true });
+  });
+
+  it("should create the mock in the given instance's app and store it under that instance", async () => {
+    class MockTray {
+      setImage() {}
+    }
+    const instanceExecute = vi.fn(makeClassExecute({ Tray: MockTray }));
+    const instance = { electron: { execute: instanceExecute } } as unknown as WebdriverIO.Browser;
+
+    const mockTray = await createClassMock('Tray', instance);
+
+    expect(instanceExecute).toHaveBeenCalledTimes(3);
+    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockStore.getMocks(instance)).toHaveLength(2);
+    expect(mockStore.getMock(instance, 'electron.Tray.setImage')).toBe(mockTray.setImage);
+    expect(mockStore.getMock(instance, 'electron.Tray.__constructor')).toBe(mockTray.__constructor);
+    expect(mockStore.getMocks(globalThis.browser)).toEqual([]);
+  });
+
+  it("should run an instance's class mock operations in that instance's app", async () => {
+    class MockTray {
+      setImage() {}
+    }
+    const instanceExecute = vi.fn(makeClassExecute({ Tray: MockTray }));
+    const instance = { electron: { execute: instanceExecute } } as unknown as WebdriverIO.Browser;
+    const mockTray = await createClassMock('Tray', instance);
+    instanceExecute.mockClear();
+
+    await mockTray.setImage.update();
+    await mockTray.setImage.mockClear();
+    await mockTray.__constructor.update();
+
+    expect(instanceExecute).toHaveBeenCalledTimes(3);
+    expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it('should return electron.ClassName from getMockName', async () => {
