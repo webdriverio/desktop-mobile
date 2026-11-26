@@ -1,6 +1,6 @@
 import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
 import { forEachInstance } from '@wdio/native-core';
-import { createIpcInterceptor, parseCallData } from '@wdio/native-spy/interceptor';
+import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
   BrowserExtension,
@@ -36,7 +36,9 @@ import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 import { checkInspectFuse } from './fuses.js';
 import { LogCaptureManager, type LogCaptureOptions } from './logCapture.js';
 import { createElectronBrowserModeMock } from './mock.js';
+import type { MockAccessor, MockApplyData } from './mockFactory.js';
 import mockStore from './mockStore.js';
+import { readNativeMocks } from './nativeMockSync.js';
 import { ServiceConfig } from './serviceConfig.js';
 import { isInternalCommand } from './utils.js';
 import { clearPuppeteerSessions, ensureActiveWindowFocus, getActiveWindowHandle, getPuppeteer } from './window.js';
@@ -186,99 +188,19 @@ async function tryUpdate(label: string, run: () => Promise<void>): Promise<void>
 }
 
 /**
- * Walk every registered native mock through a single browser.electron.execute()
- * round-trip. The inner script discriminates by accessor kind (api / prototype /
- * constructor), returns a map keyed by mockId, and each mock applies its own
- * slice locally via __applyCalls (no further I/O).
+ * Reads every registered native mock's record in one browser.electron.execute() round trip, then
+ * each mock applies its own record locally via __applyCalls.
  */
 async function batchUpdateNativeMocks(
   browser: WebdriverIO.Browser,
   entries: Array<[string, ElectronMock]>,
 ): Promise<void> {
-  if (entries.length === 0) {
-    return;
-  }
-  const items: Array<[string, ElectronMockReadAccessor]> = entries.map(([id, m]) => [
-    id,
-    (m as { __accessor: ElectronMockReadAccessor }).__accessor,
-  ]);
-
-  type NativeSlice = {
-    calls: unknown[][];
-    results: Array<{ type: string; value: unknown }>;
-    __error?: string;
-  };
-
-  const data =
-    (await browser.electron.execute<
-      Record<string, NativeSlice>,
-      [Array<[string, ElectronMockReadAccessor]>, ExecuteOpts]
-    >(
-      (electron, items) => {
-        // JSON has no undefined or Error, so mark them for parseCallData to restore.
-        const replacer = (_k: string, v: unknown) => {
-          if (v === undefined) {
-            return { __wdioUndefined: true };
-          }
-          if (v instanceof Error) {
-            return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
-          }
-          return v;
-        };
-        const out: Record<string, NativeSlice> = {};
-        for (const item of items) {
-          const id = item[0];
-          const acc = item[1];
-          try {
-            let target:
-              | { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }
-              | undefined;
-            if (acc.kind === 'api') {
-              const api = electron[acc.apiName as keyof typeof electron] as unknown as
-                | Record<string, { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }>
-                | undefined;
-              target = api?.[acc.funcName];
-            } else if (acc.kind === 'prototype') {
-              const cls = electron[acc.className as keyof typeof electron] as unknown as
-                | {
-                    prototype?: Record<
-                      string,
-                      { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }
-                    >;
-                  }
-                | undefined;
-              target = cls?.prototype?.[acc.methodName];
-            } else if (acc.kind === 'constructor') {
-              target = electron[acc.className as keyof typeof electron] as unknown as typeof target;
-            }
-            if (target?.mock) {
-              out[id] = {
-                calls: target.mock.calls ? JSON.parse(JSON.stringify(target.mock.calls, replacer)) : [],
-                results: target.mock.results ? JSON.parse(JSON.stringify(target.mock.results, replacer)) : [],
-              };
-            } else {
-              out[id] = { calls: [], results: [] };
-            }
-          } catch (e) {
-            // Surface the error to the WDIO worker — empty calls would
-            // otherwise let assertions pass vacuously.
-            out[id] = { calls: [], results: [], __error: e instanceof Error ? e.message : String(e) };
-          }
-        }
-        return out;
-      },
-      items,
-      { internal: true },
-    )) ?? {};
-
+  const records = await readNativeMocks(
+    browser,
+    entries.map(([id, m]) => [id, (m as { __accessor: MockAccessor }).__accessor]),
+  );
   for (const [id, m] of entries) {
-    const slice = data[id] ?? { calls: [], results: [] };
-    if (slice.__error) {
-      log.warn(`Native batch read failed for mock "${id}": ${slice.__error}`);
-    }
-    (
-      m as { __applyCalls?: (d: { calls: unknown[][]; results?: Array<{ type: string; value: unknown }> }) => void }
-    ).__applyCalls?.(parseCallData(slice));
+    (m as { __applyCalls?: (data: MockApplyData) => void }).__applyCalls?.(records[id]);
   }
 }
 

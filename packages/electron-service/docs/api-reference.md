@@ -653,7 +653,7 @@ Each mock object returned by [`mock()`](#mock) or [`mockAll()`](#mockall) has th
 
 ### `mockImplementation()`
 
-Accepts a function that will be used as the implementation of the mock.
+Accepts a function that will be used as the implementation of the mock. The function is serialized and runs in the app's main process only, so it can't use variables from your test file, and an error it throws is thrown in the app, where the caller can catch it.
 
 **Signature:**
 
@@ -675,17 +675,12 @@ mockImplementation(fn: (...args: any[]) => any): Promise<ElectronFunctionMock>
 
 ```ts
 const mockGetName = await browser.electron.mock('app', 'getName');
-let callsCount = 0;
-await mockGetName.mockImplementation(() => {
-  if (typeof callsCount !== 'undefined') {
-    callsCount++;
-  }
-  return 'mocked value';
-});
+await mockGetName.mockImplementation(() => 'mocked value');
 
 const result = await browser.electron.execute(async (electron) => await electron.app.getName());
-expect(callsCount).toBe(1);
 expect(result).toBe('mocked value');
+expect(mockGetName).toHaveBeenCalledTimes(1);
+expect(mockGetName).toHaveReturnedWith('mocked value');
 ```
 
 ---

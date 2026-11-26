@@ -174,6 +174,57 @@ describe('Mock API', () => {
 
         expect(returnedMock).toHaveBeenCalledTimes(0);
       });
+
+      it("should copy the app's results, including a value set with mockReturnValue", async () => {
+        const mock = await createMock('app', 'getName');
+        await mock.mockReturnValue('mocked');
+        mockExecute.mockImplementation((fn, ...args) =>
+          fn({ app: { getName: { mock: { calls: [[]], results: [{ type: 'return', value: 'mocked' }] } } } }, ...args),
+        );
+
+        await mock.update();
+
+        expect(mock).toHaveReturnedWith('mocked');
+      });
+
+      it("should not run the mock's implementation in the test process when syncing its calls", async () => {
+        const mock = await createMock('dialog', 'showMessageBox');
+        await mock.mockImplementation(() => {
+          throw new Error('denied');
+        });
+        mockExecute.mockImplementation((fn, ...args) => {
+          const electron = {
+            dialog: {
+              showMessageBox: { mock: { calls: [[]], results: [{ type: 'throw', value: new Error('denied') }] } },
+            },
+          };
+          // CDP returns the result as JSON.
+          return JSON.parse(JSON.stringify(fn(electron, ...args)));
+        });
+
+        await mock.update();
+
+        const [result] = (mock as unknown as Mock).mock.results;
+        expect(mock).toHaveBeenCalledTimes(1);
+        expect(result.type).toBe('throw');
+        expect(result.value).toBeInstanceOf(Error);
+        expect((result.value as Error).message).toBe('denied');
+      });
+
+      it('should place synced calls in the call order shared with other mocks', async () => {
+        const first = await createMock('app', 'getName');
+        const second = await createMock('app', 'getVersion');
+        const callsOf = (funcName: string) => ({ app: { [funcName]: { mock: { calls: [[]] } } } });
+
+        mockExecute.mockImplementation((fn, ...args) => fn(callsOf('getName'), ...args));
+        await first.update();
+        mockExecute.mockImplementation((fn, ...args) => fn(callsOf('getVersion'), ...args));
+        await second.update();
+
+        const [firstOrder] = (first as unknown as Mock).mock.invocationCallOrder;
+        const [secondOrder] = (second as unknown as Mock).mock.invocationCallOrder;
+        expect(secondOrder).toBeGreaterThan(firstOrder);
+      });
     });
 
     describe('mockImplementation', () => {

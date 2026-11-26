@@ -1,9 +1,9 @@
 import { type Mock, fn as vitestFn } from '@wdio/native-spy';
-import { parseCallData } from '@wdio/native-spy/interceptor';
 import type { ElectronClassMock, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
 import { createLogger, runBulkMockOp } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 import mockStore from './mockStore.js';
+import { applyAppCalls, updateNativeMock } from './nativeMockSync.js';
 
 const log = createLogger('electron-service', 'mock');
 
@@ -17,8 +17,9 @@ async function createPrototypeMock(
   browserToUse: WebdriverIO.Browser,
 ): Promise<ElectronFunctionMock> {
   const outerMock = vitestFn();
-  const originalMock = outerMock.mock;
   outerMock.mockName(`electron.${className}.${methodName}`);
+  // buildMockMethods replaces withImplementation with one that runs in the app.
+  const outerWithImplementation = outerMock.withImplementation.bind(outerMock);
 
   const mock = outerMock as unknown as ElectronFunctionMock;
   mock.__isElectronMock = true;
@@ -47,8 +48,9 @@ async function createPrototypeMock(
     { internal: true },
   );
 
+  const accessor = { kind: 'prototype', className, methodName } satisfies MockReadAccessor;
   await buildMockMethods(mock, {
-    accessor: { kind: 'prototype', className, methodName },
+    accessor,
     outerMock,
     outerMockClear: outerMock.mockClear.bind(outerMock),
     outerMockReset: outerMock.mockReset.bind(outerMock),
@@ -57,54 +59,13 @@ async function createPrototypeMock(
     browserToUse,
   });
 
-  const applyCalls = (data: MockApplyData) => {
-    const calls = data.calls ?? [];
-    const results = data.results ?? [];
-    const existingCount = originalMock.calls.length;
-    if (existingCount < calls.length) {
-      for (let i = existingCount; i < calls.length; i++) {
-        (originalMock.calls as unknown[][]).push(calls[i]);
-        (originalMock.results as { type: string; value: unknown }[]).push(
-          results[i] ?? { type: 'return', value: undefined },
-        );
-        (originalMock.invocationCallOrder as number[]).push(originalMock.invocationCallOrder.length);
-      }
-    }
-  };
+  const applyCalls = (data: MockApplyData) => applyAppCalls(outerMock, outerWithImplementation, data);
 
-  mock.__accessor = { kind: 'prototype', className, methodName } satisfies MockReadAccessor;
+  mock.__accessor = accessor;
   mock.__applyCalls = applyCalls;
 
   mock.update = async () => {
-    const syncData = (await browserToUse.electron.execute<
-      { calls: unknown[][]; results: { type: string; value: unknown }[] },
-      [string, string, ExecuteOpts]
-    >(
-      (electron, className, methodName) => {
-        const cls = electron[className as keyof typeof electron] as unknown as { prototype: Record<string, unknown> };
-        const mockObj = cls?.prototype?.[methodName] as
-          | { mock?: { calls?: unknown[][]; results?: { type: string; value: unknown }[] } }
-          | undefined;
-        // JSON has no undefined or Error, so mark them for parseCallData to restore.
-        const replacer = (_k: string, v: unknown) => {
-          if (v === undefined) {
-            return { __wdioUndefined: true };
-          }
-          if (v instanceof Error) {
-            return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
-          }
-          return v;
-        };
-        const calls = mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock.calls, replacer)) : [];
-        const results = mockObj?.mock?.results ? JSON.parse(JSON.stringify(mockObj.mock.results, replacer)) : [];
-        return { calls, results };
-      },
-      className,
-      methodName,
-      { internal: true },
-    )) ?? { calls: [], results: [] };
-
-    applyCalls(parseCallData(syncData));
+    await updateNativeMock(browserToUse, accessor, applyCalls);
     return mock;
   };
 
@@ -188,7 +149,6 @@ export async function createClassMock(
   constructorMock.mockName(`electron.${className}.__constructor`);
   constructorMock.__isElectronMock = true;
   const constructorOuterMock = constructorMock as unknown as Mock;
-  const constructorOriginalMock = constructorOuterMock.mock;
   // buildMockMethods replaces withImplementation with one that runs in the app.
   const outerWithImplementation = constructorOuterMock.withImplementation.bind(constructorOuterMock);
 
@@ -225,37 +185,12 @@ export async function createClassMock(
     { internal: true },
   );
 
-  // Replays the app's calls through the outer mock so they join the call order shared with other mocks.
-  // The implementation runs only in the app, so the replay uses a no-op and records the app's results.
-  const applyConstructorCalls = (data: MockApplyData) => {
-    const calls = data.calls ?? [];
-    const results = data.results ?? [];
-    const existingCount = constructorOriginalMock.calls.length;
-    if (existingCount < calls.length) {
-      // Load-bearing for diagnosing constructor-mock sync races
-      log.debug(
-        `[${className}.__constructor] applying ${calls.length - existingCount} new constructor calls (inner=${calls.length}, outer=${existingCount})`,
-      );
-      outerWithImplementation(
-        () => undefined,
-        () => {
-          for (let i = existingCount; i < calls.length; i++) {
-            (constructorMock as unknown as (...args: unknown[]) => unknown).apply(
-              constructorMock,
-              calls[i] as unknown[],
-            );
-            (constructorOriginalMock.results as { type: string; value: unknown }[])[i] = results[i] ?? {
-              type: 'return',
-              value: undefined,
-            };
-          }
-        },
-      );
-    }
-  };
+  const constructorAccessor = { kind: 'constructor', className } satisfies MockReadAccessor;
+  const applyConstructorCalls = (data: MockApplyData) =>
+    applyAppCalls(constructorOuterMock, outerWithImplementation, data);
 
   await buildMockMethods(constructorMock, {
-    accessor: { kind: 'constructor', className },
+    accessor: constructorAccessor,
     outerMock: constructorOuterMock,
     outerMockClear: constructorOuterMock.mockClear.bind(constructorOuterMock),
     outerMockReset: constructorOuterMock.mockReset.bind(constructorOuterMock),
@@ -264,37 +199,11 @@ export async function createClassMock(
     browserToUse,
   });
 
-  constructorMock.__accessor = { kind: 'constructor', className } satisfies MockReadAccessor;
+  constructorMock.__accessor = constructorAccessor;
   constructorMock.__applyCalls = applyConstructorCalls;
 
   constructorMock.update = async () => {
-    const syncData = (await browserToUse.electron.execute<
-      { calls: unknown[][]; results: { type: string; value: unknown }[] },
-      [string, ExecuteOpts]
-    >(
-      (electron, className) => {
-        const mockObj = electron[className as keyof typeof electron] as unknown as
-          | { mock?: { calls?: unknown[][]; results?: { type: string; value: unknown }[] } }
-          | undefined;
-        // JSON has no undefined or Error, so mark them for parseCallData to restore.
-        const replacer = (_k: string, v: unknown) => {
-          if (v === undefined) {
-            return { __wdioUndefined: true };
-          }
-          if (v instanceof Error) {
-            return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
-          }
-          return v;
-        };
-        const calls = mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock.calls, replacer)) : [];
-        const results = mockObj?.mock?.results ? JSON.parse(JSON.stringify(mockObj.mock.results, replacer)) : [];
-        return { calls, results };
-      },
-      className,
-      { internal: true },
-    )) ?? { calls: [], results: [] };
-
-    applyConstructorCalls(parseCallData(syncData));
+    await updateNativeMock(browserToUse, constructorAccessor, applyConstructorCalls);
     return constructorMock;
   };
 

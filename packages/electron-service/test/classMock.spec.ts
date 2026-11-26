@@ -363,6 +363,29 @@ describe('createClassMock()', () => {
     expect(setImageMock).toHaveBeenCalledWith('/path/to/icon.png');
   });
 
+  it('should place synced prototype method calls in the call order shared with other mocks', async () => {
+    class MockTray {
+      setImage() {}
+      setTitle() {}
+    }
+    mockExecute.mockImplementation(makeClassExecute({ Tray: MockTray }));
+    const mockTray = await createClassMock('Tray');
+    const callsOf = (methodName: string) => ({ Tray: { prototype: { [methodName]: { mock: { calls: [[]] } } } } });
+
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
+      fn(callsOf('setTitle'), ...args),
+    );
+    await mockTray.setTitle.update();
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
+      fn(callsOf('setImage'), ...args),
+    );
+    await mockTray.setImage.update();
+
+    const [titleOrder] = (mockTray.setTitle as unknown as Mock).mock.invocationCallOrder;
+    const [imageOrder] = (mockTray.setImage as unknown as Mock).mock.invocationCallOrder;
+    expect(imageOrder).toBeGreaterThan(titleOrder);
+  });
+
   it('should keep undefined arguments in synced prototype and constructor calls', async () => {
     class MockTray {
       setImage() {}

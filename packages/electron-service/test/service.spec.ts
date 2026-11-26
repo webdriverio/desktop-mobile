@@ -581,7 +581,7 @@ describe('Electron Worker Service', () => {
       expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
       expect(mockObj.__applyCalls).toHaveBeenCalledWith(expect.objectContaining({ calls: [], results: [] }));
       expect(loggers.flatMap((l) => l.warn.mock.calls)).toContainEqual([
-        'Native batch read failed for mock "electron.app.getName": boom: app undefined',
+        'Native read failed for mock "electron.app.getName": boom: app undefined',
       ]);
     });
 
