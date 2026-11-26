@@ -202,6 +202,41 @@ describe('createClassMock()', () => {
     expect((mockTray.__constructor as unknown as Mock).mock.calls).toEqual([[]]);
   });
 
+  it("should copy the app's constructor results, thrown errors included, when syncing", async () => {
+    class MockTray {
+      setImage() {}
+    }
+    mockExecute.mockImplementation(makeAppExecute({ Tray: MockTray }));
+    const mockTray = await createClassMock('Tray');
+    await mockTray.__constructor.mockReturnValueOnce({ fake: 'tray' });
+    new (appClass('Tray'))();
+    await mockTray.__constructor.mockImplementation(() => {
+      throw new Error('no tray');
+    });
+    expect(() => new (appClass('Tray'))()).toThrow('no tray');
+
+    await mockTray.__constructor.update();
+
+    const [returned, thrown] = (mockTray.__constructor as unknown as Mock).mock.results;
+    expect(returned).toEqual({ type: 'return', value: { fake: 'tray' } });
+    expect(thrown.type).toBe('throw');
+    expect(thrown.value).toBeInstanceOf(Error);
+    expect((thrown.value as Error).message).toBe('no tray');
+  });
+
+  it('should keep the implementation the constructor mock was given', async () => {
+    class MockTray {
+      setImage() {}
+    }
+    mockExecute.mockImplementation(makeAppExecute({ Tray: MockTray }));
+    const mockTray = await createClassMock('Tray');
+    const implementation = () => ({ fake: 'tray' });
+
+    await mockTray.__constructor.mockImplementation(implementation);
+
+    expect(mockTray.__constructor.getMockImplementation()).toBe(implementation);
+  });
+
   it("should run every constructor mock operation in the instance's app", async () => {
     class MockTray {
       setImage() {}

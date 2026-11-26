@@ -1363,6 +1363,7 @@ describe('Electron Mocking', () => {
 
           const tray = await browser.electron.execute((electron) => new electron.Tray('/path/to/icon.png'));
           expect(tray).toEqual({ fake: 'tray' });
+          expect(mockTray.__constructor).toHaveReturnedWith({ fake: 'tray' });
         });
 
         it('should support withImplementation for temporary overrides', async () => {
