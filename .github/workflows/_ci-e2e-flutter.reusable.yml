@@ -114,11 +114,12 @@ jobs:
       # Third-party action with secret access (secrets: inherit) → pinned to a full commit SHA,
       # not a floating tag (matches the android-emulator-runner pin). Bump deliberately.
       - name: 🐦 Setup Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        uses: flutter-actions/setup-flutter@0e3ac53a5126c46be01612423cf26b5d59018adc # v5.0
         with:
-          flutter-version: ${{ inputs.flutter-version }}
+          version: ${{ inputs.flutter-version }}
           channel: stable
           cache: true
+          cache-sdk: true
 
       # Scaffold the Android platform project over the source-only fixture, then restore our
       # lib/main.dart + pubspec.yaml (flutter create can overwrite them) and build a debug APK.

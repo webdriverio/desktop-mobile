@@ -49,11 +49,12 @@ jobs:
 
       # Third-party action with secret access (secrets: inherit) → SHA-pinned, not a floating tag.
       - name: 🐦 Setup Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        uses: flutter-actions/setup-flutter@0e3ac53a5126c46be01612423cf26b5d59018adc # v5.0
         with:
-          flutter-version: ${{ inputs.flutter-version }}
+          version: ${{ inputs.flutter-version }}
           channel: stable
           cache: true
+          cache-sdk: true
 
       # Scaffold the iOS platform project over the source-only fixture, restore our lib/main.dart +
       # pubspec.yaml (flutter create can overwrite them), and build a debug .app for the simulator.
