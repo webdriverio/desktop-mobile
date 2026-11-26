@@ -1366,6 +1366,22 @@ describe('Electron Mocking', () => {
           expect(mockTray.__constructor).toHaveReturnedWith({ fake: 'tray' });
         });
 
+        it('should support withImplementation for constructors', async () => {
+          const mockTray = await browser.electron.mock('Tray');
+
+          const temporary = await mockTray.__constructor.withImplementation(
+            () => ({ fake: 'tray' }),
+            (electron) => new electron.Tray('/path/to/icon.png'),
+          );
+          expect(temporary).toEqual({ fake: 'tray' });
+
+          const isTray = await browser.electron.execute(
+            (electron) => new electron.Tray('/path/to/icon.png') instanceof electron.Tray,
+          );
+          expect(isTray).toBe(true);
+          expect(mockTray.__constructor).toHaveBeenCalledTimes(2);
+        });
+
         it('should support withImplementation for temporary overrides', async () => {
           const mockTray = await browser.electron.mock('Tray');
 
