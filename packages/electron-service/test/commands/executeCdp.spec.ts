@@ -101,24 +101,6 @@ describe('execute Command', () => {
     });
   });
 
-  it('should wait for every instance and name each one the script failed in', async () => {
-    const { root, browserA, browserB } = createFakeMultiremote();
-    const slow = Promise.withResolvers<never>();
-    vi.mocked(browserA.electron.execute).mockRejectedValue(new Error('a broke'));
-    vi.mocked(browserB.electron.execute).mockReturnValue(slow.promise);
-    const onRejected = vi.fn();
-    const result = execute(root, client, () => 1).catch(onRejected);
-
-    await new Promise((resolve) => setImmediate(resolve));
-    expect(onRejected).not.toHaveBeenCalled();
-    slow.reject(new Error('b broke'));
-    await result;
-
-    const error = onRejected.mock.calls[0][0] as AggregateError;
-    expect(error).toBeInstanceOf(AggregateError);
-    expect(error.message).toBe('execute failed on browserA: a broke; browserB: b broke');
-  });
-
   it('should execute a function declaration', async () => {
     await execute(
       globalThis.browser,

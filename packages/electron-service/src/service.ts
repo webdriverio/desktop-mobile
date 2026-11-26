@@ -869,7 +869,7 @@ async function triggerDeeplinkOnEveryInstance(instances: ElectronInstance[], url
   }
 }
 
-// Serialized and run in the app's main process by emitEvent.
+// emitEvent serializes this to run in the app's main process, so it can use only `electron` and its arguments.
 function sendToFocusedWindow(electron: typeof Electron.CrossProcessExports, ...inner: unknown[]): void {
   const [channel, args] = inner as [string, unknown[]];
   const win = electron.BrowserWindow.getFocusedWindow() ?? electron.BrowserWindow.getAllWindows()[0];
@@ -926,11 +926,8 @@ function getElectronAPI<Target extends ServiceApiTarget = 'instance'>(
       } else {
         await execute.apply(this, [browser, cdpBridge as ElectronCdpBridge, sendToFocusedWindow, channel, args]);
       }
-      // webContents.send is fire-and-forget from main → renderer. Round-trip
-      // through the renderer with a no-op script so any ipcRenderer.on
-      // listener has fired (and any mocked IPC calls it makes have landed)
-      // before we sample mock state. Mirrors the browser-mode path, which
-      // dispatches listeners synchronously in-page.
+      // webContents.send doesn't wait for the renderer. A no-op script's round trip lets its ipcRenderer.on
+      // listeners, and any mocked IPC calls they make, run before the mocks sync.
       await browser.execute(() => undefined);
       await getMockUpdateScheduler(browser).schedule();
     }),
