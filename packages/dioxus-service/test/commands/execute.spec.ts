@@ -137,14 +137,34 @@ describe('execute on the multiremote root', () => {
     expect(browserB.execute).toHaveBeenCalledWith('return 1', 'arg');
   });
 
-  it('should reject when the script fails in an instance', async () => {
+  it('should reject naming the instance the script failed in, with its error as the cause', async () => {
     const { root, browserA, browserB } = createFakeMultiremote();
+    const cause = new Error('script error');
     vi.mocked(browserA.execute).mockResolvedValue('a');
-    vi.mocked(browserB.execute).mockRejectedValue(new Error('script error'));
+    vi.mocked(browserB.execute).mockRejectedValue(cause);
 
     await expect(execute(root as unknown as WebdriverIO.Browser, 'return 1')).rejects.toMatchObject({
-      message: 'script error',
+      message: 'execute failed on browserB: script error',
+      cause,
     });
+  });
+
+  it('should wait for every instance and name each one the script failed in', async () => {
+    const { root, browserA, browserB } = createFakeMultiremote();
+    const slow = Promise.withResolvers<never>();
+    vi.mocked(browserA.execute).mockRejectedValue(new Error('a broke'));
+    vi.mocked(browserB.execute).mockReturnValue(slow.promise);
+    const onRejected = vi.fn();
+    const result = execute(root as unknown as WebdriverIO.Browser, 'return 1').catch(onRejected);
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(onRejected).not.toHaveBeenCalled();
+    slow.reject(new Error('b broke'));
+    await result;
+
+    const error = onRejected.mock.calls[0][0] as AggregateError;
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.message).toBe('execute failed on browserA: a broke; browserB: b broke');
   });
 });
 
