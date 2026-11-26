@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { instanceFailuresError, settleOnEach } from '../src/instanceFailures.js';
+import { instanceFailuresError, runOnEachInstance, settleOnEach } from '../src/instanceFailures.js';
 
 describe('settleOnEach', () => {
   it('should resolve with every value in target order when all succeed', async () => {
@@ -60,5 +60,31 @@ describe('instanceFailuresError', () => {
     expect(error).toBeInstanceOf(AggregateError);
     expect(error.message).toBe('execute failed on browserA: a broke; browserB: b broke');
     expect((error as AggregateError).errors).toEqual(errors);
+  });
+});
+
+describe('runOnEachInstance', () => {
+  const root = (names: string[]) =>
+    ({
+      instances: names,
+      getInstance: (name: string) => (names.includes(name) ? ({ name } as unknown as WebdriverIO.Browser) : undefined),
+    }) as unknown as WebdriverIO.MultiRemoteBrowser;
+  const nameOf = (instance: WebdriverIO.Browser) => (instance as unknown as { name: string }).name;
+
+  it("should resolve with each instance's result, in instance order", async () => {
+    await expect(runOnEachInstance(root(['a', 'b']), 'execute', async (i) => nameOf(i))).resolves.toEqual(['a', 'b']);
+  });
+
+  it('should reject naming each instance that failed', async () => {
+    const run = async (instance: WebdriverIO.Browser) => {
+      if (nameOf(instance) === 'b') {
+        throw new Error('b broke');
+      }
+      return 'ok';
+    };
+
+    await expect(runOnEachInstance(root(['a', 'b']), 'listWindows', run)).rejects.toMatchObject({
+      message: 'listWindows failed on b: b broke',
+    });
   });
 });

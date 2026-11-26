@@ -1,5 +1,7 @@
 import { errorMessage } from '@wdio/native-utils';
 
+import { requireInstance } from './instances.js';
+
 export interface InstanceFailure {
   name?: string;
   error: unknown;
@@ -27,4 +29,20 @@ export function instanceFailuresError(commandName: string, failures: readonly In
         failures.map(({ error }) => error),
         message,
       );
+}
+
+/** Runs `run` in every instance of the multiremote root, and if any fail, throws an error naming each one. */
+export async function runOnEachInstance<T>(
+  root: WebdriverIO.MultiRemoteBrowser,
+  commandName: string,
+  run: (instance: WebdriverIO.Browser) => Promise<T>,
+): Promise<T[]> {
+  const { values, failures } = await settleOnEach(
+    root.instances.map((name) => ({ name })),
+    ({ name }) => run(requireInstance(root, name)),
+  );
+  if (failures.length > 0) {
+    throw instanceFailuresError(commandName, failures);
+  }
+  return values;
 }
