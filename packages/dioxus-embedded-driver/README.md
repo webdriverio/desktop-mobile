@@ -49,7 +49,7 @@ Build the app with `dx build --desktop` rather than `cargo build`, so the files 
 
 4. WebDriver commands are routed to the webview through the bridge's IPC channel: the injected guest-js polls for script execution requests, runs them, and posts the results back.
 
-The server refuses, with a `403` and a WebDriver error, a request whose `Host` header isn't `127.0.0.1:<port>`, `localhost:<port>` or `[::1]:<port>`, and any request with an `Origin` header. That stops a web page from reaching it, including through DNS rebinding, so connect through `127.0.0.1` or `localhost`. Any local process can still connect while the server runs.
+The server refuses, with a `403` and a WebDriver error, a request whose `Host` header isn't `127.0.0.1:<port>`, `localhost:<port>` or `[::1]:<port>`, and any request with an `Origin` header, so a web page can't reach it, even through DNS rebinding. Connect through `127.0.0.1` or `localhost`. Any local process can still connect while the server runs.
 
 ## Platform Support
 

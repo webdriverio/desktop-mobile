@@ -515,7 +515,7 @@ TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
 3. WebdriverIO connects directly to that port (no tauri-driver intermediary)
 4. On test completion, the service terminates the app
 
-The server refuses requests whose `Host` header isn't `127.0.0.1`, `localhost` or `[::1]` on its port, and requests with an `Origin` header, so a web page can't reach it. See [Security](../../tauri-plugin-webdriver/README.md#security) in the plugin's README.
+A web page can't reach the server; see [Security](../../tauri-plugin-webdriver/README.md#security) in the plugin's README.
 
 ### Differences from External Driver
 

@@ -100,7 +100,7 @@ export const config = {
 };
 ```
 
-The service spawns your Tauri app with `TAURI_WEBDRIVER_PORT` set, the plugin starts the WebDriver server on that port, and WebdriverIO connects directly — no external driver process needed. Without `TAURI_WEBDRIVER_PORT`, the plugin doesn't start the server.
+The service spawns your Tauri app with `TAURI_WEBDRIVER_PORT` set, the plugin starts the WebDriver server on that port, and WebdriverIO connects directly — no external driver process needed.
 
 ### 3. Add permissions
 
@@ -119,7 +119,7 @@ Add to your `src-tauri/capabilities/default.json`:
 The plugin also works with any W3C WebDriver client independently of `@wdio/tauri-service`:
 
 ```bash
-# The server starts only when TAURI_WEBDRIVER_PORT is set
+# Start your app with the WebDriver port set
 TAURI_WEBDRIVER_PORT=4445 cargo tauri dev
 ```
 

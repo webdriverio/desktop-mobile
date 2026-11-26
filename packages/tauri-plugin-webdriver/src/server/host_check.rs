@@ -8,8 +8,9 @@ use axum::{
 
 use super::response::WebDriverErrorResponse;
 
-/// Refuses requests a web page could make: a `Host` other than loopback on this port, as DNS
-/// rebinding sends, and any `Origin` header, which browsers send and WebDriver clients don't.
+/// Refuses requests a web page could make: any with an `Origin` header, which browsers send and
+/// WebDriver clients don't, and any whose `Host` isn't loopback on this port, as after DNS
+/// rebinding.
 pub fn layer(router: Router, port: u16) -> Router {
   router.layer(middleware::from_fn_with_state(port, check))
 }

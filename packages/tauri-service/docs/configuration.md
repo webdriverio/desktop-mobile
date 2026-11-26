@@ -478,7 +478,7 @@ Preferred port for the embedded WebDriver server. Only used when `driverProvider
 - The service spawns your Tauri app on this port if it's free. Each further app it spawns (multiremote instances, or more than one capability) prefers the next port up.
 - A port that's already in use is skipped for a free one, and the service connects to whichever port it chose.
 - Set it in an instance's `wdio:tauriServiceOptions` to give that instance its own preferred port.
-- Can also be set via the `TAURI_WEBDRIVER_PORT` environment variable in the test runner's environment.
+- Can also be set with `TAURI_WEBDRIVER_PORT` in the test runner's environment.
 - The service passes the port it chose to the app in `TAURI_WEBDRIVER_PORT`, which is what starts the plugin's server.
 
 **Example:**
