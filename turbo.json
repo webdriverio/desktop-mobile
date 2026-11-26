@@ -214,6 +214,15 @@
       ],
       "cache": false
     },
+    "@wdio/bundler#test:integration": {
+      "dependsOn": [
+        "^build",
+        "build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ]
+    },
     "@wdio/dioxus-bridge#build": {
       "dependsOn": [
         "^build"

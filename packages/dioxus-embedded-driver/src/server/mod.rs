@@ -5,6 +5,7 @@ use tokio::runtime::Runtime as TokioRuntime;
 use tokio::sync::RwLock;
 
 pub mod handlers;
+mod host_check;
 pub mod response;
 pub mod router;
 
@@ -73,7 +74,7 @@ pub fn start(port: u16) {
     };
     rt.block_on(async move {
       let state = Arc::new(AppState::new());
-      let app = router::create_router(state);
+      let app = host_check::layer(router::create_router(state), port);
       let addr = SocketAddr::from(([127, 0, 0, 1], port));
       let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,

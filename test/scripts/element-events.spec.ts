@@ -1171,6 +1171,10 @@ describe('wdioFocusForClick', () => {
 });
 
 describe('wdioClearElement', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() =>
     render(`<input id="a" value="old"><input id="empty"><input id="ro" readonly value="r">
       <input id="dis" disabled value="d"><fieldset disabled><input id="fs" value="f"></fieldset>
@@ -1187,15 +1191,79 @@ describe('wdioClearElement', () => {
     expect(log).toEqual([]);
   });
 
-  it('should focus, empty the field with input and change, then blur', () => {
+  it('should focus, empty the field with change and no input, then blur, as chromedriver does', () => {
     expect(events.wdioClearElement($('#a'))).toBe('cleared');
-    expect(log).toEqual(['focus a=old', 'input a=', 'change a=', 'blur a=']);
+    expect(log).toEqual(['focus a=old', 'change a=', 'blur a=']);
   });
 
-  it('should compare against the value from before Send Keys edited the field', () => {
+  // jsdom has no isContentEditable, and focuses a div only with a tabindex.
+  function renderEditor(html: string) {
+    render(html);
+    Object.defineProperty($('#ed'), 'isContentEditable', { value: true });
+  }
+
+  it('should empty a contenteditable with no input or change, then blur it, as chromedriver does', () => {
+    renderEditor('<div id="ed" contenteditable="true" tabindex="0">old</div>');
+    expect(events.wdioClearElement($('#ed'))).toBe('cleared');
+    expect($('#ed').textContent).toBe('');
+    expect(log).toEqual(['focus ed', 'blur ed']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('should focus and blur an empty contenteditable, firing the change another field owes, as chromedriver does', () => {
+    renderEditor('<input id="f"><div id="ed" contenteditable="true" tabindex="0"></div>');
+    type($('#f'), 'x');
+    expect(events.wdioClearElement($('#ed'))).toBe('cleared');
+    expect(log).toEqual(['change f=x', 'blur f=x', 'focus ed', 'blur ed']);
+  });
+
+  it('should take focus off another field when the element to clear cannot take it, as chromedriver does', () => {
+    renderEditor('<input id="f"><div id="ed" contenteditable="true"><p id="p">text</p></div>');
+    Object.defineProperty($('#p'), 'isContentEditable', { value: true });
+    type($('#f'), 'x');
+    expect(events.wdioClearElement($('#p'))).toBe('cleared');
+    expect($('#p').textContent).toBe('');
+    expect(log).toEqual(['change f=x', 'blur f=x']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("should blur the element a field's change handler moves focus to, as chromedriver does", () => {
+    render('<input id="a" value="old"><input id="next">');
+    $('#a').addEventListener('change', () => $('#next').focus());
+    events.wdioClearElement($('#a'));
+    expect(log).toEqual(['focus a=old', 'change a=', 'blur a=', 'focus next=', 'blur next=']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  // jsdom can't hold unparseable text in a number input; an empty one also reads ''.
+  it("should empty a number input that reads '' and leave it focused, with no change, as chromedriver does", () => {
+    render('<input id="num" type="number">');
+    const setValue = vi.spyOn(HTMLInputElement.prototype, 'value', 'set');
+    expect(events.wdioClearElement($('#num'))).toBe('cleared');
+    expect(setValue).toHaveBeenCalledExactlyOnceWith('');
+    expect(setValue.mock.contexts[0]).toBe($('#num'));
+    expect(log).toEqual(['focus num=']);
+    expect(document.activeElement).toBe($('#num'));
+  });
+
+  it("should fire the change another field owes when clearing a number input that reads '', as chromedriver does", () => {
+    render('<input id="f"><input id="num" type="number">');
+    type($('#f'), 'x');
+    events.wdioClearElement($('#num'));
+    expect(log).toEqual(['change f=x', 'blur f=x', 'focus num=']);
+    expect(document.activeElement).toBe($('#num'));
+  });
+
+  it('should fire change and blur when clearing a number input holding a value, as chromedriver does', () => {
+    render('<input id="num" type="number" value="5">');
+    events.wdioClearElement($('#num'));
+    expect(log).toEqual(['focus num=5', 'change num=', 'blur num=']);
+  });
+
+  it('should fire change when clearing a value Send Keys typed, as chromedriver does', () => {
     type($('#empty'), 'x');
     events.wdioClearElement($('#empty'));
-    expect(log).toEqual(['input empty=', 'blur empty=']);
+    expect(log).toEqual(['change empty=', 'blur empty=']);
   });
 
   it('should fire the change another field owes before that field blurs', () => {

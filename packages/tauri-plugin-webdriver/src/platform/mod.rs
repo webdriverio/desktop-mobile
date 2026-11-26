@@ -12,6 +12,8 @@ pub use windows::AsyncScriptState;
 pub use windows::ScriptExecutionLocks;
 
 mod pointer_input;
+#[cfg(any(target_os = "windows", test))]
+mod script_result;
 
 #[cfg(target_os = "macos")]
 mod macos;

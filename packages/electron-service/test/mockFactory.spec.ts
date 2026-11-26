@@ -227,3 +227,50 @@ describe('buildMockMethods() with prototype accessor', () => {
     expect(Object.hasOwn(trayPrototype, 'setTitle')).toBe(false);
   });
 });
+
+describe('buildMockMethods() with constructor accessor', () => {
+  let outerMock: Mock;
+  let mock: ElectronFunctionMock;
+
+  beforeEach(async () => {
+    outerMock = vi.fn() as unknown as Mock;
+    mock = vi.fn() as unknown as ElectronFunctionMock;
+    await buildMockMethods(mock, {
+      accessor: { kind: 'constructor', className: 'Tray' },
+      outerMock,
+      outerMockClear: vi.fn(),
+      outerMockReset: vi.fn(),
+      outerMockImplementation: vi.fn(),
+      outerMockImplementationOnce: vi.fn(),
+      browserToUse: globalThis.browser,
+    });
+  });
+
+  it('should route mockReturnValue to the class itself', async () => {
+    const Tray = { mockReturnValue: vi.fn() };
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn({ Tray }, ...args));
+
+    await mock.mockReturnValue({ fake: 'tray' });
+
+    expect(Tray.mockReturnValue).toHaveBeenCalledWith({ fake: 'tray' });
+  });
+
+  it('should remove only its own class mock on mockRestore', async () => {
+    const classMocks = { Tray: vi.fn(), Menu: vi.fn() };
+    (globalThis as Record<string, unknown>).__electronClassMocks = classMocks;
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn({}, ...args));
+
+    await mock.mockRestore();
+
+    expect(Object.keys(classMocks)).toEqual(['Menu']);
+    delete (globalThis as Record<string, unknown>).__electronClassMocks;
+  });
+
+  it('should name the class when withImplementation finds it unmocked', async () => {
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
+      fn({ Tray: class {} }, ...args),
+    );
+
+    await expect(mock.withImplementation(vi.fn(), vi.fn())).rejects.toMatchObject({ message: 'Tray is not mocked' });
+  });
+});

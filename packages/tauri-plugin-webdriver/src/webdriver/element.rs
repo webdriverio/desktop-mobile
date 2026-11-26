@@ -35,6 +35,12 @@ impl ElementStore {
     self.insert(Uuid::new_v4().to_string())
   }
 
+  /// Registers the `count` nodes a script stored under [`numbered_js_ref_prefix`], as
+  /// `<ref_prefix>-0`, `<ref_prefix>-1`, and so on.
+  pub fn store_numbered(&mut self, ref_prefix: &str, count: usize) -> Vec<ElementRef> {
+    (0..count).map(|i| self.insert(format!("{ref_prefix}-{i}"))).collect()
+  }
+
   /// Registers the references in a script result whose IDs the serialiser made from `ref_prefix`.
   pub fn register_script_refs(&mut self, result: &Value, ref_prefix: &str) {
     match result {
@@ -71,6 +77,12 @@ impl ElementStore {
   pub fn get(&self, id: &str) -> Option<&ElementRef> {
     self.elements.get(id)
   }
+}
+
+/// A script stores node `i` under this prefix plus `i`, the `js_ref` of element ID
+/// `<ref_prefix>-<i>`.
+pub(crate) fn numbered_js_ref_prefix(ref_prefix: &str) -> String {
+  format!("{ELEMENT_VAR_PREFIX}{}", ref_prefix.replace('-', ""))
 }
 
 /// The serialiser numbers the nodes in a result: `<ref_prefix>-0`, `<ref_prefix>-1`, and so on.
@@ -116,6 +128,25 @@ mod tests {
     // js_ref should use ID with hyphens removed for valid JS variable name
     assert_eq!(elem1.js_ref, format!("__wd_el_{}", elem1.id.replace('-', "")));
     assert_eq!(elem2.js_ref, format!("__wd_el_{}", elem2.id.replace('-', "")));
+  }
+
+  #[test]
+  fn numbered_refs_point_at_the_names_the_script_kept_the_nodes_under() {
+    let mut store = ElementStore::new();
+    let ref_prefix = Uuid::new_v4().to_string();
+    let js_ref_prefix = numbered_js_ref_prefix(&ref_prefix);
+
+    let elements = store.store_numbered(&ref_prefix, 12);
+
+    assert_eq!(elements.len(), 12);
+    for (i, element) in elements.iter().enumerate() {
+      assert_eq!(element.id, format!("{ref_prefix}-{i}"));
+      assert_eq!(element.js_ref, format!("{js_ref_prefix}{i}"));
+      assert_eq!(
+        store.get(&element.id).map(|el| el.js_ref.as_str()),
+        Some(element.js_ref.as_str())
+      );
+    }
   }
 
   #[test]

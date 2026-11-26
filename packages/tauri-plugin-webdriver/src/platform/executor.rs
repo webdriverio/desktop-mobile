@@ -422,8 +422,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     extract_bool_value(&result)
   }
 
-  /// Find multiple elements and store count
-  /// Returns the number of elements found
+  /// Find multiple elements, store them as {prefix}0, {prefix}1, etc., and return the count.
+  /// Each request needs its own prefix, or a concurrent one can overwrite its elements.
   async fn find_elements(
     &self,
     strategy_js: &str,
