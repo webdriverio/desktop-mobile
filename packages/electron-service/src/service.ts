@@ -216,12 +216,15 @@ async function batchUpdateNativeMocks(
     >(
       (electron, items) => {
         // JSON has no undefined or Error, so mark them for parseCallData to restore.
-        const replacer = (_k: string, v: unknown) =>
-          v === undefined
-            ? { __wdioUndefined: true }
-            : v instanceof Error
-              ? { __wdioError: true, name: v.name, message: v.message, stack: v.stack }
-              : v;
+        const replacer = (_k: string, v: unknown) => {
+          if (v === undefined) {
+            return { __wdioUndefined: true };
+          }
+          if (v instanceof Error) {
+            return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
+          }
+          return v;
+        };
         const out: Record<string, NativeSlice> = {};
         for (const item of items) {
           const id = item[0];

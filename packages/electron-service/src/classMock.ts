@@ -86,12 +86,15 @@ async function createPrototypeMock(
           | { mock?: { calls?: unknown[][]; results?: { type: string; value: unknown }[] } }
           | undefined;
         // JSON has no undefined or Error, so mark them for parseCallData to restore.
-        const replacer = (_k: string, v: unknown) =>
-          v === undefined
-            ? { __wdioUndefined: true }
-            : v instanceof Error
-              ? { __wdioError: true, name: v.name, message: v.message, stack: v.stack }
-              : v;
+        const replacer = (_k: string, v: unknown) => {
+          if (v === undefined) {
+            return { __wdioUndefined: true };
+          }
+          if (v instanceof Error) {
+            return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
+          }
+          return v;
+        };
         const calls = mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock.calls, replacer)) : [];
         const results = mockObj?.mock?.results ? JSON.parse(JSON.stringify(mockObj.mock.results, replacer)) : [];
         return { calls, results };
@@ -274,12 +277,15 @@ export async function createClassMock(
           | { mock?: { calls?: unknown[][]; results?: { type: string; value: unknown }[] } }
           | undefined;
         // JSON has no undefined or Error, so mark them for parseCallData to restore.
-        const replacer = (_k: string, v: unknown) =>
-          v === undefined
-            ? { __wdioUndefined: true }
-            : v instanceof Error
-              ? { __wdioError: true, name: v.name, message: v.message, stack: v.stack }
-              : v;
+        const replacer = (_k: string, v: unknown) => {
+          if (v === undefined) {
+            return { __wdioUndefined: true };
+          }
+          if (v instanceof Error) {
+            return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
+          }
+          return v;
+        };
         const calls = mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock.calls, replacer)) : [];
         const results = mockObj?.mock?.results ? JSON.parse(JSON.stringify(mockObj.mock.results, replacer)) : [];
         return { calls, results };
