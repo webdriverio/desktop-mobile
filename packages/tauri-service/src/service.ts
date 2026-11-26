@@ -716,9 +716,11 @@ function sleep(ms: number): Promise<void> {
 const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
 
 /**
- * Coalesces mock-update round-trips so N concurrent DOM interactions run <= 2
- * batches instead of N, reading every mock in each (browser, windowLabel) group
- * in one eval. Lanes stay sequential across all platforms (#1096) and retry once.
+ * Coalesces mock-update round-trips so N concurrent DOM interactions run <= 2 batches instead of N, each
+ * reading every mock in a window in one eval. An app's lanes run one at a time on every runner platform,
+ * because the app may be on Windows when the runner isn't, and its windows share one WebView2 process.
+ * Separate apps, as in multiremote, run in parallel. Each lane is retried once (after 50 ms) before failing:
+ * swallowing a failed read would leave mock.calls empty, which is harder to diagnose than an AggregateError.
  */
 class MockUpdateScheduler {
   #browser: WebdriverIO.Browser;
@@ -773,15 +775,14 @@ class MockUpdateScheduler {
       return;
     }
 
-    const lanes = buildUpdateLanes(this.#browser, mocks);
-    const errors: Array<{ label: string; error: unknown }> = [];
-    for (const lane of lanes) {
-      try {
-        await tryUpdateLane(lane);
-      } catch (error) {
-        errors.push({ label: lane.label, error });
-      }
+    const lanesByApp = new Map<WebdriverIO.Browser | undefined, UpdateLane[]>();
+    for (const lane of buildUpdateLanes(this.#browser, mocks)) {
+      lanesByApp.set(lane.browser, [...(lanesByApp.get(lane.browser) ?? []), lane]);
     }
+    const appLanes = [...lanesByApp].filter(([browser]) => browser !== undefined).map(([, lanes]) => lanes);
+    const errors = (await Promise.all(appLanes.map(runLanesInTurn))).flat();
+    // A mock that doesn't say which app it's in runs after the others, so it can't overlap them.
+    errors.push(...(await runLanesInTurn(lanesByApp.get(undefined) ?? [])));
     if (errors.length > 0) {
       throw new AggregateError(
         errors.map((e) => e.error),
@@ -807,7 +808,21 @@ interface WindowBatchLane {
 
 interface UpdateLane {
   label: string;
+  /** The app the lane reads from, or undefined for a mock that doesn't say. */
+  browser?: WebdriverIO.Browser;
   run: () => Promise<void>;
+}
+
+async function runLanesInTurn(lanes: UpdateLane[]): Promise<Array<{ label: string; error: unknown }>> {
+  const errors: Array<{ label: string; error: unknown }> = [];
+  for (const lane of lanes) {
+    try {
+      await tryUpdateLane(lane);
+    } catch (error) {
+      errors.push({ label: lane.label, error });
+    }
+  }
+  return errors;
 }
 
 async function tryUpdateLane(lane: UpdateLane): Promise<void> {
@@ -911,6 +926,7 @@ function buildUpdateLanes(rootBrowser: WebdriverIO.Browser, mocks: Array<[string
           get label() {
             return laneRef.entries.map((entry) => entry.mockId).join(', ');
           },
+          browser: targetBrowser,
           run: () => runBatchLane(laneRef),
         });
       }
@@ -922,12 +938,6 @@ function buildUpdateLanes(rootBrowser: WebdriverIO.Browser, mocks: Array<[string
           await mockInstance.update();
         },
       });
-    }
-    if (errors.length > 0) {
-      throw new AggregateError(
-        errors.map((e) => e.error),
-        `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
-      );
     }
   }
 

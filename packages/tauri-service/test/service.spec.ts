@@ -1168,6 +1168,51 @@ describe('TauriWorkerService', () => {
       expect(mockB.mock.calls).toEqual([['from-B']]);
     });
 
+    it("should sync separate instances in parallel from the root, and each instance's windows one at a time", async () => {
+      const instanceA = createMockBrowser({ sessionId: 'session-a' });
+      const instanceB = createMockBrowser({ sessionId: 'session-b' });
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      });
+      const service = new TauriWorkerService({}, {
+        browserA: { capabilities: { 'wdio:tauriServiceOptions': {} } },
+        browserB: { capabilities: { 'wdio:tauriServiceOptions': {} } },
+      } as unknown as TauriCapabilities);
+      await service.before({} as never, [], mrBrowser);
+
+      const mocks: Array<[string, Awaited<ReturnType<typeof createTauriMock>>]> = [];
+      for (const instance of [instanceA, instanceB]) {
+        for (const [command, windowLabel] of [
+          ['greet', 'main'],
+          ['save', 'settings'],
+        ]) {
+          vi.mocked(executeCommand).mockResolvedValueOnce(windowLabel);
+          mocks.push([`tauri.${command}`, await createTauriMock(command, instance)]);
+        }
+      }
+      const events: string[] = [];
+      vi.mocked(executeCommand).mockReset();
+      vi.mocked(executeCommand).mockImplementation(async (target, _script, options) => {
+        const lane = `${target === instanceA ? 'A' : 'B'}:${(options as { windowLabel?: string }).windowLabel}`;
+        events.push(`start:${lane}`);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        events.push(`end:${lane}`);
+        return {};
+      });
+      vi.mocked(mockStore.getAllMocks).mockReturnValueOnce(mocks);
+      vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
+
+      await (mrBrowser as any).tauri.execute(() => undefined);
+
+      expect(events).toHaveLength(8);
+      expect(events.indexOf('start:B:main')).toBeLessThan(events.indexOf('end:A:main'));
+      for (const app of ['A', 'B']) {
+        expect(events.indexOf(`end:${app}:main`)).toBeLessThan(events.indexOf(`start:${app}:settings`));
+      }
+    });
+
     it("should sync only the instance's own mocks in multiremote, and every instance's on the root", async () => {
       const instanceA = createMockBrowser({ sessionId: 'session-a' });
       const instanceB = createMockBrowser({ sessionId: 'session-b' });
