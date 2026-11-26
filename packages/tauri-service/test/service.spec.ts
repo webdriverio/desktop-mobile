@@ -796,33 +796,63 @@ describe('TauriWorkerService', () => {
       expect((err as AggregateError).message).toContain('tauri.read_file');
     });
 
-    it('should run mock updates sequentially on win32', async () => {
-      mockPlatform('win32');
+    it.each(['win32', 'linux', 'darwin'] as const)(
+      'should run mock updates one at a time on a %s runner',
+      async (platform) => {
+        mockPlatform(platform);
+
+        try {
+          const mockBrowser = createMockBrowser();
+          const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+          await service.before({} as any, [], mockBrowser);
+
+          const callOrder: string[] = [];
+          const makeUpdate = (id: string) =>
+            vi.fn().mockImplementation(async () => {
+              callOrder.push(`start:${id}`);
+              await Promise.resolve();
+              callOrder.push(`end:${id}`);
+            });
+
+          vi.mocked(mockStore.getMocks).mockReturnValue([
+            ['tauri.a', { update: makeUpdate('a') } as any],
+            ['tauri.b', { update: makeUpdate('b') } as any],
+          ]);
+          vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
+
+          await (mockBrowser as any).tauri.execute(() => undefined);
+
+          expect(callOrder).toEqual(['start:a', 'end:a', 'start:b', 'end:b']);
+        } finally {
+          restorePlatform();
+        }
+      },
+    );
+
+    it('should update every mock and list every failure when updates fail', async () => {
+      const failA = new Error('a failed');
+      const failC = new Error('c failed');
+      const updateA = vi.fn().mockRejectedValue(failA);
+      const updateB = vi.fn().mockResolvedValue(undefined);
+      const updateC = vi.fn().mockRejectedValue(failC);
+      vi.mocked(mockStore.getMocks).mockReturnValue([
+        ['tauri.a', { update: updateA } as any],
+        ['tauri.b', { update: updateB } as any],
+        ['tauri.c', { update: updateC } as any],
+      ]);
+      vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
 
       try {
-        const mockBrowser = createMockBrowser();
-        const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-        await service.before({} as any, [], mockBrowser);
+        const err = await (mockBrowser as any).tauri.execute(() => undefined).catch((e: unknown) => e);
 
-        const callOrder: string[] = [];
-        const makeUpdate = (id: string) =>
-          vi.fn().mockImplementation(async () => {
-            callOrder.push(`start:${id}`);
-            await Promise.resolve();
-            callOrder.push(`end:${id}`);
-          });
-
-        vi.mocked(mockStore.getMocks).mockReturnValue([
-          ['tauri.a', { update: makeUpdate('a') } as any],
-          ['tauri.b', { update: makeUpdate('b') } as any],
-        ]);
-        vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
-
-        await (mockBrowser as any).tauri.execute(() => undefined);
-
-        expect(callOrder).toEqual(['start:a', 'end:a', 'start:b', 'end:b']);
+        expect(err).toBeInstanceOf(AggregateError);
+        expect((err as AggregateError).message).toBe('Mock updates failed for: tauri.a, tauri.c');
+        expect((err as AggregateError).errors).toEqual([failA, failC]);
+        expect(updateA).toHaveBeenCalledTimes(2);
+        expect(updateB).toHaveBeenCalledOnce();
+        expect(updateC).toHaveBeenCalledTimes(2);
       } finally {
-        restorePlatform();
+        vi.mocked(mockStore.getMocks).mockReset().mockReturnValue([]);
       }
     });
 
