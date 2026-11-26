@@ -90,9 +90,8 @@ export async function restoreElectronFunctionality(
 // ============================================================================
 // Shared mock-method factory
 //
-// Assigns the async mock methods to `mock`, each reaching the inner mock inside the Electron process
-// through the accessor. `update` is left to the callers, which sync calls in different ways. The page
-// scripts are serialized, so each resolves the inner mock's path itself.
+// Assigns the async mock methods to `mock`. Each runs a script in the Electron main process, which is
+// serialized, so it resolves the inner mock's key path itself. Callers assign `update`.
 // ============================================================================
 
 interface BuildMockMethodsOpts {

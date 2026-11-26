@@ -225,8 +225,8 @@ export async function createClassMock(
     { internal: true },
   );
 
-  // Replays the app's calls through the outer mock, so they share the other mocks' call order, with a
-  // no-op in place of its implementation, which runs in the app only. The results are the app's.
+  // Replays the app's calls through the outer mock so they join the call order shared with other mocks.
+  // The implementation runs only in the app, so the replay uses a no-op and records the app's results.
   const applyConstructorCalls = (data: MockApplyData) => {
     const calls = data.calls ?? [];
     const results = data.results ?? [];

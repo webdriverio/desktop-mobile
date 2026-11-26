@@ -1341,7 +1341,7 @@ describe('Electron Mocking', () => {
             throw new Error('Constructor failed');
           });
 
-          // Caught in the app, so only the app's constructor throwing can produce the message
+          // Caught in the app, so the message can only come from the app's constructor
           const construct = () =>
             browser.electron.execute((electron) => {
               try {
