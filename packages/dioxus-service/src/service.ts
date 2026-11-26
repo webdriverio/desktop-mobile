@@ -15,6 +15,7 @@ import { execute, markAsEmbedded } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore, { type MockOwner } from './mockStore.js';
+import { runOnEachInstance } from './multiremote.js';
 import { mergeOptions } from './serviceConfig.js';
 import type { DioxusCapabilities, DioxusServiceOptions } from './types.js';
 import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
@@ -181,15 +182,15 @@ export default class DioxusWorkerService {
         if (!isMultiremote(browser)) {
           return switchWindowByLabel(browser, label);
         }
-        await Promise.all(instancesOf(browser).map((instance) => switchWindowByLabel(instance, label)));
+        await runOnEachInstance(asRoot(browser), `switchWindow('${label}')`, (instance) =>
+          switchWindowByLabel(instance, label),
+        );
       },
       listWindows: async () => {
         if (!isMultiremote(browser)) {
           return listWindowLabels(browser);
         }
-        return (await Promise.all(
-          instancesOf(browser).map((instance) => listWindowLabels(instance)),
-        )) as unknown as string[];
+        return (await runOnEachInstance(asRoot(browser), 'listWindows', listWindowLabels)) as unknown as string[];
       },
       triggerDeeplink: async (url: string) => {
         if (this.browserMode) {
@@ -283,9 +284,8 @@ export default class DioxusWorkerService {
   }
 }
 
-function instancesOf(root: WebdriverIO.Browser): WebdriverIO.Browser[] {
-  const mrBrowser = root as unknown as WebdriverIO.MultiRemoteBrowser;
-  return mrBrowser.instances.map((name) => requireInstance(mrBrowser, name));
+function asRoot(browser: WebdriverIO.Browser): WebdriverIO.MultiRemoteBrowser {
+  return browser as unknown as WebdriverIO.MultiRemoteBrowser;
 }
 
 // A multiremote root's commands reach every instance, so it sees every instance's mocks.
