@@ -57,7 +57,7 @@ catalogs:
     "@wdio/types": 10.2.0
     "@wdio/utils": 10.2.0
     "@wdio/visual-service": 11.1.0
-    electron: 45.2.3
+    electron: 45.5.0
     electron-builder: 26.18.0
     webdriverio: 10.2.0
   minimum:
@@ -86,6 +86,6 @@ catalogs:
     "@wdio/utils": 10.2.0
     "@wdio/visual-service": 11.1.0
     electron-builder: next
-    electron-nightly: 47.0.0-nightly.20261106
+    electron-nightly: 47.0.0-nightly.20261124
     webdriverio: 10.2.0
 minimumReleaseAgeExcludePrune: true
