@@ -440,7 +440,7 @@ describe('Electron Worker Service', () => {
         ...args: unknown[]
       ) =>
         JSON.parse(
-          JSON.stringify((script as (...a: unknown[]) => unknown)(electron, ...args)),
+          JSON.stringify(await (script as (...a: unknown[]) => unknown)(electron, ...args)),
         )) as unknown as typeof executeMock);
 
       const mockObj = {
@@ -478,7 +478,7 @@ describe('Electron Worker Service', () => {
         ...args: unknown[]
       ) =>
         JSON.parse(
-          JSON.stringify((script as (...a: unknown[]) => unknown)(electron, ...args)),
+          JSON.stringify(await (script as (...a: unknown[]) => unknown)(electron, ...args)),
         )) as unknown as typeof executeMock);
 
       const mockObj = {

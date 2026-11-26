@@ -402,8 +402,8 @@ describe('createClassMock()', () => {
       },
     };
     // CDP returns the result as JSON.
-    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
-      JSON.parse(JSON.stringify(fn(electron, ...args))),
+    mockExecute.mockImplementation(async (fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
+      JSON.parse(JSON.stringify(await fn(electron, ...args))),
     );
 
     await mockTray.setImage.update();
