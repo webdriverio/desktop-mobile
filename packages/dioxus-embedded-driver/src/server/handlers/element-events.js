@@ -562,32 +562,38 @@ function wdioContains(node, el) {
   return false;
 }
 
-// Element Clear (W3C): returns 'not editable', 'empty' (leaving the element alone) or 'cleared'.
-// Clearing fires `change` only if the value differs from its last committed one.
+// Element Clear, firing events and moving focus as chromedriver does, not as a user's edit would.
+// Returns 'not editable', 'empty' or 'cleared'.
 function wdioClearElement(el) {
   const field = el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && WDIO_CLEARABLE_INPUT_TYPES.includes(el.type));
   if (field ? el.readOnly || el.matches(':disabled') : !el.isContentEditable) {
     return 'not editable';
   }
-  if (field ? el.value === '' : el.innerHTML === '') {
+  // Chromedriver clears every number input that reads '', as unparseable text does, and leaves
+  // it focused (see the final blur).
+  const emptyNumber = el.tagName === 'INPUT' && el.type === 'number' && el.value === '';
+  if (field && el.value === '' && !emptyNumber) {
     return 'empty';
   }
   el.focus();
-  const record = wdioTakePendingChange(el);
-  const committedValue = record ? record.value : el.value;
+  const active = wdioDeepActiveElement();
+  if (active !== el) {
+    active.blur();
+  }
+  wdioTakePendingChange(el);
   if (field) {
+    const hadValue = el.value !== '';
     const prototype = el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
     Object.getOwnPropertyDescriptor(prototype, 'value').set.call(el, '');
+    if (hadValue) {
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   } else {
     el.innerHTML = '';
   }
-  el.dispatchEvent(
-    new InputEvent('input', { bubbles: true, cancelable: true, composed: true, inputType: 'deleteContentBackward' }),
-  );
-  if (field && el.value !== committedValue) {
-    el.dispatchEvent(new Event('change', { bubbles: true }));
+  if (!emptyNumber) {
+    wdioDeepActiveElement().blur();
   }
-  el.blur();
   return 'cleared';
 }
 

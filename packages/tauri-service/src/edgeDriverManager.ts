@@ -288,7 +288,7 @@ export async function findMsEdgeDriver(): Promise<{ path?: string; version?: str
           encoding: 'utf8',
           timeout: 5000,
         });
-        const match = versionOutput.match(/MSEdgeDriver ([\d.]+)/);
+        const match = versionOutput.match(/(?:MSEdgeDriver|Microsoft Edge WebDriver) ([\d.]+)/);
         if (match) {
           log.debug(`Found msedgedriver ${match[1]} at ${driverPath}`);
           return { path: driverPath, version: match[1] };
@@ -395,8 +395,9 @@ try {
 
     Write-Host "Download successful, extracting..."
 
-    # Extract
-    Expand-Archive -Path $zipPath -DestinationPath $downloadDir -Force
+    # Expand-Archive breaks on some Windows PowerShell 5.1 setups; ZipFile's two-argument overload doesn't.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $downloadDir)
     Remove-Item $zipPath -ErrorAction SilentlyContinue
 
     # Verify extracted
@@ -505,6 +506,8 @@ export async function ensureMsEdgeDriver(
     }
 
     log.warn(`❌ Version mismatch: msedgedriver ${existing.version} != Edge ${edgeVersion}`);
+  } else if (existing.path) {
+    log.warn(`Ignoring msedgedriver at ${existing.path}: couldn't read its version from \`--version\``);
   }
 
   const reusable = downloadedDrivers.find((driver) => isCompatible(driver.version) && existsSync(driver.path));

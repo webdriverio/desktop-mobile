@@ -130,7 +130,7 @@ describe('Mock API', () => {
 
       it('should keep undefined arguments, nested or not, instead of turning them into null', async () => {
         const mock = await createMock('shell', 'openExternal');
-        mockExecute.mockImplementation((fn, apiName, funcName) => {
+        mockExecute.mockImplementation(async (fn, apiName, funcName) => {
           const electron = {
             shell: {
               openExternal: {
@@ -144,7 +144,7 @@ describe('Mock API', () => {
             },
           };
           // CDP returns the result as JSON.
-          return JSON.parse(JSON.stringify(fn(electron, apiName, funcName)));
+          return JSON.parse(JSON.stringify(await fn(electron, apiName, funcName)));
         });
         await mock.update();
         const returnedMock = mock as unknown as Mock;
@@ -173,6 +173,171 @@ describe('Mock API', () => {
         const returnedMock = mock as unknown as Mock;
 
         expect(returnedMock).toHaveBeenCalledTimes(0);
+      });
+
+      it("should copy the app's results, including a value set with mockReturnValue", async () => {
+        const mock = await createMock('app', 'getName');
+        await mock.mockReturnValue('mocked');
+        mockExecute.mockImplementation((fn, ...args) =>
+          fn({ app: { getName: { mock: { calls: [[]], results: [{ type: 'return', value: 'mocked' }] } } } }, ...args),
+        );
+
+        await mock.update();
+
+        expect(mock).toHaveReturnedWith('mocked');
+      });
+
+      it('should copy the value an async result settled with, and keep it a promise', async () => {
+        const mock = await createMock('app', 'getName');
+        const results = [
+          { type: 'return', value: Promise.resolve('mocked') },
+          { type: 'return', value: Promise.reject(new Error('denied')) },
+        ];
+        mockExecute.mockImplementation(async (fn, ...args) =>
+          // CDP returns the result as JSON.
+          JSON.parse(JSON.stringify(await fn({ app: { getName: { mock: { calls: [[], []], results } } } }, ...args))),
+        );
+
+        await mock.update();
+
+        const [resolved, rejected] = (mock as unknown as Mock).mock.results;
+        await expect(resolved.value).resolves.toBe('mocked');
+        await expect(rejected.value).rejects.toThrow('denied');
+      });
+
+      it('should keep a result that is still pending as a pending promise', async () => {
+        const mock = await createMock('app', 'getName');
+        const results = [{ type: 'return', value: new Promise(() => {}) }];
+        mockExecute.mockImplementation(async (fn, ...args) =>
+          JSON.parse(JSON.stringify(await fn({ app: { getName: { mock: { calls: [[]], results } } } }, ...args))),
+        );
+
+        await mock.update();
+
+        const [pending] = (mock as unknown as Mock).mock.results;
+        const settled = await Promise.race([pending.value, Promise.resolve('pending')]);
+        expect(settled).toBe('pending');
+      });
+
+      it('should settle a pending result once a later sync finds it settled in the app', async () => {
+        const mock = await createMock('app', 'getName');
+        let resolveInApp: (value: string) => void = () => {};
+        const results = [{ type: 'return', value: new Promise((resolve) => (resolveInApp = resolve)) }];
+        mockExecute.mockImplementation(async (fn, ...args) =>
+          JSON.parse(JSON.stringify(await fn({ app: { getName: { mock: { calls: [[]], results } } } }, ...args))),
+        );
+        await mock.update();
+        const [pending] = (mock as unknown as Mock).mock.results;
+
+        resolveInApp('mocked');
+        await mock.update();
+
+        const [result] = (mock as unknown as Mock).mock.results;
+        expect(result.value).toBe(pending.value);
+        await expect(result.value).resolves.toBe('mocked');
+      });
+
+      it('should reject a pending result once a later sync finds it rejected in the app', async () => {
+        const mock = await createMock('app', 'getName');
+        let rejectInApp: (error: Error) => void = () => {};
+        const inApp = new Promise((_resolve, reject) => (rejectInApp = reject));
+        inApp.catch(() => {});
+        const results = [{ type: 'return', value: inApp }];
+        mockExecute.mockImplementation(async (fn, ...args) =>
+          JSON.parse(JSON.stringify(await fn({ app: { getName: { mock: { calls: [[]], results } } } }, ...args))),
+        );
+        await mock.update();
+
+        rejectInApp(new Error('denied'));
+        await mock.update();
+
+        const [result] = (mock as unknown as Mock).mock.results;
+        await expect(result.value).rejects.toThrow('denied');
+      });
+
+      it('should not leave an unhandled rejection when a pending result later rejects unread', async () => {
+        const unhandled = vi.fn();
+        process.on('unhandledRejection', unhandled);
+        try {
+          const mock = await createMock('app', 'getName');
+          let rejectInApp: (error: Error) => void = () => {};
+          const inApp = new Promise((_resolve, reject) => (rejectInApp = reject));
+          inApp.catch(() => {});
+          const results = [{ type: 'return', value: inApp }];
+          mockExecute.mockImplementation(async (fn, ...args) =>
+            JSON.parse(JSON.stringify(await fn({ app: { getName: { mock: { calls: [[]], results } } } }, ...args))),
+          );
+          await mock.update();
+
+          rejectInApp(new Error('denied'));
+          await mock.update();
+          await new Promise((resolve) => setTimeout(resolve, 10));
+
+          expect(unhandled).not.toHaveBeenCalled();
+        } finally {
+          process.off('unhandledRejection', unhandled);
+        }
+      });
+
+      it('should keep the calls when a result cannot be copied', async () => {
+        const mock = await createMock('app', 'getName');
+        const circular: Record<string, unknown> = {};
+        circular.self = circular;
+        const results = [
+          { type: 'return', value: circular },
+          { type: 'return', value: 'fine' },
+        ];
+        mockExecute.mockImplementation(async (fn, ...args) =>
+          JSON.parse(
+            JSON.stringify(await fn({ app: { getName: { mock: { calls: [['a'], ['b']], results } } } }, ...args)),
+          ),
+        );
+
+        await mock.update();
+
+        const returnedMock = mock as unknown as Mock;
+        expect(returnedMock.mock.calls).toStrictEqual([['a'], ['b']]);
+        expect(returnedMock.mock.results[0]).toStrictEqual({ type: 'return', value: undefined });
+        expect(returnedMock.mock.results[1]).toStrictEqual({ type: 'return', value: 'fine' });
+      });
+
+      it("should not run the mock's implementation in the test process when syncing its calls", async () => {
+        const mock = await createMock('dialog', 'showMessageBox');
+        await mock.mockImplementation(() => {
+          throw new Error('denied');
+        });
+        mockExecute.mockImplementation(async (fn, ...args) => {
+          const electron = {
+            dialog: {
+              showMessageBox: { mock: { calls: [[]], results: [{ type: 'throw', value: new Error('denied') }] } },
+            },
+          };
+          // CDP returns the result as JSON.
+          return JSON.parse(JSON.stringify(await fn(electron, ...args)));
+        });
+
+        await mock.update();
+
+        const [result] = (mock as unknown as Mock).mock.results;
+        expect(mock).toHaveBeenCalledTimes(1);
+        expect(result.type).toBe('throw');
+        expect(result.value).toBeInstanceOf(Error);
+        expect((result.value as Error).message).toBe('denied');
+      });
+
+      it('should place synced calls in the call order shared with other mocks', async () => {
+        const first = await createMock('app', 'getName');
+        const second = await createMock('app', 'getVersion');
+        const callsOf = (funcName: string) => ({ app: { [funcName]: { mock: { calls: [[]] } } } });
+
+        mockExecute.mockImplementation((fn, ...args) => fn(callsOf('getName'), ...args));
+        await first.update();
+        mockExecute.mockImplementation((fn, ...args) => fn(callsOf('getVersion'), ...args));
+        await second.update();
+
+        const [firstOrder] = (first as unknown as Mock).mock.invocationCallOrder;
+        const [secondOrder] = (second as unknown as Mock).mock.invocationCallOrder;
+        expect(secondOrder).toBeGreaterThan(firstOrder);
       });
     });
 

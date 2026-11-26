@@ -677,18 +677,47 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input x', 'input ', 'blur ']);
   });
 
-  it('should clear with input, then change, then blur', async () => {
+  it('should clear with change, then blur, and no input, as chromedriver does', async () => {
     await fillChangeScratch({ initialValue: 'old' });
     await browser.$('#fresh-field').clearValue();
-    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ']);
+    expect(await fieldEvents()).toEqual(['change ', 'blur ']);
+  });
+
+  it("should empty a number input showing text it can't parse and leave it focused, with no change, as chromedriver does", async () => {
+    await fillChangeScratch();
+    await fillScratch(`scratch.insertAdjacentHTML("beforeend", '<input id="fresh-number" type="number">');`);
+    // Send Keys sets `value`, so only an editing command can leave unparseable text in a number input.
+    await browser.execute(
+      `var number = document.querySelector("#fresh-number");
+      number.focus();
+      document.execCommand("insertText", false, "1e");
+      for (var type of ["input", "change", "blur"]) {
+        number.addEventListener(type, function (ev) { window.__fieldEvents.push(ev.type + " number"); });
+      }`,
+    );
+    const badInput = 'return document.querySelector("#fresh-number").validity.badInput';
+    expect(await browser.execute(badInput)).toBe(true);
+    await browser.$('#fresh-number').clearValue();
+    expect(await browser.execute(badInput)).toBe(false);
+    expect(await fieldEvents()).toEqual([]);
+    expect(await focusedId()).toBe('fresh-number');
+  });
+
+  it('should fire the change a field owes when clearing an empty number input, then leave that input focused, as chromedriver does', async () => {
+    await fillChangeScratch();
+    await fillScratch(`scratch.insertAdjacentHTML("beforeend", '<input id="fresh-number" type="number">');`);
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-number').clearValue();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+    expect(await focusedId()).toBe('fresh-number');
   });
 
   it('should fire the change resulting from setValue when focus leaves', async () => {
     await fillChangeScratch({ initialValue: '1' });
     await browser.$('#fresh-field').setValue('2');
-    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2']);
+    expect(await fieldEvents()).toEqual(['change ', 'blur ', 'input 2']);
     await browser.$('#fresh-other').click();
-    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
+    expect(await fieldEvents()).toEqual(['change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
   });
 
   it('should fire change on Enter in an input, and not again when focus leaves', async () => {
@@ -703,9 +732,9 @@ describe('special keys (embedded)', () => {
     await fillChangeScratch({ initialValue: '1' });
     await browser.$('#fresh-field').setValue('2');
     await browser.keys(Key.Enter);
-    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2']);
+    expect(await fieldEvents()).toEqual(['change ', 'blur ', 'input 2', 'change 2']);
     await browser.$('#fresh-other').click();
-    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
+    expect(await fieldEvents()).toEqual(['change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
   });
 
   it("should click the form's default button on Enter in an input, after its change, as Chrome does", async () => {

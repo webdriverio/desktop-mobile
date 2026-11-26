@@ -330,19 +330,31 @@ describe('Electron Mocking', () => {
       describe('mockImplementation', () => {
         it('should use the specified implementation for an existing mock', async () => {
           const mockGetName = await browser.electron.mock('app', 'getName');
-          let callsCount = 0;
-          await mockGetName.mockImplementation(() => {
-            // callsCount is not accessible in the electron context so we need to guard it
-            if (typeof callsCount !== 'undefined') {
-              callsCount++;
-            }
-
-            return 'mocked value';
-          });
+          await mockGetName.mockImplementation(() => 'mocked value');
           const result = await browser.electron.execute(async (electron) => await electron.app.getName());
 
-          expect(callsCount).toBe(1);
           expect(result).toBe('mocked value');
+          expect(mockGetName).toHaveBeenCalledTimes(1);
+          expect(mockGetName).toHaveReturnedWith('mocked value');
+        });
+
+        it('should run the implementation in the app only, so the app can catch what it throws', async () => {
+          const mockShowMessageBox = await browser.electron.mock('dialog', 'showMessageBox');
+          await mockShowMessageBox.mockImplementation(() => {
+            throw new Error('denied');
+          });
+
+          const result = await browser.electron.execute(async (electron) => {
+            try {
+              await electron.dialog.showMessageBox({ message: 'hi' });
+              return 'shown';
+            } catch (error) {
+              return (error as Error).message;
+            }
+          });
+
+          expect(result).toBe('denied');
+          expect(mockShowMessageBox).toHaveBeenCalledTimes(1);
         });
       });
 
@@ -376,6 +388,7 @@ describe('Electron Mocking', () => {
           const electronName = await browser.electron.execute((electron) => electron.app.getName());
 
           expect(electronName).toBe('This is a mock');
+          expect(mockGetName).toHaveReturnedWith('This is a mock');
         });
       });
 
@@ -1331,6 +1344,54 @@ describe('Electron Mocking', () => {
             browser.electron.execute((electron) => new electron.Tray('/path/to/icon.png')),
           ).resolves.not.toThrow();
 
+          expect(mockTray.__constructor).toHaveBeenCalledTimes(2);
+        });
+
+        it('should support mockImplementation for constructors', async () => {
+          const mockTray = await browser.electron.mock('Tray');
+
+          await mockTray.__constructor.mockImplementation(() => {
+            throw new Error('Constructor failed');
+          });
+
+          // Caught in the app, so the message can only come from the app's constructor
+          const construct = () =>
+            browser.electron.execute((electron) => {
+              try {
+                new electron.Tray('/path/to/icon.png');
+                return 'constructed';
+              } catch (error) {
+                return (error as Error).message;
+              }
+            });
+          expect(await construct()).toBe('Constructor failed');
+          expect(await construct()).toBe('Constructor failed');
+          expect(mockTray.__constructor).toHaveBeenCalledTimes(2);
+        });
+
+        it('should support mockReturnValue for constructors', async () => {
+          const mockTray = await browser.electron.mock('Tray');
+
+          await mockTray.__constructor.mockReturnValue({ fake: 'tray' });
+
+          const tray = await browser.electron.execute((electron) => new electron.Tray('/path/to/icon.png'));
+          expect(tray).toEqual({ fake: 'tray' });
+          expect(mockTray.__constructor).toHaveReturnedWith({ fake: 'tray' });
+        });
+
+        it('should support withImplementation for constructors', async () => {
+          const mockTray = await browser.electron.mock('Tray');
+
+          const temporary = await mockTray.__constructor.withImplementation(
+            () => ({ fake: 'tray' }),
+            (electron) => new electron.Tray('/path/to/icon.png'),
+          );
+          expect(temporary).toEqual({ fake: 'tray' });
+
+          const isTray = await browser.electron.execute(
+            (electron) => new electron.Tray('/path/to/icon.png') instanceof electron.Tray,
+          );
+          expect(isTray).toBe(true);
           expect(mockTray.__constructor).toHaveBeenCalledTimes(2);
         });
 
