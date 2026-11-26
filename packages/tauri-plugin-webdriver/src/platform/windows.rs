@@ -161,8 +161,8 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
               ExecuteScriptWithResultHandler::new(tx.clone()).into();
             webview21.ExecuteScriptWithResult(script_pcwstr, &handler)
           } else {
-            // Runtimes older than 1.0.2210 lack ExecuteScriptWithResult. ExecuteScript reports a
-            // thrown exception as a successful null.
+            // Older runtimes lack ExecuteScriptWithResult, and ExecuteScript reports a thrown
+            // exception as a successful null.
             let handler: ICoreWebView2ExecuteScriptCompletedHandler =
               ExecuteScriptHandler::new(tx.clone()).into();
             webview2.ExecuteScript(script_pcwstr, &handler)
@@ -675,7 +675,10 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
     let _guard = lock.lock().await;
 
     // Execute the wrapper using the unlocked inner method (we already hold the lock).
-    self.evaluate_js_inner(&wrapper).await?;
+    if let Err(error) = self.evaluate_js_inner(&wrapper).await {
+      async_state.cancel(&async_id);
+      return Err(error);
+    }
 
     // Wait for result with timeout (lock is still held; released when _guard drops).
     let timeout_ms = self.timeouts.script_ms;
@@ -728,11 +731,8 @@ mod handlers {
     ScriptResultSender, SendableComPtr, BOOL, HANDLER_NAME,
   };
   use crate::platform::alert_state::AlertResponse;
+  use crate::platform::script_result::{exception_text, parse_script_json};
   use std::sync::Arc;
-
-  fn parse_script_json(json_str: String) -> Value {
-    serde_json::from_str(&json_str).unwrap_or(Value::String(json_str))
-  }
 
   fn send_script_result(tx: &ScriptResultSender, response: Result<Value, String>) {
     if let Ok(mut guard) = tx.lock() {
@@ -829,11 +829,11 @@ mod handlers {
   }
 
   unsafe fn exception_message(exception: &ICoreWebView2ScriptException) -> String {
-    take_string(|ptr| exception.Message(ptr))
-      .filter(|text| !text.is_empty())
-      .or_else(|| take_string(|ptr| exception.Name(ptr)).filter(|text| !text.is_empty()))
-      .or_else(|| take_string(|ptr| exception.ToJson(ptr)))
-      .unwrap_or_else(|| "Script threw an exception".to_string())
+    exception_text(
+      take_string(|ptr| exception.Message(ptr)),
+      || take_string(|ptr| exception.Name(ptr)),
+      || take_string(|ptr| exception.ToJson(ptr)),
+    )
   }
 
   #[implement(ICoreWebView2CapturePreviewCompletedHandler)]
