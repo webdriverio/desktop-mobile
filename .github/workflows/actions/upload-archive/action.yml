@@ -224,7 +224,7 @@ runs:
 
     # Upload to GitHub Artifacts
     - name: 📤 Upload Artifact
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ inputs.name }}
         path: ${{ inputs.output }}
@@ -236,7 +236,7 @@ runs:
     # Cross-platform archive enabled - works for TypeScript packages (wdio-desktop-build)
     # Tauri apps use 7zip for cross-platform compatible ZIPs
     - name: 🗄️ Cache Artifact (Platform-specific)
-      uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       env:
         ACTIONS_CACHE_SERVICE_V2: "true"
       with:
