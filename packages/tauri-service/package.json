@@ -59,18 +59,18 @@
     "tslib": "^2.9.1"
   },
   "devDependencies": {
-    "@babel/parser": "^8.1.0",
+    "@babel/parser": "^8.1.3",
     "@repo/test-utils": "workspace:*",
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.10",
     "@wdio/bundler": "workspace:*",
     "@wdio/globals": "catalog:default",
     "@wdio/types": "catalog:default",
-    "recast": "^0.24.0",
+    "recast": "^0.24.3",
     "shx": "^0.4.0",
-    "terser": "^5.51.2",
+    "terser": "^5.51.4",
     "typescript": "^6.0.3",
-    "vitest": "^5.1.0",
+    "vitest": "^5.1.2",
     "webdriverio": "catalog:default"
   },
   "peerDependencies": {
