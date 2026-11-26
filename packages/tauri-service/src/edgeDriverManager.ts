@@ -395,8 +395,9 @@ try {
 
     Write-Host "Download successful, extracting..."
 
-    # Extract
-    Expand-Archive -Path $zipPath -DestinationPath $downloadDir -Force
+    # Expand-Archive breaks on some Windows PowerShell 5.1 setups; ZipFile's two-argument overload doesn't.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $downloadDir)
     Remove-Item $zipPath -ErrorAction SilentlyContinue
 
     # Verify extracted
