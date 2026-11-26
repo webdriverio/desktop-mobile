@@ -169,7 +169,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
           };
 
           if let Err(e) = call {
-            tracing::error!("ExecuteScript call failed for script '{}...': {e:?}", script_preview);
+            tracing::error!("Script call failed for script '{}...': {e:?}", script_preview);
             if let Ok(mut guard) = tx.lock() {
               if let Some(tx) = guard.take() {
                 let _ = tx.send(Err(format!("ExecuteScript failed: {e:?}")));
