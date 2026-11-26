@@ -24,6 +24,29 @@ vi.mock('node:util', () => ({
       }),
 }));
 
+const log = vi.hoisted(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
+  createLogger: () => log,
+}));
+
+type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
+
+// Answers each `exec` command with the output, or the error, that `output` returns for it.
+async function mockExecOutput(output: (cmd: string) => string | Error) {
+  const { exec } = await import('node:child_process');
+  vi.mocked(exec).mockImplementation(((cmd: string, opts: unknown, callback?: ExecCallback) => {
+    const done = (typeof opts === 'function' ? opts : callback) as ExecCallback;
+    const result = output(cmd);
+    if (result instanceof Error) {
+      done(result, '', '');
+    } else {
+      done(null, result, '');
+    }
+    return {};
+  }) as unknown as typeof exec);
+}
+
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   mkdirSync: vi.fn(),
@@ -286,6 +309,27 @@ describe('Edge Driver Manager', () => {
       const result = await ensureMsEdgeDriver(undefined, false);
       assert(!result.ok);
       expect(result.error.message).toContain('version mismatch');
+    });
+    it("should warn about a driver on PATH whose version it can't read", async () => {
+      const { existsSync } = await import('node:fs');
+      await mockExecOutput((cmd) => {
+        if (cmd.includes('reg query') && cmd.includes('F3017226')) {
+          return '    pv    REG_SZ    143.0.3650.139\n';
+        }
+        if (cmd.includes('where msedgedriver')) {
+          return 'C:\\driver\\msedgedriver.exe\n';
+        }
+        return cmd.includes('--version') ? 'unexpected output\n' : new Error('Not found');
+      });
+      vi.mocked(existsSync).mockReturnValue(true);
+      log.warn.mockClear();
+
+      const result = await ensureMsEdgeDriver(undefined, false);
+
+      assert(!result.ok);
+      expect(log.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Ignoring msedgedriver at C:\\driver\\msedgedriver.exe'),
+      );
     });
   });
 

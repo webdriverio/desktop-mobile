@@ -506,6 +506,8 @@ export async function ensureMsEdgeDriver(
     }
 
     log.warn(`❌ Version mismatch: msedgedriver ${existing.version} != Edge ${edgeVersion}`);
+  } else if (existing.path) {
+    log.warn(`Ignoring msedgedriver at ${existing.path}: couldn't read its version from \`--version\``);
   }
 
   const reusable = downloadedDrivers.find((driver) => isCompatible(driver.version) && existsSync(driver.path));
