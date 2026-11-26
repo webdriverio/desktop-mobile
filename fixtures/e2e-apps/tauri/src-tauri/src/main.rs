@@ -230,7 +230,7 @@ async fn get_deep_links(_app: tauri::AppHandle) -> Result<Vec<String>, String> {
   Ok(links)
 }
 
-// Whether the app's on_open_url handler ran on the main thread for this URL; None if it hasn't run.
+// Whether on_open_url ran on the main thread for this URL, or None if it hasn't run.
 #[tauri::command]
 async fn open_url_ran_on_main_thread(url: String) -> Result<Option<bool>, String> {
   let threads = OPEN_URL_ON_MAIN_THREAD.lock().map_err(|e| e.to_string())?;
