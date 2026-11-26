@@ -270,7 +270,7 @@ browser.electron.execute<T>(
 
 `Promise<T>` - Resolves with the return value of the script
 
-**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. It rejects if any instance fails. To run it in one app, call it on that instance: `browser.getInstance('app1').electron.execute(...)`.
+**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. If any instance fails, it waits for the others, then rejects with an error naming each instance that failed: `execute failed on app2: …`. To run it in one app, call it on that instance: `browser.getInstance('app1').electron.execute(...)`.
 
 **Example:**
 

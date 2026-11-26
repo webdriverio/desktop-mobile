@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ElectronCdpBridge } from '../../src/bridge.js';
 import { clearParsedFunctionCache, execute } from '../../src/commands/executeCdp.js';
 import mockStore from '../../src/mockStore.js';
+import { createFakeMultiremote } from './multiremoteFakes.js';
 
 vi.mock('../../src/mockStore.js', () => {
   const mockStore = {
@@ -86,6 +87,36 @@ describe('execute Command', () => {
     await execute(globalThis.mrBrowser, client, (_electron, a, b, c) => a + b + c, 1, 2, 3);
 
     expect(mockElectron.electron.execute).toHaveBeenCalledTimes(2); // Because mrBrowser has 2 browser instance
+  });
+
+  it('should reject naming the instance the script failed in, with its error as the cause', async () => {
+    const { root, browserA, browserB } = createFakeMultiremote();
+    const cause = new Error('script error');
+    vi.mocked(browserA.electron.execute).mockResolvedValue('a');
+    vi.mocked(browserB.electron.execute).mockRejectedValue(cause);
+
+    await expect(execute(root, client, () => 1)).rejects.toMatchObject({
+      message: 'execute failed on browserB: script error',
+      cause,
+    });
+  });
+
+  it('should wait for every instance and name each one the script failed in', async () => {
+    const { root, browserA, browserB } = createFakeMultiremote();
+    const slow = Promise.withResolvers<never>();
+    vi.mocked(browserA.electron.execute).mockRejectedValue(new Error('a broke'));
+    vi.mocked(browserB.electron.execute).mockReturnValue(slow.promise);
+    const onRejected = vi.fn();
+    const result = execute(root, client, () => 1).catch(onRejected);
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(onRejected).not.toHaveBeenCalled();
+    slow.reject(new Error('b broke'));
+    await result;
+
+    const error = onRejected.mock.calls[0][0] as AggregateError;
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.message).toBe('execute failed on browserA: a broke; browserB: b broke');
   });
 
   it('should execute a function declaration', async () => {

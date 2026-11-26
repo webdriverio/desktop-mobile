@@ -1,5 +1,5 @@
-import { forEachInstance } from '@wdio/native-core';
-import { errorMessage, isMultiremote, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
+import { forEachInstance, instanceFailuresError, settleOnEach } from '@wdio/native-core';
+import { isMultiremote, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
 
 import mockStore, { type MockOwner } from '../mockStore.js';
 
@@ -30,10 +30,7 @@ export async function runOnMockOwners(
   targets: MockOwnerTarget[],
   run: (owner: MockOwner) => Promise<unknown>,
 ): Promise<void> {
-  const results = await Promise.allSettled(targets.map(({ owner }) => run(owner)));
-  const failures = results.flatMap((result, i) =>
-    result.status === 'rejected' ? [{ name: targets[i].name, error: result.reason as unknown }] : [],
-  );
+  const { failures } = await settleOnEach(targets, ({ owner }) => run(owner));
   if (failures.length === 0) {
     return;
   }
@@ -41,15 +38,7 @@ export async function runOnMockOwners(
   if (failures.length === 1 && failures[0].name === undefined) {
     throw failures[0].error;
   }
-  const message = `${commandName} failed on ${failures
-    .map(({ name, error }) => `${name}: ${errorMessage(error)}`)
-    .join('; ')}`;
-  throw failures.length === 1
-    ? new Error(message, { cause: failures[0].error })
-    : new AggregateError(
-        failures.map(({ error }) => error),
-        message,
-      );
+  throw instanceFailuresError(commandName, failures);
 }
 
 export async function runMockOp(owner: MockOwner, op: MockLifecycleOp, apiName?: string): Promise<void> {

@@ -1,5 +1,5 @@
 import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
-import { forEachInstance } from '@wdio/native-core';
+import { forEachInstance, runOnEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor, parseCallData } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
@@ -939,6 +939,16 @@ async function triggerDeeplinkOnEveryInstance(instances: ElectronInstance[], url
   }
 }
 
+// Serialized and run in the app's main process by emitEvent.
+function sendToFocusedWindow(electron: typeof Electron.CrossProcessExports, ...inner: unknown[]): void {
+  const [channel, args] = inner as [string, unknown[]];
+  const win = electron.BrowserWindow.getFocusedWindow() ?? electron.BrowserWindow.getAllWindows()[0];
+  if (!win) {
+    throw new Error('emitEvent: no BrowserWindow available to receive event');
+  }
+  win.webContents.send(channel, ...args);
+}
+
 function getElectronAPI<Target extends ServiceApiTarget = 'instance'>(
   this: ServiceConfig,
   browser: WebdriverIO.Browser,
@@ -979,20 +989,13 @@ function getElectronAPI<Target extends ServiceApiTarget = 'instance'>(
     restoreAllMocks: getMethod((apiName?: string) => restoreAllMocks.call(mockContext, apiName)),
     triggerDeeplink: getMethod(deeplink, false), // doesn't require CDP
     emitEvent: getMethod(async (channel: string, ...args: unknown[]): Promise<void> => {
-      await execute.apply(this, [
-        browser,
-        cdpBridge as ElectronCdpBridge,
-        (electron, ...inner: unknown[]) => {
-          const [c, a] = inner as [string, unknown[]];
-          const win = electron.BrowserWindow.getFocusedWindow() ?? electron.BrowserWindow.getAllWindows()[0];
-          if (!win) {
-            throw new Error('emitEvent: no BrowserWindow available to receive event');
-          }
-          win.webContents.send(c, ...a);
-        },
-        channel,
-        args,
-      ]);
+      if (isMultiremote(browser)) {
+        await runOnEachInstance(browser, `emitEvent('${channel}')`, (instance) =>
+          instance.electron.execute(sendToFocusedWindow, channel, args),
+        );
+      } else {
+        await execute.apply(this, [browser, cdpBridge as ElectronCdpBridge, sendToFocusedWindow, channel, args]);
+      }
       // webContents.send is fire-and-forget from main → renderer. Round-trip
       // through the renderer with a no-op script so any ipcRenderer.on
       // listener has fired (and any mocked IPC calls it makes have landed)
