@@ -34,6 +34,9 @@
         "sync": "independent"
       }
     },
+    "primaryPackages": [
+      "@wdio/*-service"
+    ],
     "versionPrefix": "v",
     "tagTemplate": "${packageName}@v${version}",
     "commitMessage": "chore: release ${packageName}@${version} [skip ci]",
@@ -59,10 +62,7 @@
     },
     "standingPr": {
       "branch": "release/next",
-      "mergeMethod": "squash",
-      "primaryPackages": [
-        "@wdio/*-service"
-      ]
+      "mergeMethod": "squash"
     },
     "scopeLabels": {
       "scope:native-utils": "@wdio/native-utils",

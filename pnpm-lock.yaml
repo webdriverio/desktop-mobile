@@ -224,8 +224,8 @@ importers:
         specifier: ^22.0.1
         version: 22.0.1
       '@releasekit/release':
-        specifier: ^0.44.0
-        version: 0.44.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+        specifier: ^0.47.1
+        version: 0.47.1(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -2973,23 +2973,23 @@ packages:
       yauzl:
         optional: true
 
-  '@releasekit/notes@0.44.0':
-    resolution: {integrity: sha512-OyDU6+KsZDSIjvPrn0RlxfvsoBdtP3cpw/4TVA92NEJ28qcWiTuc2A2Gn8ATKeoe4A7SETVXPzjZ8myATkg4eg==}
+  '@releasekit/notes@0.47.1':
+    resolution: {integrity: sha512-VuRGcPyIycDDbYB+whcZ5SugP8y3K2KpblFbKBUD0B8eIoLXbNF6Qo5PT8cZteUIO0gQzR8iqWACFZbD6DOKKg==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/publish@0.44.0':
-    resolution: {integrity: sha512-dqyTEaLampbxBlAsmDXpFyzl6KmdP5kTJltcoOjqO5fTKTYGz3xmpKobVrsek39oJMp5ELmvXH8ZJpLBlUUI6A==}
+  '@releasekit/publish@0.47.1':
+    resolution: {integrity: sha512-HMGaCad6tiu2ZNw14eqYaFl23PI/yAi1D+X0iS6hllwVUkpgOcRy0J2dZt5sWdQwg7DKfm4ba6/9wCLXVoNejw==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/release@0.44.0':
-    resolution: {integrity: sha512-GeLGkY5JVJ0yf+mtexGp4fOLvN9wSqQ+a1VlbTRIC94DrBlcWWclwIY/qHUO9YdO/DqMfsJTlMtiMz2ZKRwwtQ==}
+  '@releasekit/release@0.47.1':
+    resolution: {integrity: sha512-0oIau7WD2EsMKHSadiYgmAy8v0fxjZ8jNCzL47FmgCoD/MjD+WVNUs909FRQTyEn0cG5gafipnjCGYE2SL3jfQ==}
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@releasekit/version@0.44.0':
-    resolution: {integrity: sha512-X9dMixXdL1/+271IwwAzlr7BTC84xtTqvaHvcBOnkk+Go7PXAqw3M5ymUDC2bhl+PN7yOdS6ua6+1SFE4RLa6g==}
+  '@releasekit/version@0.47.1':
+    resolution: {integrity: sha512-h5ygxjkKSNEt5k/Pqm3l1S/srPjq6tBaOQ/H1SzukHK8n7p4lW5CfIOpF4gA3CzKvWnIk0hrkscqtXKzDy9eVw==}
     engines: {node: '>=22.12'}
     hasBin: true
 
@@ -5028,11 +5028,6 @@ packages:
 
   fflate@0.8.3:
     resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
-
-  figlet@1.12.0:
-    resolution: {integrity: sha512-Ith3WsUi0N/EqGt+0/F6XnWhT04sohhH2tT0Dq7GdUmWbMTIoCbg2Jq9qKggmTO62ST5kRCfB311EmIMbizGyA==}
-    engines: {node: '>= 17.0.0'}
-    hasBin: true
 
   figures@6.1.0:
     resolution: {integrity: sha512-d+l3qxjSesT4V7v2fh+QnmFnUWv9lSpjarhShNTgBOfA0ttejbQUAlHLitbjkoRiDulW0OPoQPYIGhIC8ohejg==}
@@ -8835,7 +8830,7 @@ snapshots:
     optionalDependencies:
       yauzl: 3.4.0
 
-  '@releasekit/notes@0.44.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/notes@0.47.1(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@anthropic-ai/sdk': 1.6.0(zod@4.6.7)
       '@octokit/rest': 22.0.1
@@ -8858,7 +8853,7 @@ snapshots:
       - undici
       - ws
 
-  '@releasekit/publish@0.44.0':
+  '@releasekit/publish@0.47.1':
     dependencies:
       chalk: 6.0.1
       commander: 15.1.0
@@ -8869,13 +8864,13 @@ snapshots:
       yaml: 2.9.1
       zod: 4.6.7
 
-  '@releasekit/release@0.44.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/release@0.47.1(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@octokit/rest': 22.0.1
-      '@releasekit/notes': 0.44.0(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
-      '@releasekit/publish': 0.44.0
-      '@releasekit/version': 0.44.0
+      '@releasekit/notes': 0.47.1(undici@8.12.4)(ws@8.22.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      '@releasekit/publish': 0.47.1
+      '@releasekit/version': 0.47.1
       chalk: 6.0.1
       commander: 15.1.0
       conventional-changelog-angular: 9.4.0
@@ -8894,7 +8889,7 @@ snapshots:
       - undici
       - ws
 
-  '@releasekit/version@0.44.0':
+  '@releasekit/version@0.47.1':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       chalk: 6.0.1
@@ -8902,8 +8897,8 @@ snapshots:
       conventional-changelog-angular: 9.4.0
       conventional-changelog-conventionalcommits: 10.4.1
       conventional-commits-filter: 6.0.1
+      conventional-commits-parser: 7.1.4
       conventional-recommended-bump: 12.1.1
-      figlet: 1.12.0
       jsonc-parser: 3.3.1
       minimatch: 11.0.5
       semver: 7.8.6
@@ -11288,10 +11283,6 @@ snapshots:
   fecha@4.2.3: {}
 
   fflate@0.8.3: {}
-
-  figlet@1.12.0:
-    dependencies:
-      commander: 14.0.3
 
   figures@6.1.0:
     dependencies:

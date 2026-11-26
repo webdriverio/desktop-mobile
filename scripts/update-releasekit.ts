@@ -21,20 +21,6 @@ function fetchLatestVersion(): string {
   return output.trim();
 }
 
-function updatePackageJson(version: string) {
-  const path = join(ROOT, 'package.json');
-  const content = readFileSync(path, 'utf8');
-  const pkg = JSON.parse(content) as { devDependencies?: Record<string, string> };
-
-  if (!pkg.devDependencies?.['@releasekit/release']) {
-    throw new Error('@releasekit/release not found in root package.json devDependencies');
-  }
-
-  pkg.devDependencies['@releasekit/release'] = `^${version}`;
-  writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
-  console.log(`  ✓ package.json: @releasekit/release → ^${version}`);
-}
-
 function updateWorkflowFile(path: string, version: string) {
   const content = readFileSync(path, 'utf8');
   const updated = content.replace(/goosewobbler\/releasekit@v[\d.]+/g, `goosewobbler/releasekit@v${version}`);
@@ -60,16 +46,18 @@ function main() {
 
   console.log(`🔧 Updating releasekit to v${version}\n`);
 
-  updatePackageJson(version);
   for (const file of WORKFLOW_FILES) {
     updateWorkflowFile(file, version);
   }
 
-  console.log('\n📦 Running pnpm install...');
-  runCommand('pnpm install', ROOT);
+  // With minimumReleaseAgeExcludePrune, `pnpm add` (unlike `pnpm install`) drops the versions it
+  // replaces from minimumReleaseAgeExclude.
+  console.log(`\n📦 Installing @releasekit/release@^${version}...`);
+  runCommand(`pnpm add --save-dev --workspace-root @releasekit/release@^${version}`, ROOT);
 
   console.log('\n📌 Staging changes...');
-  runCommand('git add .', ROOT);
+  const changedFiles = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', ...WORKFLOW_FILES];
+  runCommand(`git add ${changedFiles.map((file) => `"${file}"`).join(' ')}`, ROOT);
 
   console.log(`\n✅ Done — releasekit updated to v${version}`);
 }
