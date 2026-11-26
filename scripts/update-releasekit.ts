@@ -50,8 +50,7 @@ function main() {
     updateWorkflowFile(file, version);
   }
 
-  // With minimumReleaseAgeExcludePrune, `pnpm add` (unlike `pnpm install`) drops the versions it
-  // replaces from minimumReleaseAgeExclude.
+  // `pnpm install` doesn't prune minimumReleaseAgeExclude; `pnpm add` does.
   console.log(`\n📦 Installing @releasekit/release@^${version}...`);
   runCommand(`pnpm add --save-dev --workspace-root @releasekit/release@^${version}`, ROOT);
 
