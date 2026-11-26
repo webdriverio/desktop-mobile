@@ -5,6 +5,7 @@ export interface InstanceFailure {
   error: unknown;
 }
 
+/** Runs `run` on every target at once and waits for all of them, collecting the failures with each target's name. */
 export async function settleOnEach<T extends { name?: string }, R>(
   targets: readonly T[],
   run: (target: T) => Promise<R>,
