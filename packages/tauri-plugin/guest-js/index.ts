@@ -5,7 +5,7 @@
 
 import type { InvokeArgs } from '@tauri-apps/api/core';
 import * as nativeSpy from '@wdio/native-spy';
-import { hasSemicolonOutsideQuotes, isFunctionSource } from '@wdio/native-utils/script-detect';
+import { isFunctionSource, wrapStringScriptBody } from '@wdio/native-utils/script-detect';
 
 // Lazy-load invoke function to support both global Tauri API and dynamic imports
 // This allows the plugin to work both with bundlers (Vite) and without (plain ES modules)
@@ -148,11 +148,9 @@ export async function execute(script: string, options?: ExecuteOptions, argsJson
     throw new Error('window.__TAURI__ is not available. Make sure withGlobalTauri is enabled in tauri.conf.json');
   }
 
-  const trimmed = script.trim();
-
   let scriptToSend: string;
 
-  if (isFunctionSource(trimmed)) {
+  if (isFunctionSource(script)) {
     // Scripts get a minimal tauri object: core.invoke, routed to the mocks, is all they use.
     scriptToSend = `
     (async () => {
@@ -183,7 +181,7 @@ export async function execute(script: string, options?: ExecuteOptions, argsJson
 
       // Plain object — no spreading of window.__TAURI__ to avoid Proxy invariant issues.
       const __wdio_tauri = { core: { invoke: __wdio_invoke } };
-      return await (${script})(__wdio_tauri, ...__wdio_args);
+      return await (${script}\n)(__wdio_tauri, ...__wdio_args);
     })()
   `.trim();
   } else {
@@ -191,12 +189,8 @@ export async function execute(script: string, options?: ExecuteOptions, argsJson
     // user args so they are accessible via arguments[0], arguments[1], etc. (W3C §13.2.2).
     // Using a named function (not an arrow) is required: arrow functions have no arguments object.
     // No conditional async needed — the Tauri IPC always awaits the result.
-    const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(trimmed);
-    const hasStatement = hasStatementKeyword || hasSemicolonOutsideQuotes(trimmed);
     const argsArray = argsJson ?? '[]';
-    scriptToSend = hasStatement
-      ? `(async function() { ${script} }).apply(null, ${argsArray})`
-      : `(async function() { return ${script}; }).apply(null, ${argsArray})`;
+    scriptToSend = `(async function() { ${wrapStringScriptBody(script)}}).apply(null, ${argsArray})`;
   }
 
   const invoke = await getInvoke();

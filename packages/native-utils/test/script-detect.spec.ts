@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { hasSemicolonOutsideQuotes, hasTopLevelArrow, isFunctionSource } from '../src/script-detect.js';
+import {
+  hasSemicolonOutsideQuotes,
+  hasTopLevelArrow,
+  isFunctionSource,
+  wrapStringScriptBody,
+} from '../src/script-detect.js';
 
 describe('hasSemicolonOutsideQuotes', () => {
   it('should return false for an empty string', () => {
@@ -82,6 +87,18 @@ describe('hasSemicolonOutsideQuotes', () => {
   it('should return true for a semicolon after a nested template literal closes', () => {
     expect(hasSemicolonOutsideQuotes('`${`inner`}`; done()')).toBe(true);
   });
+
+  it('should ignore semicolons inside line and block comments', () => {
+    expect(hasSemicolonOutsideQuotes('window.title // a; b')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('/* a; b */ window.title')).toBe(false);
+    expect(hasSemicolonOutsideQuotes("window.title // it's; fine")).toBe(false);
+    expect(hasSemicolonOutsideQuotes('/* a; */ x = 1; y = 2')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('window.title // first\n; done()')).toBe(true);
+  });
+
+  it('should not treat /*/ as a closed block comment', () => {
+    expect(hasSemicolonOutsideQuotes('/*/ ; */ x')).toBe(false);
+  });
 });
 
 describe('hasTopLevelArrow', () => {
@@ -160,6 +177,11 @@ describe('hasTopLevelArrow', () => {
   it('should return true for a top-level arrow after a template literal', () => {
     expect(hasTopLevelArrow('(`template`) => 1')).toBe(true);
   });
+
+  it('should ignore arrows inside comments', () => {
+    expect(hasTopLevelArrow('x + 1 // () => 2')).toBe(false);
+    expect(hasTopLevelArrow('/* () => 2 */ x + 1')).toBe(false);
+  });
 });
 
 describe('isFunctionSource', () => {
@@ -192,5 +214,47 @@ describe('isFunctionSource', () => {
     'x >= 1',
   ])('should return false for %s', (script) => {
     expect(isFunctionSource(script)).toBe(false);
+  });
+
+  it('should recognise function sources preceded by comments', () => {
+    expect(isFunctionSource('// helper\n(tauri) => 1')).toBe(true);
+    expect(isFunctionSource('/* note */ async () => 1')).toBe(true);
+  });
+});
+
+describe('wrapStringScriptBody', () => {
+  const evalBody = (script: string, scope: Record<string, unknown> = {}): unknown => {
+    const body = wrapStringScriptBody(script);
+    return new Function(...Object.keys(scope), `return (function() { ${body}})()`)(...Object.values(scope));
+  };
+
+  it('should return a bare expression including one ending in a // comment', () => {
+    expect(evalBody('1 + 1 // note')).toBe(2);
+    expect(evalBody('window.title // the title', { window: { title: 'App' } })).toBe('App');
+  });
+
+  it('should handle a leading newline or leading comment before an expression', () => {
+    expect(evalBody('\n  window.title\n', { window: { title: 'App' } })).toBe('App');
+    expect(evalBody('// the title\nwindow.title', { window: { title: 'App' } })).toBe('App');
+    expect(evalBody('/* multi\nline */\nwindow.title', { window: { title: 'App' } })).toBe('App');
+  });
+
+  it('should not misclassify an expression whose comment contains a semicolon', () => {
+    expect(evalBody('window.title // a; b', { window: { title: 'App' } })).toBe('App');
+    expect(evalBody('/* a; b */ window.title', { window: { title: 'App' } })).toBe('App');
+  });
+
+  it('should run statement scripts as a body including leading or trailing comments', () => {
+    expect(evalBody('return 42 // answer')).toBe(42);
+    expect(evalBody('// compute\nconst x = 40; return x + 2 // done')).toBe(42);
+    expect(evalBody('/* note */\nreturn 42')).toBe(42);
+    expect(evalBody('function foo() { return 42; }')).toBeUndefined();
+  });
+
+  it('should handle empty and comment-only scripts without throwing', () => {
+    expect(evalBody('')).toBeUndefined();
+    expect(evalBody('   ')).toBeUndefined();
+    expect(evalBody('// only a comment')).toBeUndefined();
+    expect(evalBody('/* only a comment */')).toBeUndefined();
   });
 });

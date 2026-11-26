@@ -69,13 +69,13 @@ describe('wrapScriptForDirectEval', () => {
     it('should wrap a simple expression', () => {
       const result = wrapScriptForDirectEval('1 + 2', '[]');
       expect(result).toContain('var __cb = arguments[arguments.length - 1]');
-      expect(result).toContain('(async function() { return 1 + 2\n; }).apply(null, __wdio_args)');
+      expect(result).toContain('(async function() { return (1 + 2\n);}).apply(null, __wdio_args)');
       expect(result).toContain('__cb({ ok: true,');
     });
 
     it('should wrap a property access expression', () => {
       const result = wrapScriptForDirectEval('document.title', '[]');
-      expect(result).toContain('(async function() { return document.title\n; }).apply(null, __wdio_args)');
+      expect(result).toContain('(async function() { return (document.title\n);}).apply(null, __wdio_args)');
     });
 
     it('should embed args JSON', () => {
@@ -288,10 +288,12 @@ describe('wrapScriptForWebDriver', () => {
     ]);
   });
 
-  it('should run a string script that starts with a newline, as a template literal does', async () => {
+  it('should run a string script that starts with a newline or comment, or has a semicolon in a comment', async () => {
     const window = { ...tauriWindow('main', async () => 'ipc'), title: 'My App' };
 
     expect((await runInPage(wrapScriptForWebDriver('\n  window.title\n', []), window)).value).toBe('My App');
+    expect((await runInPage(wrapScriptForWebDriver('// the title\nwindow.title', []), window)).value).toBe('My App');
+    expect((await runInPage(wrapScriptForWebDriver('window.title // a; b', []), window)).value).toBe('My App');
   });
 
   it('should run a function source that ends in a line comment', async () => {

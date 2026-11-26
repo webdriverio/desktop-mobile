@@ -1,4 +1,4 @@
-import { hasSemicolonOutsideQuotes, isFunctionSource } from '@wdio/native-utils';
+import { isFunctionSource, wrapStringScriptBody } from '@wdio/native-utils';
 import { RESULT_AS_JSON_JS } from './scripts/result-as-json.js';
 
 /**
@@ -16,12 +16,11 @@ import { RESULT_AS_JSON_JS } from './scripts/result-as-json.js';
  * An older plugin passes only the callback.
  */
 export function wrapScriptForDirectEval(script: string, argsJson: string): string {
-  const trimmed = script.trim();
   const prelude = `var __cb = arguments[arguments.length - 1];
 var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0, -1) : ${argsJson};`;
 
   // The newline before each closing bracket ends a `//` comment at the end of the script
-  if (isFunctionSource(trimmed)) {
+  if (isFunctionSource(script)) {
     return `${prelude}
 (async () => {
   try {
@@ -56,12 +55,7 @@ var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0
 
   // String scripts cannot receive __wdio_tauri as a named parameter; use window.__TAURI__ directly.
   // Mock routing does not apply here. This matches the IPC path's behaviour for string scripts.
-  const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(trimmed);
-  const hasStatement = hasStatementKeyword || hasSemicolonOutsideQuotes(trimmed);
-  // Trimmed, as a newline right after `return` would end the statement
-  const invocation = hasStatement
-    ? `(async function() { ${trimmed}\n}).apply(null, __wdio_args)`
-    : `(async function() { return ${trimmed}\n; }).apply(null, __wdio_args)`;
+  const invocation = `(async function() { ${wrapStringScriptBody(script)}}).apply(null, __wdio_args)`;
 
   return `${prelude}
 (async () => {
