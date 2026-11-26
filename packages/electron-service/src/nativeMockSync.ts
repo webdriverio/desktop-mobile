@@ -29,6 +29,8 @@ function restorePromise(result: RawResult, settled: Settled | undefined): RawRes
     const promise = new Promise((resolve) => {
       settle = resolve;
     });
+    // It may later take on a rejection the app caught; a test that never reads it mustn't fail for that.
+    promise.catch(() => {});
     pendingResults.set(promise, settle);
     return { type: result.type, value: promise };
   }

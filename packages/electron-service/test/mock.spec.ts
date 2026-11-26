@@ -255,6 +255,30 @@ describe('Mock API', () => {
         await expect(result.value).rejects.toThrow('denied');
       });
 
+      it('should not leave an unhandled rejection when a pending result later rejects unread', async () => {
+        const unhandled = vi.fn();
+        process.on('unhandledRejection', unhandled);
+        try {
+          const mock = await createMock('app', 'getName');
+          let rejectInApp: (error: Error) => void = () => {};
+          const inApp = new Promise((_resolve, reject) => (rejectInApp = reject));
+          inApp.catch(() => {});
+          const results = [{ type: 'return', value: inApp }];
+          mockExecute.mockImplementation(async (fn, ...args) =>
+            JSON.parse(JSON.stringify(await fn({ app: { getName: { mock: { calls: [[]], results } } } }, ...args))),
+          );
+          await mock.update();
+
+          rejectInApp(new Error('denied'));
+          await mock.update();
+          await new Promise((resolve) => setTimeout(resolve, 10));
+
+          expect(unhandled).not.toHaveBeenCalled();
+        } finally {
+          process.off('unhandledRejection', unhandled);
+        }
+      });
+
       it('should keep the calls when a result cannot be copied', async () => {
         const mock = await createMock('app', 'getName');
         const circular: Record<string, unknown> = {};
