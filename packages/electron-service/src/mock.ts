@@ -1,15 +1,9 @@
 import { fn as vitestFn } from '@wdio/native-spy';
-import { createIpcInterceptor, parseCallData } from '@wdio/native-spy/interceptor';
-import type {
-  AbstractFn,
-  ElectronApiFn,
-  ElectronFunctionMock,
-  ElectronInterface,
-  ElectronType,
-  ExecuteOpts,
-} from '@wdio/native-types';
+import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
+import type { AbstractFn, ElectronApiFn, ElectronFunctionMock, ElectronType, ExecuteOpts } from '@wdio/native-types';
 import { createLogger, runThenSync } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
+import { applyAppCalls, updateNativeMock } from './nativeMockSync.js';
 
 const log = createLogger('electron-service', 'mock');
 const browserInterceptor = createIpcInterceptor('electron');
@@ -22,6 +16,8 @@ export async function createMock(
   const outerMock = vitestFn();
 
   outerMock.mockName(`electron.${apiName}.${funcName}`);
+  // Bound before buildMockMethods replaces it with one that runs in the app.
+  const outerWithImplementation = outerMock.withImplementation.bind(outerMock);
 
   const mock = outerMock as unknown as ElectronFunctionMock;
   mock.__isElectronMock = true;
@@ -107,52 +103,19 @@ export async function createMock(
     { internal: true },
   );
 
-  // Local diff-and-apply used by both the batched scheduler and mock.update().
-  // No I/O — safe to call synchronously with already-fetched call data.
-  const applyCalls = (data: MockApplyData) => {
-    const calls = data.calls ?? [];
-    // Load-bearing for diagnosing mock-sync races: shows inner/outer call counts
-    // at the moment new calls are applied so empty-mock.calls assertions can be traced.
-    if (originalMock.calls.length < calls.length) {
-      log.debug(
-        `[${apiName}.${funcName}] applying ${calls.length - originalMock.calls.length} new calls (inner=${calls.length}, outer=${originalMock.calls.length})`,
-      );
-      calls.forEach((call: unknown[], index: number) => {
-        if (!originalMock.calls[index]) {
-          mock?.apply(mock, call);
-        }
-      });
-    }
-  };
+  const accessor = { kind: 'api', apiName, funcName } satisfies MockReadAccessor;
+  const applyCalls = (data: MockApplyData) => applyAppCalls(outerMock, outerWithImplementation, data);
 
-  mock.__accessor = { kind: 'api', apiName, funcName } satisfies MockReadAccessor;
+  mock.__accessor = accessor;
   mock.__applyCalls = applyCalls;
 
   mock.update = async () => {
-    const calls =
-      (await browserToUse.electron.execute<unknown[][], [string, string, ExecuteOpts]>(
-        (electron, apiName, funcName) => {
-          const api = electron[apiName as keyof typeof electron];
-          if (!api) {
-            return [];
-          }
-          const mockObj = api[funcName as keyof ElectronType[ElectronInterface]] as ElectronFunctionMock;
-          // JSON has no undefined, so mark it for parseCallData to restore.
-          const replacer = (_k: string, v: unknown) => (v === undefined ? { __wdioUndefined: true } : v);
-          return mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock?.calls, replacer)) : [];
-        },
-        apiName,
-        funcName,
-        { internal: true },
-      )) ?? [];
-
-    applyCalls({ calls: parseCallData({ calls }).calls });
-
+    await updateNativeMock(browserToUse, accessor, applyCalls);
     return mock;
   };
 
   await buildMockMethods(mock, {
-    accessor: { kind: 'api', apiName, funcName },
+    accessor,
     outerMock,
     outerMockClear: outerMock.mockClear.bind(outerMock),
     outerMockReset: outerMock.mockReset.bind(outerMock),
