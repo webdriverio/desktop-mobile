@@ -14,10 +14,9 @@
 //
 // No per-call windowLabel option yet (#722): scripts run in the current window.
 
+import { runOnEachInstance } from '@wdio/native-core';
 import type { DioxusAPIs } from '@wdio/native-types';
 import { isMultiremote } from '@wdio/native-utils';
-
-import { runOnEachInstance } from '../multiremote.js';
 
 // Sessions on the embedded driver, where function-form execute() results come back in the envelope.
 const embeddedBrowsers = new WeakSet<WebdriverIO.Browser>();

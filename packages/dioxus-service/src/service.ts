@@ -1,4 +1,4 @@
-import { forEachInstance, requireInstance } from '@wdio/native-core';
+import { forEachInstance, requireInstance, runOnEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusMock, DioxusServiceAPI } from '@wdio/native-types';
 import { createLogger, errorMessage, isMultiremote } from '@wdio/native-utils';
@@ -15,7 +15,6 @@ import { execute, markAsEmbedded } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore, { type MockOwner } from './mockStore.js';
-import { runOnEachInstance } from './multiremote.js';
 import { mergeOptions } from './serviceConfig.js';
 import type { DioxusCapabilities, DioxusServiceOptions } from './types.js';
 import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
