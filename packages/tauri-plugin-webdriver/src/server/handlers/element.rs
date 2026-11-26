@@ -14,15 +14,16 @@ use crate::webdriver::element::{numbered_js_ref_prefix, ELEMENT_KEY};
 use crate::webdriver::locator::LocatorStrategy;
 use crate::webdriver::SessionManager;
 
-/// Returns a prefix unique to one Find Elements request, and where its script keeps the matches.
-/// The script keeps them under their references' own names, so a concurrent request can't swap them.
+/// Returns a new element-ID prefix for one Find Elements request, and the prefix its script
+/// stores the matches under.
 pub(crate) fn new_found_elements_prefix() -> (String, String) {
   let ref_prefix = Uuid::new_v4().to_string();
   let js_ref_prefix = numbered_js_ref_prefix(&ref_prefix);
   (ref_prefix, js_ref_prefix)
 }
 
-/// Stores the `count` matches a Find Elements script kept for `ref_prefix` and returns their references.
+/// Registers the `count` matches a Find Elements script stored for `ref_prefix` and returns their
+/// references.
 pub(crate) async fn store_found_elements(
   sessions: &RwLock<SessionManager>,
   session_id: &str,

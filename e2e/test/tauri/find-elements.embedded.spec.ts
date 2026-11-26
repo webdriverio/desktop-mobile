@@ -8,8 +8,6 @@ async function idsOf(elements: Iterable<WebdriverIO.Element>) {
   return Promise.all(Array.from(elements, (element) => element.getAttribute('id')));
 }
 
-// WebdriverIO's strict $() resolves each lookup with Find Elements, so lookups awaited together overlap in the driver.
-// Without strict $(), as on WebdriverIO 9, $() sends Find Element, so the first test doesn't reach the race.
 describe('Tauri Find Elements - concurrent requests (embedded)', () => {
   before(async () => {
     await browser.execute((count) => {
@@ -32,6 +30,8 @@ describe('Tauri Find Elements - concurrent requests (embedded)', () => {
     });
   });
 
+  // Strict $(), on by default in WebdriverIO 10, resolves each $() with Find Elements. Without it, as on
+  // WebdriverIO 9, $() sends Find Element and this test doesn't reach the race.
   it('should give each of two lazy $() lookups awaited together its own element', async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const first = $('#concurrent-list .item-0');

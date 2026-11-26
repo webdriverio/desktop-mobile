@@ -35,8 +35,8 @@ impl ElementStore {
     self.insert(Uuid::new_v4().to_string())
   }
 
-  /// Stores the `count` nodes a script kept under [`numbered_js_ref_prefix`] and their index,
-  /// with IDs `<ref_prefix>-0`, `<ref_prefix>-1`, and so on.
+  /// Registers the `count` nodes a script stored under [`numbered_js_ref_prefix`], as
+  /// `<ref_prefix>-0`, `<ref_prefix>-1`, and so on.
   pub fn store_numbered(&mut self, ref_prefix: &str, count: usize) -> Vec<ElementRef> {
     (0..count).map(|i| self.insert(format!("{ref_prefix}-{i}"))).collect()
   }
@@ -79,8 +79,8 @@ impl ElementStore {
   }
 }
 
-/// A script keeps node `i` of a numbered set under this prefix followed by `i`, which is the
-/// `js_ref` that [`ElementStore::store_numbered`] gives it.
+/// A script stores node `i` under this prefix plus `i`, the `js_ref` of element ID
+/// `<ref_prefix>-<i>`.
 pub(crate) fn numbered_js_ref_prefix(ref_prefix: &str) -> String {
   format!("{ELEMENT_VAR_PREFIX}{}", ref_prefix.replace('-', ""))
 }
