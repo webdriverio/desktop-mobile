@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,18 +21,44 @@ function fetchLatestVersion(): string {
   return output.trim();
 }
 
-function updateWorkflowFile(path: string, version: string) {
-  const content = readFileSync(path, 'utf8');
-  const updated = content.replace(/goosewobbler\/releasekit@v[\d.]+/g, `goosewobbler/releasekit@v${version}`);
+const RELEASEKIT_REF = /goosewobbler\/releasekit@[0-9a-f]{40} # v[\d.]+/g;
 
-  if (content === updated) {
-    console.log(`  - ${path.replace(`${ROOT}/`, '')}: no occurrences found`);
+function resolveTagCommit(version: string): string {
+  const tag = `refs/tags/v${version}`;
+  // An annotated tag's own SHA isn't a commit; `^{}` names the commit it points to.
+  const output = execFileSync('git', ['ls-remote', 'https://github.com/goosewobbler/releasekit', tag, `${tag}^{}`], {
+    encoding: 'utf8',
+  });
+  const refs = new Map(
+    output
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split('\t').reverse() as [string, string]),
+  );
+  const sha = refs.get(`${tag}^{}`) ?? refs.get(tag);
+  if (!sha) {
+    throw new Error(`goosewobbler/releasekit has no tag v${version}`);
+  }
+  return sha;
+}
+
+function updateWorkflowFile(path: string, version: string, sha: string) {
+  const content = readFileSync(path, 'utf8');
+  const count = (content.match(RELEASEKIT_REF) ?? []).length;
+  const name = path.replace(`${ROOT}/`, '');
+  if (count === 0) {
+    console.log(`  - ${name}: no occurrences found`);
     return;
   }
 
+  const updated = content.replace(RELEASEKIT_REF, `goosewobbler/releasekit@${sha} # v${version}`);
+  if (updated === content) {
+    console.log(`  - ${name}: already at v${version}`);
+    return;
+  }
   writeFileSync(path, updated);
-  const count = (updated.match(/goosewobbler\/releasekit@v[\d.]+/g) ?? []).length;
-  console.log(`  ✓ ${path.replace(`${ROOT}/`, '')}: ${count} occurrence(s) → v${version}`);
+  console.log(`  ✓ ${name}: ${count} occurrence(s) → v${version}`);
 }
 
 function runCommand(command: string, cwd: string) {
@@ -44,10 +70,11 @@ function main() {
   const version = fetchLatestVersion();
   console.log(`   Latest: v${version}\n`);
 
-  console.log(`🔧 Updating releasekit to v${version}\n`);
+  const sha = resolveTagCommit(version);
+  console.log(`🔧 Updating releasekit to v${version} (${sha})\n`);
 
   for (const file of WORKFLOW_FILES) {
-    updateWorkflowFile(file, version);
+    updateWorkflowFile(file, version, sha);
   }
 
   // `pnpm install` doesn't prune minimumReleaseAgeExclude; `pnpm add` does.

@@ -24,14 +24,14 @@ jobs:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
         shell: bash
         run: rustup update stable && rustup default stable
 
       - name: Cache Cargo registry + target dirs
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -58,9 +58,9 @@ jobs:
 
       # Build the guest-js bundle so the bridge crate's build.rs can embed it.
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: ".nvmrc"
           # The runner's cached Node can predate the packages' engines floor.

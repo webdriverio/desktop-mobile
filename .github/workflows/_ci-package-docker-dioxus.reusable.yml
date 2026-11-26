@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
@@ -48,12 +48,12 @@ jobs:
           ls -lh dist/tarballs/
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # Pinned by its own tag, as in the package-app build. The containers can't run
       # actions, so test.sh mounts this binary into them.
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.25.3
+        uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # v1.25.3
         with:
           version: ${{ github.action_ref }}
 
@@ -75,7 +75,7 @@ jobs:
       - name: Upload test results
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-results-dioxus-${{ inputs.distro }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: fixtures/package-tests/**/logs-*/

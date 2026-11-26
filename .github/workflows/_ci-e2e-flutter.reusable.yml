@@ -58,7 +58,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
@@ -106,7 +106,7 @@ jobs:
 
       # Flutter 3.35 targets JDK 17 (Gradle 8.x) for the Android build.
       - name: ☕ Setup JDK 17
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: "zulu"
           java-version: "17"
@@ -114,11 +114,12 @@ jobs:
       # Third-party action with secret access (secrets: inherit) → pinned to a full commit SHA,
       # not a floating tag (matches the android-emulator-runner pin). Bump deliberately.
       - name: 🐦 Setup Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        uses: flutter-actions/setup-flutter@0e3ac53a5126c46be01612423cf26b5d59018adc # v5.0
         with:
-          flutter-version: ${{ inputs.flutter-version }}
+          version: ${{ inputs.flutter-version }}
           channel: stable
           cache: true
+          cache-sdk: true
 
       # Scaffold the Android platform project over the source-only fixture, then restore our
       # lib/main.dart + pubspec.yaml (flutter create can overwrite them) and build a debug APK.
@@ -167,7 +168,7 @@ jobs:
       - name: 📦 Upload Test Logs
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-logs-flutter-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: |
