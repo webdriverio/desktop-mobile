@@ -34,7 +34,10 @@ fn refusal(headers: &HeaderMap, port: u16) -> Option<String> {
   };
   let allowed = host.to_str().is_ok_and(|host| {
     let host = host.to_ascii_lowercase();
-    ["127.0.0.1", "localhost", "[::1]"].iter().any(|name| host == format!("{name}:{port}"))
+    // Clients leave out HTTP's default port.
+    ["127.0.0.1", "localhost", "[::1]"]
+      .iter()
+      .any(|name| host == format!("{name}:{port}") || (port == 80 && host == *name))
   });
   if allowed {
     None
@@ -53,7 +56,11 @@ mod tests {
   const PORT: u16 = 4445;
 
   fn send(headers: &[(&str, &str)]) -> Response {
-    let router = layer(Router::new().route("/status", get(|| async { "ok" })), PORT);
+    send_to(PORT, headers)
+  }
+
+  fn send_to(port: u16, headers: &[(&str, &str)]) -> Response {
+    let router = layer(Router::new().route("/status", get(|| async { "ok" })), port);
     let mut request = Request::builder().uri("/status");
     for (name, value) in headers {
       request = request.header(*name, *value);
@@ -67,6 +74,13 @@ mod tests {
   fn accepts_loopback_hosts_on_its_port() {
     for host in ["127.0.0.1:4445", "localhost:4445", "LocalHost:4445", "[::1]:4445"] {
       assert_eq!(send(&[("host", host)]).status(), StatusCode::OK, "{host}");
+    }
+  }
+
+  #[test]
+  fn accepts_loopback_hosts_without_a_port_on_port_80() {
+    for host in ["127.0.0.1", "localhost", "[::1]", "127.0.0.1:80"] {
+      assert_eq!(send_to(80, &[("host", host)]).status(), StatusCode::OK, "{host}");
     }
   }
 
