@@ -19,8 +19,8 @@ pub use error::{Error, Result};
 pub const PORT_ENV_VAR: &str = "TAURI_WEBDRIVER_PORT";
 
 /// Initializes the plugin. It starts the `WebDriver` server only when `TAURI_WEBDRIVER_PORT` is
-/// set to a valid port, as `@wdio/tauri-service` does when it launches the app, so a debug build run
-/// outside the tests opens no port.
+/// set to a valid port, as `@wdio/tauri-service` does when it launches the app, so a debug build
+/// run outside the tests opens no port.
 #[must_use]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
   match std::env::var(PORT_ENV_VAR) {
