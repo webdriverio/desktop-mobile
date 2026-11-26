@@ -16,13 +16,21 @@ type CallRecord = {
   __resultsError?: string;
 };
 
+// Settles a result's promise that was pending when read, once a later read finds the app's settled.
+const pendingResults = new WeakMap<Promise<unknown>, (settled: unknown) => void>();
+
 // Rebuilds the promise the app returned, so a result reads as it would from a mock in the test process.
 function restorePromise(result: RawResult, settled: Settled | undefined): RawResult {
   if (!settled) {
     return result;
   }
   if (settled === 'pending') {
-    return { type: result.type, value: new Promise(() => {}) };
+    let settle: (value: unknown) => void = () => {};
+    const promise = new Promise((resolve) => {
+      settle = resolve;
+    });
+    pendingResults.set(promise, settle);
+    return { type: result.type, value: promise };
   }
   if (settled === 'fulfilled') {
     return { type: result.type, value: Promise.resolve(result.value) };
@@ -135,7 +143,17 @@ export function applyAppCalls(
 ): void {
   const calls = data.calls ?? [];
   const results = data.results ?? [];
+  const outerResults = outerMock.mock.results as Array<{ type: string; value: unknown }>;
   const existingCount = outerMock.mock.calls.length;
+  for (let i = 0; i < Math.min(existingCount, results.length); i++) {
+    const settle = pendingResults.get(outerResults[i]?.value as Promise<unknown>);
+    const latest = results[i].value;
+    if (settle && !pendingResults.has(latest as Promise<unknown>)) {
+      // Resolving with the app's settled promise takes on its outcome.
+      settle(latest);
+      pendingResults.delete(outerResults[i].value as Promise<unknown>);
+    }
+  }
   if (existingCount >= calls.length) {
     return;
   }

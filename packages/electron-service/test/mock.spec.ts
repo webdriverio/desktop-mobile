@@ -219,6 +219,42 @@ describe('Mock API', () => {
         expect(settled).toBe('pending');
       });
 
+      it('should settle a pending result once a later sync finds it settled in the app', async () => {
+        const mock = await createMock('app', 'getName');
+        let resolveInApp: (value: string) => void = () => {};
+        const results = [{ type: 'return', value: new Promise((resolve) => (resolveInApp = resolve)) }];
+        mockExecute.mockImplementation(async (fn, ...args) =>
+          JSON.parse(JSON.stringify(await fn({ app: { getName: { mock: { calls: [[]], results } } } }, ...args))),
+        );
+        await mock.update();
+        const [pending] = (mock as unknown as Mock).mock.results;
+
+        resolveInApp('mocked');
+        await mock.update();
+
+        const [result] = (mock as unknown as Mock).mock.results;
+        expect(result.value).toBe(pending.value);
+        await expect(result.value).resolves.toBe('mocked');
+      });
+
+      it('should reject a pending result once a later sync finds it rejected in the app', async () => {
+        const mock = await createMock('app', 'getName');
+        let rejectInApp: (error: Error) => void = () => {};
+        const inApp = new Promise((_resolve, reject) => (rejectInApp = reject));
+        inApp.catch(() => {});
+        const results = [{ type: 'return', value: inApp }];
+        mockExecute.mockImplementation(async (fn, ...args) =>
+          JSON.parse(JSON.stringify(await fn({ app: { getName: { mock: { calls: [[]], results } } } }, ...args))),
+        );
+        await mock.update();
+
+        rejectInApp(new Error('denied'));
+        await mock.update();
+
+        const [result] = (mock as unknown as Mock).mock.results;
+        await expect(result.value).rejects.toThrow('denied');
+      });
+
       it('should keep the calls when a result cannot be copied', async () => {
         const mock = await createMock('app', 'getName');
         const circular: Record<string, unknown> = {};
