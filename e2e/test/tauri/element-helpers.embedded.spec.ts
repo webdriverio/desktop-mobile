@@ -18,7 +18,9 @@ describe('element helpers (embedded)', () => {
   });
 
   it('should install the helpers in a reloaded page before any element command', async () => {
-    await browser.execute('window.__beforeReload = true; setTimeout(function () { location.reload(); });');
+    await browser.execute('window.__beforeReload = true');
+    // A reload scheduled from execute() can beat the driver's read of the script's result.
+    await browser.refresh();
     await browser.waitUntil(
       async () =>
         (await browser.execute('return !window.__beforeReload && document.readyState === "complete"')) === true,
