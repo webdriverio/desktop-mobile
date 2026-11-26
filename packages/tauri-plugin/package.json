@@ -45,7 +45,7 @@
     "@tauri-apps/api": "^2.10.0"
   },
   "devDependencies": {
-    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/api": "2.12.5",
     "@vitest/coverage-v8": "5.1.0",
     "esbuild": "^0.28.2",
     "jsdom": "^31.0.0",
