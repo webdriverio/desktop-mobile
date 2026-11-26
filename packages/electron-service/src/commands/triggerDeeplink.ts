@@ -243,7 +243,8 @@ export async function triggerDeeplink(this: ServiceContext, url: string): Promis
 
   // Auto-detect user data directory if not already configured
   // Critical for Windows/Linux: ensures second instance matches the test instance via single-instance lock
-  // Only an instance gets here: the multiremote root's triggerDeeplink calls each instance's
+  // Only an instance gets here, as the root's triggerDeeplink calls each instance's.
+  // The check narrows the type for execute.
   if (!userDataDir && this.browser && !isMultiremote(this.browser)) {
     try {
       log.debug('Fetching user data directory from running app...');
