@@ -315,7 +315,7 @@ jobs:
             electron)
               echo "Running Electron package tests (apps built in isolated environments)"
               echo "Module type: ${{ inputs.module-type }}"
-              pnpm run test:package:electron -- --module-type=${{ inputs.module-type }} $SKIP_BUILD ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
+              pnpm run test:package:electron -- --module-type=${{ inputs.module-type }} ${SKIP_BUILD:+"$SKIP_BUILD"} ${WDIO_CATALOG:+"--wdio-catalog=$WDIO_CATALOG"}
               ;;
             dioxus)
               echo "Running Dioxus package tests (using pre-built binaries from separate build job)"
