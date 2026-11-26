@@ -1,4 +1,4 @@
-import { forEachInstance, requireInstance } from '@wdio/native-core';
+import { forEachInstance, instanceFailuresError, requireInstance, settleOnEach } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
 import {
@@ -21,7 +21,6 @@ import {
 } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { toElementReferences } from './elementReferences.js';
-import { instanceFailuresError, settleOnEach } from './instanceFailures.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
 import { mergeServiceOptions } from './serviceConfig.js';
