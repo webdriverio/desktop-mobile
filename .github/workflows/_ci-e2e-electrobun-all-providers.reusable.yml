@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
@@ -102,7 +102,7 @@ jobs:
       # Symlink-preserving tarball (see the build workflow) — NOT the shared
       # zip/dist-target download-archive, which can't round-trip the CEF .app.
       - name: 📦 Download Electrobun E2E App Bundle
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: electrobun-e2e-bundle-${{ runner.os }}-${{ runner.arch }}
           path: ${{ runner.temp }}
@@ -139,7 +139,7 @@ jobs:
 
       - name: 🪄 Generate Test Command
         id: gen-test
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           TEST_TYPE: ${{ inputs.test-type }}
         with:
@@ -247,7 +247,7 @@ jobs:
       - name: 📦 Upload Test Logs
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-electrobun-logs-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: e2e/logs/**/*.log

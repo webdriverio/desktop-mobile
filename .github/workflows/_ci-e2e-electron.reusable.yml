@@ -62,7 +62,7 @@ jobs:
     steps:
       # Standard checkout with SSH key for private repositories
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
@@ -134,7 +134,7 @@ jobs:
       # This converts the scenario input into Turbo filter syntax
       - name: 🪄 Generate Build Filter for Test Apps
         id: gen-build
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           result-encoding: string
           script: |
@@ -242,7 +242,7 @@ jobs:
       # This handles both single and multiple scenarios
       - name: 🪄 Generate Test Execution Plan
         id: gen-test
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           result-encoding: string
           script: |
@@ -282,7 +282,7 @@ jobs:
       - name: 📦 Upload Test Logs
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-logs-${{ inputs.os }}${{ contains(inputs.build-command, 'mac-universal') && '-u' || '' }}${{ inputs.variant && format('-{0}', inputs.variant) || '' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.scenario }}
           path: e2e/logs/**/*.log
@@ -292,7 +292,7 @@ jobs:
       # Provide an interactive debugging session on failure
       # This allows manual investigation of the environment
       - name: 🐛 Debug Build on Failure
-        uses: goosewobbler/vscode-server-action@v1.5.0
+        uses: goosewobbler/vscode-server-action@a6b02d8c34afd32b61289fbc410fb40b02bfae2f # v1.5.0
         if: failure()
         with:
           timeout: "300000"

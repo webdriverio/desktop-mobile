@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ssh-key: ${{ secrets.ssh_key }}
@@ -41,7 +41,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update standing release PR
-        uses: goosewobbler/releasekit@v0.47.1
+        uses: goosewobbler/releasekit@7f319ca8ba0148ccfd5a03777f815e362d468e1b # v0.47.1
         with:
           mode: standing-pr-update
           node-version: "24"

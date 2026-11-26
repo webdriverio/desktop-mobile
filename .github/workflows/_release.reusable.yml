@@ -68,14 +68,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.target_branch }}
           fetch-depth: 0
           ssh-key: ${{ secrets.ssh_key }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           # The runner's cached Node can predate the packages' engines floor.
@@ -83,7 +83,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -99,7 +99,7 @@ jobs:
         # setup-dart also performs the OIDC token exchange for `dart pub publish` (this job grants
         # id-token: write), which is how automated pub.dev publishing authenticates.
         if: ${{ contains(inputs.scope, 'flutter') || inputs.scope == 'all' }}
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
 
       - name: Install GTK development libraries
         if: ${{ contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus') || inputs.scope == 'all' }}
@@ -245,7 +245,7 @@ jobs:
       - name: Run ReleaseKit
         id: releasekit
         if: ${{ inputs.standing_pr_number == '' }}
-        uses: goosewobbler/releasekit@v0.47.1
+        uses: goosewobbler/releasekit@7f319ca8ba0148ccfd5a03777f815e362d468e1b # v0.47.1
         with:
           mode: release
           node-version: "24"
@@ -280,7 +280,7 @@ jobs:
       - name: Run ReleaseKit (standing PR publish)
         id: releasekit-standing
         if: ${{ inputs.standing_pr_number != '' }}
-        uses: goosewobbler/releasekit@v0.47.1
+        uses: goosewobbler/releasekit@7f319ca8ba0148ccfd5a03777f815e362d468e1b # v0.47.1
         with:
           mode: standing-pr-publish
           node-version: "24"

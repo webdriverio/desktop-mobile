@@ -60,7 +60,7 @@ runs:
     - name: 🗄️ Restore Cache
       id: cache-restore
       if: inputs.use_cache != 'false-only'
-      uses: actions/cache/restore@v5
+      uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
       env:
         ACTIONS_CACHE_SERVICE_V2: "true"
       with:
