@@ -653,7 +653,7 @@ Each mock object returned by [`mock()`](#mock) or [`mockAll()`](#mockall) has th
 
 ### `mockImplementation()`
 
-Accepts a function that will be used as the implementation of the mock. The function is serialized and runs in the app's main process only, so it can't use variables from your test file, and an error it throws is thrown in the app, where the caller can catch it.
+Accepts a function that will be used as the implementation of the mock. It's serialized and runs only in the app's main process, so it can't use variables from your test file. An error it throws is thrown in the app, where the caller can catch it.
 
 **Signature:**
 
@@ -1267,7 +1267,7 @@ Available types:
 - `'return'` - the mock returned without throwing
 - `'throw'` - the mock threw a value
 
-The `value` property contains the returned value or thrown error. If the mock returned a promise, `value` is a promise that settles as the app's did. One still pending when the mock synced settles at a later sync, so awaiting it waits until the mock syncs again.
+The `value` property contains the returned value or thrown error. If the mock returned a promise, `value` is a promise with the same outcome. If the app's promise hadn't settled when the mock last synced, `value` settles at the next sync, so awaiting it waits for one.
 
 **Example:**
 

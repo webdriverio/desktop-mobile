@@ -16,7 +16,7 @@ export async function createMock(
   const outerMock = vitestFn();
 
   outerMock.mockName(`electron.${apiName}.${funcName}`);
-  // buildMockMethods replaces withImplementation with one that runs in the app.
+  // Bound before buildMockMethods replaces it with one that runs in the app.
   const outerWithImplementation = outerMock.withImplementation.bind(outerMock);
 
   const mock = outerMock as unknown as ElectronFunctionMock;

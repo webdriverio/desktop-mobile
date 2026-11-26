@@ -16,7 +16,7 @@ type CallRecord = {
   __resultsError?: string;
 };
 
-// Settles a result's promise that was pending when read, once a later read finds the app's promise settled.
+// The settle function of each placeholder for a result still pending in the app, for a later read to call.
 const pendingResults = new WeakMap<Promise<unknown>, (settled: unknown) => void>();
 
 // Rebuilds the promise the app returned, so a result reads as it would from a mock in the test process.
@@ -29,7 +29,7 @@ function restorePromise(result: RawResult, settled: Settled | undefined): RawRes
     const promise = new Promise((resolve) => {
       settle = resolve;
     });
-    // It may later take on a rejection the app caught; a test that never reads it mustn't fail for that.
+    // A later read may reject it with an error the app caught, which mustn't fail a test that never reads it.
     promise.catch(() => {});
     pendingResults.set(promise, settle);
     return { type: result.type, value: promise };
@@ -43,8 +43,8 @@ function restorePromise(result: RawResult, settled: Settled | undefined): RawRes
 }
 
 /**
- * Reads the calls and results of each mock's inner mock in the app, in one round trip, keyed by the
- * id given with its accessor.
+ * Reads each inner mock's calls and results from the app in one round trip, keyed by the id paired
+ * with its accessor.
  */
 export async function readNativeMocks(
   browser: WebdriverIO.Browser,
@@ -83,13 +83,13 @@ export async function readNativeMocks(
               results: [],
               settled: [],
             };
-            // A result that can't be copied loses only itself: the calls stay, so assertions on them still hold.
+            // Copy each result on its own, so one that can't be copied doesn't take the calls with it.
             for (const result of target?.mock?.results ?? []) {
               try {
                 let value = result.value;
                 let settled: Settled | undefined;
                 if (typeof (value as PromiseLike<unknown> | undefined)?.then === 'function') {
-                  // A promise that has settled wins this race; one that hasn't stays pending.
+                  // A settled promise wins the race against `pending`, which tells the two apart without waiting.
                   try {
                     const awaited = await Promise.race([value, pending]);
                     settled = awaited === pending ? 'pending' : 'fulfilled';
@@ -151,7 +151,7 @@ export function applyAppCalls(
     const settle = pendingResults.get(outerResults[i]?.value as Promise<unknown>);
     const latest = results[i].value;
     if (settle && !pendingResults.has(latest as Promise<unknown>)) {
-      // Resolving with the app's settled promise takes on its outcome.
+      // Resolving with a promise adopts its outcome, so this also rejects.
       settle(latest);
       pendingResults.delete(outerResults[i].value as Promise<unknown>);
     }

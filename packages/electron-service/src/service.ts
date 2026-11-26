@@ -189,7 +189,7 @@ async function tryUpdate(label: string, run: () => Promise<void>): Promise<void>
 
 /**
  * Reads every registered native mock's record in one browser.electron.execute() round trip, then
- * each mock applies its own record locally via __applyCalls.
+ * each mock applies its own via __applyCalls.
  */
 async function batchUpdateNativeMocks(
   browser: WebdriverIO.Browser,

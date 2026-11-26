@@ -18,7 +18,7 @@ async function createPrototypeMock(
 ): Promise<ElectronFunctionMock> {
   const outerMock = vitestFn();
   outerMock.mockName(`electron.${className}.${methodName}`);
-  // buildMockMethods replaces withImplementation with one that runs in the app.
+  // Bound before buildMockMethods replaces it with one that runs in the app.
   const outerWithImplementation = outerMock.withImplementation.bind(outerMock);
 
   const mock = outerMock as unknown as ElectronFunctionMock;
@@ -149,7 +149,7 @@ export async function createClassMock(
   constructorMock.mockName(`electron.${className}.__constructor`);
   constructorMock.__isElectronMock = true;
   const constructorOuterMock = constructorMock as unknown as Mock;
-  // buildMockMethods replaces withImplementation with one that runs in the app.
+  // Bound before buildMockMethods replaces it with one that runs in the app.
   const outerWithImplementation = constructorOuterMock.withImplementation.bind(constructorOuterMock);
 
   await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
