@@ -1235,7 +1235,7 @@ describe('wdioClearElement', () => {
     expect(document.activeElement).toBe(document.body);
   });
 
-  // jsdom can't hold unparseable text in a number input; an empty one reads '' just the same.
+  // jsdom can't hold unparseable text in a number input; an empty one also reads ''.
   it("should empty a number input that reads '' and leave it focused, with no change, as chromedriver does", () => {
     render('<input id="num" type="number">');
     const setValue = vi.spyOn(HTMLInputElement.prototype, 'value', 'set');

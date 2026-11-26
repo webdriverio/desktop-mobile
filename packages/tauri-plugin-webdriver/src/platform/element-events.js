@@ -569,8 +569,8 @@ function wdioClearElement(el) {
   if (field ? el.readOnly || el.matches(':disabled') : !el.isContentEditable) {
     return 'not editable';
   }
-  // Unparseable text in a number input reads as '', so chromedriver clears any number input that
-  // reads '', and leaves it focused.
+  // Chromedriver clears every number input that reads '', as unparseable text does, and leaves
+  // it focused (see the final blur).
   const emptyNumber = el.tagName === 'INPUT' && el.type === 'number' && el.value === '';
   if (field && el.value === '' && !emptyNumber) {
     return 'empty';
