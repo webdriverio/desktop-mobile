@@ -16,7 +16,7 @@ type CallRecord = {
   __resultsError?: string;
 };
 
-// Settles a result's promise that was pending when read, once a later read finds the app's settled.
+// Settles a result's promise that was pending when read, once a later read finds the app's promise settled.
 const pendingResults = new WeakMap<Promise<unknown>, (settled: unknown) => void>();
 
 // Rebuilds the promise the app returned, so a result reads as it would from a mock in the test process.

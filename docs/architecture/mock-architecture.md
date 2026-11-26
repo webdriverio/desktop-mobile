@@ -27,7 +27,7 @@ Test Process (WDIO Worker)              App Process (Electron/Tauri)
 - **Outer mock** runs in test process, used for assertions
 - `update()` syncs call data from inner to outer via `JSON.parse(JSON.stringify(...))`
 - JSON serialization is required due to CDP/WebDriver process boundary
-- Sync is **one-directional**: inner call data → outer mock
+- Sync is **one-directional**: inner call data → outer mock. Each new call replays through the outer mock with a no-op implementation, so it joins the call order shared with other mocks, and its result is copied from the inner mock
 - `mockImplementation`/`mockReturnValue` methods push config from outer → inner
 
 ## Serialization Layer (`@wdio/native-spy/interceptor`)
@@ -46,7 +46,7 @@ Error values in `mockRejectedValue`/`mockRejectedValueOnce` are serialized with 
 
 Every mock method operates on **both** inner and outer:
 
-- `mockImplementation(fn)` — serializes function string to inner, sets on outer
+- `mockImplementation(fn)` — serializes function string to inner, sets on outer (the outer copy isn't run when syncing)
 - `mockReturnValue(value)` — sets on inner via execute, sets on outer
 - `mockClear()` — clears both inner and outer call history
 - `mockReset()` — resets both implementations and clears history

@@ -1267,7 +1267,7 @@ Available types:
 - `'return'` - the mock returned without throwing
 - `'throw'` - the mock threw a value
 
-The `value` property contains the returned value or thrown error. If the mock returned a promise, the value will be the resolved value, not the Promise itself, unless it was never resolved.
+The `value` property contains the returned value or thrown error. If the mock returned a promise, `value` is a promise that settles as the app's did. One still pending when the mock synced settles at a later sync, so awaiting it waits until the mock syncs again.
 
 **Example:**
 
