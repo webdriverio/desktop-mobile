@@ -440,7 +440,7 @@ describe('Electron Worker Service', () => {
         ...args: unknown[]
       ) =>
         JSON.parse(
-          JSON.stringify((script as (...a: unknown[]) => unknown)(electron, ...args)),
+          JSON.stringify(await (script as (...a: unknown[]) => unknown)(electron, ...args)),
         )) as unknown as typeof executeMock);
 
       const mockObj = {
@@ -461,6 +461,46 @@ describe('Electron Worker Service', () => {
 
       expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
       expect(mockObj.__applyCalls.mock.calls[0][0].calls).toStrictEqual([['x', undefined], [{ b: undefined }]]);
+    });
+
+    it("should keep a class constructor's thrown errors in the native batch", async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const executeMock = vi.mocked(await import('../src/commands/executeCdp.js')).execute;
+      executeMock.mockClear();
+      const electron = { Tray: { mock: { calls: [[]], results: [{ type: 'throw', value: new Error('no tray') }] } } };
+      // Run the main-process read against a fake electron. CDP returns the result as JSON.
+      executeMock.mockImplementationOnce((async (
+        _browser: unknown,
+        _bridge: unknown,
+        script: unknown,
+        ...args: unknown[]
+      ) =>
+        JSON.parse(
+          JSON.stringify(await (script as (...a: unknown[]) => unknown)(electron, ...args)),
+        )) as unknown as typeof executeMock);
+
+      const mockObj = {
+        __accessor: { kind: 'constructor', className: 'Tray' },
+        __applyCalls: vi.fn(),
+      };
+      vi.mocked(mockStore.getMocks).mockReturnValueOnce([
+        ['electron.Tray.__constructor', mockObj as unknown as ElectronFunctionMock],
+      ]);
+
+      const oc = browser.overwriteCommand as unknown as Mock;
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      await overrideFn.call({} as unknown as WebdriverIO.Element, vi.fn().mockResolvedValue('ok'));
+
+      const [result] = mockObj.__applyCalls.mock.calls[0][0].results;
+      expect(result.type).toBe('throw');
+      expect(result.value).toBeInstanceOf(Error);
+      expect(result.value.message).toBe('no tray');
     });
 
     it('should isolate per-reader failures in the browser-mode batch', async () => {
@@ -541,7 +581,7 @@ describe('Electron Worker Service', () => {
       expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
       expect(mockObj.__applyCalls).toHaveBeenCalledWith(expect.objectContaining({ calls: [], results: [] }));
       expect(loggers.flatMap((l) => l.warn.mock.calls)).toContainEqual([
-        'Native batch read failed for mock "electron.app.getName": boom: app undefined',
+        'Native read failed for mock "electron.app.getName": boom: app undefined',
       ]);
     });
 
