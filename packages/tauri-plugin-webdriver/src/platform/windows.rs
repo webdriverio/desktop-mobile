@@ -172,7 +172,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
             tracing::error!("Script call failed for script '{}...': {e:?}", script_preview);
             if let Ok(mut guard) = tx.lock() {
               if let Some(tx) = guard.take() {
-                let _ = tx.send(Err(format!("ExecuteScript failed: {e:?}")));
+                let _ = tx.send(Err(format!("Script call failed: {e:?}")));
               }
             }
           }
@@ -991,7 +991,7 @@ mod handlers {
           return Ok(());
         };
         let Some(msg_text) = take_string(|ptr| args_owned.WebMessageAsJson(ptr)) else {
-          return Ok(()); // Failed to get message
+          return Ok(());
         };
 
         // `WebMessageAsJson` returns the message as a JSON value.
@@ -1071,7 +1071,6 @@ mod handlers {
           return Ok(());
         }
 
-        // Get message
         let Some(message) = take_string(|ptr| args.Message(ptr)) else {
           tracing::error!("Failed to get script dialog message");
           return Ok(());

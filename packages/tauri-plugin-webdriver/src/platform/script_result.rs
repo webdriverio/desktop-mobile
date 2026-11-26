@@ -34,8 +34,8 @@ mod tests {
   fn exception_text_prefers_the_message() {
     let text = exception_text(
       Some("boom".to_string()),
-      || panic!("the name is read only without a message"),
-      || panic!("the JSON is read only without a message or name"),
+      || panic!("the name shouldn't be read when there's a message"),
+      || panic!("the JSON shouldn't be read when there's a message"),
     );
     assert_eq!(text, "boom");
   }
