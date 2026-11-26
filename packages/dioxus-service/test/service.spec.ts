@@ -4,6 +4,7 @@ import { triggerDeeplink } from '../src/commands/triggerDeeplink.js';
 import mockStore from '../src/mockStore.js';
 import DioxusWorkerService from '../src/service.js';
 import type { DioxusServiceOptions } from '../src/types.js';
+import { clearWindowState, getCurrentWindowLabel } from '../src/window.js';
 import { createFakeMultiremote } from './commands/multiremoteFakes.js';
 
 vi.mock('../src/commands/triggerDeeplink.js', () => ({ triggerDeeplink: vi.fn().mockResolvedValue(undefined) }));
@@ -61,6 +62,7 @@ type Installed = {
 describe('DioxusWorkerService', () => {
   afterEach(() => {
     mockStore.clear();
+    clearWindowState();
   });
 
   it('should install browser.dioxus on before()', async () => {
@@ -340,6 +342,7 @@ describe('DioxusWorkerService', () => {
 
       for (const instance of [fakes.browserA, fakes.browserB]) {
         expect(instance.getWindowHandles).toHaveBeenCalledOnce();
+        expect(getCurrentWindowLabel(instance)).toBe('window-1');
       }
     });
 
