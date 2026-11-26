@@ -1049,7 +1049,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
   }
 
   /// Find multiple elements within a shadow root
-  /// Returns count of elements found, stores as {prefix}0, {prefix}1, etc.
   async fn find_elements_from_shadow(
     &self,
     shadow_var: &str,

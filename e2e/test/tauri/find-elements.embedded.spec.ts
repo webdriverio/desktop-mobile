@@ -9,6 +9,7 @@ async function idsOf(elements: Iterable<WebdriverIO.Element>) {
 }
 
 // WebdriverIO's strict $() resolves each lookup with Find Elements, so lookups awaited together overlap in the driver.
+// Without strict $(), as on WebdriverIO 9, $() sends Find Element, so the first test doesn't reach the race.
 describe('Tauri Find Elements - concurrent requests (embedded)', () => {
   before(async () => {
     await browser.execute((count) => {

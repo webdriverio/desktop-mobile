@@ -22,8 +22,7 @@ pub(crate) fn new_found_elements_prefix() -> (String, String) {
   (ref_prefix, js_ref_prefix)
 }
 
-/// Stores the `count` matches a Find Elements script kept for `ref_prefix` and returns their
-/// references, which fails if the session has ended.
+/// Stores the `count` matches a Find Elements script kept for `ref_prefix` and returns their references.
 pub(crate) async fn store_found_elements(
   sessions: &RwLock<SessionManager>,
   session_id: &str,
