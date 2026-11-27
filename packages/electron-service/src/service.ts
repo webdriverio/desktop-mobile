@@ -1,5 +1,5 @@
 import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
-import { forEachInstance } from '@wdio/native-core';
+import { forEachInstance, runOnEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
@@ -869,6 +869,16 @@ async function triggerDeeplinkOnEveryInstance(instances: ElectronInstance[], url
   }
 }
 
+// emitEvent serializes this to run in the app's main process, so it can use only `electron` and its arguments.
+function sendToFocusedWindow(electron: typeof Electron.CrossProcessExports, ...inner: unknown[]): void {
+  const [channel, args] = inner as [string, unknown[]];
+  const win = electron.BrowserWindow.getFocusedWindow() ?? electron.BrowserWindow.getAllWindows()[0];
+  if (!win) {
+    throw new Error('emitEvent: no BrowserWindow available to receive event');
+  }
+  win.webContents.send(channel, ...args);
+}
+
 function getElectronAPI<Target extends ServiceApiTarget = 'instance'>(
   this: ServiceConfig,
   browser: WebdriverIO.Browser,
@@ -909,25 +919,15 @@ function getElectronAPI<Target extends ServiceApiTarget = 'instance'>(
     restoreAllMocks: getMethod((apiName?: string) => restoreAllMocks.call(mockContext, apiName)),
     triggerDeeplink: getMethod(deeplink, false), // doesn't require CDP
     emitEvent: getMethod(async (channel: string, ...args: unknown[]): Promise<void> => {
-      await execute.apply(this, [
-        browser,
-        cdpBridge as ElectronCdpBridge,
-        (electron, ...inner: unknown[]) => {
-          const [c, a] = inner as [string, unknown[]];
-          const win = electron.BrowserWindow.getFocusedWindow() ?? electron.BrowserWindow.getAllWindows()[0];
-          if (!win) {
-            throw new Error('emitEvent: no BrowserWindow available to receive event');
-          }
-          win.webContents.send(c, ...a);
-        },
-        channel,
-        args,
-      ]);
-      // webContents.send is fire-and-forget from main → renderer. Round-trip
-      // through the renderer with a no-op script so any ipcRenderer.on
-      // listener has fired (and any mocked IPC calls it makes have landed)
-      // before we sample mock state. Mirrors the browser-mode path, which
-      // dispatches listeners synchronously in-page.
+      if (isMultiremote(browser)) {
+        await runOnEachInstance(browser, `emitEvent('${channel}')`, (instance) =>
+          instance.electron.execute(sendToFocusedWindow, channel, args),
+        );
+      } else {
+        await execute.apply(this, [browser, cdpBridge as ElectronCdpBridge, sendToFocusedWindow, channel, args]);
+      }
+      // webContents.send doesn't wait for the renderer. A no-op script's round trip lets its ipcRenderer.on
+      // listeners, and any mocked IPC calls they make, run before the mocks sync.
       await browser.execute(() => undefined);
       await getMockUpdateScheduler(browser).schedule();
     }),
