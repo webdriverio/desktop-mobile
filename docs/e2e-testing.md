@@ -55,7 +55,7 @@ fixtures/e2e-apps/
    pnpm turbo build --filter electron-builder-e2e-app
    pnpm turbo build --filter electron-forge-e2e-app
    pnpm turbo build --filter tauri-e2e-app
-   pnpm turbo build --filter wdio-dioxus-e2e-app
+   pnpm --filter wdio-dioxus-e2e-app build
    ```
 
 2. **Build the services:**
