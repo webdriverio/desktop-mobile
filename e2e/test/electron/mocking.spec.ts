@@ -330,19 +330,31 @@ describe('Electron Mocking', () => {
       describe('mockImplementation', () => {
         it('should use the specified implementation for an existing mock', async () => {
           const mockGetName = await browser.electron.mock('app', 'getName');
-          let callsCount = 0;
-          await mockGetName.mockImplementation(() => {
-            // callsCount is not accessible in the electron context so we need to guard it
-            if (typeof callsCount !== 'undefined') {
-              callsCount++;
-            }
-
-            return 'mocked value';
-          });
+          await mockGetName.mockImplementation(() => 'mocked value');
           const result = await browser.electron.execute(async (electron) => await electron.app.getName());
 
-          expect(callsCount).toBe(1);
           expect(result).toBe('mocked value');
+          expect(mockGetName).toHaveBeenCalledTimes(1);
+          expect(mockGetName).toHaveReturnedWith('mocked value');
+        });
+
+        it('should run the implementation in the app only, so the app can catch what it throws', async () => {
+          const mockShowMessageBox = await browser.electron.mock('dialog', 'showMessageBox');
+          await mockShowMessageBox.mockImplementation(() => {
+            throw new Error('denied');
+          });
+
+          const result = await browser.electron.execute(async (electron) => {
+            try {
+              await electron.dialog.showMessageBox({ message: 'hi' });
+              return 'shown';
+            } catch (error) {
+              return (error as Error).message;
+            }
+          });
+
+          expect(result).toBe('denied');
+          expect(mockShowMessageBox).toHaveBeenCalledTimes(1);
         });
       });
 
@@ -376,6 +388,7 @@ describe('Electron Mocking', () => {
           const electronName = await browser.electron.execute((electron) => electron.app.getName());
 
           expect(electronName).toBe('This is a mock');
+          expect(mockGetName).toHaveReturnedWith('This is a mock');
         });
       });
 

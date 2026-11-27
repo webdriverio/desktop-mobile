@@ -428,7 +428,7 @@ Each instance's `browser.tauri.mock()` gets its own mock. `clearAllMocks()`, `re
 #### The root's `execute()` and `listWindows()` resolve with one result per instance
 
 - On the multiremote root, `browser.tauri.execute()` is typed as resolving with an array, one result per instance, in instance order, which is what it resolves with at runtime. It was typed as one result.
-- The root's `browser.tauri.listWindows()` lists every instance's windows and resolves with one list per instance, such as `[['main'], ['main', 'settings']]`. It used to list one app's windows.
+- The root's `browser.tauri.listWindows()` lists every instance's windows and resolves with one list per instance, such as `[['main'], ['main', 'settings']]`. It used to list one app's windows. If any instance fails, it rejects with an error naming each instance that failed.
 
 Code that read either result as one value must index or iterate it, or call the method on an instance: `browser.getInstance('app1').tauri.listWindows()`. An instance's methods keep their types. In TypeScript, `TauriServiceAPI` takes a `ServiceApiTarget` parameter, `'instance'` by default, so `TauriServiceAPI<'root'>` is the root's API.
 

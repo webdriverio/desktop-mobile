@@ -16,7 +16,7 @@ export type MockAccessor =
 
 // The keys from `electron` to the inner mock. A class constructor's inner mock is the class itself,
 // which a Proxy on `electron` serves in place of the real one.
-function innerMockPath(accessor: MockAccessor): string[] {
+export function innerMockPath(accessor: MockAccessor): string[] {
   switch (accessor.kind) {
     case 'api':
       return [accessor.apiName, accessor.funcName];
@@ -30,7 +30,7 @@ function innerMockPath(accessor: MockAccessor): string[] {
 /**
  * Shape of mock call data delivered to a mock's `__applyCalls()` by the
  * batched scheduler. Each mock variant uses what it needs and ignores the
- * rest (API mocks ignore results; browser-mode mocks consume invocationCallOrder).
+ * rest (only browser-mode mocks consume invocationCallOrder).
  */
 export interface MockApplyData {
   calls: unknown[][];

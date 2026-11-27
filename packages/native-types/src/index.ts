@@ -119,9 +119,11 @@ export type {
   MockLifecycleConfig,
   MockOverride,
   MockResult,
+  PerInstance,
   RequestedMultiremoteCapabilities,
   Result,
   SelectorsBase,
+  ServiceApiTarget,
   ServiceMockContext,
   StandaloneSessionOptions,
 } from './shared.js';
@@ -204,10 +206,10 @@ declare global {
         FlutterBrowserExtension {}
     interface Element extends ElementBase {}
     interface MultiRemoteBrowser
-      extends ElectronBrowserExtension,
-        TauriBrowserExtension,
-        DioxusBrowserExtension,
-        ElectrobunBrowserExtension,
+      extends ElectronBrowserExtension<'root'>,
+        TauriBrowserExtension<'root'>,
+        DioxusBrowserExtension<'root'>,
+        ElectrobunBrowserExtension<'root'>,
         ReactNativeBrowserExtension,
         FlutterBrowserExtension {}
     interface Capabilities {

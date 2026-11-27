@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
@@ -57,7 +57,7 @@ jobs:
       # Shared with the E2E job so the re-scaffold gets a cache hit and skips the npm
       # download entirely — the tarball content is identical for the same pinned version.
       - name: 💾 Restore npm download cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
           key: npm-rn-${{ inputs.rn-version }}-v1
@@ -81,7 +81,7 @@ jobs:
 
       - name: 💾 Restore CocoaPods cache
         id: pods-cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.RN_BUILD_DIR }}/ios/Pods
           key: rn-cocoapods-${{ inputs.rn-version }}-${{ inputs.new-arch && 'new' || 'old' }}-arch-v1
@@ -131,7 +131,7 @@ jobs:
           tar -czf "$GITHUB_WORKSPACE/rn-ios-app.tar.gz" -C "$(dirname "$APP_PATH")" ReactNativeE2EApp.app
 
       - name: 📦 Upload built .app
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           # Keyed by run_id only (NOT run_attempt): `gh run rerun --failed` re-runs the failed Run
           # job but NOT this Build job (it passed), so the artifact keeps its original name — a

@@ -296,6 +296,8 @@ const windows = await browser.tauri.listWindows();
 console.log(windows); // ['main', 'settings', 'dialog']
 ```
 
+**Multiremote:** On the root, `listWindows` resolves with one list per instance, in instance order, e.g. `[['main'], ['main', 'settings']]`. If any instance fails, it rejects with an error naming each instance that failed.
+
 **Browser Mode:** Not available. Throws for the same reason as `switchWindow()`.
 
 ---

@@ -440,7 +440,7 @@ describe('Electron Worker Service', () => {
         ...args: unknown[]
       ) =>
         JSON.parse(
-          JSON.stringify((script as (...a: unknown[]) => unknown)(electron, ...args)),
+          JSON.stringify(await (script as (...a: unknown[]) => unknown)(electron, ...args)),
         )) as unknown as typeof executeMock);
 
       const mockObj = {
@@ -478,7 +478,7 @@ describe('Electron Worker Service', () => {
         ...args: unknown[]
       ) =>
         JSON.parse(
-          JSON.stringify((script as (...a: unknown[]) => unknown)(electron, ...args)),
+          JSON.stringify(await (script as (...a: unknown[]) => unknown)(electron, ...args)),
         )) as unknown as typeof executeMock);
 
       const mockObj = {
@@ -581,7 +581,7 @@ describe('Electron Worker Service', () => {
       expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
       expect(mockObj.__applyCalls).toHaveBeenCalledWith(expect.objectContaining({ calls: [], results: [] }));
       expect(loggers.flatMap((l) => l.warn.mock.calls)).toContainEqual([
-        'Native batch read failed for mock "electron.app.getName": boom: app undefined',
+        'Native read failed for mock "electron.app.getName": boom: app undefined',
       ]);
     });
 

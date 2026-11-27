@@ -15,6 +15,15 @@ describe('Dioxus multiremote API', () => {
     expect(b).toBe('B');
   });
 
+  it("should list and switch each instance's windows when called on the root", async () => {
+    const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
+
+    const lists = await multi.dioxus.listWindows();
+    await multi.dioxus.switchWindow('main');
+
+    expect(lists).toEqual([expect.arrayContaining(['main']), expect.arrayContaining(['main'])]);
+  });
+
   describe('mocking', () => {
     const instance = (name: string) =>
       (multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser).getInstance(name);

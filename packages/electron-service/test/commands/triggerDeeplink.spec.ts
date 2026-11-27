@@ -18,7 +18,8 @@ vi.mock('node:child_process', () => ({
 }));
 
 // Mock logger
-vi.mock('@wdio/native-utils', () => ({
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
   createLogger: () => ({
     debug: vi.fn(),
     warn: vi.fn(),

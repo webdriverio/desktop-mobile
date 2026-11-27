@@ -68,7 +68,7 @@ jobs:
     timeout-minutes: 55
     steps:
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
@@ -88,7 +88,7 @@ jobs:
           exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
       - name: 📥 Download built .app
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           # Matches the build job's run_id-only name so a `--failed` rerun (which doesn't rebuild)
           # still finds the artifact from the original attempt.
@@ -108,7 +108,7 @@ jobs:
       # Keyed identically to the build job's npm cache so the first fetch is already warm —
       # the cli init downloads the same tarballs for the same pinned RN version.
       - name: 💾 Restore npm download cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
           key: npm-rn-${{ inputs.rn-version }}-v1
@@ -243,7 +243,7 @@ jobs:
       - name: 📦 Upload Test Logs
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-logs-react-native-ios-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: |

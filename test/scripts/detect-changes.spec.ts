@@ -524,7 +524,8 @@ describe('pnpm-lock.yaml', () => {
     const start = real.indexOf(marker);
     const next = real.indexOf('\n  packages/', start + marker.length);
     const block = real.slice(start, next);
-    const edited = block.replace('specifier: 2.12.4', 'specifier: 2.12.5');
+    const edited = block.replace(/('@tauri-apps\/api':\n\s+specifier: )\S+/, (_, prefix) => `${prefix}0.0.0-edited`);
+    expect(edited).not.toBe(block);
     const head = `${real.slice(0, start)}${edited}${real.slice(next)}`;
     const d = classifyLock(real, head);
     expect(d.runs.tauri).toBe(true);
