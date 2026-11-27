@@ -110,6 +110,8 @@ describe('hasSemicolonOutsideQuotes', () => {
     expect(hasSemicolonOutsideQuotes('x = {} / 2; return /x/')).toBe(true);
     expect(hasSemicolonOutsideQuotes('x = { a: {} / 2 }; return /x/')).toBe(true);
     expect(hasSemicolonOutsideQuotes('x = cond ? 1 : {} / 2; return /x/')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('x = true?.5:{} / 2; return /x/')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('a?.b / 2 // a; b')).toBe(false);
     expect(hasSemicolonOutsideQuotes('x = function() { return 1 } / 2; return /x/')).toBe(true);
     expect(hasSemicolonOutsideQuotes('café / 2; return /x/')).toBe(true);
     expect(hasSemicolonOutsideQuotes('if (ok) { run() } /a;b/.test(s)')).toBe(false);
@@ -286,6 +288,7 @@ describe('wrapStringScriptBody', () => {
     expect(evalBody('/[/*]/.test("*"); return 42')).toBe(42);
     expect(evalBody('let x = {} / 2; return /x/')).toEqual(/x/);
     expect(evalBody('x = {} / 2; return /x/', { x: 0 })).toEqual(/x/);
+    expect(evalBody('x = true?.5:{} / 2; return /x/', { x: 0 })).toEqual(/x/);
   });
 
   it('should not misclassify Unicode identifiers starting with a statement keyword', () => {

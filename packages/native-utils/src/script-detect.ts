@@ -418,7 +418,7 @@ function scanJs(
       if (s[i + 1] === '?') {
         i++;
         prevKind = 'exprOp';
-      } else if (s[i + 1] === '.') {
+      } else if (s[i + 1] === '.' && !/[0-9]/.test(s[i + 2] ?? '')) {
         i++;
         prevDot = true;
         prevKind = 'exprOp';
@@ -477,7 +477,7 @@ function isExpressionContinuation(s: string, index: number, sawNewline: boolean)
   if (c === ';') {
     return false;
   }
-  if (c === '.' || (c === '?' && s[index + 1] === '.')) {
+  if (c === '.' || (c === '?' && s[index + 1] === '.' && !/[0-9]/.test(s[index + 2] ?? ''))) {
     return true;
   }
   if (sawNewline) {
