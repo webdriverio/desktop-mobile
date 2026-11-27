@@ -112,6 +112,45 @@ describe('browser mode — MockUpdateScheduler', () => {
     // After all settle, click 3's batch ran exactly once.
     expect(fake.update).toHaveBeenCalledTimes(3);
   });
+
+  it('should batch multiple browser-mode mocks into one eval per click and skip unchanged', async () => {
+    const appMocks: Record<string, unknown> = {};
+    const appWindow: Record<string, unknown> = { __wdio_mocks__: appMocks };
+    const ctx = { window: appWindow, Promise };
+    const runEval = (scriptStr: string) =>
+      new Function('window', 'Promise', `return (${scriptStr.replace(/^return /, '')})`)(ctx.window, ctx.Promise);
+
+    new Function('window', 'Promise', createIpcInterceptor('tauri').buildBrowserIpcInjectionScript())(
+      ctx.window,
+      ctx.Promise,
+    );
+    browser.execute.mockImplementation(async (script: unknown) => {
+      if (typeof script === 'string') {
+        return runEval(script);
+      }
+      return undefined;
+    });
+    (browser as unknown as Record<string, boolean>).__wdioBrowserMode__ = true;
+
+    const mockA = await (browser.tauri as unknown as TauriServiceAPI).mock('cmd_a');
+    const mockB = await (browser.tauri as unknown as TauriServiceAPI).mock('cmd_b');
+
+    (appMocks.cmd_a as (...a: unknown[]) => unknown)('hello');
+    (appMocks.cmd_b as (...a: unknown[]) => unknown)('world');
+
+    browser.execute.mockClear();
+    await browser.triggerCommand('click');
+
+    expect(browser.execute).toHaveBeenCalledTimes(1);
+    expect(mockA.mock.calls).toEqual([['hello']]);
+    expect(mockB.mock.calls).toEqual([['world']]);
+
+    browser.execute.mockClear();
+    await browser.triggerCommand('click');
+    expect(browser.execute).toHaveBeenCalledTimes(1);
+    expect(mockA.mock.calls).toEqual([['hello']]);
+    expect(mockB.mock.calls).toEqual([['world']]);
+  });
 });
 
 describe('browser mode — scheduler error handling', () => {

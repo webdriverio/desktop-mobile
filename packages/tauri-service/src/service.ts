@@ -6,7 +6,7 @@ import {
   settleOnEach,
 } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
+import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
 import {
   createLogger,
   errorMessage,
@@ -28,6 +28,7 @@ import {
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { toElementReferences } from './elementReferences.js';
 import mockStore from './mockStore.js';
+import { getMocksInScope, getMockUpdateScheduler } from './mockUpdateScheduler.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
 import { mergeServiceOptions } from './serviceConfig.js';
 
@@ -697,106 +698,6 @@ export default class TauriWorkerService {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// One scheduler per browser session — keyed weakly so GC can claim finished sessions.
-const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
-
-/**
- * Coalesces mock-update round-trips so N concurrent DOM interactions don't each fire
- * one browser.execute() per registered mock. At most two batches run at any moment
- * (current + one queued); callers arriving while a batch runs share the queued slot,
- * so N interactions produce <= 2 batches instead of N. Each batch syncs inner (browser)
- * mock state to outer (test) mocks. Updates within a batch run one at a time on every
- * runner platform, because the app may be on Windows when the runner isn't. Each update is
- * retried once (after 50 ms) before failing hard — silent swallow of mock-update errors
- * leads to empty mock.calls assertions, which is harder to diagnose than an AggregateError.
- */
-class MockUpdateScheduler {
-  #browser: WebdriverIO.Browser;
-  #running: Promise<void> | null = null;
-  #queued: Promise<void> | null = null;
-
-  constructor(browser: WebdriverIO.Browser) {
-    this.#browser = browser;
-  }
-
-  schedule(): Promise<void> {
-    if (!this.#running) {
-      const p = this.#wrapRun(this.#runOnce());
-      this.#running = p;
-      return p;
-    }
-    if (!this.#queued) {
-      this.#queued = this.#running.catch(() => undefined).then(() => this.#runOnce());
-    }
-    return this.#queued;
-  }
-
-  // Atomically promotes the queued batch into the running slot once the current
-  // batch settles (resolved or rejected), preventing a third concurrent batch
-  // from racing between the two.
-  #wrapRun(run: Promise<void>): Promise<void> {
-    let wrapped!: Promise<void>;
-    wrapped = run.finally(() => {
-      if (this.#running !== wrapped) {
-        return;
-      }
-      if (this.#queued) {
-        const promoted = this.#queued;
-        this.#queued = null;
-        // The queued batch's callers hold `promoted` and observe its rejection there.
-        // This wrapper is held only by #running and is never awaited externally, so
-        // swallow its rejection — otherwise a failing queued batch surfaces as an
-        // unhandled rejection (a worker crash under Node's default throw policy).
-        const nextRunning = this.#wrapRun(promoted);
-        nextRunning.catch(() => undefined);
-        this.#running = nextRunning;
-      } else {
-        this.#running = null;
-      }
-    });
-    return wrapped;
-  }
-
-  async #runOnce(): Promise<void> {
-    const mocks = getMocksInScope(this.#browser);
-    if (mocks.length === 0) {
-      return;
-    }
-
-    const tryUpdate = async (
-      mockId: string,
-      mockInstance: ReturnType<typeof mockStore.getMocks>[0][1],
-    ): Promise<void> => {
-      try {
-        await mockInstance.update();
-      } catch (firstError) {
-        log.debug(`Mock update failed for ${mockId}, retrying in 50ms:`, firstError);
-        await sleep(50);
-        await mockInstance.update();
-      }
-    };
-
-    const errors: Array<{ mockId: string; error: unknown }> = [];
-    for (const [mockId, mockInstance] of mocks) {
-      try {
-        await tryUpdate(mockId, mockInstance);
-      } catch (error) {
-        errors.push({ mockId, error });
-      }
-    }
-    if (errors.length > 0) {
-      throw new AggregateError(
-        errors.map((e) => e.error),
-        `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
-      );
-    }
-  }
-}
-
 async function emitTauriEvent(
   browser: WebdriverIO.Browser,
   browserMode: boolean,
@@ -878,18 +779,4 @@ async function runAndSyncOnEachInstance<T>(
       .catch((error: unknown) => log.warn(`Mock sync failed after a failed ${commandName}:`, error));
   }
   throw instanceFailuresError(commandName, failures);
-}
-
-// A multiremote root's commands fan out to every instance, so it sees every instance's mocks
-function getMocksInScope(browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser): [string, TauriMock][] {
-  return isMultiremote(browser) ? mockStore.getAllMocks() : mockStore.getMocks(browser);
-}
-
-function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateScheduler {
-  let scheduler = mockUpdateSchedulers.get(browser);
-  if (!scheduler) {
-    scheduler = new MockUpdateScheduler(browser);
-    mockUpdateSchedulers.set(browser, scheduler);
-  }
-  return scheduler;
 }

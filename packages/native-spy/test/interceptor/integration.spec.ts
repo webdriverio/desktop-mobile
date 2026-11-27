@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createIpcInterceptor } from '../../src/interceptor/index.js';
+import { type BatchCallDataTarget, createIpcInterceptor } from '../../src/interceptor/index.js';
 import { fn } from '../../src/mock.js';
 
 type SyntheticWindow = {
@@ -306,5 +306,87 @@ describe.each(callDataCases)('%s call data read with the %s spy (synthetic windo
     }
     expect(outer).toHaveBeenCalledWith({ a: 1 }, undefined);
     expect(outer).not.toHaveBeenCalledWith({ a: 1 }, null);
+  });
+
+  function readBatch(win: SyntheticWindow, targets: Array<string | BatchCallDataTarget>) {
+    const raw = JSON.parse(JSON.stringify(evalScript(interceptor.buildBatchCallDataReadScript(targets), win)));
+    return interceptor.parseBatchCallData(raw);
+  }
+
+  it('should read multiple mocks in one eval with undefined and Error values preserved', () => {
+    const win = makeWindow();
+    evalScript(interceptor.buildRegistrationScript('cmd_a'), win);
+    evalScript(interceptor.buildRegistrationScript('cmd_b'), win);
+    win.__wdio_mocks__.cmd_a('first', undefined);
+    win.__wdio_mocks__.cmd_b(new Error('bad input'));
+
+    const batch = readBatch(win, ['cmd_a', 'cmd_b', 'missing_cmd']);
+    expect(batch.cmd_a.calls).toStrictEqual([['first', undefined]]);
+    expect(batch.cmd_b.calls[0][0]).toBeInstanceOf(Error);
+    expect((batch.cmd_b.calls[0][0] as Error).message).toBe('bad input');
+    expect(batch.missing_cmd.calls).toStrictEqual([]);
+  });
+
+  it('should mark unchanged mocks and return only delta calls when since matches history', () => {
+    const win = makeWindow();
+    evalScript(interceptor.buildRegistrationScript('cmd_a'), win);
+    evalScript(interceptor.buildRegistrationScript('cmd_b'), win);
+    win.__wdio_mocks__.cmd_a('one');
+    const firstOrder = win.__wdio_mocks__.cmd_a.mock.invocationCallOrder[0];
+
+    const first = readBatch(win, [
+      { name: 'cmd_a', since: 0 },
+      { name: 'cmd_b', since: 0 },
+    ]);
+    expect(first.cmd_a.calls).toStrictEqual([['one']]);
+    expect(first.cmd_b.unchanged).toBe(true);
+
+    win.__wdio_mocks__.cmd_a('two');
+    const second = readBatch(win, [
+      { name: 'cmd_a', since: 1, lastCallOrder: firstOrder },
+      { name: 'cmd_b', since: 0 },
+    ]);
+    expect(second.cmd_a.start).toBe(1);
+    expect(second.cmd_a.calls).toStrictEqual([['two']]);
+    expect(second.cmd_b.unchanged).toBe(true);
+
+    const secondOrder = win.__wdio_mocks__.cmd_a.mock.invocationCallOrder[1];
+    const third = readBatch(win, [{ name: 'cmd_a', since: 2, lastCallOrder: secondOrder }]);
+    expect(third.cmd_a.unchanged).toBe(true);
+  });
+
+  it('should return full reset data when inner mock shrank or cleared to equal length', () => {
+    const win = makeWindow();
+    evalScript(interceptor.buildRegistrationScript('cmd_a'), win);
+    win.__wdio_mocks__.cmd_a('old1');
+    win.__wdio_mocks__.cmd_a('old2');
+    const oldLastOrder = win.__wdio_mocks__.cmd_a.mock.invocationCallOrder[1];
+
+    win.__wdio_mocks__.cmd_a.mockClear();
+    win.__wdio_mocks__.cmd_a('new1');
+    const shrunk = readBatch(win, [{ name: 'cmd_a', since: 2, lastCallOrder: oldLastOrder }]);
+    expect(shrunk.cmd_a.unchanged).toBeUndefined();
+    expect(shrunk.cmd_a.calls).toStrictEqual([['new1']]);
+
+    win.__wdio_mocks__.cmd_a('new2');
+    const equalAfterClear = readBatch(win, [{ name: 'cmd_a', since: 2, lastCallOrder: oldLastOrder }]);
+    expect(equalAfterClear.cmd_a.unchanged).toBeUndefined();
+    expect(equalAfterClear.cmd_a.reset).toBe(true);
+    expect(equalAfterClear.cmd_a.calls).toStrictEqual([['new1'], ['new2']]);
+  });
+
+  it('should isolate per-mock serialization errors without failing healthy mocks', () => {
+    const win = makeWindow();
+    evalScript(interceptor.buildRegistrationScript('healthy'), win);
+    evalScript(interceptor.buildRegistrationScript('circular'), win);
+    win.__wdio_mocks__.healthy('ok');
+    const loop: Record<string, unknown> = {};
+    loop.self = loop;
+    win.__wdio_mocks__.circular(loop);
+
+    const batch = readBatch(win, ['healthy', 'circular']);
+    expect(batch.healthy.calls).toStrictEqual([['ok']]);
+    expect(batch.healthy.__error).toBeUndefined();
+    expect(batch.circular.__error).toEqual(expect.any(String));
   });
 });

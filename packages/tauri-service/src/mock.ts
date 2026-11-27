@@ -1,6 +1,13 @@
-import { fn as vitestFn } from '@wdio/native-spy';
+import { type MockMetadata, fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { AbstractFn, TauriAPIs, TauriExecuteOptions, TauriMock } from '@wdio/native-types';
+import type {
+  AbstractFn,
+  TauriAPIs,
+  TauriExecuteOptions,
+  TauriMock,
+  TauriMockApplyData,
+  TauriMockReadAccessor,
+} from '@wdio/native-types';
 import { createLogger, runThenSync } from '@wdio/native-utils';
 import { execute as tauriExecute } from './commands/execute.js';
 import mockStore from './mockStore.js';
@@ -9,11 +16,88 @@ const log = createLogger('tauri-service', 'mock');
 const interceptor = createIpcInterceptor('tauri');
 const WINDOW_CLOSED = Symbol('window closed');
 
+interface MockBatchHooks {
+  browser: WebdriverIO.Browser;
+  markWindowClosed?: () => void;
+}
+
+const mockBatchHooks = new WeakMap<TauriMock, MockBatchHooks>();
+
+export function getMockOwnerBrowser(mock: TauriMock): WebdriverIO.Browser | undefined {
+  return mockBatchHooks.get(mock)?.browser;
+}
+
+export function isWindowNotFoundError(error: unknown, windowLabel: string | undefined): boolean {
+  return windowLabel !== undefined && error instanceof Error && error.message.includes(`'${windowLabel}' not found`);
+}
+
+export function markMockWindowClosed(mock: TauriMock, fallbackBrowser: WebdriverIO.Browser, mockId: string): void {
+  const hook = mockBatchHooks.get(mock);
+  if (hook?.markWindowClosed) {
+    hook.markWindowClosed();
+    return;
+  }
+  mockStore.deleteMock(fallbackBrowser, mockId);
+}
+
+function appendCallEntries(originalMock: MockMetadata, syncData: TauriMockApplyData, fromIndex: number): void {
+  for (let i = fromIndex; i < syncData.calls.length; i++) {
+    originalMock.calls.push(syncData.calls[i]);
+    originalMock.results.push(
+      (syncData.results?.[i] as MockMetadata['results'][number] | undefined) ?? { type: 'return', value: undefined },
+    );
+    originalMock.invocationCallOrder.push(syncData.invocationCallOrder?.[i] ?? originalMock.invocationCallOrder.length);
+  }
+}
+
+function applyCallData(
+  originalMock: MockMetadata,
+  command: string,
+  modeLabel: string,
+  syncData: TauriMockApplyData,
+): void {
+  if (syncData.unchanged) {
+    return;
+  }
+
+  const existingCount = originalMock.calls.length;
+
+  if (syncData.start !== undefined && syncData.start > 0) {
+    if (syncData.start > existingCount) {
+      return;
+    }
+    const offset = existingCount - syncData.start;
+    if (offset < syncData.calls.length) {
+      log.debug(
+        `[${command}] ${modeLabel}: applying ${syncData.calls.length - offset} new calls (total=${syncData.start + syncData.calls.length}, outer=${existingCount})`,
+      );
+      appendCallEntries(originalMock, syncData, offset);
+    }
+    return;
+  }
+
+  if (syncData.reset || syncData.calls.length < existingCount) {
+    log.debug(`[${command}] ${modeLabel} shrank or reset; replacing outer data`);
+    originalMock.calls.length = 0;
+    originalMock.results.length = 0;
+    originalMock.invocationCallOrder.length = 0;
+    appendCallEntries(originalMock, syncData, 0);
+  } else if (existingCount < syncData.calls.length) {
+    // Load-bearing for diagnosing mock-sync races: shows inner/outer call counts
+    // at the moment update() mutates state, so empty-mock.calls assertions can be
+    // traced back to a specific sync.
+    log.debug(
+      `[${command}] ${modeLabel}: applying ${syncData.calls.length - existingCount} new calls (inner=${syncData.calls.length}, outer=${existingCount})`,
+    );
+    appendCallEntries(originalMock, syncData, existingCount);
+  }
+}
+
 function isBrowserMode(browser: WebdriverIO.Browser): boolean {
   return !!(browser as unknown as Record<string, unknown>).__wdioBrowserMode__;
 }
 
-async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
+export async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
   return browser.execute(`return (${script})()`) as Promise<T>;
 }
 
@@ -74,6 +158,15 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   // A closed window takes the mock's in-app half with it, so from then on syncing, clearing, resetting
   // and restoring skip the app. The setters still throw, as there's nothing left to configure.
   let windowClosed = false;
+  const handleWindowClosed = () => {
+    if (windowClosed) {
+      return;
+    }
+    log.debug(`[${command}] Window '${windowLabel}' has closed, so calls made in it since the last sync are lost`);
+    windowClosed = true;
+    // Dropped from the store, so auto-sync stops reading it and the next mock() makes a fresh one.
+    mockStore.deleteMock(browserToUse, `tauri.${command}`);
+  };
   const executeUnlessWindowClosed = async <T>(script: string): Promise<T | typeof WINDOW_CLOSED> => {
     if (windowClosed) {
       return WINDOW_CLOSED;
@@ -81,57 +174,25 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     try {
       return await executeInMockWindow<T>(script);
     } catch (error) {
-      if (error instanceof Error && error.message.includes(`'${windowLabel}' not found`)) {
-        log.debug(`[${command}] Window '${windowLabel}' has closed, so calls made in it since the last sync are lost`);
-        windowClosed = true;
-        // Dropped from the store, so auto-sync stops reading it and the next mock() makes a fresh one.
-        mockStore.deleteMock(browserToUse, `tauri.${command}`);
+      if (isWindowNotFoundError(error, windowLabel)) {
+        handleWindowClosed();
         return WINDOW_CLOSED;
       }
       throw error;
     }
   };
 
+  const applyCalls = (data: TauriMockApplyData) => applyCallData(originalMock, command, 'mock.update', data);
+
+  mock.__accessor = { kind: 'native', command, windowLabel } satisfies TauriMockReadAccessor;
+  mock.__applyCalls = applyCalls;
+
   mock.update = async () => {
     const raw = await executeUnlessWindowClosed<unknown>(interceptor.buildCallDataReadScript(command));
     if (raw === WINDOW_CLOSED) {
       return mock;
     }
-    const syncData = interceptor.parseCallData(raw);
-
-    const existingCount = originalMock.calls.length;
-
-    if (syncData.calls.length < existingCount) {
-      log.debug(`[${command}] Inner mock shrank (cleared after reload or reset); replacing outer data`);
-      (originalMock.calls as unknown[][]).length = 0;
-      (originalMock.results as { type: string; value: unknown }[]).length = 0;
-      (originalMock.invocationCallOrder as number[]).length = 0;
-      for (let i = 0; i < syncData.calls.length; i++) {
-        (originalMock.calls as unknown[][]).push(syncData.calls[i]);
-        (originalMock.results as { type: string; value: unknown }[]).push(
-          syncData.results[i] ?? { type: 'return', value: undefined },
-        );
-        (originalMock.invocationCallOrder as number[]).push(
-          syncData.invocationCallOrder[i] ?? originalMock.invocationCallOrder.length,
-        );
-      }
-    } else if (existingCount < syncData.calls.length) {
-      // Load-bearing for diagnosing mock-sync races: shows inner/outer call counts
-      // at the moment update() mutates state, so empty-mock.calls assertions can be
-      // traced back to a specific sync.
-      log.debug(
-        `[${command}] mock.update: applying ${syncData.calls.length - existingCount} new calls (inner=${syncData.calls.length}, outer=${existingCount})`,
-      );
-      for (let i = existingCount; i < syncData.calls.length; i++) {
-        (originalMock.calls as unknown[][]).push(syncData.calls[i]);
-        (originalMock.results as { type: string; value: unknown }[]).push(
-          syncData.results[i] ?? { type: 'return', value: undefined },
-        );
-        (originalMock.invocationCallOrder as number[]).push(
-          syncData.invocationCallOrder[i] ?? originalMock.invocationCallOrder.length,
-        );
-      }
-    }
+    applyCalls(interceptor.parseCallData(raw));
 
     return mock;
   };
@@ -253,6 +314,9 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   wrapperMock.update = mock.update.bind(mock);
 
   wrapperMock.__isTauriMock = true;
+  wrapperMock.__accessor = mock.__accessor;
+  wrapperMock.__applyCalls = applyCalls;
+  mockBatchHooks.set(wrapperMock, { browser: browserToUse, markWindowClosed: handleWindowClosed });
 
   return wrapperMock;
 }
@@ -273,40 +337,16 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
 
   await runInterceptorScript<void>(browser, interceptor.buildRegistrationScript(command));
 
+  const applyCalls = (data: TauriMockApplyData) =>
+    applyCallData(originalMock, command, 'browser-mode mock.update', data);
+
+  mock.__accessor = { kind: 'browser', command } satisfies TauriMockReadAccessor;
+  mock.__applyCalls = applyCalls;
+  mockBatchHooks.set(mock, { browser });
+
   mock.update = async () => {
     const raw = await runInterceptorScript<unknown>(browser, interceptor.buildCallDataReadScript(command));
-    const syncData = interceptor.parseCallData(raw);
-
-    const existingCount = originalMock.calls.length;
-    if (syncData.calls.length < existingCount) {
-      log.debug(`[${command}] Browser-mode inner mock shrank; replacing outer data`);
-      (originalMock.calls as unknown[][]).length = 0;
-      (originalMock.results as { type: string; value: unknown }[]).length = 0;
-      (originalMock.invocationCallOrder as number[]).length = 0;
-      for (let i = 0; i < syncData.calls.length; i++) {
-        (originalMock.calls as unknown[][]).push(syncData.calls[i]);
-        (originalMock.results as { type: string; value: unknown }[]).push(
-          syncData.results[i] ?? { type: 'return', value: undefined },
-        );
-        (originalMock.invocationCallOrder as number[]).push(
-          syncData.invocationCallOrder[i] ?? originalMock.invocationCallOrder.length,
-        );
-      }
-    } else if (existingCount < syncData.calls.length) {
-      // Browser-mode: load-bearing for diagnosing mock-sync races (mirrors createMock).
-      log.debug(
-        `[${command}] browser-mode mock.update: applying ${syncData.calls.length - existingCount} new calls (inner=${syncData.calls.length}, outer=${existingCount})`,
-      );
-      for (let i = existingCount; i < syncData.calls.length; i++) {
-        (originalMock.calls as unknown[][]).push(syncData.calls[i]);
-        (originalMock.results as { type: string; value: unknown }[]).push(
-          syncData.results[i] ?? { type: 'return', value: undefined },
-        );
-        (originalMock.invocationCallOrder as number[]).push(
-          syncData.invocationCallOrder[i] ?? originalMock.invocationCallOrder.length,
-        );
-      }
-    }
+    applyCalls(interceptor.parseCallData(raw));
     return mock;
   };
 
