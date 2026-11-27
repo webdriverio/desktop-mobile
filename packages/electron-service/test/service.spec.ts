@@ -852,6 +852,34 @@ describe('Electron Worker Service', () => {
         expect(() => rootServiceApi.execute(() => {})).not.toThrow();
       });
 
+      it('should send emitEvent to every instance from the root, and name the instance it failed on', async () => {
+        instance = new ElectronWorkerService({}, {});
+        browser.requestedCapabilities = {
+          alwaysMatch: {
+            browserName: 'electron',
+            'wdio:electronServiceOptions': {},
+          },
+        };
+        const rootBrowser = {
+          instances: ['electron'],
+          getInstance: (name: string) => (name === 'electron' ? browser : undefined),
+          execute: vi.fn().mockResolvedValue(true),
+          isMultiremote: true,
+          overwriteCommand: vi.fn(),
+        } as unknown as WebdriverIO.MultiRemoteBrowser;
+        await instance.before({}, [], rootBrowser);
+        const cause = new Error('emitEvent: no BrowserWindow available to receive event');
+        const instanceExecute = vi.fn().mockRejectedValue(cause);
+        browser.electron = { ...browser.electron, execute: instanceExecute } as unknown as typeof browser.electron;
+
+        await expect(rootBrowser.electron.emitEvent('did-update-info', { count: 3 })).rejects.toMatchObject({
+          message:
+            "emitEvent('did-update-info') failed on electron: emitEvent: no BrowserWindow available to receive event",
+          cause,
+        });
+        expect(instanceExecute).toHaveBeenCalledWith(expect.any(Function), 'did-update-info', [{ count: 3 }]);
+      });
+
       it('should continue with non-electron capabilities', async () => {
         instance = new ElectronWorkerService({}, {});
 

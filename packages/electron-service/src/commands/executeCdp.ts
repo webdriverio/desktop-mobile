@@ -1,5 +1,5 @@
 import * as babelParser from '@babel/parser';
-import { requireInstance } from '@wdio/native-core';
+import { runOnEachInstance } from '@wdio/native-core';
 import { createLogger, isMultiremote } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
@@ -32,13 +32,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[]>(
   }
 
   if (isMultiremote(browser)) {
-    const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-    return await Promise.all(
-      mrBrowser.instances.map(async (instance) => {
-        const mrInstance = requireInstance(mrBrowser, instance);
-        return mrInstance.electron.execute(script, ...args);
-      }),
-    );
+    return await runOnEachInstance(browser, 'execute', (instance) => instance.electron.execute(script, ...args));
   }
 
   if (!cdpBridge) {
