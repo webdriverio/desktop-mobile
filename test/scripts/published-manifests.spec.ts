@@ -48,7 +48,6 @@ const published = manifests
   .filter(({ manifest }) => !manifest.private)
   .map((pkg) => ({ ...pkg, imported: importedPackages(pkg.dir) }));
 
-// WebdriverIO's own packages, as opposed to the @wdio/native-* ones published from this repo.
 const isWdio = (name: string) => name === 'webdriverio' || (name.startsWith('@wdio/') && !workspaceNames.has(name));
 
 describe('published package manifests', () => {

@@ -130,7 +130,6 @@ export function versionsInTree(projects: DependencyTree[], name: string): string
   return [...versions];
 }
 
-// The packages that resolve to more than one version in the tree, with those versions.
 export function multipleVersionsInTree(projects: DependencyTree[], names: string[]): Record<string, string[]> {
   return Object.fromEntries(
     names.map((name) => [name, versionsInTree(projects, name).sort()]).filter(([, versions]) => versions.length > 1),
