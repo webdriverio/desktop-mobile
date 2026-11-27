@@ -12,6 +12,7 @@ This document provides a complete reference for all `browser.electron.*` methods
 - [Execution Methods](#execution-methods)
   - [`execute()`](#execute)
   - [`triggerDeeplink()`](#triggerdeeplink)
+  - [`emitEvent()`](#emitevent)
 - [Mocking Methods](#mocking-methods)
   - [`mock()`](#mock)
   - [`mockAll()`](#mockall)
@@ -374,6 +375,54 @@ it('should handle deeplinks', async () => {
 **See Also:**
 
 - [Deeplink Testing Guide](./deeplink-testing.md)
+
+---
+
+### `emitEvent()`
+
+Sends an IPC event to the renderer, as `webContents.send()` in the main process would, so you can test the app's `ipcRenderer.on()` listeners.
+
+It sends the event to the focused window, or to the first window if none is focused, and resolves once the renderer's listeners have run.
+
+**Multiremote:** On the root, it sends the event to every instance. It rejects if any instance fails.
+
+**Signature:**
+
+```ts
+browser.electron.emitEvent(channel: string, ...args: unknown[]): Promise<void>
+```
+
+**Parameters:**
+
+| Parameter | Type        | Description                                                                  |
+| --------- | ----------- | ---------------------------------------------------------------------------- |
+| `channel` | `string`    | The IPC channel the renderer listens on                                      |
+| `...args` | `unknown[]` | Arguments passed to the listeners after the event. Must be JSON-serializable |
+
+**Returns:**
+
+`Promise<void>` - Resolves once the renderer's listeners have run.
+
+**Throws:**
+
+| Error   | Condition                           |
+| ------- | ----------------------------------- |
+| `Error` | If the app has no window to send to |
+
+**Example:**
+
+```ts
+// Frontend
+window.electron.ipcRenderer.on('did-update-info', (_event, info) => {
+  document.querySelector('#status')!.textContent = info.status;
+});
+
+// Test
+await browser.electron.emitEvent('did-update-info', { status: 'ready' });
+await expect($('#status')).toHaveText('ready');
+```
+
+**Browser Mode:** Available on an instance, where it calls the listeners registered through the service's `ipcRenderer` shim. On the multiremote root it throws; call it on an instance instead. See [Browser Mode](./browser-mode.md#emitting-from-tests).
 
 ---
 
