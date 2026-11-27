@@ -240,9 +240,15 @@ With the embedded driver, `browser.execute()` and `browser.dioxus.execute()` ret
 #### The root's `execute()` and `listWindows()` resolve with one result per instance
 
 - On the multiremote root, `browser.dioxus.execute()` is typed as resolving with an array, one result per instance, in instance order, which is what it resolves with at runtime. It was typed as one result.
-- The root's `browser.dioxus.listWindows()` lists every instance's windows and resolves with one list per instance, such as `[['main'], ['main', 'window-1']]`, and the root's `switchWindow()` switches every instance. Both used to throw.
+- The root's `browser.dioxus.listWindows()` lists every instance's windows and resolves with one list per instance, such as `[['main'], ['main', 'window-1']]`, and the root's `switchWindow()` switches every instance. Both used to throw. If any instance fails, both reject with an error naming each instance that failed, and `switchWindow()` still switches the others.
 
 Code that read the root's `execute()` result as one value must index or iterate it, or call it on an instance: `browser.getInstance('app1').dioxus.execute(...)`. An instance's methods keep their types. In TypeScript, `DioxusServiceAPI` takes a `ServiceApiTarget` parameter, `'instance'` by default, so `DioxusServiceAPI<'root'>` is the root's API.
+
+#### The root names each instance that failed
+
+When an instance fails, the root's `browser.dioxus.execute()` now waits for the others, then rejects with an error naming each instance that failed, e.g. `execute failed on app2: …`. v1 rejected as soon as one failed, with that instance's error.
+
+A test that matches the instance's message still passes, as the new message contains it. A test that checks the error's class or reads its properties now gets an `Error` with the instance's error as its `cause`, or an `AggregateError` of each instance's error when several failed.
 
 ### Embedded driver behaviour
 
@@ -337,7 +343,7 @@ See [Auto-managing the dev server](../browser-mode.md#auto-managing-the-dev-serv
 
 - `startWdioSession()` no longer sets the session's request timeout to four times `startTimeout`, or retries each request 10 times; both are WebdriverIO's defaults. To change the timeout, pass `connectionRetryTimeout` with the service options.
 - `cleanupWdioSession()` runs `after` and `afterSession`, then deletes the session.
-- Another session in the same process can't use a command-form `devServer` at the same URL until the first session's `cleanup()` stops it. It used to share the first session's server, which then stopped under it. To share one server, start it yourself and pass `devServerUrl` without `devServer`.
+- Another session in the same process can't use a command-form `devServer` at the same URL until the first session's `cleanupWdioSession()` stops it. It used to share the first session's server, which then stopped under it. To share one server, start it yourself and pass `devServerUrl` without `devServer`.
 
 To keep v1's request timeout, pass four times `startTimeout`:
 

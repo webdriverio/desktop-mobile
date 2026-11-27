@@ -10,7 +10,7 @@ Most of the changes make the embedded driver behave as Chrome does under chromed
 
 ### WebdriverIO v10
 
-v2 runs on WebdriverIO v10 as well as v9. Moving to v10 is optional. If you do, see WebdriverIO's [From v9 to v10](https://webdriver.io/docs/v10-migration) guide for the changes in your own tests, such as a strict `$`, the removal of `multiremotebrowser` and `executeAsync`, and Mocha 12. Two of v10's changes show in a Tauri app:
+v2 runs on WebdriverIO v10 as well as v9. Moving to v10 is optional. If you do, follow WebdriverIO's [v9 → v10 migration guide](https://webdriver.io/docs/v10-migration) for the changes in your own tests, such as strict `$`, the removed `multiremotebrowser` global and `executeAsync`, and Mocha 12. Two of v10's changes show in a Tauri app:
 
 - **Linux display:** WebdriverIO starts a display server itself, Weston if it's installed and Xvfb otherwise, so no `xvfb-run` wrapper is needed. The `embedded` and `external` providers are tested on both and need no setting. An app with X11-only dependencies sets `displayServer: 'xvfb'`. Local runs on a Linux desktop now show the app instead of a hidden Xvfb. See [Linux Without a Display](../quick-start.md#linux-without-a-display).
 - **Async `browser.execute()`:** `browser.execute(async () => …)` is awaited on WebKit-based drivers, where v9 didn't await it. That covers Tauri on macOS and Linux.
@@ -89,7 +89,7 @@ The crates also declare the Rust versions they build with: `tauri-plugin-wdio` n
 
 `@wdio/tauri-plugin` now takes the app's `@tauri-apps/api` (2.10+) as a peer, where it brought an exact 2.12.1 of its own, so an app on another version got a second copy. It also no longer brings `@tauri-apps/plugin-log`, which nothing imported. Install `@tauri-apps/api` in the app if it isn't there already, and add `@tauri-apps/plugin-log` yourself if your app imports it.
 
-### Configuration and Options
+### Configuration and options
 
 #### `driverProvider: 'official'` is removed
 
@@ -267,7 +267,7 @@ With the `embedded` provider, `browser.execute()` returns a DOM element or shado
 
 A test that compared such a result with `{}` or with an object keyed by index needs a reference or an array instead.
 
-### Embedded Driver Behaviour
+### Embedded driver behaviour
 
 These changes are in `tauri-plugin-wdio-webdriver`, so they apply to the `embedded` provider, the default. Each brings the driver closer to Chrome driven by chromedriver. The [Keyboard Events](../../../tauri-plugin-webdriver/README.md#keyboard-events) section of the crate's README has the full rules.
 
@@ -355,7 +355,7 @@ The app's capabilities need `wdio:allow-emit-deep-link`, which `wdio:default` in
 - With CrabNebula on Windows and Linux, multiremote `triggerDeeplink()` opens the URL with the OS command, as single sessions already did.
 - With the `external` provider, and CrabNebula on Windows and Linux, `triggerDeeplink()` now throws in a multiremote session where two instances run the same app. It used to resolve without delivering anything: the OS can't send the URL to either instance, and starts another copy of the app instead. Use the `embedded` provider, or test deeplinks without multiremote. See [Multiremote](../deeplink-testing.md#multiremote).
 
-### Standalone Mode
+### Standalone mode
 
 - **Peers:** install `webdriverio` and `@wdio/globals` next to the service; see [WebdriverIO packages are optional peers](#webdriverio-packages-are-optional-peers).
 - **Request timeout:** [`startWdioSession()`](../api-reference.md#startwdiosessioncapabilities-globaloptions) no longer sets the session's request timeout to four times `startTimeout`, or retries each request 10 times; both are WebdriverIO's defaults now. To change the timeout, pass `connectionRetryTimeout` with the service options.
@@ -379,7 +379,7 @@ const browser = await startWdioSession(capabilities, { connectionRetryTimeout: 1
 await cleanupWdioSession(browser);
 ```
 
-### Browser Mode
+### Browser mode
 
 #### Each capability opens its own `devServerUrl`
 
@@ -428,9 +428,15 @@ Each instance's `browser.tauri.mock()` gets its own mock. `clearAllMocks()`, `re
 #### The root's `execute()` and `listWindows()` resolve with one result per instance
 
 - On the multiremote root, `browser.tauri.execute()` is typed as resolving with an array, one result per instance, in instance order, which is what it resolves with at runtime. It was typed as one result.
-- The root's `browser.tauri.listWindows()` lists every instance's windows and resolves with one list per instance, such as `[['main'], ['main', 'settings']]`. It used to list one app's windows. If any instance fails, it rejects with an error naming each instance that failed.
+- The root's `browser.tauri.listWindows()` lists every instance's windows and resolves with one list per instance, such as `[['main'], ['main', 'settings']]`. It used to list one app's windows.
 
 Code that read either result as one value must index or iterate it, or call the method on an instance: `browser.getInstance('app1').tauri.listWindows()`. An instance's methods keep their types. In TypeScript, `TauriServiceAPI` takes a `ServiceApiTarget` parameter, `'instance'` by default, so `TauriServiceAPI<'root'>` is the root's API.
+
+#### The root names each instance that failed
+
+When an instance fails, the root's `browser.tauri.execute()` and `emitEvent()` now wait for the others, then reject with an error naming each instance that failed, e.g. `execute failed on app2: …`. v1 rejected as soon as one failed, with that instance's error. The root's `listWindows()` reports failures the same way.
+
+A test that matches the instance's message still passes, as the new message contains it. A test that checks the error's class or reads its properties now gets an `Error` with the instance's error as its `cause`, or an `AggregateError` of each instance's error when several failed.
 
 #### One `driverProvider` per run
 
