@@ -24,8 +24,8 @@ const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateSchedule
  */
 class MockUpdateScheduler {
   #browser: WebdriverIO.Browser;
-  #running: Promise<void> | null = null;
-  #queued: Promise<void> | null = null;
+  #running: Promise<void> | undefined;
+  #queued: Promise<void> | undefined;
 
   constructor(browser: WebdriverIO.Browser) {
     this.#browser = browser;
@@ -54,7 +54,7 @@ class MockUpdateScheduler {
       }
       if (this.#queued) {
         const promoted = this.#queued;
-        this.#queued = null;
+        this.#queued = undefined;
         // The queued batch's callers hold `promoted` and observe its rejection there.
         // This wrapper is held only by #running and is never awaited externally, so
         // swallow its rejection — otherwise a failing queued batch surfaces as an
@@ -63,7 +63,7 @@ class MockUpdateScheduler {
         nextRunning.catch(() => undefined);
         this.#running = nextRunning;
       } else {
-        this.#running = null;
+        this.#running = undefined;
       }
     });
     return wrapped;
@@ -77,11 +77,13 @@ class MockUpdateScheduler {
 
     const lanesByApp = new Map<WebdriverIO.Browser | undefined, UpdateLane[]>();
     for (const lane of buildUpdateLanes(this.#browser, mocks)) {
-      lanesByApp.set(lane.browser, [...(lanesByApp.get(lane.browser) ?? []), lane]);
+      const app = lane.browser && !isMultiremote(lane.browser) ? lane.browser : undefined;
+      lanesByApp.set(app, [...(lanesByApp.get(app) ?? []), lane]);
     }
-    const appLanes = [...lanesByApp].filter(([browser]) => browser !== undefined).map(([, lanes]) => lanes);
+    const appLanes = [...lanesByApp].filter(([app]) => app !== undefined).map(([, lanes]) => lanes);
     const errors = (await Promise.all(appLanes.map(runLanesInTurn))).flat();
-    // A mock that doesn't say which app it's in runs after the others, so it can't overlap them.
+    // A mock that doesn't say which app it's in, or one made on the multiremote root, whose reads reach every
+    // instance's app, runs after the others, so it can't overlap them.
     errors.push(...(await runLanesInTurn(lanesByApp.get(undefined) ?? [])));
     if (errors.length > 0) {
       throw new AggregateError(
@@ -113,13 +115,24 @@ interface UpdateLane {
   run: () => Promise<void>;
 }
 
+// A window's read succeeded but some of its mocks' data didn't serialize; the others were applied.
+class MockSliceErrors extends Error {
+  constructor(readonly failures: Array<{ mockId: string; error: Error }>) {
+    super(failures.map(({ error }) => error.message).join('; '));
+  }
+}
+
 async function runLanesInTurn(lanes: UpdateLane[]): Promise<Array<{ label: string; error: unknown }>> {
   const errors: Array<{ label: string; error: unknown }> = [];
   for (const lane of lanes) {
     try {
       await tryUpdateLane(lane);
     } catch (error) {
-      errors.push({ label: lane.label, error });
+      if (error instanceof MockSliceErrors) {
+        errors.push(...error.failures.map(({ mockId, error: sliceError }) => ({ label: mockId, error: sliceError })));
+      } else {
+        errors.push({ label: lane.label, error });
+      }
     }
   }
   return errors;
@@ -175,22 +188,19 @@ async function runBatchLane(lane: WindowBatchLane): Promise<void> {
   }
 
   const parsed = browserInterceptor.parseBatchCallData(raw);
-  const sliceErrors: Error[] = [];
+  const failures: Array<{ mockId: string; error: Error }> = [];
   for (const { mockId, accessor, applyCalls } of lane.entries) {
     const slice = Object.hasOwn(parsed, accessor.command)
       ? parsed[accessor.command]
       : { calls: [], results: [], invocationCallOrder: [] };
     if (slice.__error) {
-      sliceErrors.push(new Error(`Batch read failed for mock "${mockId}": ${slice.__error}`));
+      failures.push({ mockId, error: new Error(`Batch read failed for mock "${mockId}": ${slice.__error}`) });
       continue;
     }
     applyCalls(slice);
   }
-  if (sliceErrors.length === 1) {
-    throw sliceErrors[0];
-  }
-  if (sliceErrors.length > 1) {
-    throw new AggregateError(sliceErrors, sliceErrors.map((e) => e.message).join('; '));
+  if (failures.length > 0) {
+    throw new MockSliceErrors(failures);
   }
 }
 

@@ -743,6 +743,10 @@ describe('TauriWorkerService', () => {
       await service.before({} as any, [], mockBrowser);
     });
 
+    afterEach(() => {
+      vi.mocked(executeCommand).mockReset().mockResolvedValue(undefined);
+    });
+
     it('should call updateAllMocks after execute', async () => {
       vi.mocked(executeWithElementRefs).mockResolvedValueOnce('result' as any);
       vi.mocked(mockStore.getMocks).mockReturnValue([]);
@@ -923,10 +927,10 @@ describe('TauriWorkerService', () => {
         vi.mocked(executeCommand).mockClear();
 
         const order: string[] = [];
-        vi.mocked(executeCommand).mockImplementation(async (_b, _s, opts: any) => {
-          order.push(`start:${opts.windowLabel}`);
+        vi.mocked(executeCommand).mockImplementation(async (_b, _s, opts?: { windowLabel?: string }) => {
+          order.push(`start:${opts?.windowLabel}`);
           await Promise.resolve();
-          order.push(`end:${opts.windowLabel}`);
+          order.push(`end:${opts?.windowLabel}`);
           return {};
         });
         vi.mocked(mockStore.getMocks).mockReturnValueOnce([
@@ -1021,7 +1025,7 @@ describe('TauriWorkerService', () => {
       vi.mocked(executeCommand).mockClear();
       vi.mocked(mockStore.deleteMock).mockClear();
 
-      vi.mocked(executeCommand).mockImplementation(async (_b, _s, opts: any) => {
+      vi.mocked(executeCommand).mockImplementation(async (_b, _s, opts?: { windowLabel?: string }) => {
         if (opts?.windowLabel === 'popup') {
           throw new Error("Window 'popup' not found. Available: [main]");
         }
@@ -1087,6 +1091,8 @@ describe('TauriWorkerService', () => {
       expect(applyBroken).not.toHaveBeenCalled();
       expect(executeCommand).toHaveBeenCalledTimes(2);
       expect(err).toBeInstanceOf(AggregateError);
+      expect((err as AggregateError).message).toBe('Mock updates failed for: tauri.broken');
+      expect((err as AggregateError).errors).toHaveLength(1);
       expect((err as AggregateError).errors[0]).toMatchObject({
         message: 'Batch read failed for mock "tauri.broken": circular reference',
       });
@@ -1211,6 +1217,51 @@ describe('TauriWorkerService', () => {
       for (const app of ['A', 'B']) {
         expect(events.indexOf(`end:${app}:main`)).toBeLessThan(events.indexOf(`start:${app}:settings`));
       }
+    });
+
+    it("should sync a mock made on the root after the instances' mocks, as its reads reach every app", async () => {
+      const instanceA = createMockBrowser({ sessionId: 'session-a' });
+      const instanceB = createMockBrowser({ sessionId: 'session-b' });
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      });
+      const service = new TauriWorkerService({}, {
+        browserA: { capabilities: { 'wdio:tauriServiceOptions': {} } },
+        browserB: { capabilities: { 'wdio:tauriServiceOptions': {} } },
+      } as unknown as TauriCapabilities);
+      await service.before({} as never, [], mrBrowser);
+
+      const mocks: Array<[string, Awaited<ReturnType<typeof createTauriMock>>]> = [];
+      for (const [command, owner] of [
+        ['on_root', mrBrowser],
+        ['on_a', instanceA],
+        ['on_b', instanceB],
+      ] as const) {
+        vi.mocked(executeCommand).mockResolvedValueOnce('main');
+        mocks.push([`tauri.${command}`, await createTauriMock(command, owner as WebdriverIO.Browser)]);
+      }
+      const names = new Map<unknown, string>([
+        [mrBrowser, 'root'],
+        [instanceA, 'A'],
+        [instanceB, 'B'],
+      ]);
+      const events: string[] = [];
+      vi.mocked(executeCommand).mockReset();
+      vi.mocked(executeCommand).mockImplementation(async (target) => {
+        events.push(`start:${names.get(target)}`);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        events.push(`end:${names.get(target)}`);
+        return {};
+      });
+      vi.mocked(mockStore.getAllMocks).mockReturnValueOnce(mocks);
+      vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
+
+      await (mrBrowser as any).tauri.execute(() => undefined);
+
+      expect(events).toHaveLength(6);
+      expect(events.slice(-2)).toEqual(['start:root', 'end:root']);
     });
 
     it("should sync only the instance's own mocks in multiremote, and every instance's on the root", async () => {
