@@ -1,4 +1,4 @@
-// Type-only: the E2E typecheck covers it, and no WDIO config runs it.
+// Checked by the E2E typecheck; no WDIO config runs it.
 import '@wdio/native-types';
 import type { TauriExecuteOptions } from '@wdio/native-types';
 
