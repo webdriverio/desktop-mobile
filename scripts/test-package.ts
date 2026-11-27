@@ -18,7 +18,7 @@ import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { readCatalogs } from './strip-fixture-catalogs.ts';
-import { pinWdioToCatalog, specMajor, versionsInTree } from './switch-catalog.ts';
+import { multipleVersionsInTree, pinWdioToCatalog, specMajor, versionsInTree } from './switch-catalog.ts';
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
@@ -36,6 +36,9 @@ const __dirname = dirname(__filename);
 const rootDir = normalize(join(__dirname, '..'));
 
 const SANDBOX_CONFIG_FILE = 'pnpm-workspace.sandbox.yaml';
+
+// A service that pins one of these gets its own nested copy, which runs apart from the test runner's.
+const SINGLE_COPY_PACKAGES = ['webdriverio', '@wdio/globals', '@wdio/types', '@wdio/logger', '@wdio/utils'];
 
 interface WorkspaceConfig {
   overrides?: Record<string, string>;
@@ -89,7 +92,9 @@ function log(message: string) {
   console.log(`🔧 ${message}`);
 }
 
-function execCommand(command: string, cwd: string, description: string) {
+function execCommand(command: string, cwd: string, description: string): void;
+function execCommand(command: string, cwd: string, description: string, options: { capture: true }): string;
+function execCommand(command: string, cwd: string, description: string, options?: { capture: true }): string | void {
   log(`${description}...`);
 
   // On Windows, pnpm sometimes exits non-zero in the sandbox without printing an error, so retry it once.
@@ -99,19 +104,20 @@ function execCommand(command: string, cwd: string, description: string) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const startedAt = Date.now();
     try {
-      execSync(command, {
+      const output = execSync(command, {
         cwd: normalize(cwd),
-        stdio: 'inherit',
+        stdio: options?.capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
         encoding: 'utf-8',
         shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
         timeout: COMMAND_TIMEOUT_MS,
         killSignal: 'SIGKILL',
+        maxBuffer: 256 * 1024 * 1024,
       });
       if (attempt > 1) {
         log(`(retry ${attempt - 1} succeeded)`);
       }
       log(`✅ ${description} completed`);
-      return;
+      return options?.capture ? output : undefined;
     } catch (error) {
       // Retrying a hang just spends the budget twice, so a timeout is terminal.
       if (Date.now() - startedAt >= COMMAND_TIMEOUT_MS) {
@@ -645,10 +651,26 @@ async function testExample(
 
     execCommand('pnpm install', packageDir, `Installing dependencies for ${packageName}`);
 
+    const tree = JSON.parse(
+      execCommand(
+        `pnpm ls ${SINGLE_COPY_PACKAGES.join(' ')} --depth Infinity --json`,
+        packageDir,
+        `Listing the WebdriverIO packages installed for ${packageName}`,
+        { capture: true },
+      ),
+    );
+    const duplicates = multipleVersionsInTree(tree, SINGLE_COPY_PACKAGES);
+    if (Object.keys(duplicates).length > 0) {
+      throw new Error(
+        `Expected one version of each WebdriverIO package in ${packageName}, but found ${Object.entries(duplicates)
+          .map(([name, versions]) => `${name} ${versions.join(', ')}`)
+          .join('; ')}`,
+      );
+    }
+
     if (wdioCatalog) {
       const major = specMajor(wdioCatalog.versions.webdriverio);
-      const tree = execSync('pnpm ls webdriverio --depth Infinity --json', { cwd: packageDir, encoding: 'utf-8' });
-      const versions = versionsInTree(JSON.parse(tree), 'webdriverio');
+      const versions = versionsInTree(tree, 'webdriverio');
       if (versions.length === 0 || versions.some((version) => specMajor(version) !== major)) {
         throw new Error(
           `Expected only webdriverio ${major}.x in ${packageName}, from the '${wdioCatalog.name}' catalog, but found ${versions.join(', ') || 'none'}`,

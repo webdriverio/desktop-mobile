@@ -423,6 +423,11 @@ jobs:
           - os: ubuntu-latest
             display-name: Linux
             module-type: esm
+          # CJS, because a Linux ESM row also reruns the tests on Weston.
+          - os: ubuntu-latest
+            display-name: Linux, Node 22
+            module-type: cjs
+            node-version: "22"
           - os: windows-latest
             display-name: Windows
             module-type: cjs
@@ -452,6 +457,7 @@ jobs:
     secrets: inherit
     with:
       os: ${{ matrix.os }}
+      node-version: ${{ matrix.node-version || '24' }}
       service: "electron"
       module-type: ${{ matrix.module-type }}
       build_id: ${{ needs.build.outputs.build_id }}
