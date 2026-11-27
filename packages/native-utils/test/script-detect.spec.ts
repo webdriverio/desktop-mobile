@@ -99,6 +99,15 @@ describe('hasSemicolonOutsideQuotes', () => {
   it('should not treat /*/ as a closed block comment', () => {
     expect(hasSemicolonOutsideQuotes('/*/ ; */ x')).toBe(false);
   });
+
+  it('should handle regular expression literals containing comment markers and semicolons', () => {
+    expect(hasSemicolonOutsideQuotes('/[/*]/.test("*"); return 42')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('/a;b/.test("a;b")')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('return /\\/*;/.test(x)')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('a / b // a; b')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('obj.return / 2 // a; b')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('a / b; c / d')).toBe(true);
+  });
 });
 
 describe('hasTopLevelArrow', () => {
@@ -182,6 +191,11 @@ describe('hasTopLevelArrow', () => {
     expect(hasTopLevelArrow('x + 1 // () => 2')).toBe(false);
     expect(hasTopLevelArrow('/* () => 2 */ x + 1')).toBe(false);
   });
+
+  it('should ignore arrows inside regular expression literals', () => {
+    expect(hasTopLevelArrow('/=>/.test("=>")')).toBe(false);
+    expect(hasTopLevelArrow('/[/*]=>/.test("=>")')).toBe(false);
+  });
 });
 
 describe('isFunctionSource', () => {
@@ -249,6 +263,26 @@ describe('wrapStringScriptBody', () => {
     expect(evalBody('// compute\nconst x = 40; return x + 2 // done')).toBe(42);
     expect(evalBody('/* note */\nreturn 42')).toBe(42);
     expect(evalBody('function foo() { return 42; }')).toBeUndefined();
+    expect(evalBody('function foo() { return 42; }\nreturn foo()')).toBe(42);
+    expect(evalBody('function foo() { return 42; } !foo()')).toBeUndefined();
+    expect(evalBody('class Foo { x = 42 }\nreturn new Foo().x')).toBe(42);
+    expect(evalBody('/[/*]/.test("*"); return 42')).toBe(42);
+  });
+
+  it('should evaluate function and class expressions instead of emitting them as declarations', async () => {
+    expect(evalBody('function () { return 42 }()')).toBe(42);
+    expect(evalBody('function named() { return 42 }()')).toBe(42);
+    expect(evalBody('function named() { return 42 }.call(null)')).toBe(42);
+    expect(evalBody('function named() { return /}/; }()')).toEqual(/}/);
+    expect(await evalBody('async function () { return 42 }()')).toBe(42);
+    expect(await evalBody('async function named() { return 42 }()')).toBe(42);
+    expect(evalBody('class { static value = 42 }.value')).toBe(42);
+    expect(evalBody('class Foo { static value = 42 }.value')).toBe(42);
+  });
+
+  it('should handle regex expressions containing semicolons or comment-like character classes', () => {
+    expect(evalBody('/[/*]/.test("*")')).toBe(true);
+    expect(evalBody('/a;b/.test("a;b")')).toBe(true);
   });
 
   it('should handle empty and comment-only scripts without throwing', () => {
