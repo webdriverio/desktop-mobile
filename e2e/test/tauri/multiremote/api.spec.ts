@@ -51,6 +51,14 @@ describe('Tauri APIs using Multiremote', () => {
     expect(markerB).toBe('B');
   });
 
+  it("should list each instance's windows when called on the root", async () => {
+    const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
+
+    const lists = await multi.tauri.listWindows();
+
+    expect(lists).toEqual([expect.arrayContaining(['main']), expect.arrayContaining(['main'])]);
+  });
+
   describe('emitEvent', () => {
     type EventTestGlobals = {
       __wdioEvents?: unknown[];

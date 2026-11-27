@@ -7,6 +7,8 @@ import type {
   LogLevel,
   MockOverride,
   MockResult,
+  PerInstance,
+  ServiceApiTarget,
   ServiceMockContext,
 } from './shared.js';
 
@@ -76,11 +78,11 @@ export interface ElectrobunMock<TArgs extends unknown[] = unknown[], TReturns = 
  * CDP (routable in principle via the in-webview RPC socket; deferred).
  * `mockAll`/class-mock are Electron-only (no enumerable main-process API).
  */
-export interface ElectrobunServiceAPI {
+export interface ElectrobunServiceAPI<Target extends ServiceApiTarget = 'instance'> {
   execute<R, A extends unknown[]>(
     script: string | ((eb: ElectrobunAPIs, ...a: A) => R),
     ...args: A
-  ): Promise<Awaited<R>>;
+  ): Promise<PerInstance<Awaited<R>, Target>>;
 
   mock(target: string): Promise<ElectrobunMock>;
   isMockFunction(target: string): boolean;
@@ -91,8 +93,11 @@ export interface ElectrobunServiceAPI {
 
   /** Switch the active CDP target (window/webview) to the one labelled `label`. */
   switchWindow(label: string): Promise<void>;
-  /** List all live window/webview labels in registration order. */
-  listWindows(): Promise<string[]>;
+  /**
+   * List all live window/webview labels in registration order.
+   * On the multiremote root, resolves with one list per instance, in instance order.
+   */
+  listWindows(): Promise<PerInstance<string[], Target>>;
   /**
    * Trigger a deeplink (custom-protocol URL) at the OS level so the Electrobun
    * app's registered `open-url` handler receives it. Use for testing the
@@ -168,7 +173,7 @@ export interface ElectrobunCapabilities {
 /**
  * Browser extension for Electrobun service
  */
-export interface ElectrobunBrowserExtension extends BrowserBase {
+export interface ElectrobunBrowserExtension<Target extends ServiceApiTarget = 'instance'> extends BrowserBase {
   /**
    * Access the WebdriverIO Electrobun Service API.
    *
@@ -182,7 +187,7 @@ export interface ElectrobunBrowserExtension extends BrowserBase {
    * - {@link ElectrobunServiceAPI.switchWindow `browser.electrobun.switchWindow`} - Switch WebDriver focus to another window
    * - {@link ElectrobunServiceAPI.triggerDeeplink `browser.electrobun.triggerDeeplink`} - Trigger a deeplink for testing protocol handlers
    */
-  electrobun: ElectrobunServiceAPI;
+  electrobun: ElectrobunServiceAPI<Target>;
 }
 
 declare global {

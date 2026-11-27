@@ -183,6 +183,8 @@ await browser.dioxus.switchWindow('main');
 
 **Note:** The window label must exist in your Dioxus app. Use `browser.dioxus.listWindows()` to get available labels.
 
+**Multiremote:** On the root, `switchWindow` switches every instance to the window, and rejects if any instance has no window with that label.
+
 ---
 
 ### `browser.dioxus.listWindows()`
@@ -197,6 +199,8 @@ Get a list of all available Dioxus window labels in the application.
 const windows = await browser.dioxus.listWindows();
 console.log(windows); // ['main', 'window-1']
 ```
+
+**Multiremote:** On the root, `listWindows` resolves with one list per instance, in instance order: `[['main'], ['main', 'window-1']]`. It rejects if any instance fails.
 
 ---
 

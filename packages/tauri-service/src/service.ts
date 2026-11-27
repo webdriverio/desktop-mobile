@@ -560,6 +560,17 @@ export default class TauriWorkerService {
             'browser.tauri.listWindows() is not supported in browser mode. Multi-window is unavailable in browser mode.',
           );
         }
+        if (isMultiremote(browser)) {
+          const root = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+          const { values, failures } = await settleOnEach(
+            root.instances.map((name) => ({ name })),
+            ({ name }) => listWindowLabels(requireInstance(root, name)),
+          );
+          if (failures.length > 0) {
+            throw instanceFailuresError('listWindows', failures);
+          }
+          return values as unknown as string[];
+        }
         return listWindowLabels(browser);
       },
 

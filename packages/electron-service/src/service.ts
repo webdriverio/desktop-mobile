@@ -3,15 +3,16 @@ import { forEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
-  BrowserExtension,
   ElectronFunctionMock,
   ElectronInterface,
   ElectronMock,
   ElectronMockReadAccessor,
+  ElectronServiceAPI,
   ElectronServiceGlobalOptions,
   ElectronType,
   ExecuteOpts,
   Result,
+  ServiceApiTarget,
 } from '@wdio/native-types';
 import {
   createLogger,
@@ -384,7 +385,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
           rootBridge = await initCdpBridge(this.cdpOptions, firstInstance.caps);
         }
 
-        mrBrowser.electron = getElectronAPI.call(
+        mrBrowser.electron = (getElectronAPI<'root'>).call(
           this,
           mrBrowser as unknown as WebdriverIO.Browser,
           rootBridge,
@@ -542,7 +543,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       // then registers the override on every instance's __elementOverrides__ directly, so both
       // mrBrowser.$('btn').click() and mrBrowser.getInstance('a').$('btn').click() go through
       // the override. Calling it on each instance separately would double-wrap element commands.
-      browser.electron = this.getElectronBrowserModeAPI(browser);
+      browser.electron = this.getElectronBrowserModeAPI<'root'>(browser);
       this.patchBrowserUrl(browser, injectionScript);
       this.installCommandOverrides(browser as unknown as WebdriverIO.Browser);
     } else {
@@ -599,9 +600,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * execute(), mockAll(), and triggerDeeplink() throw — they require the Electron
    * main process which does not exist in browser mode.
    */
-  private getElectronBrowserModeAPI(
+  private getElectronBrowserModeAPI<Target extends ServiceApiTarget = 'instance'>(
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
-  ): BrowserExtension['electron'] {
+  ): ElectronServiceAPI<Target> {
     const isRootMultiremote = isMultiremote(browser);
     return {
       mock: async (channel: string, funcName?: string): Promise<ElectronFunctionMock> => {
@@ -701,7 +702,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         );
         await getMockUpdateScheduler(browser).schedule();
       },
-    } as unknown as BrowserExtension['electron'];
+    } as unknown as ElectronServiceAPI<Target>;
   }
 
   /**
@@ -868,7 +869,7 @@ async function triggerDeeplinkOnEveryInstance(instances: ElectronInstance[], url
   }
 }
 
-function getElectronAPI(
+function getElectronAPI<Target extends ServiceApiTarget = 'instance'>(
   this: ServiceConfig,
   browser: WebdriverIO.Browser,
   bridge: CdpBridgeResult,
@@ -930,5 +931,5 @@ function getElectronAPI(
       await browser.execute(() => undefined);
       await getMockUpdateScheduler(browser).schedule();
     }),
-  } as unknown as BrowserExtension['electron'];
+  } as unknown as ElectronServiceAPI<Target>;
 }
