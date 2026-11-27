@@ -108,9 +108,12 @@ describe('hasSemicolonOutsideQuotes', () => {
     expect(hasSemicolonOutsideQuotes('obj.return / 2 // a; b')).toBe(false);
     expect(hasSemicolonOutsideQuotes('a / b; c / d')).toBe(true);
     expect(hasSemicolonOutsideQuotes('x = {} / 2; return /x/')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('x = { a: {} / 2 }; return /x/')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('x = cond ? 1 : {} / 2; return /x/')).toBe(true);
     expect(hasSemicolonOutsideQuotes('x = function() { return 1 } / 2; return /x/')).toBe(true);
     expect(hasSemicolonOutsideQuotes('café / 2; return /x/')).toBe(true);
     expect(hasSemicolonOutsideQuotes('if (ok) { run() } /a;b/.test(s)')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('label: {} /a;b/.test(s)')).toBe(false);
   });
 });
 
@@ -269,6 +272,12 @@ describe('wrapStringScriptBody', () => {
     expect(evalBody('function foo() { return 42; }')).toBeUndefined();
     expect(evalBody('function foo() { return 42; }\nreturn foo()')).toBe(42);
     expect(evalBody('function foo() { return 42; } !foo()')).toBeUndefined();
+    expect(evalBody('function foo(){ label: {} /}/.test("}") }\nreturn foo() ?? 42')).toBe(42);
+    expect(
+      evalBody(
+        'function foo(x){ switch (x) { case 1: {} /}/.test("}"); default: {} /}/.test("}") } }\nreturn foo(1) ?? 42',
+      ),
+    ).toBe(42);
     expect(evalBody('function café() { return 42 }\nreturn café()')).toBe(42);
     expect(evalBody('function \\u0066oo() { return 42 }\nreturn foo()')).toBe(42);
     expect(evalBody('function \\u{66}oo() { return 42 }\nreturn foo()')).toBe(42);

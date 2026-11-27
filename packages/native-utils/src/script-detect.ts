@@ -196,6 +196,7 @@ type PrevKind =
 interface BracketFrame {
   ch: '(' | '[' | '{';
   isExpr: boolean;
+  ternaryDepth: number;
   isControlParen?: boolean;
   funcClassKind?: 'funcClassDecl' | 'funcClassExpr';
 }
@@ -211,10 +212,20 @@ function scanJs(
   let canStartRegex = true;
   let prevDot = false;
   let prevKind: PrevKind = 'start';
+  let topTernaryDepth = 0;
   const frames: BracketFrame[] = [];
   // Each frame: { inStr: true } = reading template string chars,
   //             { inStr: false, exprDepth: n } = inside ${} expression that opened at depth n.
   const tmpl: Array<{ inStr: boolean; exprDepth: number }> = [];
+
+  const getTernaryDepth = (): number => (frames.length > 0 ? frames[frames.length - 1].ternaryDepth : topTernaryDepth);
+  const setTernaryDepth = (n: number): void => {
+    if (frames.length > 0) {
+      frames[frames.length - 1].ternaryDepth = n;
+    } else {
+      topTernaryDepth = n;
+    }
+  };
 
   for (let i = start; i < s.length; i++) {
     const c = s[i];
@@ -355,16 +366,17 @@ function scanJs(
         frames.push({
           ch: '(',
           isExpr: true,
+          ternaryDepth: 0,
           isControlParen: prevKind === 'controlKw',
           funcClassKind,
         });
         prevKind = 'exprOp';
       } else if (c === '[') {
-        frames.push({ ch: '[', isExpr: true });
+        frames.push({ ch: '[', isExpr: true, ternaryDepth: 0 });
         prevKind = 'exprOp';
       } else {
         const isExpr: boolean = prevKind === 'exprOp' || prevKind === 'funcClassExpr';
-        frames.push({ ch: '{', isExpr });
+        frames.push({ ch: '{', isExpr, ternaryDepth: 0 });
         prevKind = isExpr ? 'exprOp' : 'start';
       }
       canStartRegex = true;
@@ -401,6 +413,32 @@ function scanJs(
     } else if (c === '=' && s[i + 1] === '>') {
       i++;
       prevKind = 'blockKw';
+      canStartRegex = true;
+    } else if (c === '?') {
+      if (s[i + 1] === '?') {
+        i++;
+        prevKind = 'exprOp';
+      } else if (s[i + 1] === '.') {
+        i++;
+        prevDot = true;
+        prevKind = 'exprOp';
+      } else {
+        setTernaryDepth(getTernaryDepth() + 1);
+        prevKind = 'exprOp';
+      }
+      canStartRegex = true;
+    } else if (c === ':') {
+      const td = getTernaryDepth();
+      const topFrame = frames[frames.length - 1];
+      if (td > 0) {
+        setTernaryDepth(td - 1);
+        prevKind = 'exprOp';
+      } else if (topFrame?.ch === '{' && topFrame.isExpr) {
+        prevKind = 'exprOp';
+      } else {
+        // Statement label (`label:`) or switch clause (`case ...:` / `default:`) precedes a statement/block.
+        prevKind = 'start';
+      }
       canStartRegex = true;
     } else if (c === ';') {
       prevKind = 'start';
