@@ -387,7 +387,7 @@ async function updateWorkspaceYaml(
       continue;
     }
     const current = catalog[packageName];
-    const prefix = current.startsWith('^') ? '^' : current.startsWith('~') ? '~' : '';
+    const prefix = current.startsWith('^') || current.startsWith('~') ? current[0] : '';
     updates[packageName] = `${prefix}${pkg.latestVersion}`;
   }
 

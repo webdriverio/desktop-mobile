@@ -147,6 +147,8 @@ const capabilities: ReactNativeCapabilities[] = [
 const logDirName = getLogDirName(testType, 'react-native');
 const logDir = join(__dirname, 'logs', logDirName);
 
+const iosConnectionRetryTimeout = process.env.RN_WDA_DD ? 420000 : 900000;
+
 export const config = {
   runner: 'local',
   // No display needed.
@@ -172,7 +174,7 @@ export const config = {
   // lands inside undici's ~300s socket cap and doesn't need the WDA-compile budget. The sticky
   // "unknown to FrontBoard" (#359) still needs a leg re-run. Without a prebuilt WDA (local) it
   // stays generous; Android tight.
-  connectionRetryTimeout: isIos ? (process.env.RN_WDA_DD ? 420000 : 900000) : 180000,
+  connectionRetryTimeout: isIos ? iosConnectionRetryTimeout : 180000,
   // 0: a failed iOS session-create otherwise retries the full timeout, ballooning runtime; the
   // deferred specFileRetry above is the recovery path instead.
   connectionRetryCount: 0,

@@ -279,7 +279,12 @@ function wdioTabStops(current) {
       }
       const tabIndex = wdioTabIndex(el);
       const isStop = tabIndex >= 0 && style.visibility === 'visible';
-      const scope = el.shadowRoot ? el.shadowRoot.children : el.localName === 'slot' ? wdioSlotted(el) : undefined;
+      let scope;
+      if (el.shadowRoot) {
+        scope = el.shadowRoot.children;
+      } else if (el.localName === 'slot') {
+        scope = wdioSlotted(el);
+      }
       if (!scope) {
         if (isStop) {
           entries.push({ index: tabIndex, stops: [el] });

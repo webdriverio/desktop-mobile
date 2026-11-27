@@ -329,7 +329,10 @@ const ${namedImports} = ${imp.default};`;
     const lines: string[] = [];
 
     configs.forEach((config, index) => {
-      const configName = configs.length === 1 ? 'config' : config.format === 'esm' ? 'esmConfig' : 'cjsConfig';
+      let configName = 'config';
+      if (configs.length > 1) {
+        configName = config.format === 'esm' ? 'esmConfig' : 'cjsConfig';
+      }
 
       lines.push(`const ${configName} = {`);
       lines.push(`  input: ${this.formatInput(config.input)},`);

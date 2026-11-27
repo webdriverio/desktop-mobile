@@ -137,6 +137,12 @@ export async function executeScript<ReturnValue, InnerArguments extends unknown[
   // Strip the per-call options sentinel (RN has no per-call options yet, but the
   // overload accepts one) so it isn't inlined as a positional arg and shift the user's.
   const innerArgs = (isExecuteOptions(args[0]) ? args.slice(1) : args) as InnerArguments;
+  if (typeof script !== 'function' && innerArgs.length > 0) {
+    throw new Error(
+      `browser.reactNative.execute: positional arguments are not supported with string-form scripts — ` +
+        `there is no arguments binding in Runtime.evaluate. Use the function form: execute((rn, ...args) => ..., ...args).`,
+    );
+  }
   const expression =
     typeof script === 'function'
       ? `(function () {
@@ -144,14 +150,7 @@ export async function executeScript<ReturnValue, InnerArguments extends unknown[
           var rn = globalThis;
           return userFn(rn, ${inlineArgs(innerArgs)});
         })()`
-      : innerArgs.length > 0
-        ? (() => {
-            throw new Error(
-              `browser.reactNative.execute: positional arguments are not supported with string-form scripts — ` +
-                `there is no arguments binding in Runtime.evaluate. Use the function form: execute((rn, ...args) => ..., ...args).`,
-            );
-          })()
-        : wrapStringScript(script);
+      : wrapStringScript(script);
 
   return evaluateInRealm<ReturnValue>(bridge, expression);
 }

@@ -249,7 +249,12 @@ export class StatusBar {
 
     // Print each result
     for (const result of sortedResults) {
-      const status = result.skipped ? '⏭️ SKIP' : result.success ? '✅ PASS' : '❌ FAIL';
+      let status = '❌ FAIL';
+      if (result.skipped) {
+        status = '⏭️ SKIP';
+      } else if (result.success) {
+        status = '✅ PASS';
+      }
       const duration = formatDuration(result.duration);
       const error = result.error ? `${result.error.slice(0, 50)}...` : '';
 
