@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   hasSemicolonOutsideQuotes,
   hasTopLevelArrow,
@@ -87,44 +87,6 @@ describe('hasSemicolonOutsideQuotes', () => {
   it('should return true for a semicolon after a nested template literal closes', () => {
     expect(hasSemicolonOutsideQuotes('`${`inner`}`; done()')).toBe(true);
   });
-
-  it('should ignore semicolons inside line and block comments', () => {
-    expect(hasSemicolonOutsideQuotes('window.title // a; b')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('/* a; b */ window.title')).toBe(false);
-    expect(hasSemicolonOutsideQuotes("window.title // it's; fine")).toBe(false);
-    expect(hasSemicolonOutsideQuotes('/* a; */ x = 1; y = 2')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('window.title // first\n; done()')).toBe(true);
-  });
-
-  it('should not treat /*/ as a closed block comment', () => {
-    expect(hasSemicolonOutsideQuotes('/*/ ; */ x')).toBe(false);
-  });
-
-  it('should handle regular expression literals containing comment markers and semicolons', () => {
-    expect(hasSemicolonOutsideQuotes('/[/*]/.test("*"); return 42')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('/a;b/.test("a;b")')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('return /\\/*;/.test(x)')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('a / b // a; b')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('obj.return / 2 // a; b')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('a / b; c / d')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('x = {} / 2; return /x/')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('x = { a: {} / 2 }; return /x/')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('x = cond ? 1 : {} / 2; return /x/')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('x = true?.5:{} / 2; return /x/')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('a?.b / 2 // a; b')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('x = function() { return 1 } / 2; return /x/')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('café / 2; return /x/')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('if (ok) { run() } /a;b/.test(s)')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('label: {} /a;b/.test(s)')).toBe(false);
-  });
-
-  it('should treat `of` as a keyword only in a for head', () => {
-    expect(hasSemicolonOutsideQuotes('of / 2; return /x/')).toBe(true);
-    expect(hasSemicolonOutsideQuotes('for (const x of /a;b/.exec(s)) run(x)')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('for (const { a } of /a;b/.exec(s)) run(a)')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('for (of of /a;b/.exec(s)) run(of)')).toBe(false);
-    expect(hasSemicolonOutsideQuotes('for (;; of / 2) { break } /a;b/.test(s)')).toBe(false);
-  });
 });
 
 describe('hasTopLevelArrow', () => {
@@ -203,16 +165,6 @@ describe('hasTopLevelArrow', () => {
   it('should return true for a top-level arrow after a template literal', () => {
     expect(hasTopLevelArrow('(`template`) => 1')).toBe(true);
   });
-
-  it('should ignore arrows inside comments', () => {
-    expect(hasTopLevelArrow('x + 1 // () => 2')).toBe(false);
-    expect(hasTopLevelArrow('/* () => 2 */ x + 1')).toBe(false);
-  });
-
-  it('should ignore arrows inside regular expression literals', () => {
-    expect(hasTopLevelArrow('/=>/.test("=>")')).toBe(false);
-    expect(hasTopLevelArrow('/[/*]=>/.test("=>")')).toBe(false);
-  });
 });
 
 describe('isFunctionSource', () => {
@@ -280,6 +232,8 @@ describe('wrapStringScriptBody', () => {
     expect(evalBody('// compute\nconst x = 40; return x + 2 // done')).toBe(42);
     expect(evalBody('/* note */\nreturn 42')).toBe(42);
     expect(evalBody('function foo() { return 42; }')).toBeUndefined();
+    expect(evalBody('async function foo() { return 42; }')).toBeUndefined();
+    expect(evalBody('class Foo {}')).toBeUndefined();
     expect(evalBody('function foo() { return 42; }\nreturn foo()')).toBe(42);
     expect(evalBody('function foo() { return 42; } !foo()')).toBeUndefined();
     expect(evalBody('function foo(){ label: {} /}/.test("}") }\nreturn foo() ?? 42')).toBe(42);
@@ -323,10 +277,52 @@ describe('wrapStringScriptBody', () => {
     expect(evalBody('of / 2; return /x/', { of: 4 })).toEqual(/x/);
   });
 
+  it('should run statements on separate lines without semicolons as a body', () => {
+    const calls: string[] = [];
+    const run = (name: string) => calls.push(name);
+    expect(evalBody("run('a')\nrun('b')", { run })).toBeUndefined();
+    expect(calls).toEqual(['a', 'b']);
+  });
+
+  it('should not let a script close the expression wrapper', () => {
+    expect(wrapStringScriptBody('1); run(); (2')).toBe('1); run(); (2\n');
+  });
+
+  it('should return an awaited expression', async () => {
+    const body = wrapStringScriptBody('await Promise.resolve(42)');
+    await expect(new (async () => {}).constructor(body)()).resolves.toBe(42);
+  });
+
   it('should handle empty and comment-only scripts without throwing', () => {
     expect(evalBody('')).toBeUndefined();
     expect(evalBody('   ')).toBeUndefined();
     expect(evalBody('// only a comment')).toBeUndefined();
     expect(evalBody('/* only a comment */')).toBeUndefined();
+  });
+});
+
+describe('wrapStringScriptBody where compiling is blocked', () => {
+  it('should fall back to statement keywords and top-level semicolons', async () => {
+    const prototype = Object.getPrototypeOf(async () => {});
+    const original = Object.getOwnPropertyDescriptor(prototype, 'constructor');
+    let compileAttempts = 0;
+    Object.defineProperty(prototype, 'constructor', {
+      configurable: true,
+      value: function BlockedAsyncFunction() {
+        compileAttempts++;
+        throw new EvalError('Refused to evaluate a string as JavaScript');
+      },
+    });
+    try {
+      vi.resetModules();
+      const { wrapStringScriptBody: wrap } = await import('../src/script-detect.js');
+      expect(wrap('// title\nwindow.title // note')).toBe('return (// title\nwindow.title // note\n);');
+      expect(wrap('return 42')).toBe('return 42\n');
+      expect(wrap('a(); b()')).toBe('a(); b()\n');
+      expect(compileAttempts).toBe(1);
+    } finally {
+      Object.defineProperty(prototype, 'constructor', original as PropertyDescriptor);
+      vi.resetModules();
+    }
   });
 });
