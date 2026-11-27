@@ -386,7 +386,7 @@ Sends an IPC event to the renderer, as `webContents.send()` in the main process 
 
 It sends the event to the focused window, or to the first window if none is focused, and resolves once the renderer's listeners have run.
 
-**Multiremote:** On the root, it sends the event to every instance. It rejects if any instance fails.
+**Multiremote:** On the root, it sends the event to every instance. If any instance fails, it waits for the others, then rejects with an error naming each instance that failed, e.g. `emitEvent('did-update-info') failed on app2: …`.
 
 **Signature:**
 

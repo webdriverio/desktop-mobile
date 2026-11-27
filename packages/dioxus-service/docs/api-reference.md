@@ -95,7 +95,7 @@ Check whether a command is mocked, or whether a value is a Dioxus mock.
 
 **Returns:** `boolean`
 
-- With a command name, `true` while a mock for that command is registered. `mockRestore()` and `restoreAllMocks()` unregister it.
+- With a command name, `true` while a mock for that command is registered. `mockRestore()` and `restoreAllMocks()` unregister it. In multiremote, an instance checks its own mocks, and the root checks every instance's.
 - With any other value, `true` if it's a Dioxus mock. This form is a TypeScript type guard: the type narrows to `DioxusMockInstance`.
 
 **Example:**

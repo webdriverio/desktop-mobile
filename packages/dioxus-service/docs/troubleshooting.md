@@ -150,11 +150,13 @@ services: [
 
 **Solution 3: Wait for App to Be Ready**
 
+Wait for the element the test needs before you use it:
+
 ```typescript
 it('should wait for app', async () => {
-  const element = await browser.$('button');
-  await element.waitForDisplayed({ timeout: 10000 });
-  expect(await element.isDisplayed()).toBe(true);
+  const button = await browser.$('button');
+  await button.waitForDisplayed({ timeout: 10000 });
+  await button.click();
 });
 ```
 

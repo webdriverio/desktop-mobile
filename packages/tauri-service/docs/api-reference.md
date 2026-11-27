@@ -150,26 +150,30 @@ See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 
 ---
 
-### `browser.tauri.isMockFunction(fnOrCommand)`
+### `browser.tauri.isMockFunction(commandOrFn)`
 
-Check whether a value is a Tauri mock, or whether a command is mocked.
+Check whether a command is mocked, or whether a value is a Tauri mock.
 
 **Parameters:**
 
-- `fnOrCommand` (unknown) - A value to check, or a command name
+- `commandOrFn` (string | unknown) - A command name, or a value to check
 
-**Returns:** `boolean`. Given a value, it's a TypeScript type guard that narrows to `TauriMockInstance`. Given a string, it says whether that command has a mock. In multiremote, an instance checks its own mocks, and the root checks every instance's.
+**Returns:** `boolean`
+
+- With a command name, `true` while a mock for that command is registered. `mockRestore()` and `restoreAllMocks()` unregister it. In multiremote, an instance checks its own mocks, and the root checks every instance's.
+- With any other value, `true` if it's a Tauri mock. This form is a TypeScript type guard: the type narrows to `TauriMockInstance`.
 
 **Example:**
 
 ```typescript
 const mock = await browser.tauri.mock('clipboard_read');
-if (browser.tauri.isMockFunction(mock)) {
-  // TypeScript knows mock is TauriMockInstance here
-  expect(mock.mock.calls).toHaveLength(1);
-}
 
 expect(browser.tauri.isMockFunction('clipboard_read')).toBe(true);
+
+if (browser.tauri.isMockFunction(mock)) {
+  // TypeScript knows mock is TauriMockInstance here
+  expect(mock.mock.calls).toHaveLength(0);
+}
 ```
 
 ---
@@ -533,6 +537,8 @@ These functions are exported from `@wdio/tauri-service` for use in standalone mo
 
 Initialize the Tauri service in standalone mode. Use this when you want to manage the session manually outside of WebdriverIO's lifecycle.
 
+Standalone mode needs `webdriverio` and `@wdio/globals` (9.33.0+ or 10.2.0+) installed next to the service: `npm install --save-dev @wdio/tauri-service webdriverio @wdio/globals`.
+
 **Parameters:**
 
 - `capabilities` (Capabilities) - WebdriverIO capabilities with Tauri options
@@ -554,12 +560,6 @@ const browser = await startWdioSession({
 
 // Use browser...
 await cleanupWdioSession(browser);
-```
-
-Standalone mode needs `webdriverio` and `@wdio/globals` installed next to the service, at `^9.33.0 || ^10.2.0`:
-
-```bash
-npm install --save-dev @wdio/tauri-service webdriverio @wdio/globals
 ```
 
 ### `cleanupWdioSession(browser)`
