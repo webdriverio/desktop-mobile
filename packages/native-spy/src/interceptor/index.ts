@@ -111,7 +111,11 @@ class IpcInterceptorImpl implements IpcInterceptor {
 }
 
 export function createIpcInterceptor(framework: Framework, options?: InterceptorOptions): IpcInterceptor {
-  const adapter: FrameworkAdapter =
-    framework === 'tauri' ? new TauriAdapter() : framework === 'dioxus' ? new DioxusAdapter() : new ElectronAdapter();
+  let adapter: FrameworkAdapter = new ElectronAdapter();
+  if (framework === 'tauri') {
+    adapter = new TauriAdapter();
+  } else if (framework === 'dioxus') {
+    adapter = new DioxusAdapter();
+  }
   return new IpcInterceptorImpl(adapter, options);
 }

@@ -939,12 +939,12 @@ async function testExample(
     }
 
     try {
-      const testScript =
-        mode === 'browser'
-          ? 'pnpm test:browser'
-          : service === 'tauri' && process.platform === 'darwin'
-            ? 'pnpm test:embedded'
-            : 'pnpm test';
+      let testScript = 'pnpm test';
+      if (mode === 'browser') {
+        testScript = 'pnpm test:browser';
+      } else if (service === 'tauri' && process.platform === 'darwin') {
+        testScript = 'pnpm test:embedded';
+      }
       if (mode === 'browser') {
         await execCommandAsync(testScript, packageDir, `Running ${mode} tests for ${packageName}`);
       } else {
@@ -1318,7 +1318,12 @@ async function main() {
         servicePrefixes.find(([prefix]) => packageName.startsWith(prefix))?.[1] ?? 'electron';
 
       if (detectedService === 'electron') {
-        const moduleType = packageName.endsWith('-cjs') ? 'CJS' : packageName.endsWith('-esm') ? 'ESM' : 'Unknown';
+        let moduleType = 'Unknown';
+        if (packageName.endsWith('-cjs')) {
+          moduleType = 'CJS';
+        } else if (packageName.endsWith('-esm')) {
+          moduleType = 'ESM';
+        }
         log(`Testing ${packageName} (${moduleType})`);
       }
 

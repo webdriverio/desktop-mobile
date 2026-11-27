@@ -131,8 +131,12 @@ profile ${binaryName}-${profileName} "${binaryPath}" flags=(unconfined) {
     // Determine if we should proceed based on install mode and permissions
     const hasRootAccess = isRoot();
     const hasSudoAccess = installMode === 'sudo' && canUseSudo();
-    const shouldProceed =
-      installMode === true ? hasRootAccess : installMode === 'sudo' ? hasRootAccess || hasSudoAccess : false;
+    let shouldProceed = false;
+    if (installMode === true) {
+      shouldProceed = hasRootAccess;
+    } else if (installMode === 'sudo') {
+      shouldProceed = hasRootAccess || hasSudoAccess;
+    }
 
     if (!shouldProceed) {
       if (installMode === true && !hasRootAccess) {

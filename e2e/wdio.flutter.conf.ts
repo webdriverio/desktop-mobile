@@ -147,6 +147,8 @@ const logDir = join(__dirname, 'logs', getLogDirName(testType, 'flutter'));
 // the `am start` intent + driver discovery) never reaches the uploaded artifact.
 mkdirSync(logDir, { recursive: true });
 
+const iosConnectionRetryTimeout = process.env.FLUTTER_WDA_DD ? 420000 : 900000;
+
 export const config = {
   runner: 'local',
   // No display needed.
@@ -170,7 +172,7 @@ export const config = {
   // session-create — with usePreinstalledWDA there's no in-session xcodebuild, so POST /session
   // lands inside undici's ~300s socket cap and doesn't need the WDA-compile budget. Without a
   // prebuilt WDA (local) it stays generous; Android tight.
-  connectionRetryTimeout: isIos ? (process.env.FLUTTER_WDA_DD ? 420000 : 900000) : 180000,
+  connectionRetryTimeout: isIos ? iosConnectionRetryTimeout : 180000,
   connectionRetryCount: 0,
   // @wdio/appium-service boots Appium; @wdio/flutter-service prepares the capability
   // (automationName Flutter) and attaches the Dart VM Service for execute/mock.

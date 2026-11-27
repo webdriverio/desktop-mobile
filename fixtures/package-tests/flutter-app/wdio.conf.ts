@@ -68,6 +68,8 @@ const capabilities: FlutterCapabilities[] = [
   },
 ];
 
+const iosConnectionRetryTimeout = process.env.FLUTTER_WDA_DD ? 420000 : 900000;
+
 export const config = {
   runner: 'local',
   // No display needed.
@@ -83,7 +85,7 @@ export const config = {
   // iOS session-create ceiling. Prebuilt WDA (FLUTTER_WDA_DD) lands quickly within undici's ~300s
   // POST /session socket cap; the in-session build (FLUTTER_WDA_DD unset) needs the full WDA-compile
   // budget, so match the e2e conf's 15-min window when it's unset.
-  connectionRetryTimeout: platform === 'ios' ? (process.env.FLUTTER_WDA_DD ? 420000 : 900000) : 180000,
+  connectionRetryTimeout: platform === 'ios' ? iosConnectionRetryTimeout : 180000,
   // 0 (not 3): a failed iOS session-create otherwise retries the full 13-min timeout 3× — use the
   // spec retry below (fresh session) instead.
   connectionRetryCount: 0,

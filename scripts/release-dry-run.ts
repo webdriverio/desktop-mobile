@@ -138,7 +138,12 @@ function main(): void {
     process.stdout.write(`• ${pad(a.name, 32)} ${a.kind} … `);
     const r = a.kind === 'npm' ? dryPack(a) : dryPublishCrate(a);
     results.push(r);
-    const tag = r.outcome === 'pass' ? '✅ pass' : r.outcome === 'expected-fail' ? '⚠️  expected-fail' : '❌ FAIL';
+    let tag = '❌ FAIL';
+    if (r.outcome === 'pass') {
+      tag = '✅ pass';
+    } else if (r.outcome === 'expected-fail') {
+      tag = '⚠️  expected-fail';
+    }
     console.log(tag);
   }
 

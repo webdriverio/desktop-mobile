@@ -95,8 +95,13 @@ function newerTag(
 }
 
 export function nextPin(version: string, tags: string[]): string | undefined {
-  const keyOf = MAJOR_RE.test(version) ? majorKey : SEMVER_RE.test(version) ? semverKey : undefined;
-  return keyOf ? newerTag(version, tags, keyOf) : undefined;
+  if (MAJOR_RE.test(version)) {
+    return newerTag(version, tags, majorKey);
+  }
+  if (SEMVER_RE.test(version)) {
+    return newerTag(version, tags, semverKey);
+  }
+  return undefined;
 }
 
 export function planLine(line: string, tagsFor: (repo: string) => string[]): { line: string; change?: PinChange } {

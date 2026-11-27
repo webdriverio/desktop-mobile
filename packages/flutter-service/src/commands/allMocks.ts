@@ -20,11 +20,7 @@ function matchesPrefix(target: string, prefix?: string): boolean {
  * recognises containment, not just an exact-prefix match (`''`/`'Foo'` covers `'Foo.Bar'`).
  */
 export function prefixCovers(broaderPrefix: string | undefined, narrowerPrefix: string | undefined): boolean {
-  const narrowerBase = !narrowerPrefix
-    ? ''
-    : narrowerPrefix.endsWith('.')
-      ? narrowerPrefix.slice(0, -1)
-      : narrowerPrefix;
+  const narrowerBase = narrowerPrefix?.endsWith('.') ? narrowerPrefix.slice(0, -1) : (narrowerPrefix ?? '');
   return matchesPrefix(narrowerBase, broaderPrefix);
 }
 
