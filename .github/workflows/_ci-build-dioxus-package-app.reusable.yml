@@ -95,7 +95,7 @@ jobs:
       # Without a version the action installs the latest binstall. github.action_ref is a
       # SHA now, so keep this in step with the action's tag by hand.
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # v1.25.3
+        uses: cargo-bins/cargo-binstall@4b6fa09d0d1ef9740a0c332e31b9ae336f97efa0 # v1.28.0
         with:
           version: v1.25.3
 
