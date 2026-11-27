@@ -5,6 +5,226 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [@wdio/dioxus-bridge@2.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-bridge@v2.0.0-next.0...wdio-dioxus-bridge@v2.0.0-next.1)
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+## [@wdio/dioxus-service@2.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-service@v2.0.0-next.0...wdio-dioxus-service@v2.0.0-next.1)
+
+### Breaking
+
+- **dioxus,electron**: name each failing instance when a multiremote root command fails (PR [#1146](https://github.com/webdriverio/desktop-mobile/pull/1146))
+- **native-types**: type the multiremote root's service APIs as one result per instance (PR [#1099](https://github.com/webdriverio/desktop-mobile/pull/1099))
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+- make the v10 checks fail when the fix they cover is reverted (PR [#1000](https://github.com/webdriverio/desktop-mobile/pull/1000))
+
+## [wdio-dioxus-driver@1.1.1-next.1] - 2026-11-27
+
+### Changed
+
+- update dependencies across multiple packages (\#1142)
+
+## [wdio-dioxus-embedded-driver@2.0.0-next.1] - 2026-11-27
+
+### Breaking
+
+- **tauri,dioxus**: start the Tauri embedded server only when asked, and refuse requests from other hosts and from browsers (\#1104)
+- **tauri,dioxus**: make Element Clear fire the events chromedriver does (\#1094)
+
+### Changed
+
+- forbid nested ternaries in Biome (\#1153)
+- update dependencies across multiple packages (\#1142)
+- **dioxus**: say an uncancelled submit doesn't navigate the page (\#1009)
+
+### Fixed
+
+- **dioxus**: stop the screenshot error pointing at the external provider (\#1093)
+
+## [wdio-dioxus@2.0.0-next.1] - 2026-11-27
+
+### Changed
+
+- update dependencies across multiple packages (\#1142)
+
+## [@wdio/tauri-plugin@2.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v2.0.0-next.0...wdio-tauri-plugin@v2.0.0-next.1)
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+- **tauri**: check that triggerDeeplink emits on the app's main thread (PR [#1088](https://github.com/webdriverio/desktop-mobile/pull/1088))
+
+### Fixed
+
+- **tauri**: declare the Rust versions the plugins need (PR [#1002](https://github.com/webdriverio/desktop-mobile/pull/1002))
+
+## [@wdio/tauri-service@2.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-service@v2.0.0-next.0...wdio-tauri-service@v2.0.0-next.1)
+
+### Breaking
+
+- **dioxus,electron**: name each failing instance when a multiremote root command fails (PR [#1146](https://github.com/webdriverio/desktop-mobile/pull/1146))
+- **native-types**: type the multiremote root's service APIs as one result per instance (PR [#1099](https://github.com/webdriverio/desktop-mobile/pull/1099))
+- **tauri,dioxus**: start the Tauri embedded server only when asked, and refuse requests from other hosts and from browsers (PR [#1104](https://github.com/webdriverio/desktop-mobile/pull/1104))
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+### Fixed
+
+- **tauri**: update mocks one at a time, whatever platform the test runner is on (PR [#1096](https://github.com/webdriverio/desktop-mobile/pull/1096))
+- **tauri**: read the version current msedgedriver prints (PR [#1123](https://github.com/webdriverio/desktop-mobile/pull/1123))
+- **tauri**: extract the downloaded msedgedriver without Expand-Archive (PR [#1130](https://github.com/webdriverio/desktop-mobile/pull/1130))
+
+## [tauri-plugin-wdio-webdriver@2.0.0-next.1] - 2026-11-27
+
+### Breaking
+
+- **tauri,dioxus**: start the Tauri embedded server only when asked, and refuse requests from other hosts and from browsers (\#1104)
+- **tauri,dioxus**: make Element Clear fire the events chromedriver does (\#1094)
+
+### Changed
+
+- forbid nested ternaries in Biome (\#1153)
+- update dependencies across multiple packages (\#1142)
+
+### Fixed
+
+- **tauri**: report script exceptions on Windows instead of returning null (\#1097)
+- **tauri**: keep concurrent Find Elements requests from returning each other's elements (\#1102)
+- **tauri**: declare the Rust versions the plugins need (\#1002)
+- **tauri**: report a script timeout when a Linux async script never calls done (\#1035)
+
+## [@wdio/flutter-service@1.0.0-next.6] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-flutter-service@v1.0.0-next.5...wdio-flutter-service@v1.0.0-next.6)
+
+### Changed
+
+- forbid nested ternaries in Biome (PR [#1153](https://github.com/webdriverio/desktop-mobile/pull/1153))
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+## [@wdio/electrobun-service@0.4.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electrobun-service@v0.4.0-next.0...wdio-electrobun-service@v0.4.0-next.1)
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+## [@wdio/electron-service@11.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v11.0.0-next.0...wdio-electron-service@v11.0.0-next.1)
+
+### Breaking
+
+- **dioxus,electron**: name each failing instance when a multiremote root command fails (PR [#1146](https://github.com/webdriverio/desktop-mobile/pull/1146))
+- **native-types**: type the multiremote root's service APIs as one result per instance (PR [#1099](https://github.com/webdriverio/desktop-mobile/pull/1099))
+- **electron**: copy API mocks' results from the app instead of rerunning their implementation (PR [#1141](https://github.com/webdriverio/desktop-mobile/pull/1141))
+- **electron**: make every class constructor mock operation reach the app (PR [#1132](https://github.com/webdriverio/desktop-mobile/pull/1132) · closes [#1131](https://github.com/webdriverio/desktop-mobile/issues/1131))
+
+### Added
+
+- **electron**: warn when the only app build found can't run on this machine (PR [#1045](https://github.com/webdriverio/desktop-mobile/pull/1045))
+
+### Changed
+
+- forbid nested ternaries in Biome (PR [#1153](https://github.com/webdriverio/desktop-mobile/pull/1153))
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+- **electron**: check that a class mock is created and stored in its own instance (PR [#1086](https://github.com/webdriverio/desktop-mobile/pull/1086))
+- make the v10 checks fail when the fix they cover is reverted (PR [#1000](https://github.com/webdriverio/desktop-mobile/pull/1000))
+
+### Fixed
+
+- declare the packages the published types import, and check the manifests and installs (PR [#1090](https://github.com/webdriverio/desktop-mobile/pull/1090))
+
+## [@wdio/native-cdp-bridge@2.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-cdp-bridge@v2.0.0-next.0...wdio-native-cdp-bridge@v2.0.0-next.1)
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+## [@wdio/native-core@2.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-core@v2.0.0-next.0...wdio-native-core@v2.0.0-next.1)
+
+### Breaking
+
+- **dioxus,electron**: name each failing instance when a multiremote root command fails (PR [#1146](https://github.com/webdriverio/desktop-mobile/pull/1146))
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+## [@wdio/native-mobile-core@2.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-mobile-core@v2.0.0-next.0...wdio-native-mobile-core@v2.0.0-next.1)
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+## [@wdio/native-spy@2.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-spy@v2.0.0-next.0...wdio-native-spy@v2.0.0-next.1)
+
+### Changed
+
+- forbid nested ternaries in Biome (PR [#1153](https://github.com/webdriverio/desktop-mobile/pull/1153))
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+## [@wdio/native-types@3.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-types@v3.0.0-next.0...wdio-native-types@v3.0.0-next.1)
+
+### Breaking
+
+- **native-types**: type the multiremote root's service APIs as one result per instance (PR [#1099](https://github.com/webdriverio/desktop-mobile/pull/1099))
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+### Fixed
+
+- declare the packages the published types import, and check the manifests and installs (PR [#1090](https://github.com/webdriverio/desktop-mobile/pull/1090))
+
+## [@wdio/native-utils@3.0.0-next.1] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-utils@v3.0.0-next.0...wdio-native-utils@v3.0.0-next.1)
+
+### Changed
+
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
+### Fixed
+
+- declare the packages the published types import, and check the manifests and installs (PR [#1090](https://github.com/webdriverio/desktop-mobile/pull/1090))
+
+## [@wdio/react-native-service@1.0.0-next.5] - 2026-11-27
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-react-native-service@v1.0.0-next.4...wdio-react-native-service@v1.0.0-next.5)
+
+### Changed
+
+- forbid nested ternaries in Biome (PR [#1153](https://github.com/webdriverio/desktop-mobile/pull/1153))
+- update dependencies across multiple packages (PR [#1142](https://github.com/webdriverio/desktop-mobile/pull/1142))
+
 ## [@wdio/dioxus-bridge@2.0.0-next.0] - 2026-11-08
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-bridge@v1.1.0...wdio-dioxus-bridge@v2.0.0-next.0)
