@@ -137,6 +137,7 @@ jobs:
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
       test-crates: |
+        packages/tauri-plugin
         packages/tauri-plugin-webdriver
       generated-permissions-crates: |
         packages/tauri-plugin
@@ -1149,7 +1150,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace

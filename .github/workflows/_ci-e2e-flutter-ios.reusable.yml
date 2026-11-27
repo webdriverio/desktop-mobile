@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
@@ -68,7 +68,7 @@ jobs:
           exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
       - name: 📥 Download built .app
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: flutter-ios-app-${{ github.run_id }}
           path: ${{ github.workspace }}/flutter-app-dl
@@ -189,7 +189,7 @@ jobs:
       - name: 📦 Upload Test Logs
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-logs-flutter-ios-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: |

@@ -177,6 +177,8 @@ fn main() {
 }
 ```
 
+`tauri_plugin_wdio_webdriver::init()` starts its WebDriver server only when the app is launched with `TAURI_WEBDRIVER_PORT` set. The service sets it, so `tauri dev` opens no port.
+
 3. **Create `src-tauri/capabilities/default.json`**
 
 ```json

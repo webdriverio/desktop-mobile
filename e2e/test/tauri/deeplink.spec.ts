@@ -1,6 +1,6 @@
 import { browser, expect } from '@wdio/globals';
 import '@wdio/native-types';
-import { createDeeplinkHelpers } from '../../lib/deeplink.js';
+import { createDeeplinkHelpers, tauriDeeplinkEmitsInApp } from '../../lib/deeplink.js';
 
 declare global {
   var receivedDeeplinks: string[];
@@ -9,6 +9,8 @@ declare global {
 }
 
 const { clearDeeplinkState, waitForDeeplink, waitForDeeplinkStability } = createDeeplinkHelpers(() => browser.tauri);
+
+const emitsInApp = tauriDeeplinkEmitsInApp();
 
 describe('Deeplink Testing (browser.tauri.triggerDeeplink)', () => {
   beforeEach(async () => {
@@ -53,6 +55,23 @@ describe('Deeplink Testing (browser.tauri.triggerDeeplink)', () => {
         },
         { timeout: 30000, timeoutMsg: 'onOpenUrl did not receive the deeplink within 30 seconds' },
       );
+    });
+
+    it("should run the app's on_open_url handler on the main thread", async function () {
+      // Covers only the emit route. On the OS route, the handler's thread depends on the platform and the
+      // single-instance plugin.
+      if (!emitsInApp) {
+        this.skip();
+      }
+      const url = 'testapp://main-thread/check';
+      await browser.tauri.triggerDeeplink(url);
+      await waitForDeeplink(1, 'App did not receive the deeplink');
+
+      const onMainThread = await browser.tauri.execute(
+        ({ core }, url) => core.invoke('open_url_ran_on_main_thread', { url }),
+        url,
+      );
+      expect(onMainThread).toBe(true);
     });
   });
 

@@ -4,6 +4,7 @@ import { triggerDeeplink } from '../src/commands/triggerDeeplink.js';
 import mockStore from '../src/mockStore.js';
 import DioxusWorkerService from '../src/service.js';
 import type { DioxusServiceOptions } from '../src/types.js';
+import { clearWindowState, getCurrentWindowLabel } from '../src/window.js';
 import { createFakeMultiremote } from './commands/multiremoteFakes.js';
 
 vi.mock('../src/commands/triggerDeeplink.js', () => ({ triggerDeeplink: vi.fn().mockResolvedValue(undefined) }));
@@ -61,6 +62,7 @@ type Installed = {
 describe('DioxusWorkerService', () => {
   afterEach(() => {
     mockStore.clear();
+    clearWindowState();
   });
 
   it('should install browser.dioxus on before()', async () => {
@@ -315,6 +317,59 @@ describe('DioxusWorkerService', () => {
       vi.mocked(fakes.root.execute).mockResolvedValueOnce([{ __wdio_value__: 'a' }, {}]);
 
       await expect(dioxusOf(fakes.root).execute(() => 'a')).resolves.toEqual(['a', undefined]);
+    });
+
+    it("should resolve with each instance's window labels from listWindows on the root, in instance order", async () => {
+      const { fakes, dioxusOf } = await setUp();
+      vi.mocked(fakes.browserA.execute).mockResolvedValueOnce({ __wdio_value__: ['main'] });
+      vi.mocked(fakes.browserB.execute).mockResolvedValueOnce({ __wdio_value__: ['main', 'window-1'] });
+
+      await expect(dioxusOf(fakes.root).listWindows()).resolves.toEqual([['main'], ['main', 'window-1']]);
+      expect(fakes.root.execute).not.toHaveBeenCalled();
+    });
+
+    it('should reject naming the instance listWindows failed on, from the root', async () => {
+      const { fakes, dioxusOf } = await setUp();
+      vi.mocked(fakes.browserA.execute).mockResolvedValueOnce({ __wdio_value__: ['main'] });
+      vi.mocked(fakes.browserB.execute).mockRejectedValueOnce(new Error('session gone'));
+
+      await expect(dioxusOf(fakes.root).listWindows()).rejects.toMatchObject({
+        message: 'listWindows failed on browserB: session gone',
+      });
+    });
+
+    it('should reject naming the instance that has no window with the label, after switching the others', async () => {
+      const { fakes, dioxusOf } = await setUp();
+      vi.mocked(fakes.browserA.execute).mockResolvedValueOnce({ __wdio_value__: ['main', 'window-1'] });
+      vi.mocked(fakes.browserB.execute).mockResolvedValueOnce({ __wdio_value__: ['main'] });
+      Object.assign(fakes.browserA, {
+        getWindowHandle: vi.fn().mockResolvedValue('main'),
+        getWindowHandles: vi.fn().mockResolvedValue(['main', 'window-1']),
+      });
+
+      await expect(dioxusOf(fakes.root).switchWindow('window-1')).rejects.toMatchObject({
+        message:
+          'switchWindow(\'window-1\') failed on browserB: [@wdio/dioxus-service] window label "window-1" not found. Available: main',
+      });
+      expect(getCurrentWindowLabel(fakes.browserA)).toBe('window-1');
+    });
+
+    it('should switch every instance from switchWindow on the root', async () => {
+      const { fakes, dioxusOf } = await setUp();
+      for (const instance of [fakes.browserA, fakes.browserB]) {
+        vi.mocked(instance.execute).mockResolvedValueOnce({ __wdio_value__: ['main', 'window-1'] });
+        Object.assign(instance, {
+          getWindowHandle: vi.fn().mockResolvedValue('main'),
+          getWindowHandles: vi.fn().mockResolvedValue(['main', 'window-1']),
+        });
+      }
+
+      await dioxusOf(fakes.root).switchWindow('window-1');
+
+      for (const instance of [fakes.browserA, fakes.browserB]) {
+        expect(instance.getWindowHandles).toHaveBeenCalledOnce();
+        expect(getCurrentWindowLabel(instance)).toBe('window-1');
+      }
     });
 
     it("should run the configured ops on every instance's mocks before each test", async () => {

@@ -271,6 +271,8 @@ browser.electron.execute<T>(
 
 `Promise<T>` - Resolves with the return value of the script
 
+**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. If any instance fails, it waits for the others, then rejects with an error naming each instance that failed, e.g. `execute failed on app2: …`. To run it in one app, call it on that instance: `browser.getInstance('app1').electron.execute(...)`.
+
 **Example:**
 
 ```ts
@@ -702,7 +704,7 @@ Each mock object returned by [`mock()`](#mock) or [`mockAll()`](#mockall) has th
 
 ### `mockImplementation()`
 
-Accepts a function that will be used as the implementation of the mock.
+Accepts a function that will be used as the implementation of the mock. It's serialized and runs only in the app's main process, so it can't use variables from your test file. An error it throws is thrown in the app, where the caller can catch it.
 
 **Signature:**
 
@@ -724,17 +726,12 @@ mockImplementation(fn: (...args: any[]) => any): Promise<ElectronFunctionMock>
 
 ```ts
 const mockGetName = await browser.electron.mock('app', 'getName');
-let callsCount = 0;
-await mockGetName.mockImplementation(() => {
-  if (typeof callsCount !== 'undefined') {
-    callsCount++;
-  }
-  return 'mocked value';
-});
+await mockGetName.mockImplementation(() => 'mocked value');
 
 const result = await browser.electron.execute(async (electron) => await electron.app.getName());
-expect(callsCount).toBe(1);
 expect(result).toBe('mocked value');
+expect(mockGetName).toHaveBeenCalledTimes(1);
+expect(mockGetName).toHaveReturnedWith('mocked value');
 ```
 
 ---
@@ -1321,7 +1318,7 @@ Available types:
 - `'return'` - the mock returned without throwing
 - `'throw'` - the mock threw a value
 
-The `value` property contains the returned value or thrown error. If the mock returned a promise, the value will be the resolved value, not the Promise itself, unless it was never resolved.
+The `value` property contains the returned value or thrown error. If the mock returned a promise, `value` is a promise with the same outcome. If the app's promise hadn't settled when the mock last synced, `value` settles at the next sync, so awaiting it waits for one.
 
 **Example:**
 

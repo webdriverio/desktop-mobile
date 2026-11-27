@@ -448,7 +448,7 @@ In builds that register it, the plugin also adds `window.__wdio_element_events` 
 tauri-plugin-wdio-webdriver = "2"
 ```
 
-The next step registers it only in debug builds, so release builds never start its WebDriver server.
+The next step registers it only in debug builds, so release builds never start its WebDriver server. In a debug build, it starts the server only when the app is launched with `TAURI_WEBDRIVER_PORT` set, which the service does, so `tauri dev` opens no port.
 
 #### 2. Register Plugin in Rust
 
@@ -485,7 +485,7 @@ fn main() {
 
 ### Configuration
 
-The embedded WebDriver server runs on port `4445` by default. To customize:
+The service starts the embedded WebDriver server on port `4445` by default. To customize:
 
 ```typescript
 // In wdio.conf.ts
@@ -500,7 +500,7 @@ services: [
 ];
 ```
 
-Or set the port via environment variable:
+Or set the port in the test runner's environment:
 
 ```bash
 TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
@@ -508,10 +508,12 @@ TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
 
 ### How It Works
 
-1. The service spawns your Tauri app with `TAURI_WEBDRIVER_PORT` environment variable
-2. The app starts an HTTP WebDriver server on that port
+1. The service spawns your Tauri app with the `TAURI_WEBDRIVER_PORT` environment variable set
+2. The plugin starts an HTTP WebDriver server on that port, bound to `127.0.0.1`. Without the variable, it starts nothing
 3. WebdriverIO connects directly to that port (no tauri-driver intermediary)
 4. On test completion, the service terminates the app
+
+A web page can't reach the server; see [Security](../../tauri-plugin-webdriver/README.md#security) in the plugin's README.
 
 ### Differences from External Driver
 

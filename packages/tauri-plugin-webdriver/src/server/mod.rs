@@ -6,6 +6,7 @@ use tokio::runtime::Runtime as TokioRuntime;
 use tokio::sync::RwLock;
 
 pub mod handlers;
+mod host_check;
 pub mod response;
 pub mod router;
 
@@ -64,7 +65,7 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
 
     rt.block_on(async {
       let state = Arc::new(AppState::new(app));
-      let router = router::create_router(state);
+      let router = host_check::layer(router::create_router(state), port);
 
       let addr = SocketAddr::from(([127, 0, 0, 1], port));
 

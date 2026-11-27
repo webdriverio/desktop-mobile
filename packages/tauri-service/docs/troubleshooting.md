@@ -446,7 +446,21 @@ macOS has no external WebDriver driver, so the `embedded` provider (the default)
 let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
 ```
 
+Register it with `init()`, not `init_with_port()`: `init_with_port()` ignores the port the service passes in `TAURI_WEBDRIVER_PORT`.
+
 See [Plugin Setup](./plugin-setup.md) for the full setup guide.
+
+### Embedded Server Not Listening When You Start the App Yourself
+
+`init()` starts the WebDriver server only when the app is launched with `TAURI_WEBDRIVER_PORT` set. The service sets it; when you start the app yourself, set it too:
+
+```bash
+TAURI_WEBDRIVER_PORT=4445 cargo tauri dev
+```
+
+### Embedded Server Refuses Requests With 403
+
+The server refuses a request whose `Host` header isn't `127.0.0.1`, `localhost` or `[::1]` on its port, and any request with an `Origin` header, which browsers send. Connect through `127.0.0.1` or `localhost`, from a WebDriver client rather than a web page.
 
 ---
 

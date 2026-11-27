@@ -14,7 +14,7 @@
 //
 // No per-call windowLabel option yet (#722): scripts run in the current window.
 
-import { requireInstance } from '@wdio/native-core';
+import { runOnEachInstance } from '@wdio/native-core';
 import type { DioxusAPIs } from '@wdio/native-types';
 import { isMultiremote } from '@wdio/native-utils';
 
@@ -32,9 +32,8 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
 ): Promise<Awaited<ReturnValue>> {
   // The root's own execute would return every instance's envelope unopened, so each instance runs it instead
   if (isMultiremote(browser)) {
-    const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-    return (await Promise.all(
-      mrBrowser.instances.map((name) => execute(requireInstance(mrBrowser, name), script, ...args)),
+    return (await runOnEachInstance(browser as unknown as WebdriverIO.MultiRemoteBrowser, 'execute', (instance) =>
+      execute(instance, script, ...args),
     )) as Awaited<ReturnValue>;
   }
 

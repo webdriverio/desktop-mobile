@@ -71,7 +71,7 @@ jobs:
 
       # Standard checkout with SSH key for private repositories
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
@@ -174,7 +174,7 @@ jobs:
       # zip-based download-archive used above), mirroring the e2e flow. macOS-only.
       - name: 📦 Download Electrobun Package Test App Bundle
         if: inputs.service == 'electrobun'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: electrobun-package-app-${{ runner.os }}-${{ runner.arch }}
           path: ${{ runner.temp }}
@@ -369,7 +369,7 @@ jobs:
       - name: 📦 Upload Package Test Logs
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-test-logs-${{ inputs.os }}-${{ inputs.service }}-${{ inputs.module-type || 'default' }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: logs/package-tests/**/*.log
@@ -379,7 +379,7 @@ jobs:
       # Provide an interactive debugging session on failure
       # This allows manual investigation of the environment
       - name: 🐛 Debug Build on Failure
-        uses: goosewobbler/vscode-server-action@v1.5.0
+        uses: goosewobbler/vscode-server-action@a6b02d8c34afd32b61289fbc410fb40b02bfae2f # v1.5.0
         if: failure()
         with:
           timeout: "180000"

@@ -78,6 +78,7 @@ import type { TauriCapabilities, TauriServiceOptions } from '../src/types.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
+  listWindowLabels,
   suppressActiveWindowFocus,
   withInternalWindowSwitch,
 } from '../src/window.js';
@@ -796,33 +797,63 @@ describe('TauriWorkerService', () => {
       expect((err as AggregateError).message).toContain('tauri.read_file');
     });
 
-    it('should run mock updates sequentially on win32', async () => {
-      mockPlatform('win32');
+    it.each(['win32', 'linux', 'darwin'] as const)(
+      'should run mock updates one at a time on a %s runner',
+      async (platform) => {
+        mockPlatform(platform);
+
+        try {
+          const mockBrowser = createMockBrowser();
+          const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+          await service.before({} as any, [], mockBrowser);
+
+          const callOrder: string[] = [];
+          const makeUpdate = (id: string) =>
+            vi.fn().mockImplementation(async () => {
+              callOrder.push(`start:${id}`);
+              await Promise.resolve();
+              callOrder.push(`end:${id}`);
+            });
+
+          vi.mocked(mockStore.getMocks).mockReturnValue([
+            ['tauri.a', { update: makeUpdate('a') } as any],
+            ['tauri.b', { update: makeUpdate('b') } as any],
+          ]);
+          vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
+
+          await (mockBrowser as any).tauri.execute(() => undefined);
+
+          expect(callOrder).toEqual(['start:a', 'end:a', 'start:b', 'end:b']);
+        } finally {
+          restorePlatform();
+        }
+      },
+    );
+
+    it('should update every mock and list every failure when updates fail', async () => {
+      const failA = new Error('a failed');
+      const failC = new Error('c failed');
+      const updateA = vi.fn().mockRejectedValue(failA);
+      const updateB = vi.fn().mockResolvedValue(undefined);
+      const updateC = vi.fn().mockRejectedValue(failC);
+      vi.mocked(mockStore.getMocks).mockReturnValue([
+        ['tauri.a', { update: updateA } as any],
+        ['tauri.b', { update: updateB } as any],
+        ['tauri.c', { update: updateC } as any],
+      ]);
+      vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
 
       try {
-        const mockBrowser = createMockBrowser();
-        const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-        await service.before({} as any, [], mockBrowser);
+        const err = await (mockBrowser as any).tauri.execute(() => undefined).catch((e: unknown) => e);
 
-        const callOrder: string[] = [];
-        const makeUpdate = (id: string) =>
-          vi.fn().mockImplementation(async () => {
-            callOrder.push(`start:${id}`);
-            await Promise.resolve();
-            callOrder.push(`end:${id}`);
-          });
-
-        vi.mocked(mockStore.getMocks).mockReturnValue([
-          ['tauri.a', { update: makeUpdate('a') } as any],
-          ['tauri.b', { update: makeUpdate('b') } as any],
-        ]);
-        vi.mocked(executeWithElementRefs).mockResolvedValueOnce(undefined as any);
-
-        await (mockBrowser as any).tauri.execute(() => undefined);
-
-        expect(callOrder).toEqual(['start:a', 'end:a', 'start:b', 'end:b']);
+        expect(err).toBeInstanceOf(AggregateError);
+        expect((err as AggregateError).message).toBe('Mock updates failed for: tauri.a, tauri.c');
+        expect((err as AggregateError).errors).toEqual([failA, failC]);
+        expect(updateA).toHaveBeenCalledTimes(2);
+        expect(updateB).toHaveBeenCalledOnce();
+        expect(updateC).toHaveBeenCalledTimes(2);
       } finally {
-        restorePlatform();
+        vi.mocked(mockStore.getMocks).mockReset().mockReturnValue([]);
       }
     });
 
@@ -904,6 +935,54 @@ describe('TauriWorkerService', () => {
 
         expect(error).toMatchObject({ message: 'execute failed on browserB: no such window', cause: failure });
         expect(mockStore.getAllMocks).toHaveBeenCalledOnce();
+      });
+    });
+  });
+
+  describe('tauri.listWindows() on the multiremote root', () => {
+    afterEach(() => {
+      vi.mocked(listWindowLabels).mockReset().mockResolvedValue(['main']);
+    });
+
+    async function multiremoteRoot() {
+      const instanceA = createMockBrowser({ sessionId: 'session-a' });
+      const instanceB = createMockBrowser({ sessionId: 'session-b' });
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      });
+      const service = new TauriWorkerService({}, {
+        browserA: { capabilities: { 'wdio:tauriServiceOptions': {} } },
+        browserB: { capabilities: { 'wdio:tauriServiceOptions': {} } },
+      } as unknown as TauriCapabilities);
+      await service.before({} as never, [], mrBrowser);
+      return { instanceA, instanceB, root: (mrBrowser as unknown as { tauri: TauriServiceAPI<'root'> }).tauri };
+    }
+
+    it("should resolve with each instance's window labels, in instance order", async () => {
+      const { instanceA, instanceB, root } = await multiremoteRoot();
+      vi.mocked(listWindowLabels).mockImplementation(async (browser) =>
+        browser === instanceA ? ['main'] : ['main', 'settings'],
+      );
+
+      await expect(root.listWindows()).resolves.toEqual([['main'], ['main', 'settings']]);
+      expect(vi.mocked(listWindowLabels).mock.calls).toEqual([[instanceA], [instanceB]]);
+    });
+
+    it('should reject naming the instance that failed', async () => {
+      const { instanceA, root } = await multiremoteRoot();
+      const failure = new Error('no such window');
+      vi.mocked(listWindowLabels).mockImplementation(async (browser) => {
+        if (browser === instanceA) {
+          return ['main'];
+        }
+        throw failure;
+      });
+
+      await expect(root.listWindows()).rejects.toMatchObject({
+        message: 'listWindows failed on browserB: no such window',
+        cause: failure,
       });
     });
   });

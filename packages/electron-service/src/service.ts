@@ -1,17 +1,18 @@
 import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
-import { forEachInstance } from '@wdio/native-core';
-import { createIpcInterceptor, parseCallData } from '@wdio/native-spy/interceptor';
+import { forEachInstance, runOnEachInstance } from '@wdio/native-core';
+import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
-  BrowserExtension,
   ElectronFunctionMock,
   ElectronInterface,
   ElectronMock,
   ElectronMockReadAccessor,
+  ElectronServiceAPI,
   ElectronServiceGlobalOptions,
   ElectronType,
   ExecuteOpts,
   Result,
+  ServiceApiTarget,
 } from '@wdio/native-types';
 import {
   createLogger,
@@ -36,7 +37,9 @@ import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 import { checkInspectFuse } from './fuses.js';
 import { LogCaptureManager, type LogCaptureOptions } from './logCapture.js';
 import { createElectronBrowserModeMock } from './mock.js';
+import type { MockAccessor, MockApplyData } from './mockFactory.js';
 import mockStore from './mockStore.js';
+import { readNativeMocks } from './nativeMockSync.js';
 import { ServiceConfig } from './serviceConfig.js';
 import { isInternalCommand } from './utils.js';
 import { clearPuppeteerSessions, ensureActiveWindowFocus, getActiveWindowHandle, getPuppeteer } from './window.js';
@@ -186,99 +189,19 @@ async function tryUpdate(label: string, run: () => Promise<void>): Promise<void>
 }
 
 /**
- * Walk every registered native mock through a single browser.electron.execute()
- * round-trip. The inner script discriminates by accessor kind (api / prototype /
- * constructor), returns a map keyed by mockId, and each mock applies its own
- * slice locally via __applyCalls (no further I/O).
+ * Reads every registered native mock's record in one browser.electron.execute() round trip, then
+ * each mock applies its own via __applyCalls.
  */
 async function batchUpdateNativeMocks(
   browser: WebdriverIO.Browser,
   entries: Array<[string, ElectronMock]>,
 ): Promise<void> {
-  if (entries.length === 0) {
-    return;
-  }
-  const items: Array<[string, ElectronMockReadAccessor]> = entries.map(([id, m]) => [
-    id,
-    (m as { __accessor: ElectronMockReadAccessor }).__accessor,
-  ]);
-
-  type NativeSlice = {
-    calls: unknown[][];
-    results: Array<{ type: string; value: unknown }>;
-    __error?: string;
-  };
-
-  const data =
-    (await browser.electron.execute<
-      Record<string, NativeSlice>,
-      [Array<[string, ElectronMockReadAccessor]>, ExecuteOpts]
-    >(
-      (electron, items) => {
-        // JSON has no undefined or Error, so mark them for parseCallData to restore.
-        const replacer = (_k: string, v: unknown) => {
-          if (v === undefined) {
-            return { __wdioUndefined: true };
-          }
-          if (v instanceof Error) {
-            return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
-          }
-          return v;
-        };
-        const out: Record<string, NativeSlice> = {};
-        for (const item of items) {
-          const id = item[0];
-          const acc = item[1];
-          try {
-            let target:
-              | { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }
-              | undefined;
-            if (acc.kind === 'api') {
-              const api = electron[acc.apiName as keyof typeof electron] as unknown as
-                | Record<string, { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }>
-                | undefined;
-              target = api?.[acc.funcName];
-            } else if (acc.kind === 'prototype') {
-              const cls = electron[acc.className as keyof typeof electron] as unknown as
-                | {
-                    prototype?: Record<
-                      string,
-                      { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }
-                    >;
-                  }
-                | undefined;
-              target = cls?.prototype?.[acc.methodName];
-            } else if (acc.kind === 'constructor') {
-              target = electron[acc.className as keyof typeof electron] as unknown as typeof target;
-            }
-            if (target?.mock) {
-              out[id] = {
-                calls: target.mock.calls ? JSON.parse(JSON.stringify(target.mock.calls, replacer)) : [],
-                results: target.mock.results ? JSON.parse(JSON.stringify(target.mock.results, replacer)) : [],
-              };
-            } else {
-              out[id] = { calls: [], results: [] };
-            }
-          } catch (e) {
-            // Surface the error to the WDIO worker — empty calls would
-            // otherwise let assertions pass vacuously.
-            out[id] = { calls: [], results: [], __error: e instanceof Error ? e.message : String(e) };
-          }
-        }
-        return out;
-      },
-      items,
-      { internal: true },
-    )) ?? {};
-
+  const records = await readNativeMocks(
+    browser,
+    entries.map(([id, m]) => [id, (m as { __accessor: MockAccessor }).__accessor]),
+  );
   for (const [id, m] of entries) {
-    const slice = data[id] ?? { calls: [], results: [] };
-    if (slice.__error) {
-      log.warn(`Native batch read failed for mock "${id}": ${slice.__error}`);
-    }
-    (
-      m as { __applyCalls?: (d: { calls: unknown[][]; results?: Array<{ type: string; value: unknown }> }) => void }
-    ).__applyCalls?.(parseCallData(slice));
+    (m as { __applyCalls?: (data: MockApplyData) => void }).__applyCalls?.(records[id]);
   }
 }
 
@@ -462,7 +385,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
           rootBridge = await initCdpBridge(this.cdpOptions, firstInstance.caps);
         }
 
-        mrBrowser.electron = getElectronAPI.call(
+        mrBrowser.electron = (getElectronAPI<'root'>).call(
           this,
           mrBrowser as unknown as WebdriverIO.Browser,
           rootBridge,
@@ -620,7 +543,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       // then registers the override on every instance's __elementOverrides__ directly, so both
       // mrBrowser.$('btn').click() and mrBrowser.getInstance('a').$('btn').click() go through
       // the override. Calling it on each instance separately would double-wrap element commands.
-      browser.electron = this.getElectronBrowserModeAPI(browser);
+      browser.electron = this.getElectronBrowserModeAPI<'root'>(browser);
       this.patchBrowserUrl(browser, injectionScript);
       this.installCommandOverrides(browser as unknown as WebdriverIO.Browser);
     } else {
@@ -677,9 +600,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * execute(), mockAll(), and triggerDeeplink() throw — they require the Electron
    * main process which does not exist in browser mode.
    */
-  private getElectronBrowserModeAPI(
+  private getElectronBrowserModeAPI<Target extends ServiceApiTarget = 'instance'>(
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
-  ): BrowserExtension['electron'] {
+  ): ElectronServiceAPI<Target> {
     const isRootMultiremote = isMultiremote(browser);
     return {
       mock: async (channel: string, funcName?: string): Promise<ElectronFunctionMock> => {
@@ -779,7 +702,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         );
         await getMockUpdateScheduler(browser).schedule();
       },
-    } as unknown as BrowserExtension['electron'];
+    } as unknown as ElectronServiceAPI<Target>;
   }
 
   /**
@@ -946,7 +869,17 @@ async function triggerDeeplinkOnEveryInstance(instances: ElectronInstance[], url
   }
 }
 
-function getElectronAPI(
+// emitEvent serializes this to run in the app's main process, so it can use only `electron` and its arguments.
+function sendToFocusedWindow(electron: typeof Electron.CrossProcessExports, ...inner: unknown[]): void {
+  const [channel, args] = inner as [string, unknown[]];
+  const win = electron.BrowserWindow.getFocusedWindow() ?? electron.BrowserWindow.getAllWindows()[0];
+  if (!win) {
+    throw new Error('emitEvent: no BrowserWindow available to receive event');
+  }
+  win.webContents.send(channel, ...args);
+}
+
+function getElectronAPI<Target extends ServiceApiTarget = 'instance'>(
   this: ServiceConfig,
   browser: WebdriverIO.Browser,
   bridge: CdpBridgeResult,
@@ -986,27 +919,17 @@ function getElectronAPI(
     restoreAllMocks: getMethod((apiName?: string) => restoreAllMocks.call(mockContext, apiName)),
     triggerDeeplink: getMethod(deeplink, false), // doesn't require CDP
     emitEvent: getMethod(async (channel: string, ...args: unknown[]): Promise<void> => {
-      await execute.apply(this, [
-        browser,
-        cdpBridge as ElectronCdpBridge,
-        (electron, ...inner: unknown[]) => {
-          const [c, a] = inner as [string, unknown[]];
-          const win = electron.BrowserWindow.getFocusedWindow() ?? electron.BrowserWindow.getAllWindows()[0];
-          if (!win) {
-            throw new Error('emitEvent: no BrowserWindow available to receive event');
-          }
-          win.webContents.send(c, ...a);
-        },
-        channel,
-        args,
-      ]);
-      // webContents.send is fire-and-forget from main → renderer. Round-trip
-      // through the renderer with a no-op script so any ipcRenderer.on
-      // listener has fired (and any mocked IPC calls it makes have landed)
-      // before we sample mock state. Mirrors the browser-mode path, which
-      // dispatches listeners synchronously in-page.
+      if (isMultiremote(browser)) {
+        await runOnEachInstance(browser, `emitEvent('${channel}')`, (instance) =>
+          instance.electron.execute(sendToFocusedWindow, channel, args),
+        );
+      } else {
+        await execute.apply(this, [browser, cdpBridge as ElectronCdpBridge, sendToFocusedWindow, channel, args]);
+      }
+      // webContents.send doesn't wait for the renderer. A no-op script's round trip lets its ipcRenderer.on
+      // listeners, and any mocked IPC calls they make, run before the mocks sync.
       await browser.execute(() => undefined);
       await getMockUpdateScheduler(browser).schedule();
     }),
-  } as unknown as BrowserExtension['electron'];
+  } as unknown as ElectronServiceAPI<Target>;
 }

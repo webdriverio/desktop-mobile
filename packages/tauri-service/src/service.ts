@@ -1,4 +1,10 @@
-import { forEachInstance, requireInstance } from '@wdio/native-core';
+import {
+  forEachInstance,
+  instanceFailuresError,
+  requireInstance,
+  runOnEachInstance,
+  settleOnEach,
+} from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
 import {
@@ -21,7 +27,6 @@ import {
 } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { toElementReferences } from './elementReferences.js';
-import { instanceFailuresError, settleOnEach } from './instanceFailures.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
 import { mergeServiceOptions } from './serviceConfig.js';
@@ -500,7 +505,7 @@ export default class TauriWorkerService {
           );
         }
         if (isMultiremote(browser)) {
-          const results = await runOnEachInstance(
+          const results = await runAndSyncOnEachInstance(
             browser as unknown as WebdriverIO.MultiRemoteBrowser,
             'execute',
             (instance) => executeWithElementRefs<ReturnValue, InnerArguments>(instance, script, ...args),
@@ -560,6 +565,10 @@ export default class TauriWorkerService {
             'browser.tauri.listWindows() is not supported in browser mode. Multi-window is unavailable in browser mode.',
           );
         }
+        if (isMultiremote(browser)) {
+          const root = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+          return (await runOnEachInstance(root, 'listWindows', listWindowLabels)) as unknown as string[];
+        }
         return listWindowLabels(browser);
       },
 
@@ -573,7 +582,7 @@ export default class TauriWorkerService {
           await getMockUpdateScheduler(browser).schedule();
           return;
         }
-        await runOnEachInstance(
+        await runAndSyncOnEachInstance(
           browser as unknown as WebdriverIO.MultiRemoteBrowser,
           `emitEvent('${eventName}')`,
           (instance) => emitTauriEvent(instance, browserMode, eventName, payload, target),
@@ -700,8 +709,8 @@ const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateSchedule
  * one browser.execute() per registered mock. At most two batches run at any moment
  * (current + one queued); callers arriving while a batch runs share the queued slot,
  * so N interactions produce <= 2 batches instead of N. Each batch syncs inner (browser)
- * mock state to outer (test) mocks. On Windows, updates within a batch run sequentially
- * to avoid saturating WebView2 with concurrent ExecuteScript calls. Each update is
+ * mock state to outer (test) mocks. Updates within a batch run one at a time on every
+ * runner platform, because the app may be on Windows when the runner isn't. Each update is
  * retried once (after 50 ms) before failing hard — silent swallow of mock-update errors
  * leads to empty mock.calls assertions, which is harder to diagnose than an AggregateError.
  */
@@ -771,34 +780,19 @@ class MockUpdateScheduler {
       }
     };
 
-    if (process.platform === 'win32') {
-      const errors: Array<{ mockId: string; error: unknown }> = [];
-      for (const [mockId, mockInstance] of mocks) {
-        try {
-          await tryUpdate(mockId, mockInstance);
-        } catch (error) {
-          errors.push({ mockId, error });
-        }
+    const errors: Array<{ mockId: string; error: unknown }> = [];
+    for (const [mockId, mockInstance] of mocks) {
+      try {
+        await tryUpdate(mockId, mockInstance);
+      } catch (error) {
+        errors.push({ mockId, error });
       }
-      if (errors.length > 0) {
-        throw new AggregateError(
-          errors.map((e) => e.error),
-          `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
-        );
-      }
-    } else {
-      const results = await Promise.allSettled(mocks.map(([mockId, mockInstance]) => tryUpdate(mockId, mockInstance)));
-      const failures = results
-        .map((result, i) => ({ result, mockId: mocks[i][0] }))
-        .filter(
-          (entry): entry is { result: PromiseRejectedResult; mockId: string } => entry.result.status === 'rejected',
-        );
-      if (failures.length > 0) {
-        throw new AggregateError(
-          failures.map((f) => f.result.reason),
-          `Mock updates failed for: ${failures.map((f) => f.mockId).join(', ')}`,
-        );
-      }
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(
+        errors.map((e) => e.error),
+        `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
+      );
     }
   }
 }
@@ -864,7 +858,7 @@ async function emitTauriEvent(
   );
 }
 
-async function runOnEachInstance<T>(
+async function runAndSyncOnEachInstance<T>(
   root: WebdriverIO.MultiRemoteBrowser,
   commandName: string,
   run: (instance: WebdriverIO.Browser) => Promise<T>,

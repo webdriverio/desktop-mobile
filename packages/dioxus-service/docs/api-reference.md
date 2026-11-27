@@ -56,7 +56,7 @@ const href = await browser.dioxus.execute('window.location.href');
 
 **Note:** A function script is serialised and runs in the app's webview, not in the test process. It can't read the test's variables or call WebdriverIO commands. Pass values in as `args`.
 
-**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. It rejects if any instance fails. To run it in one app, call it on that instance: `browser.getInstance('app1').dioxus.execute(...)`.
+**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. If any instance fails, it waits for the others, then rejects with an error naming each instance that failed, e.g. `execute failed on app2: …`. To run it in one app, call it on that instance: `browser.getInstance('app1').dioxus.execute(...)`.
 
 ---
 
@@ -191,6 +191,8 @@ await browser.dioxus.switchWindow('main');
 
 **Note:** The window label must exist in your Dioxus app. Use `browser.dioxus.listWindows()` to get available labels.
 
+**Multiremote:** On the root, `switchWindow` switches every instance to the window. If any instance fails, for example because it has no window with that label, the others still switch, and it rejects with an error naming each instance that failed.
+
 ---
 
 ### `browser.dioxus.listWindows()`
@@ -205,6 +207,8 @@ Get a list of all available Dioxus window labels in the application.
 const windows = await browser.dioxus.listWindows();
 console.log(windows); // ['main', 'window-1']
 ```
+
+**Multiremote:** On the root, `listWindows` resolves with one list per instance, in instance order, e.g. `[['main'], ['main', 'window-1']]`. If any instance fails, it rejects with an error naming each instance that failed.
 
 ---
 

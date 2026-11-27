@@ -1,4 +1,4 @@
-import { forEachInstance, requireInstance } from '@wdio/native-core';
+import { forEachInstance, requireInstance, runOnEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusMock, DioxusServiceAPI } from '@wdio/native-types';
 import { createLogger, errorMessage, isMultiremote } from '@wdio/native-utils';
@@ -177,8 +177,20 @@ export default class DioxusWorkerService {
         }
         return isMockFunction(commandOrFn);
       }) as DioxusServiceAPI['isMockFunction'],
-      switchWindow: (label: string) => switchWindowByLabel(browser, label),
-      listWindows: () => listWindowLabels(browser),
+      switchWindow: async (label: string) => {
+        if (!isMultiremote(browser)) {
+          return switchWindowByLabel(browser, label);
+        }
+        await runOnEachInstance(asRoot(browser), `switchWindow('${label}')`, (instance) =>
+          switchWindowByLabel(instance, label),
+        );
+      },
+      listWindows: async () => {
+        if (!isMultiremote(browser)) {
+          return listWindowLabels(browser);
+        }
+        return (await runOnEachInstance(asRoot(browser), 'listWindows', listWindowLabels)) as unknown as string[];
+      },
       triggerDeeplink: async (url: string) => {
         if (this.browserMode) {
           throw new Error('browser.dioxus.triggerDeeplink() is not supported in browser mode.');
@@ -269,6 +281,10 @@ export default class DioxusWorkerService {
       log.warn('Failed to clear stale mocks at session start:', err);
     }
   }
+}
+
+function asRoot(browser: WebdriverIO.Browser): WebdriverIO.MultiRemoteBrowser {
+  return browser as unknown as WebdriverIO.MultiRemoteBrowser;
 }
 
 // A multiremote root's commands reach every instance, so it sees every instance's mocks.
