@@ -54,7 +54,7 @@ const href = await browser.dioxus.execute('window.location.href');
 
 **Note:** Requires the bridge, which `wdio_dioxus::install(config)` installs in the app. See [App Setup](./app-setup.md).
 
-**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. If any instance fails, it waits for the others, then rejects with an error naming each instance that failed: `execute failed on app2: …`. To run it in one app, call it on that instance: `browser.getInstance('app1').dioxus.execute(...)`.
+**Multiremote:** On the root, `execute` runs the script in every instance and resolves with their results, in instance order. If any instance fails, it waits for the others, then rejects with an error naming each instance that failed, e.g. `execute failed on app2: …`. To run it in one app, call it on that instance: `browser.getInstance('app1').dioxus.execute(...)`.
 
 ---
 
@@ -183,7 +183,7 @@ await browser.dioxus.switchWindow('main');
 
 **Note:** The window label must exist in your Dioxus app. Use `browser.dioxus.listWindows()` to get available labels.
 
-**Multiremote:** On the root, `switchWindow` switches every instance to the window. If any instance fails, such as one with no window by that label, it rejects with an error naming each instance that failed, after the others have switched.
+**Multiremote:** On the root, `switchWindow` switches every instance to the window. If any instance fails, for example because it has no window with that label, the others still switch, and it rejects with an error naming each instance that failed.
 
 ---
 
@@ -200,7 +200,7 @@ const windows = await browser.dioxus.listWindows();
 console.log(windows); // ['main', 'window-1']
 ```
 
-**Multiremote:** On the root, `listWindows` resolves with one list per instance, in instance order: `[['main'], ['main', 'window-1']]`. If any instance fails, it rejects with an error naming each instance that failed.
+**Multiremote:** On the root, `listWindows` resolves with one list per instance, in instance order, e.g. `[['main'], ['main', 'window-1']]`. If any instance fails, it rejects with an error naming each instance that failed.
 
 ---
 
