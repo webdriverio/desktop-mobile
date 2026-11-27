@@ -117,6 +117,14 @@ describe('hasSemicolonOutsideQuotes', () => {
     expect(hasSemicolonOutsideQuotes('if (ok) { run() } /a;b/.test(s)')).toBe(false);
     expect(hasSemicolonOutsideQuotes('label: {} /a;b/.test(s)')).toBe(false);
   });
+
+  it('should treat `of` as a keyword only in a for head', () => {
+    expect(hasSemicolonOutsideQuotes('of / 2; return /x/')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('for (const x of /a;b/.exec(s)) run(x)')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('for (const { a } of /a;b/.exec(s)) run(a)')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('for (of of /a;b/.exec(s)) run(of)')).toBe(false);
+    expect(hasSemicolonOutsideQuotes('for (;; of / 2) { break } /a;b/.test(s)')).toBe(false);
+  });
 });
 
 describe('hasTopLevelArrow', () => {
@@ -309,6 +317,10 @@ describe('wrapStringScriptBody', () => {
   it('should handle regex expressions containing semicolons or comment-like character classes', () => {
     expect(evalBody('/[/*]/.test("*")')).toBe(true);
     expect(evalBody('/a;b/.test("a;b")')).toBe(true);
+  });
+
+  it('should run a script that divides a variable named `of` as a body', () => {
+    expect(evalBody('of / 2; return /x/', { of: 4 })).toEqual(/x/);
   });
 
   it('should handle empty and comment-only scripts without throwing', () => {

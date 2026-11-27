@@ -173,7 +173,6 @@ const REGEX_PREFIX_KEYWORDS = new Set([
   'in',
   'instanceof',
   'new',
-  'of',
   'yield',
   'await',
   'else',
@@ -198,6 +197,8 @@ interface BracketFrame {
   isExpr: boolean;
   ternaryDepth: number;
   isControlParen?: boolean;
+  // A `for (` head with no `;` yet, the only place `of` is a keyword.
+  isForOfHead?: boolean;
   funcClassKind?: 'funcClassDecl' | 'funcClassExpr';
 }
 
@@ -212,6 +213,7 @@ function scanJs(
   let canStartRegex = true;
   let prevDot = false;
   let prevKind: PrevKind = 'start';
+  let prevWasFor = false;
   let topTernaryDepth = 0;
   const frames: BracketFrame[] = [];
   // Each frame: { inStr: true } = reading template string chars,
@@ -306,7 +308,13 @@ function scanJs(
     if (ident) {
       const word = ident.name;
       const isKeyword = !prevDot && !ident.hasEscape;
-      if (isKeyword && (word === 'function' || word === 'class')) {
+      const isForOf =
+        isKeyword && word === 'of' && Boolean(frames[frames.length - 1]?.isForOfHead) && prevKind !== 'exprOp';
+      prevWasFor = isKeyword && word === 'for';
+      if (isForOf) {
+        prevKind = 'exprOp';
+        canStartRegex = true;
+      } else if (isKeyword && (word === 'function' || word === 'class')) {
         const isDeclPos: boolean =
           prevKind === 'start' ||
           prevKind === 'blockKw' ||
@@ -368,6 +376,7 @@ function scanJs(
           isExpr: true,
           ternaryDepth: 0,
           isControlParen: prevKind === 'controlKw',
+          isForOfHead: prevKind === 'controlKw' && prevWasFor,
           funcClassKind,
         });
         prevKind = 'exprOp';
@@ -441,6 +450,10 @@ function scanJs(
       }
       canStartRegex = true;
     } else if (c === ';') {
+      const top = frames[frames.length - 1];
+      if (top) {
+        top.isForOfHead = false;
+      }
       prevKind = 'start';
       canStartRegex = true;
     } else if (c === '*' && (prevKind === 'funcClassDecl' || prevKind === 'funcClassExpr')) {
