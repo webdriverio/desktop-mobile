@@ -134,6 +134,7 @@ describe('execute Command', () => {
     expect(await evalWrapped('// heading\n1 + 2')).toBe(3);
     expect(await evalWrapped('1 + 2 // a; b')).toBe(3);
     expect(await evalWrapped('// heading\nreturn 42')).toBe(42);
+    expect(await evalWrapped('(1 + 2) // =>')).toBe(3);
   });
 
   it('should treat semicolon after escaped backslash as real (not skip it)', async () => {

@@ -4,7 +4,7 @@ import { createLogger, isMultiremote } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
-import { hasTopLevelArrow, wrapStringScriptBody } from '@wdio/native-utils';
+import { hasTopLevelArrow, isFunctionSource, wrapStringScriptBody } from '@wdio/native-utils';
 import { parse, print } from 'recast';
 import type { ElectronCdpBridge } from '../bridge';
 import mockStore from '../mockStore.js';
@@ -58,7 +58,9 @@ export async function execute<ReturnValue, InnerArguments extends unknown[]>(
     // Covers: (e, ...args) => ..., async (e, ...args) => ..., function(e) {...}, async function(e) {...}
     const isFunctionLike =
       /^(async\s+)?function\b/.test(trimmed) ||
-      ((trimmed.startsWith('(') || /^async\s*\(/.test(trimmed)) && hasTopLevelArrow(trimmed));
+      ((trimmed.startsWith('(') || /^async\s*\(/.test(trimmed)) &&
+        hasTopLevelArrow(trimmed) &&
+        isFunctionSource(trimmed));
 
     if (isFunctionLike) {
       // Anonymous function expressions (function(...){}) are only valid in expression context.

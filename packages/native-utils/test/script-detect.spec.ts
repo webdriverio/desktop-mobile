@@ -209,6 +209,17 @@ describe('isFunctionSource', () => {
     expect(isFunctionSource('tauri /* note */ => 42')).toBe(true);
     expect(isFunctionSource('τ + 1')).toBe(false);
   });
+
+  it('should not take an arrow in a comment for an arrow function', () => {
+    expect(isFunctionSource('(1 + 2) // =>')).toBe(false);
+    expect(isFunctionSource('async (x) /* => */')).toBe(false);
+    expect(isFunctionSource('(a) => a // =>')).toBe(true);
+    expect(isFunctionSource('async (a) => a')).toBe(true);
+  });
+
+  it("should keep an arrow function source this runtime can't compile, which the app's engine may", () => {
+    expect(isFunctionSource('(a) => a b')).toBe(true);
+  });
 });
 
 describe('wrapStringScriptBody', () => {

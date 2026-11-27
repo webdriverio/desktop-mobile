@@ -134,20 +134,6 @@ function skipLeadingWhitespaceAndComments(s: string): string {
   return s.slice(i);
 }
 
-const IDENTIFIER = /^[$_\p{ID_Start}][$\p{ID_Continue}\u200C\u200D]*/u;
-
-/** Whether a script is a function's source, which execute calls, rather than code to run as is. */
-export function isFunctionSource(script: string): boolean {
-  const s = skipLeadingWhitespaceAndComments(script).trim();
-  const param = IDENTIFIER.exec(s)?.[0];
-  return (
-    (s.startsWith('(') && hasTopLevelArrow(s)) ||
-    /^function[\s(]/.test(s) ||
-    (/^async[\s(]/.test(s) && (/^async\s+function\b/.test(s) || hasTopLevelArrow(s))) ||
-    (param !== undefined && skipLeadingWhitespaceAndComments(s.slice(param.length)).startsWith('=>'))
-  );
-}
-
 const AsyncFunction = (async () => {}).constructor as new (body: string) => unknown;
 
 // False once a Content Security Policy without 'unsafe-eval' blocks compiling, so a page logs that violation once
@@ -172,6 +158,26 @@ function compiles(body: string): boolean | undefined {
     }
     return undefined;
   }
+}
+
+const IDENTIFIER = /^[$_\p{ID_Start}][$\p{ID_Continue}\u200C\u200D]*/u;
+
+/** Whether a script is a function's source, which execute calls, rather than code to run as is. */
+export function isFunctionSource(script: string): boolean {
+  const s = skipLeadingWhitespaceAndComments(script).trim();
+  if (/^function[\s(]/.test(s) || /^async\s+function\b/.test(s)) {
+    return true;
+  }
+  const param = IDENTIFIER.exec(s)?.[0];
+  const looksLikeArrow =
+    ((s.startsWith('(') || /^async[\s(]/.test(s)) && hasTopLevelArrow(s)) ||
+    (param !== undefined && skipLeadingWhitespaceAndComments(s.slice(param.length)).startsWith('=>'));
+  if (!looksLikeArrow || compiles(`return (${s}\n);`) !== true) {
+    return looksLikeArrow;
+  }
+  // `hasTopLevelArrow` also finds an arrow in a comment. An arrow function can't follow `void` unparenthesized,
+  // so `void (1 + 2) // =>` compiles and `void (a) => a` doesn't.
+  return compiles(`return void ${s}\n;`) !== true;
 }
 
 function isExpression(script: string): boolean {
