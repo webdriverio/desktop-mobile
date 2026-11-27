@@ -382,6 +382,20 @@ describe('wrapScriptForPluginIpc', () => {
     expect(window.wdioTauri.execute).toHaveBeenCalledWith(userScript, { windowLabel: 'po"pup' }, '["</script>"]');
   });
 
+  it('should send a string script as a function source that the plugin calls with its tauri object first', async () => {
+    const window = { title: 'My App', ...tauriWindow('main', async () => undefined) };
+
+    await runInPage(wrapScriptForPluginIpc('window.title // a; b', '[]'), window);
+    await runInPage(wrapScriptForPluginIpc('return arguments[0] + 1', '[41]'), window);
+
+    const sent = window.wdioTauri.execute.mock.calls.map(([script]) => script as string);
+    const callAsPlugin = (script: string, ...args: unknown[]) =>
+      vm.runInNewContext(`(${script}\n)`, { window })({ core: {} }, ...args);
+    expect(sent.every((script) => script.startsWith('async function'))).toBe(true);
+    expect(await callAsPlugin(sent[0])).toBe('My App');
+    expect(await callAsPlugin(sent[1], 41)).toBe(42);
+  });
+
   it('should leave the window to the plugin when none is chosen', async () => {
     const window = tauriWindow('main', async () => 'ipc');
 

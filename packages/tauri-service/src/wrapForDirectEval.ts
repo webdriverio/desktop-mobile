@@ -95,6 +95,17 @@ const PLUGIN_IPC_JS = `if (typeof window.wdioTauri === 'undefined') {
 // the plugin answers at once in a frame or page without it, where a script run in the page would wait for it.
 // Both wrappers send their inputs inside one object or array argument, as CrabNebula's macOS driver throws on a `null`
 // argument.
+// The plugin calls a function source with its tauri object first. A string script is classified here, where compiling
+// isn't blocked by the app's Content Security Policy, and passed on as a function that drops that argument.
+function scriptForPlugin(script: string): string {
+  if (isFunctionSource(script)) {
+    return script;
+  }
+  return `async function () {
+return await (async function () { ${wrapStringScriptBody(script)}}).apply(null, Array.prototype.slice.call(arguments, 1));
+}`;
+}
+
 export function wrapScriptForPluginIpc(
   script: string,
   argsJson: string,
@@ -104,7 +115,7 @@ export function wrapScriptForPluginIpc(
     script: `var __wdio_done = arguments[arguments.length - 1];
 var __wdio_in = arguments[0];
 ${PLUGIN_IPC_JS}`,
-    args: [{ label: windowLabel, script, argsJson }],
+    args: [{ label: windowLabel, script: scriptForPlugin(script), argsJson }],
   };
 }
 
@@ -143,6 +154,6 @@ ${inPage('__wdio_userArgs')}
 } else {
 ${PLUGIN_IPC_JS}
 }`,
-    args: [{ label: windowLabel, script, argsJson: JSON.stringify(userArgs) }, userArgs],
+    args: [{ label: windowLabel, script: scriptForPlugin(script), argsJson: JSON.stringify(userArgs) }, userArgs],
   };
 }

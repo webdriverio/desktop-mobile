@@ -203,6 +203,12 @@ describe('isFunctionSource', () => {
     expect(isFunctionSource('// helper\n(tauri) => 1')).toBe(true);
     expect(isFunctionSource('/* note */ async () => 1')).toBe(true);
   });
+
+  it('should recognise an arrow whose parameter has a Unicode name or a comment before the arrow', () => {
+    expect(isFunctionSource('τ => 42')).toBe(true);
+    expect(isFunctionSource('tauri /* note */ => 42')).toBe(true);
+    expect(isFunctionSource('τ + 1')).toBe(false);
+  });
 });
 
 describe('wrapStringScriptBody', () => {
@@ -282,6 +288,17 @@ describe('wrapStringScriptBody', () => {
     const run = (name: string) => calls.push(name);
     expect(evalBody("run('a')\nrun('b')", { run })).toBeUndefined();
     expect(calls).toEqual(['a', 'b']);
+  });
+
+  it("should fall back to the heuristic for a script this runtime can't compile, which the app's engine may", () => {
+    expect(wrapStringScriptBody('a b // note')).toBe('return (a b // note\n);');
+    expect(wrapStringScriptBody('a b; return c')).toBe('a b; return c\n');
+  });
+
+  it('should keep compiling after a script too deeply nested to compile', () => {
+    const deep = `${'['.repeat(100_000)}${']'.repeat(100_000)}`;
+    expect(wrapStringScriptBody(deep)).toBe(`return (${deep}\n);`);
+    expect(wrapStringScriptBody('window.title // a; b')).toBe('return (window.title // a; b\n);');
   });
 
   it('should not let a script close the expression wrapper', () => {

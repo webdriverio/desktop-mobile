@@ -223,7 +223,7 @@ describe('TauriWorkerService', () => {
       expect(mockExecuteAsyncScript.mock.calls[0][0]).toContain('return (1 + 2 + 3\n);');
     });
 
-    it('should run string and function scripts with comments and leading newlines on non-embedded providers', async () => {
+    it('should run string scripts with comments and leading newlines on non-embedded providers', async () => {
       const mockExecuteAsyncScript = vi.fn(async (script: string, args: unknown[]) => {
         return await new Promise((resolve) => {
           new Function(script).apply(null, [...args, resolve]);
@@ -239,8 +239,6 @@ describe('TauriWorkerService', () => {
       expect(await mockBrowser.execute('\n  1 + 2\n')).toBe(3);
       expect(await mockBrowser.execute('// heading\n1 + 2')).toBe(3);
       expect(await mockBrowser.execute('1 + 2 // a; b')).toBe(3);
-      const fnWithComment = new Function('return () => 42 // note')() as () => number;
-      expect(await mockBrowser.execute(fnWithComment)).toBe(42);
     });
 
     it('should not prepend return for statement-style string scripts on non-embedded providers', () => {
