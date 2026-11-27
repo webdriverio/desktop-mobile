@@ -92,12 +92,12 @@ jobs:
         run: pnpm --filter @wdio/dioxus-bridge build
         shell: bash
 
-      # Without a version the action installs the latest binstall. Passing its own tag
-      # means a Dependabot bump of the tag moves the binary too.
+      # Without a version the action installs the latest binstall. github.action_ref is a
+      # SHA now, so keep this in step with the action's tag by hand.
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # v1.25.3
         with:
-          version: ${{ github.action_ref }}
+          version: v1.25.3
 
       - name: Install Dioxus CLI
         run: bash scripts/install-dx.sh

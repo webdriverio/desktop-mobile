@@ -328,6 +328,32 @@ describe('DioxusWorkerService', () => {
       expect(fakes.root.execute).not.toHaveBeenCalled();
     });
 
+    it('should reject naming the instance listWindows failed on, from the root', async () => {
+      const { fakes, dioxusOf } = await setUp();
+      vi.mocked(fakes.browserA.execute).mockResolvedValueOnce({ __wdio_value__: ['main'] });
+      vi.mocked(fakes.browserB.execute).mockRejectedValueOnce(new Error('session gone'));
+
+      await expect(dioxusOf(fakes.root).listWindows()).rejects.toMatchObject({
+        message: 'listWindows failed on browserB: session gone',
+      });
+    });
+
+    it('should reject naming the instance that has no window with the label, after switching the others', async () => {
+      const { fakes, dioxusOf } = await setUp();
+      vi.mocked(fakes.browserA.execute).mockResolvedValueOnce({ __wdio_value__: ['main', 'window-1'] });
+      vi.mocked(fakes.browserB.execute).mockResolvedValueOnce({ __wdio_value__: ['main'] });
+      Object.assign(fakes.browserA, {
+        getWindowHandle: vi.fn().mockResolvedValue('main'),
+        getWindowHandles: vi.fn().mockResolvedValue(['main', 'window-1']),
+      });
+
+      await expect(dioxusOf(fakes.root).switchWindow('window-1')).rejects.toMatchObject({
+        message:
+          'switchWindow(\'window-1\') failed on browserB: [@wdio/dioxus-service] window label "window-1" not found. Available: main',
+      });
+      expect(getCurrentWindowLabel(fakes.browserA)).toBe('window-1');
+    });
+
     it('should switch every instance from switchWindow on the root', async () => {
       const { fakes, dioxusOf } = await setUp();
       for (const instance of [fakes.browserA, fakes.browserB]) {

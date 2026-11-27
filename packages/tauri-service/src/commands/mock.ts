@@ -1,7 +1,6 @@
-import { requireInstance } from '@wdio/native-core';
+import { instanceFailuresError, requireInstance, settleOnEach } from '@wdio/native-core';
 import type { TauriMock } from '@wdio/native-types';
 import { createLogger, isMultiremote, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
-import { instanceFailuresError, settleOnEach } from '../instanceFailures.js';
 import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
 
