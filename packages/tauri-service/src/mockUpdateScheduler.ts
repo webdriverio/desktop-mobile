@@ -110,7 +110,7 @@ interface WindowBatchLane {
 
 interface UpdateLane {
   label: string;
-  /** The app the lane reads from, or undefined for a mock that doesn't say. */
+  // Undefined for a mock that doesn't say which app it's in
   browser?: WebdriverIO.Browser;
   run: () => Promise<void>;
 }
