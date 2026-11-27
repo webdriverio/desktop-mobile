@@ -95,6 +95,74 @@ function stripLeadingComments(s: string): string {
   return s.slice(skipWhitespaceAndComments(s, 0).index);
 }
 
+const ID_START_RE = /^[$_\p{ID_Start}]$/u;
+const ID_CONTINUE_RE = /^(?:[$_\p{ID_Continue}]|\u200C|\u200D)$/u;
+
+function readIdentChar(
+  s: string,
+  index: number,
+  isStart: boolean,
+): { char: string; next: number; escaped: boolean } | undefined {
+  if (index >= s.length) {
+    return undefined;
+  }
+  const re = isStart ? ID_START_RE : ID_CONTINUE_RE;
+  if (s[index] === '\\' && s[index + 1] === 'u') {
+    let cp = -1;
+    let next = index;
+    if (s[index + 2] === '{') {
+      const close = s.indexOf('}', index + 3);
+      if (close === -1) {
+        return undefined;
+      }
+      const hex = s.slice(index + 3, close);
+      if (!/^[0-9A-Fa-f]+$/.test(hex)) {
+        return undefined;
+      }
+      cp = Number.parseInt(hex, 16);
+      next = close + 1;
+    } else {
+      const hex = s.slice(index + 2, index + 6);
+      if (!/^[0-9A-Fa-f]{4}$/.test(hex)) {
+        return undefined;
+      }
+      cp = Number.parseInt(hex, 16);
+      next = index + 6;
+    }
+    if (cp < 0 || cp > 0x10ffff) {
+      return undefined;
+    }
+    const char = String.fromCodePoint(cp);
+    return re.test(char) ? { char, next, escaped: true } : undefined;
+  }
+  const cp = s.codePointAt(index);
+  if (cp === undefined) {
+    return undefined;
+  }
+  const char = String.fromCodePoint(cp);
+  return re.test(char) ? { char, next: index + char.length, escaped: false } : undefined;
+}
+
+function readIdentifier(s: string, start: number): { name: string; end: number; hasEscape: boolean } | undefined {
+  const first = readIdentChar(s, start, true);
+  if (!first) {
+    return undefined;
+  }
+  let name = first.char;
+  let end = first.next;
+  let hasEscape = first.escaped;
+  while (end < s.length) {
+    const part = readIdentChar(s, end, false);
+    if (!part) {
+      break;
+    }
+    name += part.char;
+    end = part.next;
+    hasEscape ||= part.escaped;
+  }
+  return { name, end, hasEscape };
+}
+
 const REGEX_PREFIX_KEYWORDS = new Set([
   'return',
   'case',
@@ -112,6 +180,26 @@ const REGEX_PREFIX_KEYWORDS = new Set([
   'do',
 ]);
 
+const CONTROL_PAREN_KEYWORDS = new Set(['if', 'while', 'for', 'with', 'switch', 'catch']);
+const BLOCK_KEYWORDS = new Set(['else', 'do', 'try', 'finally']);
+
+type PrevKind =
+  | 'start'
+  | 'exprOp'
+  | 'value'
+  | 'controlKw'
+  | 'afterControlParen'
+  | 'blockKw'
+  | 'funcClassDecl'
+  | 'funcClassExpr';
+
+interface BracketFrame {
+  ch: '(' | '[' | '{';
+  isExpr: boolean;
+  isControlParen?: boolean;
+  funcClassKind?: 'funcClassDecl' | 'funcClassExpr';
+}
+
 function scanJs(
   s: string,
   start: number,
@@ -122,6 +210,8 @@ function scanJs(
   let inDouble = false;
   let canStartRegex = true;
   let prevDot = false;
+  let prevKind: PrevKind = 'start';
+  const frames: BracketFrame[] = [];
   // Each frame: { inStr: true } = reading template string chars,
   //             { inStr: false, exprDepth: n } = inside ${} expression that opened at depth n.
   const tmpl: Array<{ inStr: boolean; exprDepth: number }> = [];
@@ -140,6 +230,7 @@ function scanJs(
         tmpl.pop();
         canStartRegex = false;
         prevDot = false;
+        prevKind = 'value';
       } else if (c === '$' && i + 1 < s.length && s[i + 1] === '{') {
         i++;
         depth++;
@@ -147,6 +238,7 @@ function scanJs(
         tmpl[tmpl.length - 1].exprDepth = depth;
         canStartRegex = true;
         prevDot = false;
+        prevKind = 'exprOp';
       }
       continue;
     }
@@ -156,6 +248,7 @@ function scanJs(
       if (!inSingle) {
         canStartRegex = false;
         prevDot = false;
+        prevKind = 'value';
       }
       continue;
     }
@@ -164,6 +257,7 @@ function scanJs(
       if (!inDouble) {
         canStartRegex = false;
         prevDot = false;
+        prevKind = 'value';
       }
       continue;
     }
@@ -183,6 +277,7 @@ function scanJs(
         i = afterRegex - 1;
         canStartRegex = false;
         prevDot = false;
+        prevKind = 'value';
         continue;
       }
     }
@@ -196,15 +291,40 @@ function scanJs(
       continue;
     }
 
-    if (/[A-Za-z_$]/.test(c)) {
-      let j = i + 1;
-      while (j < s.length && /[\w$]/.test(s[j])) {
-        j++;
+    const ident = readIdentifier(s, i);
+    if (ident) {
+      const word = ident.name;
+      const isKeyword = !prevDot && !ident.hasEscape;
+      if (isKeyword && (word === 'function' || word === 'class')) {
+        const isDeclPos: boolean =
+          prevKind === 'start' ||
+          prevKind === 'blockKw' ||
+          prevKind === 'afterControlParen' ||
+          prevKind === 'funcClassDecl';
+        prevKind = isDeclPos ? 'funcClassDecl' : 'funcClassExpr';
+        canStartRegex = false;
+      } else if (isKeyword && word === 'async') {
+        const isDeclPos: boolean = prevKind === 'start' || prevKind === 'blockKw' || prevKind === 'afterControlParen';
+        prevKind = isDeclPos ? 'funcClassDecl' : 'funcClassExpr';
+        canStartRegex = false;
+      } else if (isKeyword && CONTROL_PAREN_KEYWORDS.has(word)) {
+        prevKind = 'controlKw';
+        canStartRegex = false;
+      } else if (isKeyword && BLOCK_KEYWORDS.has(word)) {
+        prevKind = 'blockKw';
+        canStartRegex = true;
+      } else if (isKeyword && REGEX_PREFIX_KEYWORDS.has(word)) {
+        prevKind = 'exprOp';
+        canStartRegex = true;
+      } else {
+        // Keep function/class header context across its name or `extends Base` until the body `{`.
+        if (prevKind !== 'funcClassDecl' && prevKind !== 'funcClassExpr') {
+          prevKind = 'value';
+        }
+        canStartRegex = false;
       }
-      const word = s.slice(i, j);
-      canStartRegex = !prevDot && REGEX_PREFIX_KEYWORDS.has(word);
       prevDot = false;
-      i = j - 1;
+      i = ident.end - 1;
       continue;
     }
 
@@ -218,6 +338,7 @@ function scanJs(
       }
       canStartRegex = false;
       prevDot = false;
+      prevKind = 'value';
       i = j - 1;
       continue;
     }
@@ -229,17 +350,65 @@ function scanJs(
     prevDot = c === '.';
     if (c === '(' || c === '[' || c === '{') {
       depth++;
+      if (c === '(') {
+        const funcClassKind = prevKind === 'funcClassDecl' || prevKind === 'funcClassExpr' ? prevKind : undefined;
+        frames.push({
+          ch: '(',
+          isExpr: true,
+          isControlParen: prevKind === 'controlKw',
+          funcClassKind,
+        });
+        prevKind = 'exprOp';
+      } else if (c === '[') {
+        frames.push({ ch: '[', isExpr: true });
+        prevKind = 'exprOp';
+      } else {
+        const isExpr: boolean = prevKind === 'exprOp' || prevKind === 'funcClassExpr';
+        frames.push({ ch: '{', isExpr });
+        prevKind = isExpr ? 'exprOp' : 'start';
+      }
       canStartRegex = true;
     } else if (c === ')' || c === ']' || c === '}') {
       depth--;
       if (tmpl.length > 0 && !tmpl[tmpl.length - 1].inStr && depth === tmpl[tmpl.length - 1].exprDepth - 1) {
         tmpl[tmpl.length - 1].inStr = true;
       } else {
-        canStartRegex = c === '}';
+        const frame = frames.pop();
+        if (c === ')') {
+          if (frame?.isControlParen) {
+            prevKind = 'afterControlParen';
+            canStartRegex = true;
+          } else if (frame?.funcClassKind) {
+            prevKind = frame.funcClassKind;
+            canStartRegex = false;
+          } else {
+            prevKind = 'value';
+            canStartRegex = false;
+          }
+        } else if (c === ']') {
+          prevKind = 'value';
+          canStartRegex = false;
+        } else if (frame?.isExpr) {
+          prevKind = 'value';
+          canStartRegex = false;
+        } else {
+          prevKind = 'start';
+          canStartRegex = true;
+        }
       }
     } else if ((c === '+' && s[i + 1] === '+') || (c === '-' && s[i + 1] === '-')) {
       i++;
+    } else if (c === '=' && s[i + 1] === '>') {
+      i++;
+      prevKind = 'blockKw';
+      canStartRegex = true;
+    } else if (c === ';') {
+      prevKind = 'start';
+      canStartRegex = true;
+    } else if (c === '*' && (prevKind === 'funcClassDecl' || prevKind === 'funcClassExpr')) {
+      canStartRegex = false;
     } else {
+      prevKind = 'exprOp';
       canStartRegex = true;
     }
   }
@@ -260,17 +429,6 @@ function skipBalanced(s: string, start: number, open: string, close: string): nu
   }
   const closeIdx = scanJs(s, start, (c, _i, depth, inTemplate) => !inTemplate && depth === 1 && c === close);
   return closeIdx === -1 ? -1 : closeIdx + 1;
-}
-
-function readIdentifier(s: string, start: number): { name: string; end: number } | undefined {
-  if (start >= s.length || !/[A-Za-z_$]/.test(s[start])) {
-    return undefined;
-  }
-  let end = start + 1;
-  while (end < s.length && /[\w$]/.test(s[end])) {
-    end++;
-  }
-  return { name: s.slice(start, end), end };
 }
 
 function isExpressionContinuation(s: string, index: number, sawNewline: boolean): boolean {
@@ -301,12 +459,12 @@ function isExpressionContinuation(s: string, index: number, sawNewline: boolean)
     return s[index + 1] === '=';
   }
   const ident = readIdentifier(s, index);
-  return ident?.name === 'in' || ident?.name === 'instanceof';
+  return !ident?.hasEscape && (ident?.name === 'in' || ident?.name === 'instanceof');
 }
 
 function isDeclarationStatement(leading: string): boolean {
   const first = readIdentifier(leading, 0);
-  if (!first) {
+  if (!first || first.hasEscape) {
     return false;
   }
 
@@ -319,7 +477,7 @@ function isDeclarationStatement(leading: string): boolean {
       return false;
     }
     const next = readIdentifier(leading, afterAsync.index);
-    if (next?.name !== 'function') {
+    if (!next || next.hasEscape || next.name !== 'function') {
       return false;
     }
     kind = 'function';
@@ -352,7 +510,7 @@ function isDeclarationStatement(leading: string): boolean {
   if (kind === 'class') {
     idx = skipWhitespaceAndComments(leading, idx).index;
     const name = readIdentifier(leading, idx);
-    if (!name || name.name === 'extends') {
+    if (!name || (!name.hasEscape && name.name === 'extends')) {
       return false;
     }
     const bodyStart = scanJs(leading, name.end, (c, _i, depth, inTemplate) => !inTemplate && depth === 0 && c === '{');
@@ -370,17 +528,42 @@ function isDeclarationStatement(leading: string): boolean {
   return false;
 }
 
-const STATEMENT_KEYWORD = /^(?:const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/;
+const STATEMENT_KEYWORDS = new Set([
+  'const',
+  'let',
+  'var',
+  'if',
+  'for',
+  'while',
+  'switch',
+  'throw',
+  'try',
+  'do',
+  'return',
+]);
+
+function startsWithStatementKeyword(leading: string): boolean {
+  const first = readIdentifier(leading, 0);
+  return Boolean(first && !first.hasEscape && STATEMENT_KEYWORDS.has(first.name));
+}
 
 /** Whether a script is a function's source, which execute calls, rather than code to run as is. */
 export function isFunctionSource(script: string): boolean {
   const s = stripLeadingComments(script);
-  return (
-    (s.startsWith('(') && hasTopLevelArrow(s)) ||
-    /^function[\s(]/.test(s) ||
-    (/^async[\s(]/.test(s) && (/^async\s+function\b/.test(s) || hasTopLevelArrow(s))) ||
-    /^[A-Za-z_$][\w$]*\s*=>/.test(s)
-  );
+  if ((s.startsWith('(') && hasTopLevelArrow(s)) || /^function[\s(]/.test(s)) {
+    return true;
+  }
+  if (/^async[\s(]/.test(s) && (/^async\s+function\b/.test(s) || hasTopLevelArrow(s))) {
+    return true;
+  }
+  const ident = readIdentifier(s, 0);
+  if (ident) {
+    const after = skipWhitespaceAndComments(s, ident.end);
+    if (!after.sawNewline && s[after.index] === '=' && s[after.index + 1] === '>') {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -392,7 +575,7 @@ export function wrapStringScriptBody(script: string): string {
   const leading = stripLeadingComments(script);
   if (
     leading.length === 0 ||
-    STATEMENT_KEYWORD.test(leading) ||
+    startsWithStatementKeyword(leading) ||
     isDeclarationStatement(leading) ||
     hasSemicolonOutsideQuotes(leading)
   ) {

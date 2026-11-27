@@ -107,6 +107,10 @@ describe('hasSemicolonOutsideQuotes', () => {
     expect(hasSemicolonOutsideQuotes('a / b // a; b')).toBe(false);
     expect(hasSemicolonOutsideQuotes('obj.return / 2 // a; b')).toBe(false);
     expect(hasSemicolonOutsideQuotes('a / b; c / d')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('x = {} / 2; return /x/')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('x = function() { return 1 } / 2; return /x/')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('café / 2; return /x/')).toBe(true);
+    expect(hasSemicolonOutsideQuotes('if (ok) { run() } /a;b/.test(s)')).toBe(false);
   });
 });
 
@@ -265,8 +269,18 @@ describe('wrapStringScriptBody', () => {
     expect(evalBody('function foo() { return 42; }')).toBeUndefined();
     expect(evalBody('function foo() { return 42; }\nreturn foo()')).toBe(42);
     expect(evalBody('function foo() { return 42; } !foo()')).toBeUndefined();
+    expect(evalBody('function café() { return 42 }\nreturn café()')).toBe(42);
+    expect(evalBody('function \\u0066oo() { return 42 }\nreturn foo()')).toBe(42);
+    expect(evalBody('function \\u{66}oo() { return 42 }\nreturn foo()')).toBe(42);
+    expect(evalBody('class Café { x = 42 }\nreturn new Café().x')).toBe(42);
     expect(evalBody('class Foo { x = 42 }\nreturn new Foo().x')).toBe(42);
     expect(evalBody('/[/*]/.test("*"); return 42')).toBe(42);
+    expect(evalBody('let x = {} / 2; return /x/')).toEqual(/x/);
+    expect(evalBody('x = {} / 2; return /x/', { x: 0 })).toEqual(/x/);
+  });
+
+  it('should not misclassify Unicode identifiers starting with a statement keyword', () => {
+    expect(evalBody('returné', { returné: 42 })).toBe(42);
   });
 
   it('should evaluate function and class expressions instead of emitting them as declarations', async () => {
