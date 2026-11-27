@@ -32,7 +32,7 @@ v2 needs Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+). Node.js 23.x and
 
 - **Testrunner mode:** nothing new to install. `@wdio/cli` and `@wdio/local-runner` provide them, and the service uses those copies.
 - **Standalone mode** (no testrunner): install `webdriverio` next to the service. The service's own dependencies used to bring it.
-- **pnpm with hoisting turned off, or Yarn Plug'n'Play:** these don't let a package see what it hasn't declared, so list `webdriverio`, `@wdio/types` and `@wdio/globals` as direct dependencies, even in testrunner mode.
+- **pnpm with hoisting turned off, or Yarn Plug'n'Play:** these don't let a package see what it hasn't declared, so list `webdriverio` and `@wdio/types` as direct dependencies, even in testrunner mode.
 
 They're optional rather than required because npm and pnpm install a missing required peer at the newest version in range, so a project even one release behind got a second copy of each package.
 
@@ -261,7 +261,7 @@ Page and element screenshots fail with `unsupported operation`, where they retur
 #### Clear, Send Keys and Click
 
 - **Send Keys** (`setValue()`, `addValue()`) no longer fires `change` while the field keeps focus. The field fires it when focus leaves, before `blur` and before any `blur` or `focusout` listener the page adds, if its value changed, or when Enter commits it. A test that waits for `change` right after `setValue()` must move focus first, with `el.click()` on another element or `browser.keys(Key.Tab)`, or press Enter. Pointer actions (`browser.action()`) don't move focus in this driver. Send Keys refuses an element that can't take focus with `element not interactable`. A date, colour, range or similar input gets its value at once, with `input` and `change`, and an invalid value fails with `invalid argument`.
-- **Clear** (`clearValue()`) focuses the field, clears it, fires `change`, and leaves the field blurred. As in chromedriver, it fires no `input`, and it still focuses and blurs an empty contenteditable. It refuses a disabled or read-only field, and anything that isn't an editable field or contenteditable, such as a checkbox or `<select>`, with `invalid element state`.
+- **Clear** (`clearValue()`) focuses the field, clears it, fires `change`, and leaves the field blurred. As in chromedriver, it fires no `input`, leaves an already-empty text field untouched, and leaves a number input that reads `''` focused. A contenteditable element is focused, emptied and blurred even when empty, with no `change`. It refuses a disabled or read-only field, and anything that isn't an editable field or contenteditable, such as a checkbox or `<select>`, with `invalid element state`.
 - **Click** (`el.click()` with no options) fires `pointerdown`, `mousedown`, `pointerup` and `mouseup` before `click`, as a user's click does, so the app's pointer and mouse handlers run. Focus moves as `mousedown`'s default action, so clicking text, the body or a field's `<label>` fires the field's `change` and `blur`. The `click` has `isPrimary: false`, as Chrome's does.
 
 #### Key codes and Shift
