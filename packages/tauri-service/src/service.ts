@@ -1,4 +1,10 @@
-import { forEachInstance, instanceFailuresError, requireInstance, settleOnEach } from '@wdio/native-core';
+import {
+  forEachInstance,
+  instanceFailuresError,
+  requireInstance,
+  runOnEachInstance,
+  settleOnEach,
+} from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
 import {
@@ -499,7 +505,7 @@ export default class TauriWorkerService {
           );
         }
         if (isMultiremote(browser)) {
-          const results = await runOnEachInstance(
+          const results = await runAndSyncOnEachInstance(
             browser as unknown as WebdriverIO.MultiRemoteBrowser,
             'execute',
             (instance) => executeWithElementRefs<ReturnValue, InnerArguments>(instance, script, ...args),
@@ -561,14 +567,7 @@ export default class TauriWorkerService {
         }
         if (isMultiremote(browser)) {
           const root = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-          const { values, failures } = await settleOnEach(
-            root.instances.map((name) => ({ name })),
-            ({ name }) => listWindowLabels(requireInstance(root, name)),
-          );
-          if (failures.length > 0) {
-            throw instanceFailuresError('listWindows', failures);
-          }
-          return values as unknown as string[];
+          return (await runOnEachInstance(root, 'listWindows', listWindowLabels)) as unknown as string[];
         }
         return listWindowLabels(browser);
       },
@@ -583,7 +582,7 @@ export default class TauriWorkerService {
           await getMockUpdateScheduler(browser).schedule();
           return;
         }
-        await runOnEachInstance(
+        await runAndSyncOnEachInstance(
           browser as unknown as WebdriverIO.MultiRemoteBrowser,
           `emitEvent('${eventName}')`,
           (instance) => emitTauriEvent(instance, browserMode, eventName, payload, target),
@@ -859,7 +858,7 @@ async function emitTauriEvent(
   );
 }
 
-async function runOnEachInstance<T>(
+async function runAndSyncOnEachInstance<T>(
   root: WebdriverIO.MultiRemoteBrowser,
   commandName: string,
   run: (instance: WebdriverIO.Browser) => Promise<T>,
