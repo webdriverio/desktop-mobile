@@ -91,13 +91,8 @@ const PLUGIN_IPC_JS = `if (typeof window.wdioTauri === 'undefined') {
   }
 }`;
 
-// For the service's own scripts on the external and CrabNebula providers: they never need element references, and
-// the plugin answers at once in a frame or page without it, where a script run in the page would wait for it.
-// Both wrappers send their inputs inside one object or array argument, as CrabNebula's macOS driver throws on a `null`
-// argument.
-// The plugin calls a function source with its tauri object first. Every script is classified here, where compiling
-// isn't blocked by the app's Content Security Policy, and sent as an `async function`, which the plugin recognises
-// without compiling in the page. A string script's wrapper drops the tauri object.
+// Classified here, where no Content Security Policy blocks compiling, and sent as an `async function`, which the
+// plugin calls with its tauri object first without compiling in the page. A string script's wrapper drops that object.
 function scriptForPlugin(script: string): string {
   const body = isFunctionSource(script)
     ? `return await (${script}\n).apply(null, arguments);`
@@ -105,6 +100,10 @@ function scriptForPlugin(script: string): string {
   return `async function () {\n${body}\n}`;
 }
 
+// For the service's own scripts on the external and CrabNebula providers: they never need element references, and
+// the plugin answers at once in a frame or page without it, where a script run in the page would wait for it.
+// Both wrappers send their inputs inside one object or array argument, as CrabNebula's macOS driver throws on a `null`
+// argument.
 export function wrapScriptForPluginIpc(
   script: string,
   argsJson: string,
