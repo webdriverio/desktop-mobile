@@ -36,6 +36,7 @@ export {
   hasSemicolonOutsideQuotes,
   hasTopLevelArrow,
   isFunctionSource,
+  type ScriptDetectOptions,
   wrapStringScriptBody,
 } from './script-detect.js';
 export { selectExecutable, validateBinaryPaths } from './selectExecutable.js';

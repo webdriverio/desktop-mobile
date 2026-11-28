@@ -160,27 +160,47 @@ function compiles(body: string): boolean | undefined {
   }
 }
 
+export interface ScriptDetectOptions {
+  /**
+   * Whether the script may be compiled, without running it, to tell its parts apart. Defaults to true. Pass false
+   * in an app's page, where a Content Security Policy without 'unsafe-eval' would report the attempt.
+   */
+  compile?: boolean;
+}
+
+type Compile = (body: string) => boolean | undefined;
+
+const compilerFor = (options?: ScriptDetectOptions): Compile =>
+  options?.compile === false ? () => undefined : compiles;
+
 const IDENTIFIER = /^[$_\p{ID_Start}][$\p{ID_Continue}\u200C\u200D]*/u;
 
 /** Whether a script is a function's source, which execute calls, rather than code to run as is. */
-export function isFunctionSource(script: string): boolean {
+export function isFunctionSource(script: string, options?: ScriptDetectOptions): boolean {
   const s = skipLeadingWhitespaceAndComments(script).trim();
-  if (/^function[\s(]/.test(s) || /^async\s+function(?![$\p{ID_Continue}\u200C\u200D])/u.test(s)) {
-    return true;
-  }
+  const isFunction = /^function[\s(]/.test(s) || /^async\s+function(?![$\p{ID_Continue}\u200C\u200D])/u.test(s);
   const param = IDENTIFIER.exec(s)?.[0];
   const looksLikeArrow =
     ((s.startsWith('(') || /^async[\s(]/.test(s)) && hasTopLevelArrow(s)) ||
     (param !== undefined && skipLeadingWhitespaceAndComments(s.slice(param.length)).startsWith('=>'));
-  if (!looksLikeArrow || compiles(`return (${s}\n);`) !== true) {
-    return looksLikeArrow;
+  if (!isFunction && !looksLikeArrow) {
+    return false;
+  }
+  const compile = compilerFor(options);
+  const asExpression = compile(`return (${s}\n);`);
+  if (asExpression === false) {
+    // Statements after the function, as in `function foo() {}\nreturn foo()`, make a body to run as is.
+    return compile(`${s}\n`) !== true;
+  }
+  if (asExpression === undefined || isFunction) {
+    return true;
   }
   // `hasTopLevelArrow` also finds an arrow in a comment. An arrow function can't follow `void` unparenthesized,
   // so `void (1 + 2) // =>` compiles and `void (a) => a` doesn't.
-  return compiles(`return void ${s}\n;`) !== true;
+  return compile(`return void ${s}\n;`) !== true;
 }
 
-function isExpression(script: string): boolean {
+function isExpression(script: string, compiles: Compile): boolean {
   const inParens = compiles(`return (${script}\n);`);
   const s = skipLeadingWhitespaceAndComments(script);
   if (inParens === true) {
@@ -215,6 +235,6 @@ function isExpression(script: string): boolean {
  * makes it run as is.
  * The newline before each closing bracket ends a trailing `//` comment.
  */
-export function wrapStringScriptBody(script: string): string {
-  return isExpression(script) ? `return (${script}\n);` : `${script}\n`;
+export function wrapStringScriptBody(script: string, options?: ScriptDetectOptions): string {
+  return isExpression(script, compilerFor(options)) ? `return (${script}\n);` : `${script}\n`;
 }

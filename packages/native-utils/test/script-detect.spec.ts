@@ -218,6 +218,14 @@ describe('isFunctionSource', () => {
     expect(isFunctionSource('async (a) => a')).toBe(true);
   });
 
+  it('should take a function followed by statements for a body, not a function source', () => {
+    expect(isFunctionSource('function foo() { return 42 }\nreturn foo()')).toBe(false);
+    expect(isFunctionSource('async function foo() { return 42 }\nreturn foo()')).toBe(false);
+    expect(isFunctionSource('(a) => 1\nrun()')).toBe(false);
+    expect(isFunctionSource('function (a) { return a }')).toBe(true);
+    expect(isFunctionSource('function foo(a) { return a }')).toBe(true);
+  });
+
   it("should keep an arrow function source this runtime can't compile, which the app's engine may", () => {
     expect(isFunctionSource('(a) => a b')).toBe(true);
   });
@@ -330,6 +338,33 @@ describe('wrapStringScriptBody', () => {
     expect(evalBody('   ')).toBeUndefined();
     expect(evalBody('// only a comment')).toBeUndefined();
     expect(evalBody('/* only a comment */')).toBeUndefined();
+  });
+});
+
+describe('detecting without compiling', () => {
+  it('should use only the keyword, semicolon and arrow checks, and never compile', async () => {
+    const prototype = Object.getPrototypeOf(async () => {});
+    const original = Object.getOwnPropertyDescriptor(prototype, 'constructor');
+    let compileAttempts = 0;
+    Object.defineProperty(prototype, 'constructor', {
+      configurable: true,
+      value: function CountingAsyncFunction() {
+        compileAttempts++;
+      },
+    });
+    try {
+      vi.resetModules();
+      const detect = await import('../src/script-detect.js');
+      const options = { compile: false };
+      expect(detect.wrapStringScriptBody('window.title', options)).toBe('return (window.title\n);');
+      expect(detect.wrapStringScriptBody('a(); b()', options)).toBe('a(); b()\n');
+      expect(detect.isFunctionSource('(a) => a', options)).toBe(true);
+      expect(detect.isFunctionSource('function foo() {}\nreturn foo()', options)).toBe(true);
+      expect(compileAttempts).toBe(0);
+    } finally {
+      Object.defineProperty(prototype, 'constructor', original as PropertyDescriptor);
+      vi.resetModules();
+    }
   });
 });
 

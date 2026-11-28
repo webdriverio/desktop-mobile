@@ -205,6 +205,29 @@ describe('execute', () => {
     await expect(execute('return 1')).rejects.toThrow('window.__TAURI__ is not available');
   });
 
+  it('should never compile a script in the page, where a Content Security Policy would report it', async () => {
+    const prototype = Object.getPrototypeOf(async () => {});
+    const original = Object.getOwnPropertyDescriptor(prototype, 'constructor');
+    let compileAttempts = 0;
+    Object.defineProperty(prototype, 'constructor', {
+      configurable: true,
+      value: function CountingAsyncFunction() {
+        compileAttempts++;
+      },
+    });
+    try {
+      vi.resetModules();
+      const mod = await import('../index.js');
+      await mod.init();
+      await mod.execute('(tauri) => tauri.core.invoke("test")');
+      await mod.execute('window.title // a; b');
+      await mod.execute('async function () { return 1 }');
+      expect(compileAttempts).toBe(0);
+    } finally {
+      Object.defineProperty(prototype, 'constructor', original as PropertyDescriptor);
+    }
+  });
+
   it('should call the original invoke with the wrapped script', async () => {
     await execute('(tauri) => tauri.core.invoke("test")');
 
@@ -297,7 +320,6 @@ describe('execute', () => {
     expect(await evalWrapped('return 1 + 1 // note')).toBe(2);
     expect(await evalWrapped('\n  1 + 2\n')).toBe(3);
     expect(await evalWrapped('// heading\n1 + 2')).toBe(3);
-    expect(await evalWrapped('1 + 2 // a; b')).toBe(3);
     expect(await evalWrapped('() => 42 // answer')).toBe(42);
   });
 

@@ -150,7 +150,8 @@ export async function execute(script: string, options?: ExecuteOptions, argsJson
 
   let scriptToSend: string;
 
-  if (isFunctionSource(script)) {
+  // Compiling in the page would report a violation under a Content Security Policy without 'unsafe-eval'
+  if (isFunctionSource(script, { compile: false })) {
     // Scripts get a minimal tauri object: core.invoke, routed to the mocks, is all they use.
     scriptToSend = `
     (async () => {
@@ -190,7 +191,7 @@ export async function execute(script: string, options?: ExecuteOptions, argsJson
     // Using a named function (not an arrow) is required: arrow functions have no arguments object.
     // No conditional async needed — the Tauri IPC always awaits the result.
     const argsArray = argsJson ?? '[]';
-    scriptToSend = `(async function() { ${wrapStringScriptBody(script)}}).apply(null, ${argsArray})`;
+    scriptToSend = `(async function() { ${wrapStringScriptBody(script, { compile: false })}}).apply(null, ${argsArray})`;
   }
 
   const invoke = await getInvoke();
