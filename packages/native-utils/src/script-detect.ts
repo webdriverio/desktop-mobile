@@ -219,7 +219,7 @@ function isExpression(script: string, compiles: Compile): boolean {
   if (inParens === false && compiles(`${script}\n`) === true) {
     return false;
   }
-  // Compiling is blocked, or failed both ways on syntax the app's engine may parse: fall back to keywords and semicolons.
+  // Compiling is blocked, or failed both ways on syntax the app's engine may parse: check keywords and semicolons.
   return (
     s.length > 0 &&
     !/^(?:const|let|var|if|for|while|switch|throw|try|do|return)(?![$\p{ID_Continue}\u200C\u200D])/u.test(s) &&
