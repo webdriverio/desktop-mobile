@@ -208,6 +208,7 @@ describe('isFunctionSource', () => {
     expect(isFunctionSource('τ => 42')).toBe(true);
     expect(isFunctionSource('tauri /* note */ => 42')).toBe(true);
     expect(isFunctionSource('τ + 1')).toBe(false);
+    expect(isFunctionSource('async functioné')).toBe(false);
   });
 
   it('should not take an arrow in a comment for an arrow function', () => {
@@ -272,6 +273,9 @@ describe('wrapStringScriptBody', () => {
 
   it('should not misclassify Unicode identifiers starting with a statement keyword', () => {
     expect(evalBody('returné', { returné: 42 })).toBe(42);
+    expect(evalBody('classé', { classé: 42 })).toBe(42);
+    expect(evalBody('functioné', { functioné: 42 })).toBe(42);
+    expect(evalBody('functionÄ.x', { functionÄ: { x: 42 } })).toBe(42);
   });
 
   it('should evaluate function and class expressions instead of emitting them as declarations', async () => {
@@ -347,6 +351,7 @@ describe('wrapStringScriptBody where compiling is blocked', () => {
       expect(wrap('// title\nwindow.title // note')).toBe('return (// title\nwindow.title // note\n);');
       expect(wrap('return 42')).toBe('return 42\n');
       expect(wrap('a(); b()')).toBe('a(); b()\n');
+      expect(wrap('returné')).toBe('return (returné\n);');
       expect(compileAttempts).toBe(1);
     } finally {
       Object.defineProperty(prototype, 'constructor', original as PropertyDescriptor);

@@ -165,7 +165,7 @@ const IDENTIFIER = /^[$_\p{ID_Start}][$\p{ID_Continue}\u200C\u200D]*/u;
 /** Whether a script is a function's source, which execute calls, rather than code to run as is. */
 export function isFunctionSource(script: string): boolean {
   const s = skipLeadingWhitespaceAndComments(script).trim();
-  if (/^function[\s(]/.test(s) || /^async\s+function\b/.test(s)) {
+  if (/^function[\s(]/.test(s) || /^async\s+function(?![$\p{ID_Continue}\u200C\u200D])/u.test(s)) {
     return true;
   }
   const param = IDENTIFIER.exec(s)?.[0];
@@ -191,7 +191,10 @@ function isExpression(script: string): boolean {
     }
     if (inBrackets === true) {
       // A lone declaration is a statement in a function body, so it returns undefined, as in chromedriver.
-      return !(/^(async\s+function|function|class)(?=[^\w$]|$)/.test(s) && compiles(`${script}\n`) === true);
+      return !(
+        /^(?:async\s+function|function|class)(?![$\p{ID_Continue}\u200C\u200D])/u.test(s) &&
+        compiles(`${script}\n`) === true
+      );
     }
   }
   if (inParens === false && compiles(`${script}\n`) === true) {
@@ -200,7 +203,7 @@ function isExpression(script: string): boolean {
   // The app's engine may parse syntax this runtime can't, so a script that compiles neither way isn't judged here.
   return (
     s.length > 0 &&
-    !/^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(s) &&
+    !/^(?:const|let|var|if|for|while|switch|throw|try|do|return)(?![$\p{ID_Continue}\u200C\u200D])/u.test(s) &&
     !hasSemicolonOutsideQuotes(s)
   );
 }
