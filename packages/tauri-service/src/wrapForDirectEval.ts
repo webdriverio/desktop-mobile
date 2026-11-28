@@ -91,8 +91,8 @@ const PLUGIN_IPC_JS = `if (typeof window.wdioTauri === 'undefined') {
   }
 }`;
 
-// Classified here, where no Content Security Policy blocks compiling, and sent as an `async function`, which the
-// plugin calls with its tauri object first without compiling in the page. A string script's wrapper drops that object.
+// The plugin recognises an `async function` without compiling in the page, and calls it with its tauri object first.
+// So every script is classified here and sent as one; a string script's wrapper drops that object.
 function scriptForPlugin(script: string): string {
   const body = isFunctionSource(script)
     ? `return await (${script}\n).apply(null, arguments);`

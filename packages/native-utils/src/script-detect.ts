@@ -136,12 +136,11 @@ function skipLeadingWhitespaceAndComments(s: string): string {
 
 const AsyncFunction = (async () => {}).constructor as new (body: string) => unknown;
 
-// False once a Content Security Policy without 'unsafe-eval' blocks compiling, so a page logs that violation once
-// rather than on every call.
+// False once compiling is blocked, by a Content Security Policy or Node's --disallow-code-generation-from-strings,
+// so it isn't attempted again.
 let canCompile = true;
 
-// Undefined when the script can't be judged: compiling is blocked, or fails some other way, such as a script nested
-// too deeply for the compiler's stack.
+// Undefined when compiling is blocked or fails another way, as for a script nested too deeply for the compiler.
 function compiles(body: string): boolean | undefined {
   if (!canCompile) {
     return undefined;
@@ -162,8 +161,8 @@ function compiles(body: string): boolean | undefined {
 
 export interface ScriptDetectOptions {
   /**
-   * Whether the script may be compiled, without running it, to tell its parts apart. Defaults to true. Pass false
-   * in an app's page, where a Content Security Policy without 'unsafe-eval' would report the attempt.
+   * Whether to compile the script, without running it, to classify it. Defaults to true. Pass false in an app's
+   * page, where a Content Security Policy without 'unsafe-eval' reports each attempt.
    */
   compile?: boolean;
 }
@@ -189,7 +188,7 @@ export function isFunctionSource(script: string, options?: ScriptDetectOptions):
   const compile = compilerFor(options);
   const asExpression = compile(`return (${s}\n);`);
   if (asExpression === false) {
-    // Statements after the function, as in `function foo() {}\nreturn foo()`, make a body to run as is.
+    // Statements after the function, as in `function foo() {}\nreturn foo()`, make the script a body.
     return compile(`${s}\n`) !== true;
   }
   if (asExpression === undefined || isFunction) {
@@ -204,7 +203,7 @@ function isExpression(script: string, compiles: Compile): boolean {
   const inParens = compiles(`return (${script}\n);`);
   const s = skipLeadingWhitespaceAndComments(script);
   if (inParens === true) {
-    // A script that compiles in parens but not in brackets, such as `1); run(); (2`, closed the parens.
+    // A script that compiles in parens but not in brackets, such as `1); run(); (2`, has closed the parens.
     const inBrackets = compiles(`return [${script}\n];`);
     if (inBrackets === false) {
       return false;
@@ -220,7 +219,7 @@ function isExpression(script: string, compiles: Compile): boolean {
   if (inParens === false && compiles(`${script}\n`) === true) {
     return false;
   }
-  // The app's engine may parse syntax this runtime can't, so a script that compiles neither way isn't judged here.
+  // Compiling is blocked, or failed both ways on syntax the app's engine may parse: fall back to keywords and semicolons.
   return (
     s.length > 0 &&
     !/^(?:const|let|var|if|for|while|switch|throw|try|do|return)(?![$\p{ID_Continue}\u200C\u200D])/u.test(s) &&
@@ -229,11 +228,9 @@ function isExpression(script: string, compiles: Compile): boolean {
 }
 
 /**
- * Wraps a string script as a function body that returns its value. The script runs as an expression
- * when it compiles as one and isn't a lone function or class declaration, and as is otherwise.
- * Where compiling is blocked, or the script compiles neither way, a statement keyword or a top-level semicolon
- * makes it run as is.
- * The newline before each closing bracket ends a trailing `//` comment.
+ * Wraps a string script as a function body that returns its value. An expression is returned, and anything else,
+ * a lone function or class declaration included, runs as is. Where the script can't be compiled, a leading statement
+ * keyword or a top-level semicolon marks it as statements. A trailing `//` comment can't hide the closing bracket.
  */
 export function wrapStringScriptBody(script: string, options?: ScriptDetectOptions): string {
   return isExpression(script, compilerFor(options)) ? `return (${script}\n);` : `${script}\n`;
