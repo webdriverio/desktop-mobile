@@ -20,6 +20,14 @@ Vitest-style mocking, log capture, browser mode, and standalone sessions.
 npm install --save-dev @wdio/electrobun-service
 ```
 
+The service supports WebdriverIO 9.33.0+ and 10.2.0+. To use it standalone, without the test runner, also install `webdriverio`:
+
+```sh
+npm install --save-dev @wdio/electrobun-service webdriverio
+```
+
+Start a standalone session with `startWdioSession()`, and end it with `cleanupWdioSession(browser)`, which runs the service's `after` and `afterSession` hooks, deletes the session and stops the app and driver. `browser.deleteSession()` alone skips that cleanup.
+
 ## Automation coverage (OS × renderer)
 
 Electrobun renders through either the **OS's native webview** (WKWebView on macOS, WebView2 on
@@ -133,7 +141,30 @@ Browser mode also supports the optional **`devServer`** service option — the l
 - `devServer` is service-level only: the service ignores it in a capability.
 - Every capability opens the managed server's URL, in place of its own `devServerUrl`. With the string or object form, set `devServerUrl` in the service options: it is the URL the service waits for.
 - `reuseExistingServer` defaults to reusing a running server locally and always spawning fresh in CI.
-- In standalone mode, pass `devServer` in the global options, `startWdioSession()`'s second argument. A dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
+- In standalone mode, pass `devServer` in the global options, `startWdioSession()`'s second argument. A dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanupWdioSession()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
+
+## Options
+
+Set options on the service, or per capability in `wdio:electrobunServiceOptions`. A capability's value takes precedence over the service's, except for the options marked service level only.
+
+| Option                       | Type                     | Default    | Description                                                                                                                                                                                                              |
+| ---------------------------- | ------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `appBinaryPath`              | `string`                 | —          | The built app: the `.app` bundle on macOS, `…\bin\launcher.exe` on Windows. Required in native mode; the service doesn't detect it.                                                                                      |
+| `appArgs`                    | `string[]`               | `[]`       | Arguments passed to the app.                                                                                                                                                                                             |
+| `env`                        | `Record<string, string>` | —          | Environment variables for the app, merged over the test process's. Ignored on Linux, where WebKitWebDriver launches the app ([#935](https://github.com/webdriverio/desktop-mobile/issues/935)).                          |
+| `mode`                       | `'native' \| 'browser'`  | `'native'` | `'browser'` runs the frontend in Chrome against `devServerUrl`. See [Supported surface](#supported-surface-macos--windows--linux).                                                                                       |
+| `devServerUrl`               | `string`                 | —          | The dev server URL each browser-mode session opens.                                                                                                                                                                      |
+| `devServer`                  | see above                | —          | Starts and stops the dev server in browser mode. Service level only.                                                                                                                                                     |
+| `remoteDebuggingPort`        | `number`                 | `9333`     | The port the launcher tries first: CDP on macOS and Windows, WebKitWebDriver on Linux. If it's taken, including by another instance in the run, the launcher picks a free port. Service level only. Usually unnecessary. |
+| `cdpConnectionTimeout`       | `number`                 | `10000`    | Milliseconds to wait for the CDP port to open, and for each CDP request. macOS and Windows.                                                                                                                              |
+| `cdpConnectionRetryCount`    | `number`                 | `3`        | Times to retry connecting once the CDP port is open. macOS and Windows.                                                                                                                                                  |
+| `cdpConnectionRetryInterval` | `number`                 | `100`      | Milliseconds between those retries. macOS and Windows.                                                                                                                                                                   |
+| `captureBackendLogs`         | `boolean`                | `false`    | Writes the app's stdout and stderr to the WebdriverIO log. macOS and Windows.                                                                                                                                            |
+| `clearMocks`                 | `boolean`                | `false`    | Clears every mock before each test. `clearMocksPrefix` limits it to the mocks under a target path.                                                                                                                       |
+| `resetMocks`                 | `boolean`                | `false`    | Resets every mock before each test. `resetMocksPrefix` limits it to the mocks under a target path.                                                                                                                       |
+| `restoreMocks`               | `boolean`                | `false`    | Restores every mock before each test. `restoreMocksPrefix` limits it to the mocks under a target path.                                                                                                                   |
+
+In multiremote, each instance reads the `cdpConnection*` and mock options from its own `wdio:electrobunServiceOptions`.
 
 ## Known limitations
 

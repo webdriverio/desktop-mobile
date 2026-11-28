@@ -215,7 +215,7 @@ await browser.electron.emitEvent('did-update-info', { status: 'ready' });
 await expect($('#status')).toHaveText('ready');
 ```
 
-`browser.electron.emitEvent()` is mode-agnostic — the same line works in native mode (where it routes through `BrowserWindow.getFocusedWindow()?.webContents.send(channel, ...args)` and reaches the actual renderer) and in browser mode (where it routes through the in-page registry).
+The same `browser.electron.emitEvent()` call works in both modes. In native mode, it sends the event from the main process to the focused window, or the first window if none is focused. In browser mode, it calls the listeners in the in-page registry. See [`emitEvent()`](./api-reference.md#emitevent).
 
 ### `once()` Semantics
 

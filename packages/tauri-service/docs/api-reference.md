@@ -17,6 +17,8 @@ Execute JavaScript code in the Tauri frontend context. Requires tauri-plugin-wdi
 
 **Returns:** `Promise<Awaited<ReturnValue>>`
 
+A function script is serialised and runs in the app, so it can't use the test's variables or call WebdriverIO commands. Pass values in `args`.
+
 With the embedded provider:
 
 - A DOM element or shadow root in the result comes back as a W3C reference, as from `browser.execute()`. Pass it to `browser.$()` to get an element.
@@ -148,23 +150,29 @@ See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 
 ---
 
-### `browser.tauri.isMockFunction(fn)`
+### `browser.tauri.isMockFunction(commandOrFn)`
 
-Check if a value is a Tauri mock function. This is a TypeScript type guard.
+Check whether a command is mocked, or whether a value is a Tauri mock.
 
 **Parameters:**
 
-- `fn` (unknown) - Value to check
+- `commandOrFn` (string | unknown) - A command name, or a value to check
 
-**Returns:** `boolean` (type narrows to `TauriMockInstance` when true)
+**Returns:** `boolean`
+
+- With a command name, `true` while a mock for that command is registered. `mockRestore()` and `restoreAllMocks()` unregister it. In multiremote, an instance checks its own mocks, and the root checks every instance's.
+- With any other value, `true` if it's a Tauri mock. This form is a TypeScript type guard: the type narrows to `TauriMockInstance`.
 
 **Example:**
 
 ```typescript
 const mock = await browser.tauri.mock('clipboard_read');
+
+expect(browser.tauri.isMockFunction('clipboard_read')).toBe(true);
+
 if (browser.tauri.isMockFunction(mock)) {
   // TypeScript knows mock is TauriMockInstance here
-  expect(mock.mock.calls).toHaveLength(1);
+  expect(mock.mock.calls).toHaveLength(0);
 }
 ```
 
@@ -493,6 +501,8 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 
 Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the mock's window like an `execute()` script, and receives the same `{ core: { invoke } }`. The implementation is restored when the callback returns, or when its promise settles.
 
+`implFn` and the callback are serialised and run in the app, so neither can use the test's variables or call WebdriverIO commands.
+
 **Example:**
 
 ```typescript
@@ -527,6 +537,8 @@ These functions are exported from `@wdio/tauri-service` for use in standalone mo
 
 Initialize the Tauri service in standalone mode. Use this when you want to manage the session manually outside of WebdriverIO's lifecycle.
 
+Standalone mode needs `webdriverio` and `@wdio/globals` (9.33.0+ or 10.2.0+) installed next to the service: `npm install --save-dev @wdio/tauri-service webdriverio @wdio/globals`.
+
 **Parameters:**
 
 - `capabilities` (Capabilities) - WebdriverIO capabilities with Tauri options
@@ -537,7 +549,7 @@ Initialize the Tauri service in standalone mode. Use this when you want to manag
 **Example:**
 
 ```typescript
-import { startWdioSession } from '@wdio/tauri-service';
+import { cleanupWdioSession, startWdioSession } from '@wdio/tauri-service';
 
 const browser = await startWdioSession({
   browserName: 'tauri',
@@ -547,12 +559,12 @@ const browser = await startWdioSession({
 });
 
 // Use browser...
-await browser.deleteSession();
+await cleanupWdioSession(browser);
 ```
 
 ### `cleanupWdioSession(browser)`
 
-Clean up a Tauri session started with `startWdioSession`.
+Clean up a Tauri session started with `startWdioSession`: it runs the service's `after` and `afterSession` cleanup, ends the session and stops the driver. Use it instead of `browser.deleteSession()`.
 
 **Parameters:**
 

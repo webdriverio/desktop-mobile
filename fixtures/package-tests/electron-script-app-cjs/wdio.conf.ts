@@ -1,9 +1,8 @@
 import path from 'node:path';
-import type { Options } from '@wdio/types';
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
-export const config: Options.Testrunner = {
+export const config: WebdriverIO.Config = {
   runner: 'local',
   specs: ['./test/**/*.spec.ts'],
   exclude: [],

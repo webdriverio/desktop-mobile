@@ -24,7 +24,7 @@ A Tauri v2 plugin providing execute and mocking capabilities for WebDriverIO tes
 
 ```toml
 [dependencies]
-tauri-plugin-wdio = "1"
+tauri-plugin-wdio = "2"
 ```
 
 ### 2. Register Plugin in Your App
@@ -138,7 +138,7 @@ Clean up invoke interception only.
 
 ### Mocking
 
-Mocking is handled via `@wdio/tauri-service`'s `browser.tauri.mock()` API, which uses JavaScript-side invoke interception (`window.__wdio_mocks__`). See the [Tauri Service API Reference](../packages/tauri-service/docs/api-reference.md) for the full mock API.
+Mocking is handled via `@wdio/tauri-service`'s `browser.tauri.mock()` API, which uses JavaScript-side invoke interception (`window.__wdio_mocks__`). See the [Tauri Service API Reference](../tauri-service/docs/api-reference.md) for the full mock API.
 
 ### Rust Commands
 

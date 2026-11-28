@@ -13,7 +13,7 @@ Solutions for common issues when testing Dioxus applications with WebdriverIO.
 ```toml
 # Cargo.toml
 [dependencies]
-wdio-dioxus = "1"
+wdio-dioxus = "2"
 ```
 
 **Check 2: `install()` called in `main.rs`**
@@ -150,11 +150,13 @@ services: [
 
 **Solution 3: Wait for App to Be Ready**
 
+Wait for the element the test needs before you use it:
+
 ```typescript
 it('should wait for app', async () => {
-  await browser.pause(1000);
-  const element = await browser.$('button');
-  expect(element).toBeDefined();
+  const button = await browser.$('button');
+  await button.waitForDisplayed({ timeout: 10000 });
+  await button.click();
 });
 ```
 
