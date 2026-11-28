@@ -69,13 +69,13 @@ describe('wrapScriptForDirectEval', () => {
     it('should wrap a simple expression', () => {
       const result = wrapScriptForDirectEval('1 + 2', '[]');
       expect(result).toContain('var __cb = arguments[arguments.length - 1]');
-      expect(result).toContain('(async function() { return 1 + 2\n; }).apply(null, __wdio_args)');
+      expect(result).toContain('(async function() { return (1 + 2\n);}).apply(null, __wdio_args)');
       expect(result).toContain('__cb({ ok: true,');
     });
 
     it('should wrap a property access expression', () => {
       const result = wrapScriptForDirectEval('document.title', '[]');
-      expect(result).toContain('(async function() { return document.title\n; }).apply(null, __wdio_args)');
+      expect(result).toContain('(async function() { return (document.title\n);}).apply(null, __wdio_args)');
     });
 
     it('should embed args JSON', () => {
@@ -269,7 +269,11 @@ describe('wrapScriptForWebDriver', () => {
     const outcome = await runInPage(wrapScriptForWebDriver('(tauri, a) => a', [1], 'popup'), window);
 
     expect(outcome).toEqual({ ok: true, value: { from: 'popup' }, undef: false });
-    expect(window.wdioTauri.execute).toHaveBeenCalledWith('(tauri, a) => a', { windowLabel: 'popup' }, '[1]');
+    expect(window.wdioTauri.execute).toHaveBeenCalledWith(
+      expect.stringContaining('(tauri, a) => a'),
+      { windowLabel: 'popup' },
+      '[1]',
+    );
   });
 
   it('should use the plugin when the page has no webview metadata', async () => {
@@ -283,15 +287,17 @@ describe('wrapScriptForWebDriver', () => {
 
   it("should send the label and the plugin's inputs as data, ahead of the user's args", () => {
     expect(wrapScriptForWebDriver('(tauri, a) => a', ['</script>'], 'po"pup').args).toEqual([
-      { label: 'po"pup', script: '(tauri, a) => a', argsJson: '["</script>"]' },
+      { label: 'po"pup', script: expect.stringContaining('(tauri, a) => a'), argsJson: '["</script>"]' },
       ['</script>'],
     ]);
   });
 
-  it('should run a string script that starts with a newline, as a template literal does', async () => {
+  it('should run a string script that starts with a newline or comment, or has a semicolon in a comment', async () => {
     const window = { ...tauriWindow('main', async () => 'ipc'), title: 'My App' };
 
     expect((await runInPage(wrapScriptForWebDriver('\n  window.title\n', []), window)).value).toBe('My App');
+    expect((await runInPage(wrapScriptForWebDriver('// the title\nwindow.title', []), window)).value).toBe('My App');
+    expect((await runInPage(wrapScriptForWebDriver('window.title // a; b', []), window)).value).toBe('My App');
   });
 
   it('should run a function source that ends in a line comment', async () => {
@@ -375,9 +381,31 @@ describe('wrapScriptForPluginIpc', () => {
     const wrapped = wrapScriptForPluginIpc(userScript, '["</script>"]', 'po"pup');
     const outcome = await runInPage(wrapped, window);
 
-    expect(wrapped.args).toEqual([{ label: 'po"pup', script: userScript, argsJson: '["</script>"]' }]);
+    expect(wrapped.args).toEqual([
+      { label: 'po"pup', script: expect.stringContaining(userScript), argsJson: '["</script>"]' },
+    ]);
     expect(outcome).toEqual({ ok: true, value: { from: 'popup' }, undef: false });
-    expect(window.wdioTauri.execute).toHaveBeenCalledWith(userScript, { windowLabel: 'po"pup' }, '["</script>"]');
+    expect(window.wdioTauri.execute).toHaveBeenCalledWith(
+      expect.stringContaining(userScript),
+      { windowLabel: 'po"pup' },
+      '["</script>"]',
+    );
+  });
+
+  it('should send every script as an async function source, which the plugin recognises without compiling', async () => {
+    const window = { title: 'My App', ...tauriWindow('main', async () => undefined) };
+
+    await runInPage(wrapScriptForPluginIpc('window.title // a; b', '[]'), window);
+    await runInPage(wrapScriptForPluginIpc('return arguments[0] + 1', '[41]'), window);
+    await runInPage(wrapScriptForPluginIpc('(tauri, a, b) => [typeof tauri.core, a * b]', '[21, 2]'), window);
+
+    const sent = window.wdioTauri.execute.mock.calls.map(([script]) => script as string);
+    const callAsPlugin = (script: string, ...args: unknown[]) =>
+      vm.runInNewContext(`(${script}\n)`, { window })({ core: {} }, ...args);
+    expect(sent.every((script) => script.startsWith('async function'))).toBe(true);
+    expect(await callAsPlugin(sent[0])).toBe('My App');
+    expect(await callAsPlugin(sent[1], 41)).toBe(42);
+    expect(await callAsPlugin(sent[2], 21, 2)).toEqual(['object', 42]);
   });
 
   it('should leave the window to the plugin when none is chosen', async () => {
@@ -385,7 +413,7 @@ describe('wrapScriptForPluginIpc', () => {
 
     await runInPage(wrapScriptForPluginIpc('() => 1', '[]'), window);
 
-    expect(window.wdioTauri.execute).toHaveBeenCalledWith('() => 1', {}, '[]');
+    expect(window.wdioTauri.execute).toHaveBeenCalledWith(expect.stringContaining('() => 1'), {}, '[]');
   });
 
   it("should report undefined from the plugin's marker", async () => {

@@ -205,6 +205,29 @@ describe('execute', () => {
     await expect(execute('return 1')).rejects.toThrow('window.__TAURI__ is not available');
   });
 
+  it('should never compile a script in the page, where a Content Security Policy would report it', async () => {
+    const prototype = Object.getPrototypeOf(async () => {});
+    const original = Object.getOwnPropertyDescriptor(prototype, 'constructor');
+    let compileAttempts = 0;
+    Object.defineProperty(prototype, 'constructor', {
+      configurable: true,
+      value: function CountingAsyncFunction() {
+        compileAttempts++;
+      },
+    });
+    try {
+      vi.resetModules();
+      const mod = await import('../index.js');
+      await mod.init();
+      await mod.execute('(tauri) => tauri.core.invoke("test")');
+      await mod.execute('window.title // a; b');
+      await mod.execute('async function () { return 1 }');
+      expect(compileAttempts).toBe(0);
+    } finally {
+      Object.defineProperty(prototype, 'constructor', original as PropertyDescriptor);
+    }
+  });
+
   it('should call the original invoke with the wrapped script', async () => {
     await execute('(tauri) => tauri.core.invoke("test")');
 
@@ -267,21 +290,37 @@ describe('execute', () => {
     await execute('$ => $.core.invoke("test")');
 
     const pluginCalls = originalInvoke.mock.calls.filter((call: unknown[]) => call[0] === 'plugin:wdio|execute');
-    expect(pluginCalls[0][1].request.script).toContain('await ($ => $.core.invoke("test"))(__wdio_tauri');
+    expect(pluginCalls[0][1].request.script).toContain('await ($ => $.core.invoke("test")\n)(__wdio_tauri');
   });
 
   it('should route statement-style string scripts to statement path', async () => {
     await execute('return 42');
 
     const pluginCalls = originalInvoke.mock.calls.filter((call: unknown[]) => call[0] === 'plugin:wdio|execute');
-    expect(pluginCalls[0][1].request.script).toContain('(async function() { return 42 }).apply(null, [])');
+    expect(pluginCalls[0][1].request.script).toContain('(async function() { return 42\n}).apply(null, [])');
   });
 
   it('should route expression-style string scripts to expression path', async () => {
     await execute('1 + 2 + 3');
 
     const pluginCalls = originalInvoke.mock.calls.filter((call: unknown[]) => call[0] === 'plugin:wdio|execute');
-    expect(pluginCalls[0][1].request.script).toContain('(async function() { return 1 + 2 + 3; }).apply(null, [])');
+    expect(pluginCalls[0][1].request.script).toContain('(async function() { return (1 + 2 + 3\n);}).apply(null, [])');
+  });
+
+  it('should wrap string and function scripts with comments and leading newlines into valid JS', async () => {
+    const evalWrapped = async (script: string): Promise<unknown> => {
+      originalInvoke.mockClear();
+      await execute(script);
+      const pluginCalls = originalInvoke.mock.calls.filter((call: unknown[]) => call[0] === 'plugin:wdio|execute');
+      const wrapped = pluginCalls[0][1].request.script as string;
+      return new Function(`return ${wrapped}`)();
+    };
+
+    expect(await evalWrapped('1 + 1 // note')).toBe(2);
+    expect(await evalWrapped('return 1 + 1 // note')).toBe(2);
+    expect(await evalWrapped('\n  1 + 2\n')).toBe(3);
+    expect(await evalWrapped('// heading\n1 + 2')).toBe(3);
+    expect(await evalWrapped('() => 42 // answer')).toBe(42);
   });
 
   it('should embed args into string script body so arguments[0] etc. are accessible', async () => {
@@ -307,7 +346,7 @@ describe('execute', () => {
 
     // Should be routed to expression path (wrapped with return)
     const pluginCalls = originalInvoke.mock.calls.filter((call: unknown[]) => call[0] === 'plugin:wdio|execute');
-    expect(pluginCalls[0][1].request.script).toContain('return 1 + 2 + 3');
+    expect(pluginCalls[0][1].request.script).toContain('return (1 + 2 + 3\n);');
     expect(result).toBe(6);
   });
 

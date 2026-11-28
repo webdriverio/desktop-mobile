@@ -499,7 +499,10 @@ describe('execute — external and CrabNebula providers (WebDriver)', () => {
       );
 
       expect(sentScript(browser)).toContain('window.wdioTauri.execute(');
-      expect(sentArgs(browser)).toEqual([{ label: 'popup', script: '(tauri, a) => a', argsJson: '[7]' }, [7]]);
+      expect(sentArgs(browser)).toEqual([
+        { label: 'popup', script: expect.stringContaining('(tauri, a) => a'), argsJson: '[7]' },
+        [7],
+      ]);
     });
 
     it("should send the session's window label after a switch", async () => {
@@ -507,7 +510,10 @@ describe('execute — external and CrabNebula providers (WebDriver)', () => {
 
       await executeWithElementRefs(browser, '() => 1');
 
-      expect(sentArgs(browser)).toEqual([{ label: 'settings', script: '() => 1', argsJson: '[]' }, []]);
+      expect(sentArgs(browser)).toEqual([
+        { label: 'settings', script: expect.stringContaining('() => 1'), argsJson: '[]' },
+        [],
+      ]);
     });
   });
 
@@ -518,7 +524,9 @@ describe('execute — external and CrabNebula providers (WebDriver)', () => {
       await execute(browser, '(tauri, a) => a', 7);
 
       expect(sentScript(browser)).toContain('window.wdioTauri.execute(');
-      expect(sentArgs(browser)).toEqual([{ label: undefined, script: '(tauri, a) => a', argsJson: '[7]' }]);
+      expect(sentArgs(browser)).toEqual([
+        { label: undefined, script: expect.stringContaining('(tauri, a) => a'), argsJson: '[7]' },
+      ]);
     });
 
     it("should send the session's window label after a switch", async () => {
@@ -526,7 +534,9 @@ describe('execute — external and CrabNebula providers (WebDriver)', () => {
 
       await execute(browser, '() => 1');
 
-      expect(sentArgs(browser)).toEqual([{ label: 'settings', script: '() => 1', argsJson: '[]' }]);
+      expect(sentArgs(browser)).toEqual([
+        { label: 'settings', script: expect.stringContaining('() => 1'), argsJson: '[]' },
+      ]);
     });
   });
 

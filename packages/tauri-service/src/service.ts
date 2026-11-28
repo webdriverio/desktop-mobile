@@ -10,10 +10,10 @@ import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@w
 import {
   createLogger,
   errorMessage,
-  hasSemicolonOutsideQuotes,
   installMockSyncOverride,
   isMultiremote,
   waitUntilWindowAvailable,
+  wrapStringScriptBody,
 } from '@wdio/native-utils';
 import { execute, executeWithElementRefs } from './commands/execute.js';
 import {
@@ -652,7 +652,7 @@ export default class TauriWorkerService {
         // Wrap in Promise.resolve to handle both sync and async function return values
         const wrappedScript = `
             ${CONSOLE_WRAPPER_SCRIPT}
-            Promise.resolve((${scriptString}).apply(null, Array.from(arguments).slice(0, arguments.length - 1))).then(
+            Promise.resolve((${scriptString}\n).apply(null, Array.from(arguments).slice(0, arguments.length - 1))).then(
                 (r) => arguments[arguments.length-1](r),
                 (e) => arguments[arguments.length-1]({ __wdio_error__: e instanceof Error ? e.message : String(e) })
             );
@@ -665,15 +665,10 @@ export default class TauriWorkerService {
       } else {
         // For strings: use executeAsyncScript with an explicit done callback
         // WebKit (macOS/iOS Tauri) doesn't auto-await returned Promises - must call callback explicitly
-        const trimmed = scriptString.trim();
-        const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(
-          trimmed,
-        );
-        const wrappedBody =
-          hasStatementKeyword || hasSemicolonOutsideQuotes(trimmed) ? scriptString : `return ${scriptString};`;
+        const wrappedBody = wrapStringScriptBody(scriptString);
         const wrappedScript = `
             ${CONSOLE_WRAPPER_SCRIPT}
-            (async function() { ${wrappedBody} }).apply(null, Array.from(arguments).slice(0, arguments.length - 1)).then(
+            (async function() { ${wrappedBody}}).apply(null, Array.from(arguments).slice(0, arguments.length - 1)).then(
                 (r) => arguments[arguments.length-1](r),
                 (e) => arguments[arguments.length-1]({ __wdio_error__: e instanceof Error ? e.message : String(e) })
             );

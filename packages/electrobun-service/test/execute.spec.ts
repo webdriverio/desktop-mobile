@@ -38,7 +38,7 @@ describe('execute', () => {
 
     await execute(bridge, noNodes, 'document.title');
 
-    expect(send.mock.calls[0][1].expression).toContain('await (async function () { return (document.title\n); })()');
+    expect(send.mock.calls[0][1].expression).toContain('await (async function () { return (document.title\n);})()');
   });
 
   it('should wrap a statement-style string (leading return) as a function body', async () => {
@@ -49,11 +49,14 @@ describe('execute', () => {
     expect(send.mock.calls[0][1].expression).toContain('await (async function () { return 42\n})()');
   });
 
-  it('should return the value of a string script that ends in a line comment', async () => {
+  it('should return the value of a string script with comments or leading newlines', async () => {
     const win: FakeWindow = { title: 'My App' };
 
     expect(await execute(pageBridge(win).bridge, noNodes, 'window.title // the title')).toBe('My App');
     expect(await execute(pageBridge(win).bridge, noNodes, 'return window.title // the title')).toBe('My App');
+    expect(await execute(pageBridge(win).bridge, noNodes, '\n  window.title\n')).toBe('My App');
+    expect(await execute(pageBridge(win).bridge, noNodes, '// the title\nwindow.title')).toBe('My App');
+    expect(await execute(pageBridge(win).bridge, noNodes, 'window.title // a; b')).toBe('My App');
   });
 
   it("should put a string script on the expression's first line, so its errors keep their line numbers", async () => {

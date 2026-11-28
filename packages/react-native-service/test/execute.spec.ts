@@ -69,7 +69,21 @@ describe('executeScript', () => {
   it('should wrap a bare expression string and return its value', async () => {
     const { bridge, send } = fakeBridge({ result: { value: 3 } });
     await expect(executeScript(bridge, '1 + 2')).resolves.toBe(3);
-    expect(lastExpression(send)).toContain('return (1 + 2)');
+    expect(lastExpression(send)).toContain('return (1 + 2\n);');
+  });
+
+  it('should wrap string scripts with comments and leading newlines into valid JS', async () => {
+    const evalScript = async (script: string): Promise<unknown> => {
+      const { bridge, send } = fakeBridge({ result: { value: undefined } });
+      await executeScript(bridge, script);
+      return new Function(`return ${lastExpression(send)}`)();
+    };
+
+    expect(await evalScript('1 + 1 // note')).toBe(2);
+    expect(await evalScript('return 1 + 1 // note')).toBe(2);
+    expect(await evalScript('\n  1 + 2\n')).toBe(3);
+    expect(await evalScript('// heading\n1 + 2')).toBe(3);
+    expect(await evalScript('1 + 2 // a; b')).toBe(3);
   });
 
   it('should run a statement-style string as a function body', async () => {

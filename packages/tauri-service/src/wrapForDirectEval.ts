@@ -1,4 +1,4 @@
-import { hasSemicolonOutsideQuotes, isFunctionSource } from '@wdio/native-utils';
+import { isFunctionSource, wrapStringScriptBody } from '@wdio/native-utils';
 import { RESULT_AS_JSON_JS } from './scripts/result-as-json.js';
 
 /**
@@ -16,12 +16,11 @@ import { RESULT_AS_JSON_JS } from './scripts/result-as-json.js';
  * An older plugin passes only the callback.
  */
 export function wrapScriptForDirectEval(script: string, argsJson: string): string {
-  const trimmed = script.trim();
   const prelude = `var __cb = arguments[arguments.length - 1];
 var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0, -1) : ${argsJson};`;
 
   // The newline before each closing bracket ends a `//` comment at the end of the script
-  if (isFunctionSource(trimmed)) {
+  if (isFunctionSource(script)) {
     return `${prelude}
 (async () => {
   try {
@@ -56,12 +55,7 @@ var __wdio_args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 0
 
   // String scripts cannot receive __wdio_tauri as a named parameter; use window.__TAURI__ directly.
   // Mock routing does not apply here. This matches the IPC path's behaviour for string scripts.
-  const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(trimmed);
-  const hasStatement = hasStatementKeyword || hasSemicolonOutsideQuotes(trimmed);
-  // Trimmed, as a newline right after `return` would end the statement
-  const invocation = hasStatement
-    ? `(async function() { ${trimmed}\n}).apply(null, __wdio_args)`
-    : `(async function() { return ${trimmed}\n; }).apply(null, __wdio_args)`;
+  const invocation = `(async function() { ${wrapStringScriptBody(script)}}).apply(null, __wdio_args)`;
 
   return `${prelude}
 (async () => {
@@ -97,6 +91,15 @@ const PLUGIN_IPC_JS = `if (typeof window.wdioTauri === 'undefined') {
   }
 }`;
 
+// The plugin recognises an `async function` without compiling in the page, and calls it with its tauri object first.
+// So every script is classified here and sent as one; a string script's wrapper drops that object.
+function scriptForPlugin(script: string): string {
+  const body = isFunctionSource(script)
+    ? `return await (${script}\n).apply(null, arguments);`
+    : `return await (async function () { ${wrapStringScriptBody(script)}}).apply(null, Array.prototype.slice.call(arguments, 1));`;
+  return `async function () {\n${body}\n}`;
+}
+
 // For the service's own scripts on the external and CrabNebula providers: they never need element references, and
 // the plugin answers at once in a frame or page without it, where a script run in the page would wait for it.
 // Both wrappers send their inputs inside one object or array argument, as CrabNebula's macOS driver throws on a `null`
@@ -110,7 +113,7 @@ export function wrapScriptForPluginIpc(
     script: `var __wdio_done = arguments[arguments.length - 1];
 var __wdio_in = arguments[0];
 ${PLUGIN_IPC_JS}`,
-    args: [{ label: windowLabel, script, argsJson }],
+    args: [{ label: windowLabel, script: scriptForPlugin(script), argsJson }],
   };
 }
 
@@ -149,6 +152,6 @@ ${inPage('__wdio_userArgs')}
 } else {
 ${PLUGIN_IPC_JS}
 }`,
-    args: [{ label: windowLabel, script, argsJson: JSON.stringify(userArgs) }, userArgs],
+    args: [{ label: windowLabel, script: scriptForPlugin(script), argsJson: JSON.stringify(userArgs) }, userArgs],
   };
 }

@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunAPIs, Result } from '@wdio/native-types';
-import { errorMessage, hasSemicolonOutsideQuotes } from '@wdio/native-utils';
+import { errorMessage, wrapStringScriptBody } from '@wdio/native-utils';
 
 import { STASH_NODES_JS } from './stashNodes.js';
 
@@ -98,23 +98,8 @@ function inlineArgs(args: unknown[]): string {
   return args.map((arg, index) => jsonLiteral(arg, 'browser.electrobun.execute argument', index)).join(', ');
 }
 
-const STATEMENT_KEYWORD = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/;
-
-/**
- * Wrap a string script for `Runtime.evaluate`, mirroring `@wdio/electron-service`:
- * a statement-style script (leading keyword like `return`/`const`, or multiple
- * statements separated by a real `;`) becomes a function body; anything else is
- * treated as an expression and `return`ed. This lets callers write `return 42`,
- * `const x = …; return x`, or a bare `1 + 2` and get the value back either way —
- * matching the convergent execute surface across services.
- */
 function wrapStringScript(script: string): string {
-  const trimmed = script.trim();
-  // The newline ends a `//` comment at the end of the script
-  if (STATEMENT_KEYWORD.test(trimmed) || hasSemicolonOutsideQuotes(trimmed)) {
-    return `(async function () { ${script}\n})()`;
-  }
-  return `(async function () { return (${script}\n); })()`;
+  return `(async function () { ${wrapStringScriptBody(script)}})()`;
 }
 
 /**
@@ -216,7 +201,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   const run =
     typeof script === 'function'
       ? `(async () => {
-          const userFn = (${script.toString()});
+          const userFn = (${script.toString()}\n);
           const eb = window.__WDIO_ELECTROBUN__ || {};
           return await userFn(eb, ${inlineArgs(args)});
         })()`

@@ -18,7 +18,7 @@
 
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ReactNativeAPIs, ReactNativeExecuteOptions } from '@wdio/native-types';
-import { hasSemicolonOutsideQuotes } from '@wdio/native-utils';
+import { wrapStringScriptBody } from '@wdio/native-utils';
 
 /** True for the per-call options object (the `__wdioOptions__` sentinel set by withExecuteOptions). */
 export function isExecuteOptions(arg: unknown): arg is ReactNativeExecuteOptions {
@@ -77,21 +77,8 @@ function inlineArgs(args: unknown[]): string {
   return args.map((arg, index) => jsonLiteral(arg, 'browser.reactNative.execute argument', index)).join(', ');
 }
 
-const STATEMENT_KEYWORD = /^(const|let|var|if|for|while|switch|throw|try|do|return|function)(?=[^\w$]|$)/;
-
-/**
- * Wrap a string script for `Runtime.evaluate`, mirroring the convergent execute
- * surface: a statement-style script (leading `return`/`const`/… or multiple
- * statements) becomes a function body; anything else is treated as an expression
- * and returned. So `return 42`, `const x = …; return x`, and bare `1 + 2` all
- * yield their value.
- */
 function wrapStringScript(script: string): string {
-  const trimmed = script.trim();
-  if (STATEMENT_KEYWORD.test(trimmed) || hasSemicolonOutsideQuotes(trimmed)) {
-    return `(function () { ${script} })()`;
-  }
-  return `(function () { return (${script}); })()`;
+  return `(function () { ${wrapStringScriptBody(script)}})()`;
 }
 
 /**
@@ -146,7 +133,7 @@ export async function executeScript<ReturnValue, InnerArguments extends unknown[
   const expression =
     typeof script === 'function'
       ? `(function () {
-          var userFn = (${script.toString()});
+          var userFn = (${script.toString()}\n);
           var rn = globalThis;
           return userFn(rn, ${inlineArgs(innerArgs)});
         })()`

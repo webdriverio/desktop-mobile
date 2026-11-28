@@ -77,7 +77,7 @@ describe('execute Command', () => {
       arguments: [],
       awaitPromise: true,
       executionContextId: 9999,
-      functionDeclaration: '() => 1 + 2 + 3',
+      functionDeclaration: '() => 1 + 2 + 3\n',
       returnByValue: true,
     });
   });
@@ -128,9 +128,35 @@ describe('execute Command', () => {
     expect(client.send).toHaveBeenCalledWith(
       'Runtime.callFunctionOn',
       expect.objectContaining({
-        functionDeclaration: expect.stringContaining('async function() { const a = 1 }'),
+        functionDeclaration: expect.stringContaining('async function() { const a = 1\n}'),
       }),
     );
+  });
+
+  it('should wrap string scripts with comments and leading newlines into valid JS', async () => {
+    const evalWrapped = async (script: string): Promise<unknown> => {
+      vi.mocked(client.send).mockClear();
+      await execute(globalThis.browser, client, script);
+      const decl = (vi.mocked(client.send).mock.calls[0][1] as { functionDeclaration: string }).functionDeclaration;
+      return new Function(`return (${decl})()`)();
+    };
+
+    expect(await evalWrapped('1 + 1 // note')).toBe(2);
+    expect(await evalWrapped('return 1 + 1 // note')).toBe(2);
+    expect(await evalWrapped('\n  1 + 2\n')).toBe(3);
+    expect(await evalWrapped('// heading\n1 + 2')).toBe(3);
+    expect(await evalWrapped('1 + 2 // a; b')).toBe(3);
+    expect(await evalWrapped('// heading\nreturn 42')).toBe(42);
+    expect(await evalWrapped('(1 + 2) // =>')).toBe(3);
+    expect(await evalWrapped('function foo() { return 42 }\nreturn foo()')).toBe(42);
+  });
+
+  it('should end a function source with a newline, so a trailing // comment closes before the wrapper', async () => {
+    vi.mocked(client.send).mockClear();
+    await execute(globalThis.browser, client, '(electron, a) => a + 1 // note', 41);
+
+    const decl = (vi.mocked(client.send).mock.calls[0][1] as { functionDeclaration: string }).functionDeclaration;
+    expect(new Function(`return (${decl})`)()(41)).toBe(42);
   });
 
   it('should treat semicolon after escaped backslash as real (not skip it)', async () => {
@@ -152,7 +178,7 @@ describe('execute Command', () => {
     expect(client.send).toHaveBeenCalledWith(
       'Runtime.callFunctionOn',
       expect.objectContaining({
-        functionDeclaration: '() => electron.getFunction().call()',
+        functionDeclaration: '() => electron.getFunction().call()\n',
       }),
     );
   });

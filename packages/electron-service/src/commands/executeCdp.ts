@@ -4,7 +4,7 @@ import { createLogger, isMultiremote } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
-import { hasSemicolonOutsideQuotes, hasTopLevelArrow } from '@wdio/native-utils';
+import { hasTopLevelArrow, isFunctionSource, wrapStringScriptBody } from '@wdio/native-utils';
 import { parse, print } from 'recast';
 import type { ElectronCdpBridge } from '../bridge';
 import mockStore from '../mockStore.js';
@@ -51,15 +51,17 @@ export async function execute<ReturnValue, InnerArguments extends unknown[]>(
     // Route function-like strings through recast so the electron param is stripped.
     // Covers: (e, ...args) => ..., async (e, ...args) => ..., function(e) {...}, async function(e) {...}
     const isFunctionLike =
-      /^(async\s+)?function\b/.test(trimmed) ||
-      ((trimmed.startsWith('(') || /^async\s*\(/.test(trimmed)) && hasTopLevelArrow(trimmed));
+      (/^(async\s+)?function\b/.test(trimmed) ||
+        ((trimmed.startsWith('(') || /^async\s*\(/.test(trimmed)) && hasTopLevelArrow(trimmed))) &&
+      isFunctionSource(trimmed);
 
     if (isFunctionLike) {
       // Anonymous function expressions (function(...){}) are only valid in expression context.
       // Babel rejects them at statement level ("Unexpected token"), so wrap in parens first.
       // Named declarations (function foo(...){}) and arrow functions parse fine as-is.
       const needsParens = /^(async\s+)?function\s*\(/.test(trimmed);
-      functionDeclaration = getCachedOrParse(needsParens ? `(${script.trim()})` : script);
+      // The newline ends a `//` comment at the end of the source, which recast keeps
+      functionDeclaration = `${getCachedOrParse(needsParens ? `(${script.trim()}\n)` : script)}\n`;
     } else {
       functionDeclaration = wrapStringScriptForCdp(script);
     }
@@ -100,22 +102,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[]>(
  * Handles statement and expression scripts that would otherwise fail parsing
  */
 function wrapStringScriptForCdp(script: string): string {
-  const trimmed = script.trim();
-
-  // For string scripts, wrap them to avoid parsing errors:
-  // - "function() {}" (recast handles these differently)
-  // - "1 + 2 + 3" (expression - would be called as function)
-  // - "return 42" (statement - parsing error)
-  // - "const x = 1" (statement - parsing error)
-
-  const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(trimmed);
-  const hasRealSemicolon = hasSemicolonOutsideQuotes(trimmed);
-
-  if (hasRealSemicolon || hasStatementKeyword) {
-    return `async function() { ${script} }`;
-  } else {
-    return `async function() { return (${script}) }`;
-  }
+  return `async function() { ${wrapStringScriptBody(script)}}`;
 }
 
 async function syncMockStatus(browser: WebdriverIO.Browser, args: unknown[]) {
